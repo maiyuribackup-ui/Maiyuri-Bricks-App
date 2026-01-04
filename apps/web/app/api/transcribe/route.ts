@@ -1,89 +1,43 @@
 import { NextRequest } from 'next/server';
-import { GoogleGenerativeAI, Part } from '@google/generative-ai';
-import { supabaseAdmin } from '@/lib/supabase';
+import { services } from '@maiyuri/api';
 import { success, error } from '@/lib/api-utils';
 
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '');
-
-// POST /api/transcribe - Transcribe audio file
+// POST /api/transcribe - Transcribe audio file using CloudCore
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { audioUrl, noteId, mimeType = 'audio/mpeg' } = body;
+    const { audioUrl, audioBase64, noteId, mimeType = 'audio/mpeg', language = 'auto' } = body;
 
-    if (!audioUrl) {
-      return error('Audio URL is required', 400);
+    if (!audioUrl && !audioBase64) {
+      return error('Either audioUrl or audioBase64 is required', 400);
     }
 
-    // Fetch the audio file
-    const audioResponse = await fetch(audioUrl);
-    if (!audioResponse.ok) {
-      return error('Failed to fetch audio file', 400);
+    // Use CloudCore's transcription service
+    const result = await services.transcription.transcribe({
+      audioUrl,
+      audioBase64,
+      mimeType,
+      language,
+      summarize: false,
+    });
+
+    if (!result.success || !result.data) {
+      return error(result.error?.message || 'Transcription failed', 500);
     }
 
-    const audioBuffer = await audioResponse.arrayBuffer();
-    const base64Audio = Buffer.from(audioBuffer).toString('base64');
-
-    // Use Gemini 2.5 Flash for transcription
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-preview-05-20' });
-
-    const audioPart: Part = {
-      inlineData: {
-        mimeType: mimeType,
-        data: base64Audio,
-      },
-    };
-
-    const result = await model.generateContent([
-      audioPart,
-      {
-        text: `You are a highly accurate transcription assistant. Please transcribe the audio content accurately.
-
-Instructions:
-1. Transcribe ALL spoken words exactly as heard
-2. Include punctuation and paragraph breaks where appropriate
-3. If there are multiple speakers, try to distinguish them
-4. Include any relevant non-speech sounds in [brackets] if they are important
-5. If any words are unclear, mark them with [inaudible] or [unclear]
-6. Preserve the original language (may be English, Tamil, or mixed)
-
-Return ONLY the transcription text, nothing else. Do not include any explanations or metadata.`,
-      },
-    ]);
-
-    const transcriptionText = result.response.text().trim();
-
-    // Estimate confidence score
-    const hasUnclearMarkers = /\[(inaudible|unclear)\]/i.test(transcriptionText);
-    const confidenceScore = hasUnclearMarkers ? 0.75 : 0.95;
-
-    // Detect language
-    const tamilPattern = /[\u0B80-\u0BFF]/;
-    const hasTamil = tamilPattern.test(transcriptionText);
-    const language = hasTamil ? (transcriptionText.match(/[a-zA-Z]+/g)?.length || 0) > 5 ? 'mixed' : 'ta' : 'en';
-
-    // If noteId provided, update the note with transcription
+    // If noteId provided, save to note using CloudCore (snake_case for database)
     if (noteId) {
-      const { error: updateError } = await supabaseAdmin
-        .from('notes')
-        .update({
-          transcription_text: transcriptionText,
-          confidence_score: confidenceScore,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', noteId);
-
-      if (updateError) {
-        console.error('Failed to update note with transcription:', updateError);
-        // Don't fail the request, just log the error
-      }
+      await services.supabase.updateNote(noteId, {
+        transcription_text: result.data.text,
+        confidence_score: result.data.confidence,
+      });
     }
 
     return success({
-      text: transcriptionText,
-      confidence: confidenceScore,
-      language,
+      text: result.data.text,
+      confidence: result.data.confidence,
+      language: result.data.language,
+      duration: result.data.duration,
       noteId: noteId || null,
     });
   } catch (err) {
@@ -92,7 +46,7 @@ Return ONLY the transcription text, nothing else. Do not include any explanation
   }
 }
 
-// POST /api/transcribe/summarize - Summarize transcription
+// PUT /api/transcribe - Summarize transcription using CloudCore
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
@@ -102,41 +56,23 @@ export async function PUT(request: NextRequest) {
       return error('Text is required for summarization', 400);
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-preview-05-20' });
+    // Use CloudCore's Gemini service for summarization
+    const result = await services.ai.gemini.summarizeTranscription(text);
 
-    const result = await model.generateContent([
-      {
-        text: `Summarize the following conversation/note in 2-3 concise bullet points. Focus on:
-- Key topics discussed
-- Any action items or decisions
-- Important dates, numbers, or commitments mentioned
+    if (!result.success || !result.data) {
+      return error(result.error?.message || 'Summarization failed', 500);
+    }
 
-Text to summarize:
-${text}
-
-Return only the bullet points, nothing else.`,
-      },
-    ]);
-
-    const summary = result.response.text().trim();
-
-    // If noteId provided, update the note with AI summary
+    // If noteId provided, update the note with AI summary (snake_case for database)
     if (noteId) {
-      const { error: updateError } = await supabaseAdmin
-        .from('notes')
-        .update({
-          ai_summary: summary,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', noteId);
-
-      if (updateError) {
-        console.error('Failed to update note with summary:', updateError);
-      }
+      await services.supabase.updateNote(noteId, {
+        ai_summary: result.data.summary,
+      });
     }
 
     return success({
-      summary,
+      summary: result.data.summary,
+      highlights: result.data.highlights,
       noteId: noteId || null,
     });
   } catch (err) {

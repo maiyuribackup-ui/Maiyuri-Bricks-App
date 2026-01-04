@@ -1,11 +1,8 @@
 // @maiyuri/api - API Server Entry Point
 
-import Anthropic from '@anthropic-ai/sdk';
+// Export CloudCore for use in Next.js API routes
+export * from './cloudcore';
 
-// Initialize Anthropic client for AI agents
-const anthropic = new Anthropic();
-
-// Export for use in routes
-export { anthropic };
-
-console.log('Maiyuri Bricks API server starting...');
+// Export CloudCore as default namespace for convenient access
+import { kernels, services, routes, contracts, types } from './cloudcore';
+export const cloudcore = { kernels, services, routes, contracts, types };

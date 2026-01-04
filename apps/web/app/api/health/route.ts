@@ -1,28 +1,35 @@
 import { NextRequest } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { routes } from '@maiyuri/api';
 import { success, error } from '@/lib/api-utils';
 
-// GET /api/health - Health check endpoint
+// GET /api/health - Comprehensive health check using CloudCore
 export async function GET(request: NextRequest) {
   try {
-    // Check database connection
-    const { error: dbError } = await supabaseAdmin
-      .from('users')
-      .select('id')
-      .limit(1);
+    // Use CloudCore's health route for comprehensive check
+    const result = await routes.health.getHealth();
 
-    const dbStatus = dbError ? 'error' : 'healthy';
+    if (!result.success || !result.data) {
+      return error('Health check failed', 500);
+    }
 
-    return success({
-      status: dbStatus === 'healthy' ? 'healthy' : 'degraded',
-      timestamp: new Date().toISOString(),
-      services: {
-        database: dbStatus,
-        api: 'healthy',
-      },
-    });
+    return success(result.data);
   } catch (err) {
     console.error('Health check error:', err);
     return error('Health check failed', 500);
+  }
+}
+
+// GET /api/health/ping - Simple ping check
+export async function HEAD(request: NextRequest) {
+  try {
+    const result = await routes.health.ping();
+
+    if (!result.success) {
+      return new Response(null, { status: 503 });
+    }
+
+    return new Response(null, { status: 200 });
+  } catch (err) {
+    return new Response(null, { status: 503 });
   }
 }
