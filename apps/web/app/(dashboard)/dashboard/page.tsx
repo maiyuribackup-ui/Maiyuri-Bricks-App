@@ -4,6 +4,16 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, Badge, Spinner } from '@maiyuri/ui';
 import Link from 'next/link';
 
+interface AIInsight {
+  id: string;
+  leadId: string;
+  leadName: string;
+  type: 'follow_up' | 'hot_lead' | 'at_risk' | 'recommendation';
+  message: string;
+  priority: 'high' | 'medium' | 'low';
+  aiScore?: number;
+}
+
 interface DashboardStats {
   totalLeads: number;
   hotLeads: number;
@@ -38,6 +48,73 @@ async function fetchRecentLeads() {
   return json.data || [];
 }
 
+async function fetchAIInsights(): Promise<AIInsight[]> {
+  // Fetch leads that need attention based on AI analysis
+  const res = await fetch('/api/leads?limit=10');
+  if (!res.ok) return [];
+  const json = await res.json();
+  const leads = json.data || [];
+
+  // Generate insights from leads
+  const insights: AIInsight[] = [];
+
+  leads.forEach((lead: any) => {
+    // Hot leads that need follow-up
+    if (lead.status === 'hot' && lead.ai_score && lead.ai_score >= 0.7) {
+      insights.push({
+        id: `hot-${lead.id}`,
+        leadId: lead.id,
+        leadName: lead.name,
+        type: 'hot_lead',
+        message: `High conversion probability (${Math.round(lead.ai_score * 100)}%). Prioritize this lead.`,
+        priority: 'high',
+        aiScore: lead.ai_score,
+      });
+    }
+
+    // Follow-up due
+    if (lead.follow_up_date) {
+      const followUpDate = new Date(lead.follow_up_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      followUpDate.setHours(0, 0, 0, 0);
+
+      if (followUpDate <= today && lead.status !== 'converted' && lead.status !== 'lost') {
+        insights.push({
+          id: `followup-${lead.id}`,
+          leadId: lead.id,
+          leadName: lead.name,
+          type: 'follow_up',
+          message: `Follow-up ${followUpDate < today ? 'overdue' : 'due today'}. ${lead.next_action || 'Contact the lead.'}`,
+          priority: followUpDate < today ? 'high' : 'medium',
+          aiScore: lead.ai_score,
+        });
+      }
+    }
+
+    // At-risk leads (low score, not cold/lost)
+    if (lead.ai_score && lead.ai_score < 0.3 && lead.status !== 'cold' && lead.status !== 'lost') {
+      insights.push({
+        id: `risk-${lead.id}`,
+        leadId: lead.id,
+        leadName: lead.name,
+        type: 'at_risk',
+        message: `Low conversion probability (${Math.round(lead.ai_score * 100)}%). Consider re-engagement strategy.`,
+        priority: 'medium',
+        aiScore: lead.ai_score,
+      });
+    }
+  });
+
+  // Sort by priority and limit to 5
+  return insights
+    .sort((a, b) => {
+      const priorityOrder = { high: 0, medium: 1, low: 2 };
+      return priorityOrder[a.priority] - priorityOrder[b.priority];
+    })
+    .slice(0, 5);
+}
+
 const statusLabels: Record<string, string> = {
   new: 'New',
   follow_up: 'Follow Up',
@@ -56,6 +133,11 @@ export default function DashboardPage() {
   const { data: leads, isLoading: leadsLoading } = useQuery({
     queryKey: ['recentLeads'],
     queryFn: fetchRecentLeads,
+  });
+
+  const { data: insights, isLoading: insightsLoading } = useQuery({
+    queryKey: ['aiInsights'],
+    queryFn: fetchAIInsights,
   });
 
   return (
@@ -105,6 +187,79 @@ export default function DashboardPage() {
           color="green"
         />
       </div>
+
+      {/* AI Insights */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <SparklesIcon className="h-5 w-5 text-blue-500" />
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+              AI Insights
+            </h2>
+          </div>
+          <Link
+            href="/coaching"
+            className="text-sm font-medium text-blue-600 hover:text-blue-500"
+          >
+            View coaching
+          </Link>
+        </div>
+
+        {insightsLoading ? (
+          <div className="flex justify-center py-8">
+            <Spinner size="lg" />
+          </div>
+        ) : insights && insights.length > 0 ? (
+          <div className="space-y-3">
+            {insights.map((insight) => (
+              <Link
+                key={insight.id}
+                href={`/leads/${insight.leadId}`}
+                className="block p-4 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                <div className="flex items-start gap-3">
+                  <InsightIcon type={insight.type} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-slate-900 dark:text-white truncate">
+                        {insight.leadName}
+                      </span>
+                      <Badge
+                        variant={
+                          insight.priority === 'high' ? 'danger' :
+                          insight.priority === 'medium' ? 'warning' : 'default'
+                        }
+                      >
+                        {insight.priority}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                      {insight.message}
+                    </p>
+                  </div>
+                  {insight.aiScore !== undefined && (
+                    <div className="text-right shrink-0">
+                      <span className={`text-lg font-bold ${
+                        insight.aiScore >= 0.7 ? 'text-green-600' :
+                        insight.aiScore >= 0.4 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {Math.round(insight.aiScore * 100)}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <SparklesIcon className="h-8 w-8 mx-auto text-slate-300 dark:text-slate-600" />
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              No AI insights yet. Start adding leads and analyzing them to see recommendations.
+            </p>
+          </div>
+        )}
+      </Card>
 
       {/* Recent Leads */}
       <Card className="p-6">
@@ -271,6 +426,56 @@ function CheckIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+}
+
+function SparklesIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+    </svg>
+  );
+}
+
+function InsightIcon({ type }: { type: 'follow_up' | 'hot_lead' | 'at_risk' | 'recommendation' }) {
+  const icons = {
+    follow_up: (
+      <div className="w-8 h-8 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
+        <ClockIcon className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+      </div>
+    ),
+    hot_lead: (
+      <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+        <FireIcon className="h-4 w-4 text-red-600 dark:text-red-400" />
+      </div>
+    ),
+    at_risk: (
+      <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+        <ExclamationIcon className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+      </div>
+    ),
+    recommendation: (
+      <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+        <LightbulbIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+      </div>
+    ),
+  };
+  return icons[type] || icons.recommendation;
+}
+
+function ExclamationIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+    </svg>
+  );
+}
+
+function LightbulbIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
     </svg>
   );
 }

@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Card, Button, Badge, Spinner, Modal } from '@maiyuri/ui';
 import { createNoteSchema, type CreateNoteInput, type Lead, type Note, type LeadStatus } from '@maiyuri/shared';
+import { AIAnalysisPanel } from '@/components/leads';
 import Link from 'next/link';
 
 const statusLabels: Record<LeadStatus, string> = {
@@ -45,12 +46,6 @@ async function updateLeadStatus(id: string, status: LeadStatus) {
 async function deleteLead(id: string) {
   const res = await fetch(`/api/leads/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete lead');
-  return res.json();
-}
-
-async function analyzeLead(id: string) {
-  const res = await fetch(`/api/leads/${id}/analyze`, { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to analyze lead');
   return res.json();
 }
 
@@ -98,13 +93,6 @@ export default function LeadDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       router.push('/leads');
-    },
-  });
-
-  const analyzeMutation = useMutation({
-    mutationFn: () => analyzeLead(leadId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lead', leadId] });
     },
   });
 
@@ -303,65 +291,13 @@ export default function LeadDetailPage() {
             </div>
           </Card>
 
-          {/* AI Score Card */}
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                AI Score
-              </h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => analyzeMutation.mutate()}
-                disabled={analyzeMutation.isPending}
-              >
-                {analyzeMutation.isPending ? (
-                  <Spinner size="sm" />
-                ) : (
-                  <SparklesIcon className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            {lead.ai_score !== null && lead.ai_score !== undefined ? (
-              <div className="text-center">
-                <div className={`text-4xl font-bold ${
-                  lead.ai_score >= 0.7 ? 'text-green-600' :
-                  lead.ai_score >= 0.4 ? 'text-yellow-600' : 'text-red-600'
-                }`}>
-                  {Math.round(lead.ai_score * 100)}%
-                </div>
-                <p className="text-sm text-slate-500 mt-1">
-                  {lead.ai_score >= 0.7 ? 'High probability' :
-                   lead.ai_score >= 0.4 ? 'Medium probability' : 'Low probability'}
-                </p>
-              </div>
-            ) : (
-              <div className="text-center">
-                <p className="text-slate-500 text-sm mb-3">
-                  No AI score yet
-                </p>
-                <Button
-                  size="sm"
-                  onClick={() => analyzeMutation.mutate()}
-                  disabled={analyzeMutation.isPending}
-                >
-                  {analyzeMutation.isPending ? 'Analyzing...' : 'Generate Score'}
-                </Button>
-              </div>
-            )}
-          </Card>
-
-          {/* AI Summary Card */}
-          {lead.ai_summary && (
-            <Card className="p-6">
-              <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
-                AI Summary
-              </h3>
-              <p className="text-sm text-slate-600 dark:text-slate-300">
-                {lead.ai_summary}
-              </p>
-            </Card>
-          )}
+          {/* AI Analysis Panel */}
+          <AIAnalysisPanel
+            lead={lead}
+            onAnalysisComplete={() => {
+              queryClient.invalidateQueries({ queryKey: ['lead', leadId] });
+            }}
+          />
 
           {/* Details Card */}
           <Card className="p-6">
@@ -443,14 +379,6 @@ function TrashIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-    </svg>
-  );
-}
-
-function SparklesIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
     </svg>
   );
 }
