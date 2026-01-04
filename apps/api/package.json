@@ -9,8 +9,8 @@
     "start": "bun dist/index.js",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --ext .ts",
-    "lint:fix": "eslint . --ext .ts --fix"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.12",

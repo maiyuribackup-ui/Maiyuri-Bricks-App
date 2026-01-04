@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design Tokens */
+:root {
+  /* Colors */
+  --color-primary: 59 130 246; /* blue-500 */
+  --color-primary-dark: 37 99 235; /* blue-600 */
+  --color-secondary: 100 116 139; /* slate-500 */
+  --color-success: 34 197 94; /* green-500 */
+  --color-warning: 234 179 8; /* yellow-500 */
+  --color-danger: 239 68 68; /* red-500 */
+
+  /* Backgrounds */
+  --color-bg: 255 255 255;
+  --color-bg-secondary: 248 250 252; /* slate-50 */
+  --color-bg-card: 255 255 255;
+
+  /* Text */
+  --color-text: 15 23 42; /* slate-900 */
+  --color-text-secondary: 100 116 139; /* slate-500 */
+  --color-text-muted: 148 163 184; /* slate-400 */
+
+  /* Borders */
+  --color-border: 226 232 240; /* slate-200 */
+
+  /* Status colors */
+  --status-new: 59 130 246; /* blue */
+  --status-follow-up: 234 179 8; /* yellow */
+  --status-hot: 239 68 68; /* red */
+  --status-cold: 100 116 139; /* slate */
+  --status-converted: 34 197 94; /* green */
+  --status-lost: 107 114 128; /* gray */
+}
+
+.dark {
+  --color-bg: 15 23 42; /* slate-900 */
+  --color-bg-secondary: 30 41 59; /* slate-800 */
+  --color-bg-card: 30 41 59;
+  --color-text: 248 250 252; /* slate-50 */
+  --color-text-secondary: 148 163 184; /* slate-400 */
+  --color-border: 51 65 85; /* slate-700 */
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50;
+  }
+}
+
+@layer components {
+  /* Card styles */
+  .card {
+    @apply bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm;
+  }
+
+  /* Lead status badges */
+  .status-new {
+    @apply bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400;
+  }
+  .status-follow_up {
+    @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400;
+  }
+  .status-hot {
+    @apply bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400;
+  }
+  .status-cold {
+    @apply bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300;
+  }
+  .status-converted {
+    @apply bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400;
+  }
+  .status-lost {
+    @apply bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400;
+  }
+
+  /* Confidence score indicator */
+  .confidence-high {
+    @apply text-green-600 dark:text-green-400;
+  }
+  .confidence-medium {
+    @apply text-yellow-600 dark:text-yellow-400;
+  }
+  .confidence-low {
+    @apply text-red-600 dark:text-red-400;
+  }
+}
+
+@layer utilities {
+  /* Custom scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--color-border)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--color-border));
+    border-radius: 3px;
+  }
+}
