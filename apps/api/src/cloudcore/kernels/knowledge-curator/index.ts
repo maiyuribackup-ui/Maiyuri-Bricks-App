@@ -159,7 +159,7 @@ export async function searchKnowledge(
   return embeddings.searchKnowledge({
     query,
     limit: options?.limit || 5,
-    threshold: options?.threshold || 0.7,
+    threshold: options?.threshold || 0.5,
   });
 }
 
@@ -177,7 +177,7 @@ export async function searchNotes(
   return embeddings.searchNotes({
     query,
     limit: options?.limit || 10,
-    threshold: options?.threshold || 0.7,
+    threshold: options?.threshold || 0.5,
     filters: {
       leadId: options?.leadId,
     },
@@ -205,23 +205,23 @@ export async function answerQuestion(
     const maxSources = options?.maxSources || 5;
     const sources: SemanticSearchResult[] = [];
 
-    // Search knowledge base
+    // Search knowledge base (threshold 0.5 for better recall)
     const knowledgeResults = await embeddings.searchKnowledge({
       query: question,
       limit: maxSources,
-      threshold: 0.7,
+      threshold: 0.5,
     });
 
     if (knowledgeResults.success && knowledgeResults.data) {
       sources.push(...knowledgeResults.data);
     }
 
-    // Optionally search notes
+    // Optionally search notes (threshold 0.5 for better recall)
     if (options?.includeNotes) {
       const notesResults = await embeddings.searchNotes({
         query: question,
         limit: maxSources,
-        threshold: 0.7,
+        threshold: 0.5,
         filters: {
           leadId: options.leadId,
         },

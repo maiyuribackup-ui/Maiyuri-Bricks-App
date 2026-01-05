@@ -173,7 +173,7 @@ export const KnowledgeEntrySchema = z.object({
 export const SemanticSearchRequestSchema = z.object({
   query: z.string().min(1).max(1000),
   limit: z.number().int().positive().max(50).default(10),
-  threshold: z.number().min(0).max(1).default(0.7),
+  threshold: z.number().min(0).max(1).default(0.5), // Lower threshold for better recall
   filters: z
     .object({
       leadId: UUIDSchema.optional(),

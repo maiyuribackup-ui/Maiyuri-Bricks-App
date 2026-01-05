@@ -164,7 +164,7 @@ export async function searchNotes(
 
     const queryEmbedding = embeddingResult.data.vector;
     const limit = request.limit || 10;
-    const threshold = request.threshold || 0.7;
+    const threshold = request.threshold || 0.5;
 
     // Search using pgvector
     const { data, error } = await supabase.rpc('match_notes', {
@@ -237,7 +237,7 @@ export async function searchKnowledge(
 
     const queryEmbedding = embeddingResult.data.vector;
     const limit = request.limit || 10;
-    const threshold = request.threshold || 0.7;
+    const threshold = request.threshold || 0.5;
 
     // Search using pgvector
     const { data, error } = await supabase.rpc('match_knowledgebase', {
