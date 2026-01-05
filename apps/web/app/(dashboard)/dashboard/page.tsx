@@ -372,8 +372,8 @@ function StatCard({
   return (
     <Card className="p-6">
       <div className="flex items-center gap-4">
-        <div className={`rounded-lg p-3 ${colorClasses[color]}`}>
-          <Icon className="h-6 w-6" />
+        <div className={`rounded-lg p-2.5 ${colorClasses[color]}`}>
+          <Icon className="h-5 w-5" />
         </div>
         <div>
           <p className="text-sm font-medium text-slate-500 dark:text-slate-400">

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { cn } from '@maiyuri/ui';
 
 interface TeamMember {
@@ -31,10 +32,57 @@ interface TeamCoaching {
 }
 
 export default function CoachingPage() {
+  return (
+    <Suspense fallback={<CoachingLoadingFallback />}>
+      <CoachingContent />
+    </Suspense>
+  );
+}
+
+function CoachingLoadingFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-96">
+      <div className="text-center">
+        <LoadingSpinner className="h-8 w-8 mx-auto text-blue-600" />
+        <p className="mt-4 text-slate-500 dark:text-slate-400">Loading coaching insights...</p>
+      </div>
+    </div>
+  );
+}
+
+function CoachingContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [coaching, setCoaching] = useState<TeamCoaching | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedMember, setSelectedMember] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'team' | 'individual'>('team');
+
+  // Read selected member from URL search params for persistence
+  const selectedMember = searchParams.get('member');
+  const activeView = searchParams.get('view') === 'individual' ? 'individual' : 'team';
+
+  // Update URL when member is selected
+  const setSelectedMember = useCallback((memberId: string | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (memberId) {
+      params.set('member', memberId);
+      params.set('view', 'individual');
+    } else {
+      params.delete('member');
+    }
+    router.push(`/coaching?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
+
+  // Update URL when view changes
+  const setActiveView = useCallback((view: 'team' | 'individual') => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (view === 'individual') {
+      params.set('view', 'individual');
+    } else {
+      params.delete('view');
+      params.delete('member');
+    }
+    router.push(`/coaching?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
 
   const fetchCoaching = useCallback(async () => {
     setIsLoading(true);
@@ -206,7 +254,7 @@ export default function CoachingPage() {
               Select Team Member
             </label>
             <select
-              value={selectedMember || ''}
+              value={selectedMember ?? ''}
               onChange={(e) => setSelectedMember(e.target.value || null)}
               className="w-full max-w-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2 text-slate-900 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
             >

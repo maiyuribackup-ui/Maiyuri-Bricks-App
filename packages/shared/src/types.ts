@@ -4,6 +4,17 @@ export type LeadStatus = 'new' | 'follow_up' | 'hot' | 'cold' | 'converted' | 'l
 
 export type UserRole = 'founder' | 'accountant' | 'engineer';
 
+export interface AIFactor {
+  factor: string;
+  impact: 'positive' | 'negative' | 'neutral';
+}
+
+export interface AISuggestionItem {
+  type: string;
+  content: string;
+  priority: 'high' | 'medium' | 'low';
+}
+
 export interface Lead {
   id: string;
   name: string;
@@ -14,6 +25,8 @@ export interface Lead {
   status: LeadStatus;
   ai_summary?: string | null;
   ai_score?: number | null;
+  ai_factors?: AIFactor[] | null;
+  ai_suggestions?: AISuggestionItem[] | null;
   next_action?: string | null;
   follow_up_date?: string | null;
   created_at: string;

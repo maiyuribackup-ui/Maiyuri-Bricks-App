@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@maiyuri/ui';
@@ -18,14 +19,89 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="relative z-50 lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-900/80"
+            onClick={() => setSidebarOpen(false)}
+          />
+
+          {/* Sidebar panel */}
+          <div className="fixed inset-0 flex">
+            <div className="relative flex w-full max-w-xs flex-1">
+              {/* Close button */}
+              <div className="absolute right-0 top-0 flex w-16 justify-center pt-5">
+                <button
+                  type="button"
+                  className="-m-2.5 p-2.5"
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <span className="sr-only">Close sidebar</span>
+                  <XIcon className="h-6 w-6 text-white" />
+                </button>
+              </div>
+
+              {/* Sidebar content */}
+              <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white dark:bg-slate-800 px-6 pb-4">
+                <div className="flex h-16 shrink-0 items-center">
+                  <span className="text-xl font-bold text-slate-900 dark:text-white">
+                    Maiyuri Bricks
+                  </span>
+                </div>
+                <nav className="flex flex-1 flex-col">
+                  <ul role="list" className="flex flex-1 flex-col gap-y-7">
+                    <li>
+                      <ul role="list" className="-mx-2 space-y-1">
+                        {navigation.map((item) => {
+                          const isActive = pathname === item.href ||
+                            (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                          return (
+                            <li key={item.name}>
+                              <Link
+                                href={item.href}
+                                onClick={() => setSidebarOpen(false)}
+                                className={cn(
+                                  'group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6',
+                                  isActive
+                                    ? 'bg-slate-100 dark:bg-slate-700 text-blue-600 dark:text-blue-400'
+                                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-blue-600'
+                                )}
+                              >
+                                <item.icon
+                                  className={cn(
+                                    'h-6 w-6 shrink-0',
+                                    isActive
+                                      ? 'text-blue-600 dark:text-blue-400'
+                                      : 'text-slate-400 group-hover:text-blue-600'
+                                  )}
+                                />
+                                {item.name}
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </li>
+                  </ul>
+                </nav>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile header */}
       <header className="lg:hidden sticky top-0 z-40 flex items-center gap-x-4 bg-white dark:bg-slate-800 px-4 py-4 shadow-sm border-b border-slate-200 dark:border-slate-700">
         <button
           type="button"
           className="p-2.5 text-slate-700 dark:text-slate-200"
+          onClick={() => setSidebarOpen(true)}
           aria-label="Open sidebar"
         >
           <MenuIcon className="h-6 w-6" />
@@ -122,6 +198,14 @@ function MenuIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+    </svg>
+  );
+}
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
     </svg>
   );
 }

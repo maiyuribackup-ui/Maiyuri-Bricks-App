@@ -33,7 +33,20 @@ async function analyzeLead(id: string): Promise<{ success: boolean; data?: { lea
   return res.json();
 }
 
-async function predictConversion(leadId: string): Promise<{ success: boolean; data?: { probability: number; confidence: number; factors: string[] } }> {
+interface PredictionFactor {
+  name: string;
+  value: number;
+  impact: 'positive' | 'negative' | 'neutral';
+  weight: number;
+}
+
+interface PredictionResult {
+  probability: number;
+  confidence: number;
+  factors: PredictionFactor[];
+}
+
+async function predictConversion(leadId: string): Promise<{ success: boolean; data?: PredictionResult }> {
   const res = await fetch('/api/predict', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -46,7 +59,7 @@ async function predictConversion(leadId: string): Promise<{ success: boolean; da
 export function AIAnalysisPanel({ lead, onAnalysisComplete }: AIAnalysisPanelProps) {
   const queryClient = useQueryClient();
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-  const [predictionResult, setPredictionResult] = useState<{ probability: number; confidence: number; factors: string[] } | null>(null);
+  const [predictionResult, setPredictionResult] = useState<PredictionResult | null>(null);
   const [showDetails, setShowDetails] = useState(false);
 
   const analyzeMutation = useMutation({
@@ -285,7 +298,15 @@ export function AIAnalysisPanel({ lead, onAnalysisComplete }: AIAnalysisPanelPro
                 </h4>
                 <div className="flex flex-wrap gap-1">
                   {predictionResult.factors.map((factor, idx) => (
-                    <Badge key={idx} variant="default">{factor}</Badge>
+                    <Badge
+                      key={idx}
+                      variant={
+                        factor.impact === 'positive' ? 'success' :
+                        factor.impact === 'negative' ? 'danger' : 'default'
+                      }
+                    >
+                      {factor.name}
+                    </Badge>
                   ))}
                 </div>
               </div>

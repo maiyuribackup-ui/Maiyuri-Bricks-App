@@ -56,8 +56,8 @@ export const ClaudeModels = {
 } as const;
 
 export const GeminiModels = {
-  FLASH: 'gemini-2.5-flash-preview-05-20',
-  PRO: 'gemini-2.5-pro-preview-05-06',
+  FLASH: 'gemini-2.5-flash',
+  PRO: 'gemini-2.5-pro',
 } as const;
 
 // ============================================

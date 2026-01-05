@@ -171,6 +171,8 @@ export async function updateLeadAI(
   aiFields: {
     ai_summary?: string;
     ai_score?: number;
+    ai_factors?: { factor: string; impact: 'positive' | 'negative' | 'neutral' }[];
+    ai_suggestions?: { type: string; content: string; priority: 'high' | 'medium' | 'low' }[];
     next_action?: string;
     follow_up_date?: string;
   }

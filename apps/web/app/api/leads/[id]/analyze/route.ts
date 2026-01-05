@@ -29,10 +29,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return error(result.error?.message || 'Analysis failed', 500);
     }
 
-    // Update lead with AI insights (using snake_case for database)
+    // Map factors to the database format
+    const aiFactors = result.data.score?.factors?.map((f) => ({
+      factor: f.name,
+      impact: f.impact as 'positive' | 'negative' | 'neutral',
+    }));
+
+    // Map suggestions to the database format
+    const aiSuggestions = result.data.suggestions?.items?.map((s) => ({
+      type: s.type,
+      content: s.content,
+      priority: s.priority as 'high' | 'medium' | 'low',
+    }));
+
+    // Update lead with full AI insights (using snake_case for database)
     const updateResult = await services.supabase.updateLeadAI(id, {
       ai_summary: result.data.summary?.text,
       ai_score: result.data.score?.value,
+      ai_factors: aiFactors,
+      ai_suggestions: aiSuggestions,
       next_action: result.data.suggestions?.nextBestAction,
       follow_up_date: result.data.suggestions?.suggestedFollowUpDate,
     });
