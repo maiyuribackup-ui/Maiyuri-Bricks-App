@@ -240,7 +240,7 @@ export async function searchKnowledge(
     const threshold = request.threshold || 0.7;
 
     // Search using pgvector
-    const { data, error } = await supabase.rpc('match_knowledge', {
+    const { data, error } = await supabase.rpc('match_knowledgebase', {
       query_embedding: queryEmbedding,
       match_threshold: threshold,
       match_count: limit,

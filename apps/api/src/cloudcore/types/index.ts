@@ -28,6 +28,7 @@ export interface ResultMeta {
   processingTime: number;
   usage?: TokenUsage;
   cached?: boolean;
+  [key: string]: unknown; // Allow additional custom metadata
 }
 
 export interface TokenUsage {

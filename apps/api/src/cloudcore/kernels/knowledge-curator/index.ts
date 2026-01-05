@@ -6,6 +6,7 @@
 
 import * as gemini from '../../services/ai/gemini';
 import * as embeddings from '../../services/embeddings';
+import * as scraper from '../../services/scraper';
 import { supabase } from '../../services/supabase';
 import type {
   CloudCoreResult,
@@ -14,6 +15,7 @@ import type {
   SemanticSearchRequest,
   SemanticSearchResult,
 } from '../../types';
+import type { ScrapeOptions, ScrapedPage } from '../../services/scraper';
 
 export const KERNEL_CONFIG = {
   name: 'KnowledgeCurator',
@@ -530,6 +532,166 @@ export async function backfillEmbeddings(
   }
 }
 
+/**
+ * Scrape a website and ingest content into knowledge base
+ */
+export interface ScrapeResult {
+  pagesScraped: number;
+  entriesCreated: number;
+  errors: string[];
+  entries: KnowledgeEntry[];
+}
+
+export async function scrapeWebsite(
+  url: string,
+  options?: ScrapeOptions & { category?: string; tags?: string[] }
+): Promise<CloudCoreResult<ScrapeResult>> {
+  const startTime = Date.now();
+  const result: ScrapeResult = {
+    pagesScraped: 0,
+    entriesCreated: 0,
+    errors: [],
+    entries: [],
+  };
+
+  try {
+    console.log(`[KnowledgeCurator] Starting website scrape: ${url}`);
+
+    // Crawl the website
+    const crawlResult = await scraper.crawlWebsite(url, options);
+
+    if (!crawlResult.success || !crawlResult.data) {
+      return {
+        success: false,
+        data: null,
+        error: crawlResult.error || { code: 'CRAWL_ERROR', message: 'Failed to crawl website' },
+      };
+    }
+
+    const pages = crawlResult.data;
+    result.pagesScraped = pages.length;
+    console.log(`[KnowledgeCurator] Scraped ${pages.length} pages`);
+
+    // Ingest each page into knowledge base
+    for (const page of pages) {
+      try {
+        // Skip pages with very little content
+        if (page.content.length < 200) {
+          console.log(`[KnowledgeCurator] Skipping ${page.url} - insufficient content`);
+          continue;
+        }
+
+        // Truncate very long content
+        const content = page.content.length > 10000
+          ? page.content.slice(0, 10000) + '...'
+          : page.content;
+
+        const ingestResult = await ingest({
+          content: `Page: ${page.title}\nURL: ${page.url}\n\n${content}`,
+          title: page.title,
+          category: options?.category || 'Website',
+          tags: options?.tags || ['scraped', new URL(url).hostname],
+        });
+
+        if (ingestResult.success && ingestResult.data) {
+          result.entriesCreated++;
+          result.entries.push(ingestResult.data);
+          console.log(`[KnowledgeCurator] Created entry for: ${page.title}`);
+        } else {
+          result.errors.push(`Failed to ingest ${page.url}: ${ingestResult.error?.message}`);
+        }
+      } catch (pageError) {
+        result.errors.push(
+          `Error processing ${page.url}: ${pageError instanceof Error ? pageError.message : 'Unknown error'}`
+        );
+      }
+    }
+
+    return {
+      success: true,
+      data: result,
+      meta: {
+        processingTime: Date.now() - startTime,
+        pagesVisited: crawlResult.meta?.pagesVisited,
+      },
+    };
+  } catch (error) {
+    console.error('[KnowledgeCurator] Scrape error:', error);
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: 'SCRAPE_ERROR',
+        message: error instanceof Error ? error.message : 'Website scraping failed',
+      },
+    };
+  }
+}
+
+/**
+ * Scrape a single URL and ingest
+ */
+export async function scrapeUrl(
+  url: string,
+  options?: { category?: string; tags?: string[] }
+): Promise<CloudCoreResult<KnowledgeEntry>> {
+  const startTime = Date.now();
+
+  try {
+    const result = await scraper.scrapeUrl(url);
+
+    if (!result.success || !result.data) {
+      return {
+        success: false,
+        data: null,
+        error: result.error || { code: 'SCRAPE_ERROR', message: 'Failed to scrape URL' },
+      };
+    }
+
+    const page = result.data;
+
+    if (page.content.length < 100) {
+      return {
+        success: false,
+        data: null,
+        error: { code: 'NO_CONTENT', message: 'Page has insufficient content' },
+      };
+    }
+
+    // Truncate very long content
+    const content = page.content.length > 10000
+      ? page.content.slice(0, 10000) + '...'
+      : page.content;
+
+    const ingestResult = await ingest({
+      content: `Page: ${page.title}\nURL: ${page.url}\n\n${content}`,
+      title: page.title,
+      category: options?.category || 'Website',
+      tags: options?.tags || ['scraped', new URL(url).hostname],
+    });
+
+    if (!ingestResult.success) {
+      return ingestResult;
+    }
+
+    return {
+      success: true,
+      data: ingestResult.data,
+      meta: { processingTime: Date.now() - startTime },
+    };
+  } catch (error) {
+    console.error('[KnowledgeCurator] Single URL scrape error:', error);
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: 'SCRAPE_ERROR',
+        message: error instanceof Error ? error.message : 'URL scraping failed',
+      },
+    };
+  }
+}
+
 export default {
   ingest,
   search,
@@ -540,5 +702,7 @@ export default {
   updateEntry,
   deleteEntry,
   backfillEmbeddings,
+  scrapeWebsite,
+  scrapeUrl,
   KERNEL_CONFIG,
 };
