@@ -178,6 +178,7 @@ export interface SemanticSearchRequest {
     dateFrom?: string;
     dateTo?: string;
     sourceTypes?: ('note' | 'lead' | 'knowledge')[];
+    metadata?: Record<string, unknown>;
   };
 }
 
@@ -185,6 +186,7 @@ export interface SemanticSearchResult {
   id: string;
   content: string;
   score: number;
+  relevanceScore?: number; // Added by LLM re-ranking
   sourceType: 'note' | 'lead' | 'knowledge';
   sourceId: string;
   metadata?: Record<string, unknown>;
@@ -196,6 +198,8 @@ export interface KnowledgeIngestionRequest {
   sourceLeadId?: string;
   category?: string;
   tags?: string[];
+  contentType?: 'transcript' | 'objection' | 'faq' | 'manual' | 'document';
+  metadata?: Record<string, unknown>;
 }
 
 export interface KnowledgeEntry {
@@ -207,6 +211,8 @@ export interface KnowledgeEntry {
   sourceLeadId?: string;
   category?: string;
   tags?: string[];
+  contentType?: 'transcript' | 'objection' | 'faq' | 'manual' | 'document';
+  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
@@ -341,4 +347,130 @@ export interface ConversationMessage {
   content: string;
   timestamp: string;
   metadata?: Record<string, unknown>;
+}
+
+// ============================================
+// KPI Scorer Kernel Types
+// ============================================
+
+export type KPICategory = 'lead' | 'staff' | 'business';
+export type KPITimeRange = 'day' | 'week' | 'month' | 'quarter';
+export type KPITrend = 'up' | 'stable' | 'down';
+export type KPIAlertSeverity = 'critical' | 'warning' | 'info';
+export type KPIUrgency = 'high' | 'medium' | 'low';
+
+export interface KPIFactor {
+  name: string;
+  impact: 'positive' | 'negative' | 'neutral';
+  weight: number;
+  currentValue: number;
+  targetValue?: number;
+  description: string;
+}
+
+export interface KPIScore {
+  category: KPICategory;
+  value: number; // 0-100 score
+  trend: KPITrend;
+  confidence: number; // 0-1 AI confidence
+  factors: KPIFactor[];
+  generatedAt: string;
+}
+
+// Lead KPI Types
+export interface LeadKPIRequest {
+  leadId?: string; // Single lead or all leads if not provided
+  timeRange?: KPITimeRange;
+}
+
+export interface LeadKPIScore extends KPIScore {
+  category: 'lead';
+  leadId: string;
+  leadName: string;
+  status: string;
+  daysSinceLastContact: number;
+  recommendation: string;
+  urgency: KPIUrgency;
+}
+
+export interface LeadKPIResponse {
+  scores: LeadKPIScore[];
+  averageScore: number;
+  topPerformers: LeadKPIScore[];
+  needsAttention: LeadKPIScore[];
+}
+
+// Staff KPI Types
+export interface StaffKPIRequest {
+  staffId?: string; // Single staff or all staff if not provided
+  timeRange?: KPITimeRange;
+}
+
+export interface StaffKPIScore extends KPIScore {
+  category: 'staff';
+  staffId: string;
+  staffName: string;
+  leadsHandled: number;
+  conversionRate: number;
+  avgResponseTime: number;
+  strengths: string[];
+  improvements: string[];
+}
+
+export interface StaffKPIResponse {
+  scores: StaffKPIScore[];
+  teamAverageScore: number;
+  topPerformers: StaffKPIScore[];
+  coachingNeeded: StaffKPIScore[];
+}
+
+// Business KPI Types
+export interface BusinessKPIRequest {
+  timeRange?: KPITimeRange;
+  compareToPrevious?: boolean;
+}
+
+export interface BusinessKPIScore extends KPIScore {
+  category: 'business';
+  pipelineValue: number;
+  conversionVelocity: number; // avg days to convert
+  leadFlow: {
+    newLeads: number;
+    convertedLeads: number;
+    lostLeads: number;
+    netChange: number;
+  };
+  teamEfficiency: number;
+  previousPeriodScore?: number;
+  changeFromPrevious?: number;
+}
+
+export interface BusinessKPIResponse {
+  score: BusinessKPIScore;
+  historicalTrend: { date: string; score: number }[];
+  insights: string[];
+}
+
+// KPI Alert Types
+export interface KPIAlert {
+  id: string;
+  alertType: string;
+  severity: KPIAlertSeverity;
+  entityType: KPICategory;
+  entityId?: string;
+  entityName?: string;
+  message: string;
+  recommendation?: string;
+  createdAt: string;
+  isResolved: boolean;
+}
+
+// Dashboard Response
+export interface KPIDashboardResponse {
+  leadScores: LeadKPIResponse;
+  staffScores: StaffKPIResponse;
+  businessScore: BusinessKPIResponse;
+  alerts: KPIAlert[];
+  recommendations: string[];
+  generatedAt: string;
 }

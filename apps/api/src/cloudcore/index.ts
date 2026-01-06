@@ -16,12 +16,14 @@ import * as leadAnalyst from './kernels/lead-analyst';
 import * as knowledgeCurator from './kernels/knowledge-curator';
 import * as conversionPredictor from './kernels/conversion-predictor';
 import * as coach from './kernels/coach';
+import * as kpiScorer from './kernels/kpi-scorer';
 
 export const kernels = {
   leadAnalyst,
   knowledgeCurator,
   conversionPredictor,
   coach,
+  kpiScorer,
 };
 
 // Services - namespaced to avoid collisions
@@ -53,6 +55,7 @@ import * as knowledgeRoutes from './routes/knowledge';
 import * as coachingRoutes from './routes/coaching';
 import * as transcriptionRoutes from './routes/transcription';
 import * as healthRoutes from './routes/health';
+import * as kpiRoutes from './routes/kpi';
 
 export const routes = {
   leads: leadsRoutes,
@@ -62,6 +65,7 @@ export const routes = {
   coaching: coachingRoutes,
   transcription: transcriptionRoutes,
   health: healthRoutes,
+  kpi: kpiRoutes,
 };
 
 // Contracts - export as namespace to avoid collisions with types

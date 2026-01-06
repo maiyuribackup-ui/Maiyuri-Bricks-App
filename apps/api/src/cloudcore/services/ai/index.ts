@@ -7,4 +7,7 @@ import * as claude from './claude';
 import * as gemini from './gemini';
 import * as provider from './provider';
 
-export { claude, gemini, provider };
+import * as chunking from './chunking';
+import * as reranker from './reranker';
+
+export { claude, gemini, provider, chunking, reranker };

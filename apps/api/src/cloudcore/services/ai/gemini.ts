@@ -101,6 +101,77 @@ export async function complete(
 }
 
 /**
+ * Generate a JSON completion using Gemini (Adapter for Fallback)
+ */
+export async function completeJson<T>(
+  request: { systemPrompt: string; userPrompt: string; maxTokens?: number; temperature?: number }
+): Promise<CloudCoreResult<T>> {
+  // Merge system and user prompt as Flash typically performs better with single context block for instructions
+  const mergedPrompt = `${request.systemPrompt}
+
+IMPORTANT: Respond ONLY with valid JSON. No other text or explanation.
+
+${request.userPrompt}`;
+
+  // Override maxTokens to prevent truncation (Gemini usage is cheap, better safe than truncated)
+  const SAFE_MAX_TOKENS = 8192;
+
+  const result = await complete({
+    prompt: mergedPrompt,
+    maxTokens: SAFE_MAX_TOKENS, // Ignore request.maxTokens
+    temperature: request.temperature,
+  });
+
+  if (!result.success || !result.data) {
+    return {
+      success: false,
+      data: null,
+      error: result.error,
+      meta: result.meta,
+    };
+  }
+
+  try {
+    const content = result.data.content.trim();
+    let jsonStr = content;
+
+    // Robust JSON extraction: Find first '{' and last '}'
+    const firstBrace = content.indexOf('{');
+    const lastBrace = content.lastIndexOf('}');
+
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      jsonStr = content.substring(firstBrace, lastBrace + 1);
+    } else {
+      // Fallback to code block stripping if braces process fails
+      if (content.startsWith('```json')) {
+        jsonStr = content.slice(7, content.lastIndexOf('```')).trim();
+      } else if (content.startsWith('```')) {
+        jsonStr = content.slice(3, content.lastIndexOf('```')).trim();
+      }
+    }
+
+    const parsed = JSON.parse(jsonStr) as T;
+    return {
+      success: true,
+      data: parsed,
+      meta: result.meta,
+    };
+  } catch (parseError) {
+    console.error('JSON parse error (Gemini):', parseError);
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: 'JSON_PARSE_ERROR',
+        message: 'Failed to parse Gemini response as JSON',
+        details: { rawContent: result.data.content },
+      },
+      meta: result.meta,
+    };
+  }
+}
+
+/**
  * Transcribe audio using Gemini
  * Supports Tamil-first with English fallback
  */

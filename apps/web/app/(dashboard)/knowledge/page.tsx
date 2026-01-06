@@ -55,14 +55,10 @@ export default function KnowledgePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          entries: [
-            {
-              title: ingestForm.title,
-              content: ingestForm.content,
-              category: ingestForm.category,
-              source: ingestForm.source,
-            },
-          ],
+          title: ingestForm.title,
+          content: ingestForm.content,
+          category: ingestForm.category,
+          tags: [ingestForm.source],
         }),
       });
       const data = await response.json();

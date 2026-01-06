@@ -98,56 +98,99 @@ export async function complete(
   }
 }
 
+// Import fallback providers
+import * as gemini from './gemini';
+import * as openai from './openai';
+
 /**
- * Generate a JSON completion using Claude
- * Automatically parses the response as JSON
+ * Generate a JSON completion using Claude with Fallback Support
+ * Chain: Claude -> Gemini -> OpenAI
  */
 export async function completeJson<T>(
   request: Omit<ClaudeCompletionRequest, 'jsonMode'>
 ): Promise<CloudCoreResult<T>> {
+  // 1. Try Claude (Primary)
   const result = await complete({ ...request, jsonMode: true });
 
-  if (!result.success || !result.data) {
-    return {
-      success: false,
-      data: null,
-      error: result.error,
-      meta: result.meta,
-    };
+  if (result.success && result.data) {
+    try {
+      // Try to extract JSON from the response
+      const content = result.data.content.trim();
+      let jsonStr = content;
+
+      if (content.startsWith('```json')) {
+        jsonStr = content.slice(7, content.lastIndexOf('```')).trim();
+      } else if (content.startsWith('```')) {
+        jsonStr = content.slice(3, content.lastIndexOf('```')).trim();
+      }
+
+      const parsed = JSON.parse(jsonStr) as T;
+      return { success: true, data: parsed, meta: result.meta };
+    } catch (parseError) {
+      console.warn('Claude JSON parse error, attempting fallback...', parseError);
+      // Proceed to fallback if parsing fails
+    }
+  } else {
+    console.warn('Claude API failed, attempting fallback...', result.error);
   }
 
-  try {
-    // Try to extract JSON from the response
-    const content = result.data.content.trim();
-    let jsonStr = content;
+  // 2. Try Gemini (Fallback 1)
+  console.log('🔄 Swapping to Fallback: Gemini');
+  const geminiResult = await gemini.completeJson<T>({
+    systemPrompt: request.systemPrompt,
+    userPrompt: request.userPrompt,
+    maxTokens: request.maxTokens,
+    temperature: request.temperature,
+  });
 
-    // Handle markdown code blocks
-    if (content.startsWith('```json')) {
-      jsonStr = content.slice(7, content.lastIndexOf('```')).trim();
-    } else if (content.startsWith('```')) {
-      jsonStr = content.slice(3, content.lastIndexOf('```')).trim();
-    }
-
-    const parsed = JSON.parse(jsonStr) as T;
-
+  if (geminiResult.success && geminiResult.data) {
     return {
       success: true,
-      data: parsed,
-      meta: result.meta,
-    };
-  } catch (parseError) {
-    console.error('JSON parse error:', parseError);
-    return {
-      success: false,
-      data: null,
-      error: {
-        code: 'JSON_PARSE_ERROR',
-        message: 'Failed to parse Claude response as JSON',
-        details: { rawContent: result.data.content },
+      data: geminiResult.data,
+      meta: { 
+        processingTime: geminiResult.meta?.processingTime || 0,
+        provider: 'gemini(fallback)',
+        usage: geminiResult.meta?.usage
       },
-      meta: result.meta,
     };
   }
+  console.warn('Gemini fallback failed, attempting secondary fallback...', geminiResult.error);
+
+  // 3. Try OpenAI (Fallback 2)
+  console.log('🔄 Swapping to Secondary Fallback: OpenAI');
+  const openaiResult = await openai.completeJson<T>({
+    systemPrompt: request.systemPrompt,
+    userPrompt: request.userPrompt,
+    maxTokens: request.maxTokens,
+    temperature: request.temperature,
+  });
+
+  if (openaiResult.success && openaiResult.data) {
+    return {
+      success: true,
+      data: openaiResult.data,
+      meta: { 
+        processingTime: openaiResult.meta?.processingTime || 0,
+        provider: 'openai(fallback)',
+        usage: openaiResult.meta?.usage
+      },
+    };
+  }
+
+  // All providers failed
+  return {
+    success: false,
+    data: null,
+    error: {
+      code: 'ALL_PROVIDERS_FAILED',
+      message: 'Claude, Gemini, and OpenAI all failed to complete the request.',
+      details: {
+        claudeError: result.error,
+        geminiError: geminiResult.error,
+        openaiError: openaiResult.error,
+      },
+    },
+  };
 }
 
 /**

@@ -339,6 +339,18 @@ export default function LeadDetailPage() {
             }}
           />
 
+          {/* Staff Notes Card */}
+          {lead.staff_notes && (
+            <Card className="p-6">
+              <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                Staff Notes
+              </h3>
+              <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap bg-slate-50 dark:bg-slate-800 p-3 rounded-md">
+                {lead.staff_notes}
+              </p>
+            </Card>
+          )}
+
           {/* Details Card */}
           <Card className="p-6">
             <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">

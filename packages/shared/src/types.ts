@@ -23,6 +23,7 @@ export interface Lead {
   lead_type: string;
   assigned_staff: string | null;
   status: LeadStatus;
+  staff_notes?: string | null;
   ai_summary?: string | null;
   ai_score?: number | null;
   ai_factors?: AIFactor[] | null;

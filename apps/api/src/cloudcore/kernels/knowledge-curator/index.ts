@@ -5,6 +5,7 @@
  */
 
 import * as gemini from '../../services/ai/gemini';
+import { chunking, reranker } from '../../services/ai';
 import * as embeddings from '../../services/embeddings';
 import * as scraper from '../../services/scraper';
 import { supabase } from '../../services/supabase';
@@ -31,10 +32,81 @@ export const KERNEL_CONFIG = {
  */
 export async function ingest(
   request: KnowledgeIngestionRequest
-): Promise<CloudCoreResult<KnowledgeEntry>> {
+): Promise<CloudCoreResult<KnowledgeEntry[]>> {
   const startTime = Date.now();
 
   try {
+    // Branch 1: Transcript Processing (Chunking)
+    if (request.contentType === 'transcript') {
+      const chunks = await chunking.chunkText(request.content, { strategy: 'transcript', maxChunkSize: 1000 });
+      const enrichedResult = await chunking.enrichChunks(chunks);
+      const enrichedChunks = enrichedResult.success && enrichedResult.data ? enrichedResult.data : chunks;
+
+      const entries: KnowledgeEntry[] = [];
+
+      // Process chunks in parallel (limit concurrency in production, but okay for now)
+      const promises = enrichedChunks.map(async (chunk) => {
+        // Construct detailed content for embedding/answer
+        // Use extracted topics as "question" if available, else generic
+        const topics = chunk.metadata.topics?.join(', ') || 'General';
+        const speakers = chunk.metadata.speakers?.join(', ') || 'Unknown Speaker';
+        
+        // For transcripts, the "question" is often the topic + speaker context
+        const questionText = request.title 
+          ? `${request.title} - ${topics} (${speakers})` 
+          : `Transcript segment about ${topics} by ${speakers}`;
+
+        const answerText = chunk.text;
+
+        // Generate embedding
+        const embeddingResult = await gemini.generateEmbedding(`${questionText} ${answerText}`);
+        if (!embeddingResult.success || !embeddingResult.data) return null;
+
+        return supabase.from('knowledgebase').insert({
+          question_text: questionText, // Derived "Title"
+          answer_text: answerText,     // Actual content
+          embeddings: embeddingResult.data.vector,
+          confidence_score: 0.9,
+          source_lead_id: request.sourceLeadId,
+          content_type: 'transcript', // Keep as transcript
+          metadata: {
+            ...request.metadata,
+            ...chunk.metadata, // Contains topics, sentiment, etc.
+            chunk_index: chunk.index
+          },
+          created_by: null,
+        }).select().single();
+      });
+
+      const results = await Promise.all(promises);
+
+      for (const res of results) {
+        if (res && res.data && !res.error) {
+           const d = res.data;
+           entries.push({
+             id: d.id,
+             question: d.question_text,
+             answer: d.answer_text,
+             confidence: d.confidence_score,
+             sourceLeadId: d.source_lead_id,
+             category: request.category,
+             tags: request.tags,
+             contentType: d.content_type,
+             metadata: d.metadata,
+             createdAt: d.created_at,
+             updatedAt: d.last_updated
+           })
+        }
+      }
+
+      return {
+        success: true,
+        data: entries,
+        meta: { processingTime: Date.now() - startTime, chunkCount: entries.length }
+      };
+    }
+
+    // Branch 2: Standard Single Entry (Manual / Documentation)
     // Generate Q&A pair from content using Gemini
     const qaResult = await gemini.complete({
       prompt: `Analyze this content and extract the key question it answers and a comprehensive answer.
@@ -97,6 +169,8 @@ Respond with JSON:
         embeddings: embeddingResult.data.vector,
         confidence_score: 0.9,
         source_lead_id: request.sourceLeadId,
+        content_type: request.contentType || 'manual',
+        metadata: request.metadata || {},
         created_by: null, // Will be set by RLS or API
       })
       .select()
@@ -115,13 +189,15 @@ Respond with JSON:
       sourceLeadId: data.source_lead_id,
       category: request.category,
       tags: request.tags,
+      contentType: data.content_type,
+      metadata: data.metadata,
       createdAt: data.created_at,
       updatedAt: data.last_updated,
     };
 
     return {
       success: true,
-      data: entry,
+      data: [entry],
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
@@ -205,10 +281,11 @@ export async function answerQuestion(
     const maxSources = options?.maxSources || 5;
     const sources: SemanticSearchResult[] = [];
 
-    // Search knowledge base (threshold 0.5 for better recall)
+    // Search knowledge base (increase limit for recall phase)
+    const recallLimit = 15;
     const knowledgeResults = await embeddings.searchKnowledge({
       query: question,
-      limit: maxSources,
+      limit: recallLimit,
       threshold: 0.5,
     });
 
@@ -220,7 +297,7 @@ export async function answerQuestion(
     if (options?.includeNotes) {
       const notesResults = await embeddings.searchNotes({
         query: question,
-        limit: maxSources,
+        limit: recallLimit,
         threshold: 0.5,
         filters: {
           leadId: options.leadId,
@@ -232,38 +309,76 @@ export async function answerQuestion(
       }
     }
 
-    // Sort by score and limit
-    sources.sort((a, b) => b.score - a.score);
-    const topSources = sources.slice(0, maxSources);
-
-    if (topSources.length === 0) {
-      return {
-        success: true,
-        data: {
-          answer: "I don't have enough information to answer this question.",
-          sources: [],
-          confidence: 0,
-        },
-        meta: { processingTime: Date.now() - startTime },
-      };
+    if (sources.length === 0) {
+       return {
+          success: true,
+          data: {
+            answer: "I don't have enough information to answer this question.",
+            sources: [],
+            confidence: 0
+          },
+          meta: { processingTime: Date.now() - startTime }
+       };
     }
 
-    // Build context from sources
+    // Re-ranking Phase (Precision)
+    // De-duplicate sources first (by ID)
+    const uniqueSources = Array.from(new Map(sources.map(s => [s.id, s])).values());
+
+    const rerankResult = await reranker.rerank(question, uniqueSources, {
+        threshold: 0.5, // Lower threshold to better support Tanglish/implied queries
+        topK: maxSources, // Final top K
+        model: 'PRO' // Use PRO for better reasoning and cross-lingual understanding
+    });
+
+    // Use reranked results if successful, otherwise fallback to top cosine matches
+    const topSources = rerankResult.success && rerankResult.data && rerankResult.data.length > 0
+        ? rerankResult.data
+        : uniqueSources.sort((a,b) => b.score - a.score).slice(0, maxSources);
+
+    // If re-ranking filtered everything out, we might want to return "I don't know" 
+    // OR fallback to the absolute best vector match if it's very high score (>0.85)?
+    // For now, let's respect the re-ranker. If it says 0 relevant, we say 0.
+    if (topSources.length === 0) {
+        return {
+          success: true,
+          data: {
+            answer: "I couldn't find any relevant information to answer your question.",
+            sources: [],
+            confidence: 0,
+          },
+          meta: { processingTime: Date.now() - startTime },
+        };
+    }
+
+    // Build context with sophisticated format
     const context = topSources
-      .map((s, i) => `[Source ${i + 1}]: ${s.content}`)
+      .map((s, i) => {
+          const typeLabel = s.sourceType.toUpperCase();
+          const relevance = s.relevanceScore ? `(Relevance: ${s.relevanceScore})` : '';
+          return `[Source ${i + 1}] [${typeLabel}] ${relevance}\n${s.content}`;
+      })
       .join('\n\n');
 
-    // Generate answer using Gemini
+    // Generate answer using Gemini (Pro for better reasoning on answer)
+    // Using default temperature 0 for factual accuracy
     const answerResult = await gemini.complete({
-      prompt: `Answer the following question based on the provided context.
-If the context doesn't contain enough information, say so.
+      model: 'PRO', // Upgrade to Pro for the final answer generation
+      prompt: `You are an expert Answer Architect for Maiyuri Bricks.
+Answer the question based ONLY on the provided context sources.
+If the sources do not contain the answer, explicitly state that you don't know. Do not hallucinate.
 
 Question: ${question}
 
 Context:
 ${context}
 
-Provide a clear, helpful answer:`,
+Instructions:
+1. Cite sources using [Source X] notation where appropriate.
+2. Be concise and professional.
+3. If sources conflict, note the conflict.
+
+Answer:`,
     });
 
     if (!answerResult.success || !answerResult.data) {
@@ -274,8 +389,8 @@ Provide a clear, helpful answer:`,
       };
     }
 
-    // Calculate confidence based on source relevance
-    const avgScore = topSources.reduce((sum, s) => sum + s.score, 0) / topSources.length;
+    // Calculate confidence based on source relevance (prefer re-ranker score)
+    const avgScore = topSources.reduce((sum, s) => sum + (s.relevanceScore ?? s.score), 0) / topSources.length;
 
     return {
       success: true,
@@ -594,8 +709,8 @@ export async function scrapeWebsite(
         });
 
         if (ingestResult.success && ingestResult.data) {
-          result.entriesCreated++;
-          result.entries.push(ingestResult.data);
+          result.entriesCreated += ingestResult.data.length;
+          result.entries.push(...ingestResult.data);
           console.log(`[KnowledgeCurator] Created entry for: ${page.title}`);
         } else {
           result.errors.push(`Failed to ingest ${page.url}: ${ingestResult.error?.message}`);
@@ -634,7 +749,7 @@ export async function scrapeWebsite(
 export async function scrapeUrl(
   url: string,
   options?: { category?: string; tags?: string[] }
-): Promise<CloudCoreResult<KnowledgeEntry>> {
+): Promise<CloudCoreResult<KnowledgeEntry[]>> {
   const startTime = Date.now();
 
   try {

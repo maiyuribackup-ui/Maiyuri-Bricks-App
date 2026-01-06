@@ -150,12 +150,16 @@ export const ConversionPredictionResponseSchema = z.object({
 // Knowledge Base Contracts
 // ============================================
 
+export const KnowledgeContentTypeSchema = z.enum(['transcript', 'objection', 'faq', 'manual', 'document']);
+
 export const KnowledgeIngestionRequestSchema = z.object({
   content: z.string().min(10).max(50000),
   title: z.string().max(200).optional(),
   sourceLeadId: UUIDSchema.optional(),
   category: z.string().max(50).optional(),
   tags: z.array(z.string().max(30)).max(10).optional(),
+  contentType: KnowledgeContentTypeSchema.default('manual'),
+  metadata: z.record(z.unknown()).optional(),
 });
 
 export const KnowledgeEntrySchema = z.object({
@@ -166,6 +170,8 @@ export const KnowledgeEntrySchema = z.object({
   sourceLeadId: UUIDSchema.nullable().optional(),
   category: z.string().optional(),
   tags: z.array(z.string()).optional(),
+  contentType: KnowledgeContentTypeSchema.optional(),
+  metadata: z.record(z.unknown()).optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -180,6 +186,7 @@ export const SemanticSearchRequestSchema = z.object({
       dateFrom: z.string().optional(),
       dateTo: z.string().optional(),
       sourceTypes: z.array(z.enum(['note', 'lead', 'knowledge'])).optional(),
+      metadata: z.record(z.unknown()).optional(),
     })
     .optional(),
 });
@@ -364,6 +371,135 @@ export const DashboardStatsResponseSchema = z.object({
 });
 
 // ============================================
+// KPI Scorer Contracts
+// ============================================
+
+export const KPICategorySchema = z.enum(['lead', 'staff', 'business']);
+export const KPITimeRangeSchema = z.enum(['day', 'week', 'month', 'quarter']);
+export const KPITrendSchema = z.enum(['up', 'stable', 'down']);
+export const KPIAlertSeveritySchema = z.enum(['critical', 'warning', 'info']);
+export const KPIUrgencySchema = z.enum(['high', 'medium', 'low']);
+
+export const KPIFactorSchema = z.object({
+  name: z.string(),
+  impact: z.enum(['positive', 'negative', 'neutral']),
+  weight: z.number().min(0).max(1),
+  currentValue: z.number(),
+  targetValue: z.number().optional(),
+  description: z.string(),
+});
+
+export const KPIScoreSchema = z.object({
+  category: KPICategorySchema,
+  value: z.number().min(0).max(100),
+  trend: KPITrendSchema,
+  confidence: z.number().min(0).max(1),
+  factors: z.array(KPIFactorSchema),
+  generatedAt: z.string(),
+});
+
+// Lead KPI Schemas
+export const LeadKPIRequestSchema = z.object({
+  leadId: UUIDSchema.optional(),
+  timeRange: KPITimeRangeSchema.default('month'),
+});
+
+export const LeadKPIScoreSchema = KPIScoreSchema.extend({
+  category: z.literal('lead'),
+  leadId: UUIDSchema,
+  leadName: z.string(),
+  status: z.string(),
+  daysSinceLastContact: z.number(),
+  recommendation: z.string(),
+  urgency: KPIUrgencySchema,
+});
+
+export const LeadKPIResponseSchema = z.object({
+  scores: z.array(LeadKPIScoreSchema),
+  averageScore: z.number(),
+  topPerformers: z.array(LeadKPIScoreSchema),
+  needsAttention: z.array(LeadKPIScoreSchema),
+});
+
+// Staff KPI Schemas
+export const StaffKPIRequestSchema = z.object({
+  staffId: UUIDSchema.optional(),
+  timeRange: KPITimeRangeSchema.default('month'),
+});
+
+export const StaffKPIScoreSchema = KPIScoreSchema.extend({
+  category: z.literal('staff'),
+  staffId: UUIDSchema,
+  staffName: z.string(),
+  leadsHandled: z.number(),
+  conversionRate: z.number(),
+  avgResponseTime: z.number(),
+  strengths: z.array(z.string()),
+  improvements: z.array(z.string()),
+});
+
+export const StaffKPIResponseSchema = z.object({
+  scores: z.array(StaffKPIScoreSchema),
+  teamAverageScore: z.number(),
+  topPerformers: z.array(StaffKPIScoreSchema),
+  coachingNeeded: z.array(StaffKPIScoreSchema),
+});
+
+// Business KPI Schemas
+export const BusinessKPIRequestSchema = z.object({
+  timeRange: KPITimeRangeSchema.default('month'),
+  compareToPrevious: z.boolean().default(true),
+});
+
+export const BusinessKPIScoreSchema = KPIScoreSchema.extend({
+  category: z.literal('business'),
+  pipelineValue: z.number(),
+  conversionVelocity: z.number(),
+  leadFlow: z.object({
+    newLeads: z.number(),
+    convertedLeads: z.number(),
+    lostLeads: z.number(),
+    netChange: z.number(),
+  }),
+  teamEfficiency: z.number(),
+  previousPeriodScore: z.number().optional(),
+  changeFromPrevious: z.number().optional(),
+});
+
+export const BusinessKPIResponseSchema = z.object({
+  score: BusinessKPIScoreSchema,
+  historicalTrend: z.array(z.object({
+    date: z.string(),
+    score: z.number(),
+  })),
+  insights: z.array(z.string()),
+});
+
+// KPI Alert Schema
+export const KPIAlertSchema = z.object({
+  id: UUIDSchema,
+  alertType: z.string(),
+  severity: KPIAlertSeveritySchema,
+  entityType: KPICategorySchema,
+  entityId: UUIDSchema.optional(),
+  entityName: z.string().optional(),
+  message: z.string(),
+  recommendation: z.string().optional(),
+  createdAt: z.string(),
+  isResolved: z.boolean(),
+});
+
+// Dashboard Response Schema
+export const KPIDashboardResponseSchema = z.object({
+  leadScores: LeadKPIResponseSchema,
+  staffScores: StaffKPIResponseSchema,
+  businessScore: BusinessKPIResponseSchema,
+  alerts: z.array(KPIAlertSchema),
+  recommendations: z.array(z.string()),
+  generatedAt: z.string(),
+});
+
+// ============================================
 // Type exports
 // ============================================
 
@@ -388,3 +524,16 @@ export type CreateLeadRequest = z.infer<typeof CreateLeadRequestSchema>;
 export type UpdateLeadRequest = z.infer<typeof UpdateLeadRequestSchema>;
 export type Lead = z.infer<typeof LeadSchema>;
 export type DashboardStatsResponse = z.infer<typeof DashboardStatsResponseSchema>;
+
+// KPI Types
+export type LeadKPIRequest = z.infer<typeof LeadKPIRequestSchema>;
+export type LeadKPIScore = z.infer<typeof LeadKPIScoreSchema>;
+export type LeadKPIResponse = z.infer<typeof LeadKPIResponseSchema>;
+export type StaffKPIRequest = z.infer<typeof StaffKPIRequestSchema>;
+export type StaffKPIScore = z.infer<typeof StaffKPIScoreSchema>;
+export type StaffKPIResponse = z.infer<typeof StaffKPIResponseSchema>;
+export type BusinessKPIRequest = z.infer<typeof BusinessKPIRequestSchema>;
+export type BusinessKPIScore = z.infer<typeof BusinessKPIScoreSchema>;
+export type BusinessKPIResponse = z.infer<typeof BusinessKPIResponseSchema>;
+export type KPIAlert = z.infer<typeof KPIAlertSchema>;
+export type KPIDashboardResponse = z.infer<typeof KPIDashboardResponseSchema>;

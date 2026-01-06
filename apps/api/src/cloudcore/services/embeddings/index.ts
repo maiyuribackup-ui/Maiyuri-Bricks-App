@@ -239,11 +239,13 @@ export async function searchKnowledge(
     const limit = request.limit || 10;
     const threshold = request.threshold || 0.5;
 
-    // Search using pgvector
-    const { data, error } = await supabase.rpc('match_knowledgebase', {
+    // Search using pgvector extended hybrid search
+    const { data, error } = await supabase.rpc('match_knowledgebase_hybrid', {
       query_embedding: queryEmbedding,
+      query_text: request.query,
       match_threshold: threshold,
       match_count: limit,
+      filter_metadata: request.filters?.metadata || {},
     });
 
     if (error) {
@@ -263,6 +265,7 @@ export async function searchKnowledge(
       sourceId: item.id,
       metadata: {
         sourceLeadId: item.source_lead_id,
+        // In the future, we can return more metadata columns from the RPC if needed
       },
     }));
 
