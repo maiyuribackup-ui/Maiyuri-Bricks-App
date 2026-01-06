@@ -33,6 +33,7 @@ export interface Lead {
   created_at: string;
   updated_at: string;
   created_by?: string | null;
+  is_archived?: boolean;
 }
 
 export interface Note {
@@ -104,4 +105,22 @@ export interface ApiResponse<T> {
     page?: number;
     limit?: number;
   };
+}
+
+export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+export interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  due_date?: string;
+  assigned_to?: string; // User ID
+  created_by?: string; // Auth User ID
+  lead_id?: string;
+  created_at: string;
+  updated_at: string;
+  assignee?: User; // Joined fields
 }

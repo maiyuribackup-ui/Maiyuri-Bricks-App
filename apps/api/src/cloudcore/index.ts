@@ -17,6 +17,7 @@ import * as knowledgeCurator from './kernels/knowledge-curator';
 import * as conversionPredictor from './kernels/conversion-predictor';
 import * as coach from './kernels/coach';
 import * as kpiScorer from './kernels/kpi-scorer';
+import * as salesCoach from './kernels/sales-coach';
 
 export const kernels = {
   leadAnalyst,
@@ -24,6 +25,7 @@ export const kernels = {
   conversionPredictor,
   coach,
   kpiScorer,
+  salesCoach,
 };
 
 // Services - namespaced to avoid collisions

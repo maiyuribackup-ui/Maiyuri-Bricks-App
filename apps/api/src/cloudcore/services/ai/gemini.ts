@@ -135,19 +135,18 @@ ${request.userPrompt}`;
     const content = result.data.content.trim();
     let jsonStr = content;
 
-    // Robust JSON extraction: Find first '{' and last '}'
-    const firstBrace = content.indexOf('{');
-    const lastBrace = content.lastIndexOf('}');
-
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      jsonStr = content.substring(firstBrace, lastBrace + 1);
+    // Robust JSON extraction using Regex
+    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (jsonMatch && jsonMatch[1]) {
+      jsonStr = jsonMatch[1].trim();
     } else {
-      // Fallback to code block stripping if braces process fails
-      if (content.startsWith('```json')) {
-        jsonStr = content.slice(7, content.lastIndexOf('```')).trim();
-      } else if (content.startsWith('```')) {
-        jsonStr = content.slice(3, content.lastIndexOf('```')).trim();
-      }
+        // Fallback: try to find first { or [ and last } or ]
+        const firstParen = content.search(/[{[]/);
+        const lastParen = content.lastIndexOf(content.includes(']') && content.includes('}') ? (content.lastIndexOf(']') > content.lastIndexOf('}') ? ']' : '}') : (content.includes(']') ? ']' : '}'));
+        
+        if (firstParen !== -1 && lastParen !== -1 && lastParen > firstParen) {
+            jsonStr = content.substring(firstParen, lastParen + 1);
+        }
     }
 
     const parsed = JSON.parse(jsonStr) as T;

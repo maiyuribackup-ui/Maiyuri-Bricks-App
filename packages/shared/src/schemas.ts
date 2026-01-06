@@ -15,6 +15,7 @@ export const createLeadSchema = z.object({
   status: leadStatusSchema.default('new'),
   next_action: z.string().nullable().optional(),
   follow_up_date: z.string().nullable().optional(),
+  is_archived: z.boolean().default(false).optional(),
 });
 
 export const updateLeadSchema = z.object({
@@ -26,6 +27,7 @@ export const updateLeadSchema = z.object({
   status: leadStatusSchema.optional(),
   next_action: z.string().nullable().optional(),
   follow_up_date: z.string().nullable().optional(),
+  is_archived: z.boolean().optional(),
 });
 
 export const createNoteSchema = z.object({
@@ -64,6 +66,28 @@ export const leadFiltersSchema = z.object({
   search: z.string().optional(),
   from_date: z.string().optional(),
   to_date: z.string().optional(),
+  is_archived: z.string().transform(val => val === 'true').optional(),
+});
+
+export const createTaskSchema = z.object({
+  title: z.string().min(1, 'Title is required'),
+  description: z.string().optional(),
+  status: z.enum(['todo', 'in_progress', 'review', 'done']).default('todo'),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
+  due_date: z.string().optional(), // ISO string
+  assigned_to: z.string().uuid().optional(),
+  lead_id: z.string().uuid().optional(),
+});
+
+export const updateTaskSchema = createTaskSchema.partial().extend({
+  id: z.string().uuid(),
+});
+
+export const taskFiltersSchema = z.object({
+  status: z.enum(['todo', 'in_progress', 'review', 'done']).optional(),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  assigned_to: z.string().uuid().optional(),
+  lead_id: z.string().uuid().optional(),
 });
 
 // Export types

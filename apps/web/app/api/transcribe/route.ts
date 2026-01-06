@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { services } from '@maiyuri/api';
+import { services, cloudcore } from '@maiyuri/api';
 import { success, error } from '@/lib/api-utils';
 
 // POST /api/transcribe - Transcribe audio file using CloudCore
@@ -31,7 +31,43 @@ export async function POST(request: NextRequest) {
         transcription_text: result.data.text,
         confidence_score: result.data.confidence,
       });
+
+      // Automatically ingest into Knowledge Base
+      try {
+        console.log(`[KB Ingestion] Triggering ingestion for Note ID: ${noteId}`);
+        
+        await cloudcore.routes.knowledge.ingestKnowledge({
+            content: result.data.text,
+            title: `Sales Call Transcript - ${new Date().toLocaleDateString()}`,
+            contentType: 'transcript',
+            category: 'Sales Call',
+            tags: ['auto-generated', 'transcription'],
+            metadata: {
+                noteId: noteId,
+                language: result.data.language,
+                confidence: result.data.confidence
+            }
+        });
+        console.log(`[KB Ingestion] Successfully ingested transcript for Note ID: ${noteId}`);
+
+        // Trigger Sales Coach Analysis
+        console.log(`[SalesCoach] Triggering analysis for Note ID: ${noteId}`);
+        // We need the leadId for the analysis. Fetch the note to get it.
+        const noteRes = await services.supabase.getNote(noteId);
+        if (noteRes.success && noteRes.data && noteRes.data.lead_id) {
+             // We can await this or let it run. For reliability on Vercel, best to await closely or use background workers.
+             // Awaiting for now to ensure completion.
+             await cloudcore.kernels.salesCoach.analyzeCall(result.data.text, noteId, noteRes.data.lead_id);
+             console.log(`[SalesCoach] Analysis complete for Note ID: ${noteId}`);
+        } else {
+             console.warn(`[SalesCoach] Could not find lead_id for note ${noteId}, skipping analysis.`);
+        }
+
+      } catch (ingestError) {
+        console.error('[KB/Coach] Post-processing failed:', ingestError);
+      }
     }
+
 
     return success({
       text: result.data.text,

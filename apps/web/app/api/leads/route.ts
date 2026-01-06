@@ -43,6 +43,9 @@ export async function GET(request: NextRequest) {
     if (filters.to_date) {
       query = query.lte('created_at', filters.to_date);
     }
+    
+    // Filter by archive status (default to active only)
+    query = query.eq('is_archived', filters.is_archived ?? false);
 
     const { data, error: dbError, count } = await query;
 

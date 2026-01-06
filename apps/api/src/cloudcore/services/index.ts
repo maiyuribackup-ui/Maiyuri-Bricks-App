@@ -9,5 +9,7 @@ import * as memory from './memory';
 import * as transcription from './transcription';
 import * as supabase from './supabase';
 import * as scraper from './scraper';
+import * as tasks from './tasks';
+import * as telegram from './telegram';
 
-export { ai, embeddings, memory, transcription, supabase, scraper };
+export { ai, embeddings, memory, transcription, supabase, scraper, tasks, telegram };

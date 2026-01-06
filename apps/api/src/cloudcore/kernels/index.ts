@@ -7,5 +7,6 @@ import * as leadAnalyst from './lead-analyst';
 import * as knowledgeCurator from './knowledge-curator';
 import * as conversionPredictor from './conversion-predictor';
 import * as coach from './coach';
+import * as salesCoach from './sales-coach';
 
-export { leadAnalyst, knowledgeCurator, conversionPredictor, coach };
+export { leadAnalyst, knowledgeCurator, conversionPredictor, coach, salesCoach };
