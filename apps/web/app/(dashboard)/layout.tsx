@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@maiyuri/ui';
+import { AskMaiyuri } from '../../components/AskMaiyuri';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
@@ -166,6 +167,9 @@ export default function DashboardLayout({
       <main className="lg:pl-64">
         <div className="px-4 py-6 sm:px-6 lg:px-8">{children}</div>
       </main>
+
+      {/* Global Ask Maiyuri Chatbot */}
+      <AskMaiyuri />
     </div>
   );
 }

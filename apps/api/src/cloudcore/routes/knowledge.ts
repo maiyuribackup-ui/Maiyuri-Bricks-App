@@ -30,13 +30,27 @@ export async function ingestKnowledge(
     };
   }
 
-  return knowledgeCurator.ingest({
+  const result = await knowledgeCurator.ingest({
     content: parsed.data.content,
     title: parsed.data.title,
     sourceLeadId: parsed.data.sourceLeadId,
     category: parsed.data.category,
     tags: parsed.data.tags,
   });
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return {
+      success: false,
+      data: null,
+      error: result.error || { code: 'INGEST_ERROR', message: 'No entry returned' },
+    };
+  }
+
+  return {
+    success: true,
+    data: result.data[0],
+    meta: result.meta,
+  };
 }
 
 /**

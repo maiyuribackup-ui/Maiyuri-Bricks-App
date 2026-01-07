@@ -1,346 +1,167 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { cn } from '@maiyuri/ui';
+import { useState, useRef, useEffect } from 'react';
 
-interface KnowledgeEntry {
+interface Message {
   id: string;
-  title: string;
+  role: 'user' | 'assistant';
   content: string;
-  category: string;
-  source: string;
-  similarity?: number;
-  createdAt: string;
+  citations?: string[];
+  timestamp: Date;
 }
 
-export default function KnowledgePage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [results, setResults] = useState<KnowledgeEntry[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isIngesting, setIsIngesting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'search' | 'ingest'>('search');
-  const [ingestForm, setIngestForm] = useState({
-    title: '',
-    content: '',
-    category: 'general',
-    source: 'manual',
-  });
+export default function KnowledgeChatbot() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim()) return;
+  // Auto-scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-    setIsSearching(true);
+  const sendMessage = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: input.trim(),
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
+
     try {
-      const response = await fetch(
-        `/api/knowledge?q=${encodeURIComponent(searchQuery)}&limit=10`
-      );
-      const data = await response.json();
-
-      if (data.success && data.data) {
-        setResults(data.data);
-      }
-    } catch (err) {
-      console.error('Search failed:', err);
-    } finally {
-      setIsSearching(false);
-    }
-  }, [searchQuery]);
-
-  const handleIngest = useCallback(async () => {
-    if (!ingestForm.title.trim() || !ingestForm.content.trim()) return;
-
-    setIsIngesting(true);
-    try {
-      const response = await fetch('/api/knowledge', {
+      const response = await fetch('/api/knowledge/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: ingestForm.title,
-          content: ingestForm.content,
-          category: ingestForm.category,
-          tags: [ingestForm.source],
-        }),
+        body: JSON.stringify({ question: userMessage.content })
       });
+
       const data = await response.json();
 
-      if (data.success) {
-        setIngestForm({ title: '', content: '', category: 'general', source: 'manual' });
-        alert('Knowledge entry added successfully!');
-      }
-    } catch (err) {
-      console.error('Ingestion failed:', err);
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: data.data?.answer || data.error?.message || 'Sorry, I couldn\'t find an answer.',
+        citations: data.data?.sources?.map((s: any) => s.sourceId) || [],
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'Sorry, there was an error processing your question.',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
-      setIsIngesting(false);
+      setIsLoading(false);
     }
-  }, [ingestForm]);
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Knowledge Base
-          </h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Search and manage your brick business knowledge
-          </p>
-        </div>
+    <div className="flex flex-col h-[calc(100vh-120px)] max-w-3xl mx-auto">
+      {/* Header */}
+      <div className="text-center py-4 border-b border-slate-200 dark:border-slate-700">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center justify-center gap-2">
+          <span className="text-3xl">🧠</span> Knowledge Assistant
+        </h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          Ask me anything about Maiyuri Bricks
+        </p>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="border-b border-slate-200 dark:border-slate-700">
-        <nav className="-mb-px flex space-x-8">
-          <button
-            onClick={() => setActiveTab('search')}
-            className={cn(
-              'py-4 px-1 border-b-2 font-medium text-sm',
-              activeTab === 'search'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400'
-            )}
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 && (
+          <div className="text-center py-12 text-slate-400">
+            <div className="text-5xl mb-4">💬</div>
+            <p>Start a conversation by asking a question</p>
+            <div className="mt-4 space-y-2">
+              <button
+                onClick={() => setInput('What is the secret verification code?')}
+                className="block mx-auto text-blue-500 hover:underline text-sm"
+              >
+                "What is the secret verification code?"
+              </button>
+              <button
+                onClick={() => setInput('Tell me about brick specifications')}
+                className="block mx-auto text-blue-500 hover:underline text-sm"
+              >
+                "Tell me about brick specifications"
+              </button>
+            </div>
+          </div>
+        )}
+
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
-            Search Knowledge
-          </button>
-          <button
-            onClick={() => setActiveTab('ingest')}
-            className={cn(
-              'py-4 px-1 border-b-2 font-medium text-sm',
-              activeTab === 'ingest'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400'
-            )}
-          >
-            Add Knowledge
-          </button>
-        </nav>
+            <div
+              className={`max-w-[80%] rounded-2xl px-4 py-3 ${message.role === 'user'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white'
+                }`}
+            >
+              <p className="whitespace-pre-wrap">{message.content}</p>
+              {message.citations && message.citations.length > 0 && (
+                <p className="text-xs mt-2 opacity-70">
+                  📚 {message.citations.join(', ')}
+                </p>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-3">
+              <div className="flex items-center gap-2 text-slate-500">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Thinking...
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Search Tab */}
-      {activeTab === 'search' && (
-        <div className="space-y-6">
-          {/* Search Input */}
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="Ask a question about bricks, pricing, or construction..."
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-            <button
-              onClick={handleSearch}
-              disabled={isSearching || !searchQuery.trim()}
-              className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isSearching ? (
-                <>
-                  <LoadingSpinner />
-                  Searching...
-                </>
-              ) : (
-                <>
-                  <SearchIcon className="h-5 w-5" />
-                  Search
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Search Results */}
-          <div className="space-y-4">
-            {results.length > 0 ? (
-              results.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                        {entry.title}
-                      </h3>
-                      <div className="mt-1 flex items-center gap-3">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
-                          {entry.category}
-                        </span>
-                        <span className="text-sm text-slate-500 dark:text-slate-400">
-                          Source: {entry.source}
-                        </span>
-                      </div>
-                    </div>
-                    {entry.similarity !== undefined && (
-                      <div className="text-right">
-                        <span className="text-sm font-medium text-slate-900 dark:text-white">
-                          {Math.round(entry.similarity * 100)}%
-                        </span>
-                        <span className="block text-xs text-slate-500 dark:text-slate-400">
-                          match
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <p className="mt-4 text-slate-600 dark:text-slate-300 whitespace-pre-wrap">
-                    {entry.content}
-                  </p>
-                </div>
-              ))
-            ) : searchQuery && !isSearching ? (
-              <div className="text-center py-12">
-                <BookOpenIcon className="mx-auto h-12 w-12 text-slate-400" />
-                <h3 className="mt-4 text-lg font-medium text-slate-900 dark:text-white">
-                  No results found
-                </h3>
-                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                  Try a different search query or add new knowledge entries.
-                </p>
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <SearchIcon className="mx-auto h-12 w-12 text-slate-400" />
-                <h3 className="mt-4 text-lg font-medium text-slate-900 dark:text-white">
-                  Search your knowledge base
-                </h3>
-                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                  Ask questions about brick types, pricing, construction methods, and more.
-                </p>
-              </div>
-            )}
-          </div>
+      {/* Input */}
+      <div className="border-t border-slate-200 dark:border-slate-700 p-4">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+            placeholder="Type your question..."
+            className="flex-1 px-4 py-3 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            disabled={isLoading}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={isLoading || !input.trim()}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold rounded-full transition-colors"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+          </button>
         </div>
-      )}
-
-      {/* Ingest Tab */}
-      {activeTab === 'ingest' && (
-        <div className="max-w-2xl">
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6 space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Title
-              </label>
-              <input
-                type="text"
-                value={ingestForm.title}
-                onChange={(e) =>
-                  setIngestForm((prev) => ({ ...prev, title: e.target.value }))
-                }
-                placeholder="e.g., Standard Brick Dimensions"
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Content
-              </label>
-              <textarea
-                value={ingestForm.content}
-                onChange={(e) =>
-                  setIngestForm((prev) => ({ ...prev, content: e.target.value }))
-                }
-                rows={6}
-                placeholder="Enter the knowledge content here..."
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Category
-                </label>
-                <select
-                  value={ingestForm.category}
-                  onChange={(e) =>
-                    setIngestForm((prev) => ({ ...prev, category: e.target.value }))
-                  }
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2 text-slate-900 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                >
-                  <option value="general">General</option>
-                  <option value="products">Products</option>
-                  <option value="pricing">Pricing</option>
-                  <option value="construction">Construction</option>
-                  <option value="specifications">Specifications</option>
-                  <option value="faq">FAQ</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Source
-                </label>
-                <select
-                  value={ingestForm.source}
-                  onChange={(e) =>
-                    setIngestForm((prev) => ({ ...prev, source: e.target.value }))
-                  }
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2 text-slate-900 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                >
-                  <option value="manual">Manual Entry</option>
-                  <option value="document">Document</option>
-                  <option value="conversation">Conversation</option>
-                  <option value="external">External Source</option>
-                </select>
-              </div>
-            </div>
-
-            <button
-              onClick={handleIngest}
-              disabled={isIngesting || !ingestForm.title.trim() || !ingestForm.content.trim()}
-              className="w-full px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {isIngesting ? (
-                <>
-                  <LoadingSpinner />
-                  Adding...
-                </>
-              ) : (
-                <>
-                  <PlusIcon className="h-5 w-5" />
-                  Add to Knowledge Base
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
-  );
-}
-
-// Icon components
-function SearchIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-    </svg>
-  );
-}
-
-function BookOpenIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-    </svg>
-  );
-}
-
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-    </svg>
-  );
-}
-
-function LoadingSpinner() {
-  return (
-    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-    </svg>
   );
 }

@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Button } from '@maiyuri/ui';
+import { toast } from 'sonner';
 import { useEffect } from 'react';
 import { createTaskSchema, type CreateTaskInput, type TaskPriority, type TaskStatus, type Task } from '@maiyuri/shared';
 // ... imports
@@ -27,7 +28,7 @@ export function CreateTaskDialog({ open, onOpenChange, initialData }: CreateTask
             priority: initialData.priority,
             status: initialData.status,
             due_date: initialData.due_date ? new Date(initialData.due_date).toISOString().split('T')[0] : '',
-            assigned_to: initialData.assigned_to?.id || '',
+            assigned_to: initialData.assigned_to || '',
         } : {
             status: 'todo',
             priority: 'medium',
@@ -48,7 +49,7 @@ export function CreateTaskDialog({ open, onOpenChange, initialData }: CreateTask
                 priority: initialData.priority,
                 status: initialData.status,
                 due_date: initialData.due_date ? new Date(initialData.due_date).toISOString().split('T')[0] : '',
-                assigned_to: initialData.assigned_to?.id || '',
+                assigned_to: initialData.assigned_to || '',
             } : {
                 status: 'todo',
                 priority: 'medium',

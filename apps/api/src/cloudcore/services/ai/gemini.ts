@@ -4,7 +4,11 @@
  * Model: gemini-2.5-flash-preview-05-20
  */
 
-import { GoogleGenerativeAI, Part } from '@google/generative-ai';
+import { GoogleGenerativeAI, Part, TaskType } from '@google/generative-ai';
+import { GoogleGenAI as GeminiClient } from '@google/genai';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 import { GeminiModels, type CloudCoreResult, type TokenUsage } from '../../types';
 
 // Initialize Gemini client
@@ -344,13 +348,18 @@ Return ONLY the transcription text, no explanations.`;
  * Generate text embeddings using Gemini
  */
 export async function generateEmbedding(
-  text: string
+  text: string,
+  options?: { taskType?: string; title?: string }
 ): Promise<CloudCoreResult<EmbeddingResult>> {
   const startTime = Date.now();
 
   try {
     const model = genAI.getGenerativeModel({ model: EMBEDDING_MODEL });
-    const result = await model.embedContent(text);
+    const result = await model.embedContent({
+      content: { role: 'user', parts: [{ text }] },
+      taskType: options?.taskType as TaskType,
+      title: options?.title,
+    });
 
     const embedding = result.embedding;
     if (!embedding || !embedding.values) {
@@ -547,11 +556,166 @@ function detectLanguage(text: string): string {
   }
 }
 
+// --- RAG / File Search Implementation ---
+
+/**
+ * Add content to Knowledge Base
+ * With Context Stuffing approach, this is a pass-through since actual storage is in Supabase
+ * Kept for API compatibility with knowledge-curator
+ */
+export async function addToKnowledgeBase(
+  title: string,
+  content: string,
+  metadata?: Record<string, any>
+): Promise<CloudCoreResult<{ fileId: string; uri: string }>> {
+  const startTime = Date.now();
+
+  // With context stuffing, we don't upload to external File Search store
+  // Storage is handled by knowledge-curator directly in Supabase
+  // This function exists for API compatibility and future extensibility
+  
+  console.log(`[Context Stuffing] Knowledge entry prepared: "${title}" (${content.length} chars)`);
+
+  return {
+    success: true,
+    data: {
+      fileId: 'local-supabase',
+      uri: `supabase://knowledgebase/${Date.now()}`
+    },
+    meta: {
+      processingTime: Date.now() - startTime,
+      provider: 'context_stuffing'
+    }
+  };
+}
+
+/**
+ * Query the Knowledge Base using Context Stuffing (RAG)
+ * Fetches all documents from Supabase and embeds them in the system instruction
+ */
+export async function queryKnowledgeBase(
+  query: string
+): Promise<CloudCoreResult<{ answer: string; citations: string[] }>> {
+  const startTime = Date.now();
+
+  try {
+    // 1. Fetch all knowledge entries from Supabase
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase credentials not configured');
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    const { data: documents, error: fetchError } = await supabase
+      .from('knowledgebase')
+      .select('id, question_text, answer_text, metadata')
+      .order('created_at', { ascending: false })
+      .limit(50); // Limit to recent 50 docs to stay within context window
+    
+    if (fetchError) {
+      throw new Error(`Failed to fetch knowledge: ${fetchError.message}`);
+    }
+
+    if (!documents || documents.length === 0) {
+      return {
+        success: true,
+        data: {
+          answer: 'The knowledge base is empty. Please add some documents first.',
+          citations: []
+        },
+        meta: { processingTime: Date.now() - startTime }
+      };
+    }
+
+    // 2. Build context block from documents
+    const contextBlock = documents.map((doc: any) => `
+<DOCUMENT>
+  <TITLE>${doc.question_text || 'Untitled'}</TITLE>
+  <CONTENT>
+${doc.answer_text || ''}
+  </CONTENT>
+</DOCUMENT>
+`).join('\n');
+
+    // 3. Create system instruction with RAG rules
+    const systemInstruction = `
+You are a highly intelligent Knowledge Base Assistant for Maiyuri Bricks.
+Your goal is to answer the user's questions strictly based on the provided <DOCUMENT> blocks.
+
+RULES:
+1. Use ONLY the information in the provided documents to answer.
+2. If the answer is not in the documents, say "I cannot find information regarding this in the knowledge base."
+3. Cite the document title when you reference specific facts (e.g., [Document Title]).
+4. Be concise and professional.
+5. You can use markdown for formatting tables, lists, and code.
+
+CONTEXT LIBRARY:
+${contextBlock}
+`;
+
+    // 4. Generate response using Gemini with thinking mode
+    const geminiClient = new GeminiClient({ apiKey: process.env.GOOGLE_AI_API_KEY });
+    
+    const result = await geminiClient.models.generateContent({
+      model: 'gemini-2.5-pro', // P2: Use pro model for better reasoning
+      config: {
+        systemInstruction: systemInstruction,
+        temperature: 0.2, // P1: Low temperature for factual responses
+        thinkingConfig: { 
+          thinkingBudget: 2048 // P1: Enable thinking for better retrieval/reasoning
+        },
+      },
+      contents: [{ role: 'user', parts: [{ text: query }] }]
+    });
+
+    const responseText = result.text || result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    // 5. Extract cited document titles from the response
+    const citations: string[] = [];
+    const citationRegex = /\[([^\]]+)\]/g;
+    let match;
+    while ((match = citationRegex.exec(responseText)) !== null) {
+      if (!citations.includes(match[1])) {
+        citations.push(match[1]);
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        answer: responseText,
+        citations
+      },
+      meta: { processingTime: Date.now() - startTime }
+    };
+
+  } catch (error) {
+    console.error('Knowledge Base Query Error:', error);
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: 'RAG_QUERY_ERROR',
+        message: error instanceof Error ? error.message : 'Query failed'
+      },
+      meta: { processingTime: Date.now() - startTime }
+    };
+  }
+}
+
+
 export default {
   complete,
+  completeJson,
   transcribeAudio,
   transcribeAudioFromBase64,
   generateEmbedding,
   generateEmbeddings,
   summarizeTranscription,
+  addToKnowledgeBase,
+  queryKnowledgeBase,
 };

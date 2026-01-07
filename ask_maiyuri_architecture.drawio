@@ -1,0 +1,143 @@
+<mxfile host="app.diagrams.net" modified="2026-01-07T09:53:00.000Z" agent="5.0" etag="ask-maiyuri-rag" version="21.0.0">
+  <diagram name="Ask Maiyuri Architecture" id="ask-maiyuri">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Title -->
+        <mxCell id="title" value="Ask Maiyuri - RAG Chatbot Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=24;fontStyle=1;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="300" y="30" width="500" height="40" as="geometry" />
+        </mxCell>
+        
+        <!-- Frontend Layer -->
+        <mxCell id="frontend-group" value="Frontend (Next.js)" style="swimlane;horizontal=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="480" height="200" as="geometry" />
+        </mxCell>
+        
+        <!-- AskMaiyuri Component -->
+        <mxCell id="askmaiyuri" value="🧱 AskMaiyuri&#xa;Component&#xa;(Floating Chat)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;fontStyle=1;" vertex="1" parent="frontend-group">
+          <mxGeometry x="40" y="40" width="120" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Knowledge Page -->
+        <mxCell id="knowledge-page" value="📚 Knowledge&#xa;Page&#xa;(Chat Interface)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="frontend-group">
+          <mxGeometry x="40" y="130" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Dashboard Layout -->
+        <mxCell id="layout" value="Dashboard Layout&#xa;(All Screens)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="frontend-group">
+          <mxGeometry x="200" y="70" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- User Icon -->
+        <mxCell id="user" value="👤 User" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;fontStyle=1;" vertex="1" parent="frontend-group">
+          <mxGeometry x="370" y="60" width="80" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Connections in frontend -->
+        <mxCell id="edge1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#333333;" edge="1" parent="frontend-group" source="askmaiyuri" target="layout">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#333333;" edge="1" parent="frontend-group" source="layout" target="user">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- API Layer -->
+        <mxCell id="api-group" value="API Layer" style="swimlane;horizontal=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="320" width="480" height="140" as="geometry" />
+        </mxCell>
+        
+        <!-- API Route -->
+        <mxCell id="api-route" value="/api/knowledge/ask&#xa;(POST)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" vertex="1" parent="api-group">
+          <mxGeometry x="40" y="40" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Query KB Function -->
+        <mxCell id="query-kb" value="queryKnowledgeBase()&#xa;Context Stuffing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="api-group">
+          <mxGeometry x="220" y="40" width="140" height="60" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="edge3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#333333;" edge="1" parent="api-group" source="api-route" target="query-kb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- External Services -->
+        <mxCell id="services-group" value="External Services" style="swimlane;horizontal=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="100" width="500" height="360" as="geometry" />
+        </mxCell>
+        
+        <!-- Supabase -->
+        <mxCell id="supabase" value="🗄️ Supabase&#xa;(knowledgebase table)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1;" vertex="1" parent="services-group">
+          <mxGeometry x="60" y="60" width="140" height="100" as="geometry" />
+        </mxCell>
+        
+        <!-- Gemini -->
+        <mxCell id="gemini" value="🤖 Gemini 2.5 Pro&#xa;(AI Response)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontStyle=1;" vertex="1" parent="services-group">
+          <mxGeometry x="60" y="200" width="140" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Data Flow Box -->
+        <mxCell id="flow" value="RAG Flow:&#xa;1. User asks question&#xa;2. Fetch ALL KB entries&#xa;3. Stuff into prompt&#xa;4. Gemini generates answer&#xa;5. Return with citations" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="services-group">
+          <mxGeometry x="260" y="80" width="200" height="140" as="geometry" />
+        </mxCell>
+        
+        <!-- OMEGA-99 Box -->
+        <mxCell id="omega" value="Test Data:&#xa;OMEGA-99 🔑" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" vertex="1" parent="services-group">
+          <mxGeometry x="260" y="250" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Connections between groups -->
+        <mxCell id="edge4" value="POST {question}" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0066CC;strokeWidth=2;fontColor=#0066CC;" edge="1" parent="1" source="askmaiyuri" target="api-route">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="100" y="310" />
+              <mxPoint x="150" y="310" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="edge5" value="Fetch entries" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#CC6600;strokeWidth=2;fontColor=#CC6600;" edge="1" parent="1" source="query-kb" target="supabase">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="edge6" value="Generate" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#9933FF;strokeWidth=2;fontColor=#9933FF;" edge="1" parent="1" source="query-kb" target="gemini">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="530" y="390" />
+              <mxPoint x="530" y="440" />
+              <mxPoint x="690" y="440" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="edge7" value="Answer + Citations" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#00CC00;strokeWidth=2;dashed=1;fontColor=#00CC00;" edge="1" parent="1" source="api-route" target="askmaiyuri">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="20" y="390" />
+              <mxPoint x="20" y="180" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Legend -->
+        <mxCell id="legend" value="Legend" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="480" width="200" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="leg1" value="Frontend Component" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="legend">
+          <mxGeometry x="10" y="30" width="80" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg2" value="API Endpoint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="legend">
+          <mxGeometry x="100" y="30" width="80" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg3" value="Database" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=8;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="legend">
+          <mxGeometry x="10" y="70" width="60" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="leg4" value="AI Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="legend">
+          <mxGeometry x="100" y="75" width="80" height="30" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

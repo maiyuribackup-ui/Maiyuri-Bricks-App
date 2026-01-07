@@ -83,11 +83,17 @@ export async function GET(request: NextRequest) {
       return error(result.error?.message || 'Scraping failed', 500);
     }
 
+    if (result.data.length === 0) {
+       return error('No content found or generated', 404);
+    }
+
+    const entry = result.data[0];
+
     return success({
       entry: {
-        id: result.data.id,
-        question: result.data.question,
-        answer: result.data.answer,
+        id: entry.id,
+        question: entry.question,
+        answer: entry.answer,
       },
     });
   } catch (err) {

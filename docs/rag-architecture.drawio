@@ -1,0 +1,180 @@
+<mxfile host="app.diagrams.net" modified="2026-01-07T06:00:00.000Z" agent="Claude" version="21.0.0">
+  <diagram name="RAG Architecture" id="rag-architecture">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        
+        <!-- Title -->
+        <mxCell id="title" value="Maiyuri Bricks RAG Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=24;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="350" y="20" width="400" height="40" as="geometry"/>
+        </mxCell>
+        
+        <!-- User Layer -->
+        <mxCell id="user" value="User / Browser" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="100" y="120" width="40" height="80" as="geometry"/>
+        </mxCell>
+        
+        <!-- Web App -->
+        <mxCell id="webapp" value="Next.js Web App&#xa;(apps/web)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="220" y="130" width="140" height="60" as="geometry"/>
+        </mxCell>
+        
+        <!-- Arrow: User to Web -->
+        <mxCell id="arrow1" value="HTTPS" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="user" target="webapp">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <!-- API Routes -->
+        <mxCell id="api" value="API Routes&#xa;(/api/knowledge/*)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="420" y="130" width="140" height="60" as="geometry"/>
+        </mxCell>
+        
+        <!-- Arrow: Web to API -->
+        <mxCell id="arrow2" value="" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="webapp" target="api">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <!-- CloudCore Box -->
+        <mxCell id="cloudcore-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;dashed=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="200" y="240" width="500" height="200" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="cloudcore-label" value="CloudCore (apps/api/src/cloudcore)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="210" y="250" width="300" height="20" as="geometry"/>
+        </mxCell>
+        
+        <!-- Knowledge Curator Kernel -->
+        <mxCell id="kernel" value="Knowledge Curator&#xa;Kernel" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="220" y="290" width="120" height="60" as="geometry"/>
+        </mxCell>
+        
+        <!-- Gemini Service -->
+        <mxCell id="gemini-svc" value="Gemini Service&#xa;(gemini.ts)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="290" width="120" height="60" as="geometry"/>
+        </mxCell>
+        
+        <!-- Supabase Service -->
+        <mxCell id="supabase-svc" value="Supabase Service&#xa;(supabase.ts)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="220" y="370" width="120" height="60" as="geometry"/>
+        </mxCell>
+        
+        <!-- Embeddings Service -->
+        <mxCell id="embed-svc" value="Embeddings&#xa;Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="540" y="290" width="120" height="60" as="geometry"/>
+        </mxCell>
+        
+        <!-- Arrow: API to Kernel -->
+        <mxCell id="arrow3" value="" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="api" target="kernel">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <!-- Arrow: Kernel to Gemini -->
+        <mxCell id="arrow4" value="" style="endArrow=classic;startArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="kernel" target="gemini-svc">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <!-- Arrow: Kernel to Supabase -->
+        <mxCell id="arrow5" value="" style="endArrow=classic;startArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="kernel" target="supabase-svc">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <!-- Arrow: Gemini to Embeddings -->
+        <mxCell id="arrow6" value="" style="endArrow=classic;startArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="gemini-svc" target="embed-svc">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <!-- External Services Box -->
+        <mxCell id="external-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;dashed=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="760" y="120" width="280" height="320" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="external-label" value="External Services" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="770" y="130" width="150" height="20" as="geometry"/>
+        </mxCell>
+        
+        <!-- Google Gemini -->
+        <mxCell id="gemini-ext" value="Google Gemini API&#xa;&#xa;• gemini-2.5-flash&#xa;• text-embedding-004" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="790" y="170" width="140" height="80" as="geometry"/>
+        </mxCell>
+        
+        <!-- File Search Store -->
+        <mxCell id="filesearch" value="Gemini File Search&#xa;Store&#xa;&#xa;'Maiyuri Knowledge Base'" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="790" y="270" width="140" height="80" as="geometry"/>
+        </mxCell>
+        
+        <!-- Supabase DB -->
+        <mxCell id="supabase-db" value="Supabase&#xa;PostgreSQL&#xa;&#xa;• knowledgebase table&#xa;• embeddings (legacy)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="880" y="360" width="140" height="80" as="geometry"/>
+        </mxCell>
+        
+        <!-- Arrow: Gemini Svc to Gemini API -->
+        <mxCell id="arrow7" value="File Search&#xa;API" style="endArrow=classic;startArrow=classic;html=1;rounded=0;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=10;" edge="1" parent="1" source="gemini-svc" target="gemini-ext">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="720" y="305"/>
+              <mxPoint x="720" y="210"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Arrow: Gemini API to File Search -->
+        <mxCell id="arrow8" value="" style="endArrow=classic;startArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="gemini-ext" target="filesearch">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <!-- Arrow: Supabase Svc to DB -->
+        <mxCell id="arrow9" value="Store&#xa;Metadata" style="endArrow=classic;startArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;fontSize=10;" edge="1" parent="1" source="supabase-svc" target="supabase-db">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="720" y="400"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Legend -->
+        <mxCell id="legend-box" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="500" width="300" height="100" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="legend-title" value="Legend" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="90" y="505" width="80" height="20" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="legend1" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="90" y="530" width="20" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend1-text" value="Web Layer" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="115" y="527" width="80" height="20" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="legend2" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="90" y="555" width="20" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend2-text" value="CloudCore Services" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="115" y="552" width="100" height="20" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="legend3" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="90" y="580" width="20" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend3-text" value="Google AI Services" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="115" y="577" width="100" height="20" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="legend4" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="220" y="530" width="20" height="15" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend4-text" value="Supabase" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="245" y="527" width="80" height="20" as="geometry"/>
+        </mxCell>
+        
+        <!-- Data Flow Note -->
+        <mxCell id="flow-note" value="Data Flow:&#xa;1. User queries via Web UI&#xa;2. API calls Knowledge Curator&#xa;3. Gemini Service queries File Search Store&#xa;4. Grounded response returned with citations" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="440" y="500" width="250" height="100" as="geometry"/>
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

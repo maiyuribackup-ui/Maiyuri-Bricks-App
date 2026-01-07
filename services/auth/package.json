@@ -17,7 +17,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.47.12",
     "zod": "^3.24.1",
-    "@maiyuri/shared": "workspace:*"
+    "@maiyuri/shared": "*"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

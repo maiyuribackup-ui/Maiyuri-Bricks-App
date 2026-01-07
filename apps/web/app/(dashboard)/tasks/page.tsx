@@ -6,7 +6,7 @@ import { Button, Card, Spinner } from '@maiyuri/ui';
 import { TasksKanban } from './TasksKanban';
 import { CreateTaskDialog } from './CreateTaskDialog';
 import { Toaster, toast } from 'sonner';
-import { PlusIcon, RefreshIcon } from 'lucide-react'; // Assuming valid import or use generic icons
+import { PlusIcon, RefreshCw as RefreshIcon } from 'lucide-react';
 import type { Task, TaskStatus } from '@maiyuri/shared';
 
 // Icons Mock if not available

@@ -99,3 +99,7 @@ export type UpdateLeadStatusInput = z.infer<typeof updateLeadStatusSchema>;
 export type CreateKnowledgebaseInput = z.infer<typeof createKnowledgebaseSchema>;
 export type PaginationInput = z.infer<typeof paginationSchema>;
 export type LeadFiltersInput = z.infer<typeof leadFiltersSchema>;
+export type CreateTaskInput = z.infer<typeof createTaskSchema>;
+export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
+export type TaskFiltersInput = z.infer<typeof taskFiltersSchema>;
+
