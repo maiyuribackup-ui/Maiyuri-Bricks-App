@@ -8,9 +8,16 @@
             "dependsOn": [
                 "^build"
             ],
+            "env": [
+                "NEXT_PUBLIC_SUPABASE_URL",
+                "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+                "GEMINI_API_KEY",
+                "GOOGLE_AI_API_KEY"
+            ],
             "outputs": [
                 ".next/**",
-                "!.next/cache/**"
+                "!.next/cache/**",
+                "dist/**"
             ]
         },
         "lint": {
