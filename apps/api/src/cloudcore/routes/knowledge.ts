@@ -30,7 +30,7 @@ export async function ingestKnowledge(
     };
   }
 
-  const result = await knowledgeCurator.ingest({
+  const result: Awaited<ReturnType<typeof knowledgeCurator.ingest>> = await knowledgeCurator.ingest({
     content: parsed.data.content,
     title: parsed.data.title,
     sourceLeadId: parsed.data.sourceLeadId,
