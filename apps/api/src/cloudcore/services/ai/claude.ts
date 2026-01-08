@@ -84,6 +84,42 @@ export async function complete(
     };
   } catch (error) {
     console.error('Claude completion error:', error);
+    console.warn('Claude API failed, attempting fallback...', error instanceof Error ? error.message : error);
+
+    // Fallback to Gemini
+    console.log('🔄 Swapping to Fallback: Gemini');
+    try {
+      const geminiResult = await gemini.complete({
+        prompt: `${request.systemPrompt}\n\n${request.userPrompt}`,
+        maxTokens: request.maxTokens,
+        temperature: request.temperature,
+      });
+
+      if (geminiResult.success && geminiResult.data) {
+        return {
+          success: true,
+          data: {
+            content: geminiResult.data.content,
+            usage: geminiResult.data.usage || {
+              inputTokens: 0,
+              outputTokens: 0,
+              totalTokens: 0,
+              model: 'gemini-fallback',
+            },
+            stopReason: 'stop',
+          },
+          meta: {
+            processingTime: Date.now() - startTime,
+            provider: 'gemini(fallback)',
+          },
+        };
+      }
+      console.warn('Gemini fallback also failed:', geminiResult.error);
+    } catch (geminiError) {
+      console.error('Gemini fallback error:', geminiError);
+    }
+
+    // Return original error if Gemini also fails
     return {
       success: false,
       data: null,
