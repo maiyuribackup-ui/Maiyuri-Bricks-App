@@ -31,6 +31,49 @@ interface TeamCoaching {
   members: TeamMember[];
 }
 
+// API response types
+interface ApiTeamMetrics {
+  leadsHandled: number;
+  conversionRate: number;
+  averageResponseTime: number;
+  followUpCompletionRate: number;
+  notesPerLead: number;
+  activeLeads: number;
+}
+
+interface ApiTopPerformer {
+  staffId: string;
+  staffName: string;
+  score: number;
+}
+
+interface ApiImprovementArea {
+  area: string;
+  description: string;
+}
+
+interface ApiTeamCoachingResponse {
+  teamMetrics: ApiTeamMetrics;
+  topPerformers: ApiTopPerformer[];
+  improvementAreas: ApiImprovementArea[];
+}
+
+interface ApiIndividualCoaching {
+  staffId: string;
+  staffName: string;
+  period: string;
+  metrics: ApiTeamMetrics;
+  insights: Array<{
+    type: 'strength' | 'improvement' | 'alert';
+    title: string;
+    description: string;
+    metric: string;
+    value: number;
+  }>;
+  recommendations: string[];
+  overallScore: number;
+}
+
 export default function CoachingPage() {
   return (
     <Suspense fallback={<CoachingLoadingFallback />}>
@@ -88,10 +131,93 @@ function CoachingContent() {
     setIsLoading(true);
     try {
       const response = await fetch('/api/coaching');
-      const data = await response.json();
+      const result = await response.json();
 
-      if (data.success && data.data) {
-        setCoaching(data.data);
+      // API returns {data: {...}, error: null} format
+      if (result.data && !result.error) {
+        const apiData = result.data as ApiTeamCoachingResponse;
+
+        // Fetch individual coaching for each top performer to get full member details
+        const memberPromises = apiData.topPerformers.map(async (performer) => {
+          try {
+            const memberResponse = await fetch(`/api/coaching/${performer.staffId}`);
+            const memberResult = await memberResponse.json();
+
+            if (memberResult.data && !memberResult.error) {
+              const memberData = memberResult.data as ApiIndividualCoaching;
+              return {
+                id: memberData.staffId,
+                name: memberData.staffName,
+                role: 'Sales Staff',
+                metrics: {
+                  leadsHandled: memberData.metrics.leadsHandled,
+                  conversionRate: memberData.metrics.conversionRate,
+                  avgResponseTime: `${memberData.metrics.averageResponseTime}h`,
+                  activeLeads: memberData.metrics.activeLeads,
+                },
+                strengths: memberData.insights
+                  .filter(i => i.type === 'strength')
+                  .map(i => i.description),
+                areasForImprovement: memberData.insights
+                  .filter(i => i.type === 'improvement' || i.type === 'alert')
+                  .map(i => i.description),
+                recommendations: memberData.recommendations || [],
+                performanceScore: memberData.overallScore,
+              } as TeamMember;
+            }
+
+            // Fallback if individual fetch fails
+            return {
+              id: performer.staffId,
+              name: performer.staffName,
+              role: 'Sales Staff',
+              metrics: {
+                leadsHandled: 0,
+                conversionRate: 0,
+                avgResponseTime: 'N/A',
+                activeLeads: 0,
+              },
+              strengths: [],
+              areasForImprovement: [],
+              recommendations: [],
+              performanceScore: Math.round(performer.score * 20), // Convert 0-5 score to 0-100
+            } as TeamMember;
+          } catch {
+            return {
+              id: performer.staffId,
+              name: performer.staffName,
+              role: 'Sales Staff',
+              metrics: {
+                leadsHandled: 0,
+                conversionRate: 0,
+                avgResponseTime: 'N/A',
+                activeLeads: 0,
+              },
+              strengths: [],
+              areasForImprovement: [],
+              recommendations: [],
+              performanceScore: Math.round(performer.score * 20),
+            } as TeamMember;
+          }
+        });
+
+        const members = await Promise.all(memberPromises);
+
+        // Transform API response to expected interface
+        const coaching: TeamCoaching = {
+          teamMetrics: {
+            totalLeads: apiData.teamMetrics?.leadsHandled || 0,
+            avgConversionRate: apiData.teamMetrics?.conversionRate || 0,
+            topPerformer: apiData.topPerformers?.[0]?.staffName || 'N/A',
+            weeklyTrend: 'stable', // API doesn't provide trend, default to stable
+          },
+          teamRecommendations: apiData.improvementAreas?.map(area =>
+            `${area.area}: ${area.description}`
+          ) || [],
+          members,
+        };
+
+        setCoaching(coaching);
       }
     } catch (err) {
       console.error('Failed to fetch coaching data:', err);
