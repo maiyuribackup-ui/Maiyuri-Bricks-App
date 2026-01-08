@@ -223,6 +223,7 @@ export const CoachingRequestSchema = z.object({
   focusAreas: z
     .array(z.enum(['engagement', 'conversion', 'response_time', 'follow_up']))
     .optional(),
+  language: z.enum(['en', 'ta']).default('en'),
 });
 
 export const StaffMetricsSchema = z.object({

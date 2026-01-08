@@ -260,6 +260,7 @@ export interface CoachingRequest {
   staffId: string;
   period?: 'week' | 'month' | 'quarter';
   focusAreas?: ('engagement' | 'conversion' | 'response_time' | 'follow_up')[];
+  language?: 'en' | 'ta';
 }
 
 export interface CoachingResponse {

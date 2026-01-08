@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
   try {
     const { data: users, error: dbError } = await supabaseAdmin
       .from('users')
-      .select('id, email, name, role, created_at')
+      .select('id, email, name, role, language_preference, created_at')
       .order('name');
 
     if (dbError) {

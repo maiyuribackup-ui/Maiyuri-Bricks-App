@@ -84,7 +84,8 @@ export async function coach(
       metrics,
       additionalMetrics,
       period,
-      request.focusAreas
+      request.focusAreas,
+      request.language || 'en'
     );
 
     const response: CoachingResponse = {
@@ -201,7 +202,8 @@ async function generateCoaching(
   metrics: StaffMetrics,
   additionalMetrics: Awaited<ReturnType<typeof getAdditionalMetrics>>,
   period: 'week' | 'month' | 'quarter',
-  focusAreas?: CoachingRequest['focusAreas']
+  focusAreas?: CoachingRequest['focusAreas'],
+  language: 'en' | 'ta' = 'en'
 ): Promise<{
   insights: CoachingInsight[];
   recommendations: CoachingRecommendation[];
@@ -227,7 +229,8 @@ Hot Leads Converted: ${additionalMetrics.hotLeadsConverted}`;
   const result = await claude.generateCoachingInsights(
     staffContext,
     metricsContext + '\n' + focusContext,
-    period
+    period,
+    language
   );
 
   if (result.success && result.data) {

@@ -4,6 +4,8 @@ export type LeadStatus = 'new' | 'follow_up' | 'hot' | 'cold' | 'converted' | 'l
 
 export type UserRole = 'founder' | 'accountant' | 'engineer';
 
+export type LanguagePreference = 'en' | 'ta';
+
 export interface AIFactor {
   factor: string;
   impact: 'positive' | 'negative' | 'neutral';
@@ -54,6 +56,7 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  language_preference: LanguagePreference;
   created_at: string;
 }
 

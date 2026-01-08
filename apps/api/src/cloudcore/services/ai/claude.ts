@@ -6,6 +6,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { ClaudeModels, type TokenUsage, type CloudCoreResult } from '../../types';
+import { getLanguageInstruction, type LanguageCode } from '../../utils/language';
 
 // Initialize Claude client
 const anthropic = new Anthropic({
@@ -392,7 +393,8 @@ Respond with JSON:
 export async function generateCoachingInsights(
   staffContext: string,
   metricsContext: string,
-  period: string
+  period: string,
+  language: LanguageCode = 'en'
 ): Promise<CloudCoreResult<{
   insights: Array<{
     type: string;
@@ -409,6 +411,8 @@ export async function generateCoachingInsights(
   }>;
   overallScore: number;
 }>> {
+  const languageInstruction = getLanguageInstruction(language);
+
   const systemPrompt = `You are a sales performance coach for a brick manufacturing business.
 Analyze staff performance and provide constructive feedback.
 
@@ -417,7 +421,9 @@ Focus Areas:
 - Conversion success rate
 - Response timeliness
 - Follow-up discipline
-- Note-taking quality`;
+- Note-taking quality
+
+${languageInstruction}`;
 
   const userPrompt = `Generate coaching insights for this staff member (${period} period):
 

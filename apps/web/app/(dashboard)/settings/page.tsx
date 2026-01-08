@@ -10,6 +10,7 @@ interface UserProfile {
   email: string;
   role: string;
   phone?: string;
+  language_preference?: 'en' | 'ta';
 }
 
 interface TeamMember {
@@ -93,6 +94,7 @@ function ProfileSettings() {
     name: '',
     email: '',
     phone: '',
+    language_preference: 'en' as 'en' | 'ta',
   });
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
@@ -110,6 +112,7 @@ function ProfileSettings() {
         name: profile.name || '',
         email: profile.email || '',
         phone: profile.phone || '',
+        language_preference: profile.language_preference || 'en',
       });
     }
   }, [profile]);
@@ -201,6 +204,22 @@ function ProfileSettings() {
               placeholder="+91 "
               className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              AI Insights Language
+            </label>
+            <select
+              value={formData.language_preference}
+              onChange={(e) => handleChange('language_preference', e.target.value)}
+              className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="en">English</option>
+              <option value="ta">Tamil (தமிழ்)</option>
+            </select>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              AI-generated insights, summaries, and recommendations will be displayed in this language.
+            </p>
           </div>
         </div>
         <div className="pt-4 flex items-center gap-4">

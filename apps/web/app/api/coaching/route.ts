@@ -1,7 +1,26 @@
 import { NextRequest } from 'next/server';
 import { routes, contracts } from '@maiyuri/api';
 import { success, error, handleZodError } from '@/lib/api-utils';
+import { getUserFromRequest, getSupabaseAdmin } from '@/lib/supabase';
 import { ZodError } from 'zod';
+
+// Helper to get user's language preference
+async function getUserLanguagePreference(request: NextRequest): Promise<'en' | 'ta'> {
+  try {
+    const authUser = await getUserFromRequest(request);
+    if (!authUser) return 'en';
+
+    const { data: user } = await getSupabaseAdmin()
+      .from('users')
+      .select('language_preference')
+      .eq('id', authUser.id)
+      .single();
+
+    return (user?.language_preference as 'en' | 'ta') || 'en';
+  } catch {
+    return 'en';
+  }
+}
 
 // POST /api/coaching - Get coaching insights for a staff member
 export async function POST(request: NextRequest) {
@@ -14,7 +33,14 @@ export async function POST(request: NextRequest) {
       return handleZodError(parsed.error);
     }
 
-    const result = await routes.coaching.getCoaching(parsed.data);
+    // Get user's language preference
+    const language = await getUserLanguagePreference(request);
+
+    // Pass language to coaching request
+    const result = await routes.coaching.getCoaching({
+      ...parsed.data,
+      language,
+    });
 
     if (!result.success || !result.data) {
       return error(result.error?.message || 'Failed to get coaching insights', 500);
