@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { routes, contracts } from '@maiyuri/api';
 import { success, error, handleZodError } from '@/lib/api-utils';
-import { getUserFromRequest, getSupabaseAdmin } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { getUserFromRequest } from '@/lib/supabase-server';
 import { ZodError } from 'zod';
 
 // Helper to get user's language preference

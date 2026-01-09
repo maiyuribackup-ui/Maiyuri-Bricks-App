@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { routes } from '@maiyuri/api';
 import { success, error, notFound } from '@/lib/api-utils';
-import { getUserFromRequest, getSupabaseAdmin } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { getUserFromRequest } from '@/lib/supabase-server';
 
 interface RouteParams {
   params: Promise<{ staffId: string }>;

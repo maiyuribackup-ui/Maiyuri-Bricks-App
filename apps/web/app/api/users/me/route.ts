@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
-import { supabaseAdmin, getUserFromRequest } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
+import { getUserFromRequest } from '@/lib/supabase-server';
 import { success, error, unauthorized } from '@/lib/api-utils';
 import type { User } from '@maiyuri/shared';
 
