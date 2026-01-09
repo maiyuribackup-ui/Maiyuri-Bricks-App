@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
     const { data: user, error: dbError } = await supabaseAdmin
       .from('users')
-      .select('id, email, name, role, phone, language_preference, created_at')
+      .select('id, email, name, role, language_preference, created_at')
       .eq('id', authUser.id)
       .single();
 
@@ -45,13 +45,12 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, email, phone, language_preference } = body;
+    const { name, email, language_preference } = body;
 
     // Only allow updating certain fields
     const updates: Record<string, string> = {};
     if (name !== undefined) updates.name = name;
     if (email !== undefined) updates.email = email;
-    if (phone !== undefined) updates.phone = phone;
     if (language_preference !== undefined && ['en', 'ta'].includes(language_preference)) {
       updates.language_preference = language_preference;
     }
@@ -64,7 +63,7 @@ export async function PUT(request: NextRequest) {
       .from('users')
       .update(updates)
       .eq('id', authUser.id)
-      .select('id, email, name, role, phone, language_preference, created_at')
+      .select('id, email, name, role, language_preference, created_at')
       .single();
 
     if (dbError) {
