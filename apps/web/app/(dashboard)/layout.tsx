@@ -2,11 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@maiyuri/ui';
 import { AskMaiyuri } from '../../components/AskMaiyuri';
 import { useAuthStore } from '@/stores/authStore';
 import { getSupabase } from '@/lib/supabase';
+
+// Brand colors from Brandguidelines.md
+const brandColors = {
+  primary: '#1F6F43',    // Earth Green
+  secondary: '#8B5E3C',  // Clay Brown
+  accent: '#2F80ED',     // Peacock Blue
+  bgPrimary: '#F7F7F4',  // Page background
+};
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
@@ -102,10 +111,19 @@ export default function DashboardLayout({
 
               {/* Sidebar content */}
               <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white dark:bg-slate-800 px-6 pb-4">
-                <div className="flex h-16 shrink-0 items-center">
-                  <span className="text-xl font-bold text-slate-900 dark:text-white">
-                    Maiyuri Bricks
-                  </span>
+                <div className="flex h-20 shrink-0 items-center">
+                  <Link href="/dashboard" className="flex items-center gap-2">
+                    <Image
+                      src="/logo.png"
+                      alt="Maiyuri Bricks"
+                      width={56}
+                      height={56}
+                      className="h-14 w-14"
+                    />
+                    <span className="text-lg font-bold" style={{ color: brandColors.primary }}>
+                      Maiyuri Bricks
+                    </span>
+                  </Link>
                 </div>
                 <nav className="flex flex-1 flex-col">
                   <ul role="list" className="flex flex-1 flex-col gap-y-7">
@@ -122,17 +140,19 @@ export default function DashboardLayout({
                                 className={cn(
                                   'group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6',
                                   isActive
-                                    ? 'bg-slate-100 dark:bg-slate-700 text-blue-600 dark:text-blue-400'
-                                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-blue-600'
+                                    ? 'bg-emerald-50 dark:bg-emerald-900/20'
+                                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                                 )}
+                                style={isActive ? { color: brandColors.primary } : undefined}
                               >
                                 <item.icon
                                   className={cn(
                                     'h-6 w-6 shrink-0',
                                     isActive
-                                      ? 'text-blue-600 dark:text-blue-400'
-                                      : 'text-slate-400 group-hover:text-blue-600'
+                                      ? ''
+                                      : 'text-slate-400 group-hover:text-emerald-600'
                                   )}
+                                  style={isActive ? { color: brandColors.primary } : undefined}
                                 />
                                 {item.name}
                               </Link>
@@ -144,8 +164,8 @@ export default function DashboardLayout({
                     {/* User info and logout */}
                     <li className="mt-auto -mx-2">
                       <div className="flex items-center gap-x-3 p-2 border-t border-slate-200 dark:border-slate-700 pt-4">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
-                          <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+                          <span className="text-sm font-semibold" style={{ color: brandColors.primary }}>
                             {user?.name?.charAt(0)?.toUpperCase() || 'U'}
                           </span>
                         </div>
@@ -176,7 +196,7 @@ export default function DashboardLayout({
       )}
 
       {/* Mobile header */}
-      <header className="lg:hidden sticky top-0 z-40 flex items-center gap-x-4 bg-white dark:bg-slate-800 px-4 py-4 shadow-sm border-b border-slate-200 dark:border-slate-700">
+      <header className="lg:hidden sticky top-0 z-40 flex items-center gap-x-4 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm border-b border-slate-200 dark:border-slate-700">
         <button
           type="button"
           className="p-2.5 text-slate-700 dark:text-slate-200"
@@ -185,19 +205,37 @@ export default function DashboardLayout({
         >
           <MenuIcon className="h-6 w-6" />
         </button>
-        <div className="flex-1 text-sm font-semibold text-slate-900 dark:text-white">
-          Maiyuri Bricks
-        </div>
+        <Link href="/dashboard" className="flex-1 flex items-center gap-2">
+          <Image
+            src="/logo.png"
+            alt="Maiyuri Bricks"
+            width={40}
+            height={40}
+            className="h-10 w-10"
+          />
+          <span className="text-sm font-semibold" style={{ color: brandColors.primary }}>
+            Maiyuri Bricks
+          </span>
+        </Link>
       </header>
 
       {/* Sidebar for desktop */}
       <aside className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">
         <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 px-6 pb-4">
           {/* Logo */}
-          <div className="flex h-16 shrink-0 items-center">
-            <span className="text-xl font-bold text-slate-900 dark:text-white">
-              Maiyuri Bricks
-            </span>
+          <div className="flex h-20 shrink-0 items-center">
+            <Link href="/dashboard" className="flex items-center gap-2">
+              <Image
+                src="/logo.png"
+                alt="Maiyuri Bricks"
+                width={56}
+                height={56}
+                className="h-14 w-14"
+              />
+              <span className="text-lg font-bold" style={{ color: brandColors.primary }}>
+                Maiyuri Bricks
+              </span>
+            </Link>
           </div>
 
           {/* Navigation */}
@@ -215,17 +253,19 @@ export default function DashboardLayout({
                           className={cn(
                             'group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6',
                             isActive
-                              ? 'bg-slate-100 dark:bg-slate-700 text-blue-600 dark:text-blue-400'
-                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-blue-600'
+                              ? 'bg-emerald-50 dark:bg-emerald-900/20'
+                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                           )}
+                          style={isActive ? { color: brandColors.primary } : undefined}
                         >
                           <item.icon
                             className={cn(
                               'h-6 w-6 shrink-0',
                               isActive
-                                ? 'text-blue-600 dark:text-blue-400'
-                                : 'text-slate-400 group-hover:text-blue-600'
+                                ? ''
+                                : 'text-slate-400 group-hover:text-emerald-600'
                             )}
+                            style={isActive ? { color: brandColors.primary } : undefined}
                           />
                           {item.name}
                         </Link>
@@ -237,8 +277,8 @@ export default function DashboardLayout({
               {/* User info and logout */}
               <li className="mt-auto -mx-2">
                 <div className="flex items-center gap-x-3 p-2 border-t border-slate-200 dark:border-slate-700 pt-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
-                    <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+                    <span className="text-sm font-semibold" style={{ color: brandColors.primary }}>
                       {user?.name?.charAt(0)?.toUpperCase() || 'U'}
                     </span>
                   </div>

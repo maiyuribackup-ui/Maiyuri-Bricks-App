@@ -2,10 +2,19 @@
 
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { getSupabase } from '@/lib/supabase';
+
+// Brand colors from Brandguidelines.md
+const brandColors = {
+  primary: '#1F6F43',    // Earth Green
+  secondary: '#8B5E3C',  // Clay Brown
+  accent: '#2F80ED',     // Peacock Blue
+  bgPrimary: '#F7F7F4',  // Page background
+};
 
 // Validation schema
 const loginSchema = z.object({
@@ -82,7 +91,8 @@ function LoginForm() {
             type="email"
             autoComplete="email"
             {...register('email')}
-            className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ '--tw-ring-color': brandColors.primary } as React.CSSProperties}
             placeholder="you@example.com"
             disabled={isLoading}
           />
@@ -104,7 +114,8 @@ function LoginForm() {
             type="password"
             autoComplete="current-password"
             {...register('password')}
-            className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ '--tw-ring-color': brandColors.primary } as React.CSSProperties}
             placeholder="Enter your password"
             disabled={isLoading}
           />
@@ -124,7 +135,13 @@ function LoginForm() {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full py-2.5 px-4 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="w-full py-2.5 px-4 text-white font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          style={{
+            backgroundColor: brandColors.primary,
+            '--tw-ring-color': brandColors.primary,
+          } as React.CSSProperties}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#185835'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = brandColors.primary}
         >
           {isLoading ? (
             <>
@@ -188,22 +205,17 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-500 rounded-2xl mb-4">
-            <svg
-              className="w-10 h-10 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z"
-              />
-            </svg>
+          <div className="inline-flex items-center justify-center mb-4">
+            <Image
+              src="/logo.png"
+              alt="Maiyuri Bricks"
+              width={80}
+              height={80}
+              className="h-20 w-20"
+              priority
+            />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-bold" style={{ color: brandColors.primary }}>
             Maiyuri Bricks
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
