@@ -2,11 +2,13 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, Button, Spinner } from '@maiyuri/ui';
+import { Card, Button, Badge, Spinner } from '@maiyuri/ui';
 import { LeadsKanban } from './LeadsKanban';
 import Link from 'next/link';
 import type { Lead, LeadStatus } from '@maiyuri/shared';
 import { Toaster, toast } from 'sonner';
+import { ArchiveSuggestionsPanel, ArchiveConfigPanel } from '@/components/archive';
+import { useArchiveSuggestions } from '@/hooks/useArchive';
 
 // ============================================================================
 // CONSTANTS & HELPERS
@@ -122,7 +124,13 @@ async function updateLeadStatus(id: string, status: LeadStatus) {
 export default function LeadsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [activeView, setActiveView] = useState<ViewType>('all');
+  const [showArchivePanel, setShowArchivePanel] = useState(false);
+  const [showConfigPanel, setShowConfigPanel] = useState(false);
   const queryClient = useQueryClient();
+
+  // Fetch archive suggestions count for badge
+  const { data: archiveData } = useArchiveSuggestions();
+  const pendingSuggestionsCount = archiveData?.suggestions?.length ?? 0;
 
   // Status Mutation
   const statusMutation = useMutation({
@@ -301,6 +309,19 @@ export default function LeadsPage() {
               Kanban
             </button>
           </div>
+          <Button
+            variant="secondary"
+            onClick={() => setShowArchivePanel(true)}
+            className="relative"
+          >
+            <ArchiveIcon className="h-4 w-4 mr-2" />
+            Smart Archive
+            {pendingSuggestionsCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-white">
+                {pendingSuggestionsCount > 9 ? '9+' : pendingSuggestionsCount}
+              </span>
+            )}
+          </Button>
           <Button variant="secondary" onClick={() => refetch()}>
             <RefreshIcon className="h-4 w-4 mr-2" />
             Refresh
@@ -446,6 +467,16 @@ export default function LeadsPage() {
       ) : null}
 
       {hoveredLead && <LeadHoverCard lead={hoveredLead} />}
+
+      {/* Archive Panels */}
+      <ArchiveSuggestionsPanel
+        isOpen={showArchivePanel}
+        onClose={() => setShowArchivePanel(false)}
+      />
+      <ArchiveConfigPanel
+        isOpen={showConfigPanel}
+        onClose={() => setShowConfigPanel(false)}
+      />
     </div>
   );
 }
@@ -568,3 +599,10 @@ function EmptyState({ activeView, search, statusFilter }: { activeView: ViewType
 function PlusIcon({ className }: { className?: string }) { return <span>+</span> }
 function RefreshIcon({ className }: { className?: string }) { return <span>🔄</span> }
 function SearchIcon({ className }: { className?: string }) { return <span>🔍</span> }
+function ArchiveIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+    </svg>
+  );
+}

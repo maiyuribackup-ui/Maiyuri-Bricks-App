@@ -385,10 +385,11 @@ export async function calculateLeadKPI(
       };
     }
 
-    // All leads
+    // All leads (excluding archived)
     const { data: leads, error } = await db.supabase
       .from('leads')
       .select('id')
+      .eq('is_archived', false)
       .not('status', 'eq', 'converted')
       .not('status', 'eq', 'lost')
       .limit(50);
@@ -480,11 +481,12 @@ async function calculateSingleStaffKPI(
       };
     }
 
-    // Get leads assigned to this staff
+    // Get leads assigned to this staff (excluding archived)
     const { data: leads } = await db.supabase
       .from('leads')
       .select('id, status, created_at, updated_at, follow_up_date')
       .eq('assigned_staff', staffId)
+      .eq('is_archived', false)
       .gte('updated_at', start.toISOString());
 
     const staffLeads = leads || [];
@@ -738,10 +740,11 @@ export async function calculateBusinessKPI(
   const compareToPrevious = request.compareToPrevious !== false;
 
   try {
-    // Get all leads in the period
+    // Get all leads in the period (excluding archived)
     const { data: leads } = await db.supabase
       .from('leads')
       .select('*')
+      .eq('is_archived', false)
       .gte('created_at', start.toISOString());
 
     const periodLeads = leads || [];

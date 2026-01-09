@@ -6,11 +6,29 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Lead, Note, User, KnowledgebaseEntry, CloudCoreResult } from '../../types';
 
-// Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+// Lazy initialization to avoid build-time errors
+let _supabase: SupabaseClient | null = null;
 
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseKey);
+function getSupabase(): SupabaseClient {
+  if (!_supabase) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing Supabase environment variables');
+    }
+
+    _supabase = createClient(supabaseUrl, supabaseKey);
+  }
+  return _supabase;
+}
+
+// Proxy for lazy access
+export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_, prop) {
+    return Reflect.get(getSupabase(), prop);
+  },
+});
 
 // ============================================
 // Lead Operations

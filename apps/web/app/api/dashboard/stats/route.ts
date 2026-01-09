@@ -19,7 +19,7 @@ export async function GET() {
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
 
-    // Get all stats in parallel
+    // Get all stats in parallel (excluding archived leads)
     const [
       totalResult,
       hotResult,
@@ -30,53 +30,61 @@ export async function GET() {
       coldResult,
       lostResult,
     ] = await Promise.all([
-      // Total leads (excluding lost)
+      // Total leads (excluding archived)
       supabaseAdmin
         .from('leads')
-        .select('id', { count: 'exact', head: true }),
+        .select('id', { count: 'exact', head: true })
+        .eq('is_archived', false),
 
       // Hot leads
       supabaseAdmin
         .from('leads')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'hot'),
+        .eq('status', 'hot')
+        .eq('is_archived', false),
 
       // Due today (follow_up_date is today)
       supabaseAdmin
         .from('leads')
         .select('id', { count: 'exact', head: true })
         .eq('follow_up_date', todayStr)
-        .in('status', ['new', 'follow_up', 'hot']),
+        .in('status', ['new', 'follow_up', 'hot'])
+        .eq('is_archived', false),
 
       // Converted
       supabaseAdmin
         .from('leads')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'converted'),
+        .eq('status', 'converted')
+        .eq('is_archived', false),
 
       // New
       supabaseAdmin
         .from('leads')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'new'),
+        .eq('status', 'new')
+        .eq('is_archived', false),
 
       // Follow up
       supabaseAdmin
         .from('leads')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'follow_up'),
+        .eq('status', 'follow_up')
+        .eq('is_archived', false),
 
       // Cold
       supabaseAdmin
         .from('leads')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'cold'),
+        .eq('status', 'cold')
+        .eq('is_archived', false),
 
       // Lost
       supabaseAdmin
         .from('leads')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'lost'),
+        .eq('status', 'lost')
+        .eq('is_archived', false),
     ]);
 
     const stats: DashboardStats = {

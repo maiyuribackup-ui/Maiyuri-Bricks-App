@@ -36,6 +36,50 @@ export interface Lead {
   updated_at: string;
   created_by?: string | null;
   is_archived?: boolean;
+  archived_at?: string | null;
+  archived_by?: string | null;
+  archive_reason?: string | null;
+}
+
+// Archive Configuration Types
+export interface ArchiveThreshold {
+  days: number;
+  enabled: boolean;
+}
+
+export interface ArchiveConfig {
+  converted_days: ArchiveThreshold;
+  lost_days: ArchiveThreshold;
+  cold_inactivity_days: ArchiveThreshold;
+}
+
+export type ArchiveSuggestionStatus = 'pending' | 'accepted' | 'dismissed';
+
+export interface ArchiveSuggestion {
+  id: string;
+  lead_id: string;
+  suggestion_reason: string;
+  suggested_at: string;
+  ai_confidence: number | null;
+  status: ArchiveSuggestionStatus;
+  processed_at?: string | null;
+  processed_by?: string | null;
+  lead?: Lead;
+}
+
+export type ArchiveCriteriaType = 'converted' | 'lost' | 'cold_inactive';
+
+export interface ArchiveCriteria {
+  type: ArchiveCriteriaType;
+  days: number;
+  count: number;
+}
+
+export interface ArchiveSuggestionsResponse {
+  suggestions: ArchiveSuggestion[];
+  criteria: ArchiveCriteria[];
+  total_candidates: number;
+  generated_at: string;
 }
 
 export interface Note {

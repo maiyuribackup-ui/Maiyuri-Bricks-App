@@ -90,6 +90,34 @@ export const taskFiltersSchema = z.object({
   lead_id: z.string().uuid().optional(),
 });
 
+// Archive schemas
+export const archiveThresholdSchema = z.object({
+  days: z.number().int().min(1).max(365),
+  enabled: z.boolean(),
+});
+
+export const archiveConfigSchema = z.object({
+  converted_days: archiveThresholdSchema,
+  lost_days: archiveThresholdSchema,
+  cold_inactivity_days: archiveThresholdSchema,
+});
+
+export const updateArchiveConfigSchema = archiveConfigSchema.partial();
+
+export const batchArchiveSchema = z.object({
+  lead_ids: z.array(z.string().uuid()).min(1, 'At least one lead required').max(100, 'Maximum 100 leads'),
+  reason: z.string().optional(),
+});
+
+export const batchRestoreSchema = z.object({
+  lead_ids: z.array(z.string().uuid()).min(1, 'At least one lead required').max(100, 'Maximum 100 leads'),
+});
+
+export const archiveSuggestionActionSchema = z.object({
+  suggestion_ids: z.array(z.string().uuid()).min(1, 'At least one suggestion required'),
+  action: z.enum(['accept', 'dismiss']),
+});
+
 // Export types
 export type CreateLeadInput = z.infer<typeof createLeadSchema>;
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
@@ -102,4 +130,9 @@ export type LeadFiltersInput = z.infer<typeof leadFiltersSchema>;
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
 export type TaskFiltersInput = z.infer<typeof taskFiltersSchema>;
+export type ArchiveConfigInput = z.infer<typeof archiveConfigSchema>;
+export type UpdateArchiveConfigInput = z.infer<typeof updateArchiveConfigSchema>;
+export type BatchArchiveInput = z.infer<typeof batchArchiveSchema>;
+export type BatchRestoreInput = z.infer<typeof batchRestoreSchema>;
+export type ArchiveSuggestionActionInput = z.infer<typeof archiveSuggestionActionSchema>;
 
