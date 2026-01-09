@@ -149,10 +149,9 @@ export default function DashboardLayout({
                                   className={cn(
                                     'h-6 w-6 shrink-0',
                                     isActive
-                                      ? ''
+                                      ? 'text-[#1F6F43]'
                                       : 'text-slate-400 group-hover:text-emerald-600'
                                   )}
-                                  style={isActive ? { color: brandColors.primary } : undefined}
                                 />
                                 {item.name}
                               </Link>
@@ -262,10 +261,9 @@ export default function DashboardLayout({
                             className={cn(
                               'h-6 w-6 shrink-0',
                               isActive
-                                ? ''
+                                ? 'text-[#1F6F43]'
                                 : 'text-slate-400 group-hover:text-emerald-600'
                             )}
-                            style={isActive ? { color: brandColors.primary } : undefined}
                           />
                           {item.name}
                         </Link>
