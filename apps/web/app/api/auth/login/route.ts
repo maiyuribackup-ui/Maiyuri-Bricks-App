@@ -8,6 +8,17 @@ const loginSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // Early check for env vars
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return NextResponse.json(
+      { error: 'Server configuration error', details: 'Missing Supabase credentials' },
+      { status: 500 }
+    );
+  }
+
   try {
     const body = await request.json();
     const result = loginSchema.safeParse(body);
@@ -20,17 +31,6 @@ export async function POST(request: Request) {
     }
 
     const { email, password } = result.data;
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      );
-    }
-
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -39,14 +39,8 @@ export async function POST(request: Request) {
     });
 
     if (error) {
-      if (error.message.includes('Invalid login credentials')) {
-        return NextResponse.json(
-          { error: 'Invalid email or password' },
-          { status: 401 }
-        );
-      }
       return NextResponse.json(
-        { error: error.message },
+        { error: error.message, code: error.status || 'AUTH_ERROR' },
         { status: 401 }
       );
     }
@@ -57,9 +51,14 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('Login error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
     return NextResponse.json(
-      { error: 'An unexpected error occurred', details: errorMessage },
+      {
+        error: 'An unexpected error occurred',
+        details: errorMessage,
+        stack: process.env.NODE_ENV === 'development' ? errorStack : undefined
+      },
       { status: 500 }
     );
   }
