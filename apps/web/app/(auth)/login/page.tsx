@@ -37,7 +37,7 @@ function LoginForm() {
 
     try {
       const supabase = getSupabase();
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       });
@@ -52,10 +52,10 @@ function LoginForm() {
       }
 
       // Redirect to dashboard or original destination
-      router.push(redirectTo);
-      router.refresh();
+      // Use hard navigation to ensure cookies are sent with the new request
+      window.location.href = redirectTo;
+      return;
     } catch (err) {
-      console.error('Login error:', err);
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);

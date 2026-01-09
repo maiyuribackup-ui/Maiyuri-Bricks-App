@@ -1,20 +1,23 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 
 // Lazy initialization to avoid build-time errors when env vars are not available
 let _supabase: SupabaseClient | null = null;
 let _supabaseAdmin: SupabaseClient | null = null;
 
-// Browser client (uses anon key)
+// Browser client (uses anon key) - uses SSR package for proper cookie handling
 export function getSupabase(): SupabaseClient {
   if (!_supabase) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
+
     if (!url || !key) {
       throw new Error('Missing Supabase environment variables: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required');
     }
-    
-    _supabase = createClient(url, key);
+
+    // Use createBrowserClient from @supabase/ssr for proper cookie handling
+    // This ensures the session is stored in cookies that middleware can read
+    _supabase = createBrowserClient(url, key);
   }
   return _supabase;
 }
