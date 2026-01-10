@@ -8,7 +8,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Card, Button, Badge, Spinner, Modal } from '@maiyuri/ui';
 import { createNoteSchema, type CreateNoteInput, type Lead, type Note, type LeadStatus } from '@maiyuri/shared';
 import { AIAnalysisPanel, AudioUpload } from '@/components/leads';
+import { PriceEstimatorPanel } from '@/components/estimates';
 import Link from 'next/link';
+import { Toaster, toast } from 'sonner';
 
 const statusLabels: Record<LeadStatus, string> = {
   new: 'New',
@@ -49,6 +51,22 @@ async function deleteLead(id: string) {
   return res.json();
 }
 
+async function syncLeadWithOdoo(leadId: string, action: 'push' | 'pull' | 'both' = 'both') {
+  const res = await fetch(`/api/odoo/sync/${leadId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  });
+  if (!res.ok) throw new Error('Sync failed');
+  return res.json();
+}
+
+async function getLeadOdooStatus(leadId: string) {
+  const res = await fetch(`/api/odoo/sync/${leadId}`);
+  if (!res.ok) throw new Error('Failed to get sync status');
+  return res.json();
+}
+
 async function createNote(leadId: string, data: CreateNoteInput) {
   const res = await fetch(`/api/leads/${leadId}/notes`, {
     method: 'POST',
@@ -67,6 +85,7 @@ export default function LeadDetailPage() {
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [showAudioUpload, setShowAudioUpload] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showEstimator, setShowEstimator] = useState(false);
 
   const { data: leadData, isLoading: leadLoading } = useQuery({
     queryKey: ['lead', leadId],
@@ -116,6 +135,23 @@ export default function LeadDetailPage() {
     },
   });
 
+  // Odoo Sync Mutation
+  const odooSyncMutation = useMutation({
+    mutationFn: (action: 'push' | 'pull' | 'both') => syncLeadWithOdoo(leadId, action),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['lead', leadId] });
+      const pushResult = data.results?.push;
+      const pullResult = data.results?.pull;
+      let message = 'Sync completed: ';
+      if (pushResult?.success) message += pushResult.message + ' ';
+      if (pullResult?.success) message += pullResult.message;
+      toast.success(message.trim());
+    },
+    onError: (error) => {
+      toast.error(`Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    },
+  });
+
   if (leadLoading) {
     return (
       <div className="flex justify-center py-12">
@@ -137,6 +173,7 @@ export default function LeadDetailPage() {
 
   return (
     <div className="space-y-6">
+      <Toaster position="top-right" />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex items-start gap-4">
@@ -308,6 +345,94 @@ export default function LeadDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Create Estimate Button */}
+          <Card className="p-4">
+            <Button
+              className="w-full"
+              onClick={() => setShowEstimator(true)}
+            >
+              <CalculatorIcon className="h-4 w-4 mr-2" />
+              Create Estimate
+            </Button>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">
+              Generate a price estimate with AI-powered discount suggestions
+            </p>
+          </Card>
+
+          {/* Odoo Sync Card */}
+          <Card className="p-4">
+            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+              <OdooIcon className="h-4 w-4" />
+              Odoo CRM Sync
+            </h3>
+            <div className="space-y-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full"
+                onClick={() => odooSyncMutation.mutate('both')}
+                disabled={odooSyncMutation.isPending}
+              >
+                {odooSyncMutation.isPending ? 'Syncing...' : 'Sync Now'}
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="flex-1 text-xs"
+                  onClick={() => odooSyncMutation.mutate('push')}
+                  disabled={odooSyncMutation.isPending}
+                >
+                  Push to Odoo
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="flex-1 text-xs"
+                  onClick={() => odooSyncMutation.mutate('pull')}
+                  disabled={odooSyncMutation.isPending}
+                >
+                  Pull Quotes
+                </Button>
+              </div>
+            </div>
+            {lead.odoo_lead_id && (
+              <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                <dl className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <dt className="text-slate-500">Odoo ID</dt>
+                    <dd className="font-medium text-slate-900 dark:text-white">#{lead.odoo_lead_id}</dd>
+                  </div>
+                  {lead.odoo_quote_number && (
+                    <div className="flex justify-between">
+                      <dt className="text-slate-500">Quote</dt>
+                      <dd className="font-medium text-emerald-600">{lead.odoo_quote_number}</dd>
+                    </div>
+                  )}
+                  {lead.odoo_order_number && (
+                    <div className="flex justify-between">
+                      <dt className="text-slate-500">Order</dt>
+                      <dd className="font-medium text-blue-600">{lead.odoo_order_number}</dd>
+                    </div>
+                  )}
+                  {lead.odoo_synced_at && (
+                    <div className="flex justify-between">
+                      <dt className="text-slate-500">Last Sync</dt>
+                      <dd className="text-slate-600 dark:text-slate-400">
+                        {new Date(lead.odoo_synced_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            )}
+            {!lead.odoo_lead_id && (
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">
+                Not yet synced with Odoo
+              </p>
+            )}
+          </Card>
+
           {/* Status Card */}
           <Card className="p-6">
             <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
@@ -407,6 +532,16 @@ export default function LeadDetailPage() {
           </Button>
         </div>
       </Modal>
+
+      {/* Price Estimator Panel */}
+      <PriceEstimatorPanel
+        lead={lead}
+        isOpen={showEstimator}
+        onClose={() => setShowEstimator(false)}
+        onEstimateCreated={() => {
+          queryClient.invalidateQueries({ queryKey: ['estimates', leadId] });
+        }}
+      />
     </div>
   );
 }
@@ -439,6 +574,22 @@ function MicrophoneIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+    </svg>
+  );
+}
+
+function CalculatorIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 15.75V18m-7.5-6.75h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25V13.5zm0 2.25h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25V18zm2.498-6.75h.007v.008h-.007v-.008zm0 2.25h.007v.008h-.007V13.5zm0 2.25h.007v.008h-.007v-.008zm0 2.25h.007v.008h-.007V18zm2.504-6.75h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V13.5zm0 2.25h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V18zm2.498-6.75h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V13.5zM8.25 6h7.5v2.25h-7.5V6zM12 2.25c-1.892 0-3.758.11-5.593.322C5.307 2.7 4.5 3.65 4.5 4.757V19.5a2.25 2.25 0 002.25 2.25h10.5a2.25 2.25 0 002.25-2.25V4.757c0-1.108-.806-2.057-1.907-2.185A48.507 48.507 0 0012 2.25z" />
+    </svg>
+  );
+}
+
+function OdooIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
     </svg>
   );
 }

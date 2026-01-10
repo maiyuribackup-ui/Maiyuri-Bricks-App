@@ -10,6 +10,17 @@ import { Toaster, toast } from 'sonner';
 import { ArchiveSuggestionsPanel, ArchiveConfigPanel } from '@/components/archive';
 import { useArchiveSuggestions } from '@/hooks/useArchive';
 
+// Odoo sync function
+async function syncAllWithOdoo(type: 'full' | 'push' | 'pull' = 'full') {
+  const res = await fetch('/api/odoo/sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type }),
+  });
+  if (!res.ok) throw new Error('Sync failed');
+  return res.json();
+}
+
 // ============================================================================
 // CONSTANTS & HELPERS
 // ============================================================================
@@ -170,6 +181,18 @@ export default function LeadsPage() {
     onError: () => toast.error('Failed to update lead'),
   });
 
+  // Odoo Sync Mutation
+  const odooSyncMutation = useMutation({
+    mutationFn: (type: 'full' | 'push' | 'pull') => syncAllWithOdoo(type),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success(`Odoo Sync: ${data.message}`);
+    },
+    onError: (error) => {
+      toast.error(`Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    },
+  });
+
   const handleArchiveToggle = (e: React.MouseEvent, lead: Lead) => {
     e.preventDefault(); // Prevent row click
     e.stopPropagation();
@@ -321,6 +344,14 @@ export default function LeadsPage() {
                 {pendingSuggestionsCount > 9 ? '9+' : pendingSuggestionsCount}
               </span>
             )}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => odooSyncMutation.mutate('full')}
+            disabled={odooSyncMutation.isPending}
+          >
+            <OdooIcon className="h-4 w-4 mr-2" />
+            {odooSyncMutation.isPending ? 'Syncing...' : 'Sync Odoo'}
           </Button>
           <Button variant="secondary" onClick={() => refetch()}>
             <RefreshIcon className="h-4 w-4 mr-2" />
@@ -603,6 +634,14 @@ function ArchiveIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+    </svg>
+  );
+}
+
+function OdooIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
     </svg>
   );
 }
