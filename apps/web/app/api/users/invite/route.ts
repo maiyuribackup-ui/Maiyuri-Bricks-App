@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseRouteClient } from '@/lib/supabase-server';
+import { createSupabaseRouteClient, getUserFromRequest } from '@/lib/supabase-server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendInvitationEmail } from '@/lib/email';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,8 +12,8 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createSupabaseRouteClient(request);
 
-    // Check authentication
-    const { data: { user } } = await supabase.auth.getUser();
+    // Check authentication (supports both cookies and Bearer token)
+    const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
