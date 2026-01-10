@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
       if (insertError) {
         console.error('Failed to create invitation:', insertError);
         return NextResponse.json(
-          { error: 'Failed to create invitation' },
+          { error: 'Failed to create invitation', details: insertError.message },
           { status: 500 }
         );
       }
