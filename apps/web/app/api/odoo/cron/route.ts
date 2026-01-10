@@ -11,9 +11,18 @@ import { syncAllLeadsToOdoo, syncAllQuotesFromOdoo } from '@/lib/odoo-service';
 // Vercel Cron config in vercel.json:
 // { "crons": [{ "path": "/api/odoo/cron", "schedule": "*/5 * * * *" }] }
 export async function GET(request: NextRequest) {
-  // Verify cron secret for security (optional but recommended)
+  // Verify cron secret for security (REQUIRED in production)
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
+
+  // In production, CRON_SECRET is required
+  if (!cronSecret && process.env.NODE_ENV === 'production') {
+    console.error('[Odoo Cron] CRON_SECRET not configured');
+    return NextResponse.json(
+      { error: 'Cron not configured' },
+      { status: 500 }
+    );
+  }
 
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json(
