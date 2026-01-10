@@ -19,17 +19,31 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user is founder
-    const { data: currentUser } = await supabase
+    const { data: currentUser, error: roleError } = await supabase
       .from('users')
       .select('role')
       .eq('id', user.id)
       .single();
 
+    console.log('[Invite] User ID:', user.id, 'Email:', user.email);
+    console.log('[Invite] Role query result:', currentUser, 'Error:', roleError);
+
     if (!currentUser || currentUser.role !== 'founder') {
-      return NextResponse.json(
-        { error: 'Only founders can invite staff' },
-        { status: 403 }
-      );
+      // Try with admin client as fallback
+      const { data: adminCheck } = await supabaseAdmin
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      console.log('[Invite] Admin check:', adminCheck);
+
+      if (!adminCheck || adminCheck.role !== 'founder') {
+        return NextResponse.json(
+          { error: 'Only founders can invite staff' },
+          { status: 403 }
+        );
+      }
     }
 
     // Parse request body
