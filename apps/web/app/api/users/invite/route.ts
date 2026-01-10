@@ -3,6 +3,7 @@ import { createSupabaseRouteClient, getUserFromRequest } from '@/lib/supabase-se
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendInvitationEmail } from '@/lib/email';
 import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 
 /**
  * POST /api/users/invite
@@ -64,8 +65,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user already exists
-    const { data: existingUser } = await supabase
+    // Generate invitation token upfront
+    const invitationToken = uuidv4();
+    const invitationExpiresAt = new Date();
+    invitationExpiresAt.setDate(invitationExpiresAt.getDate() + 7); // 7 days
+
+    // Check if user already exists (use admin to bypass RLS)
+    const { data: existingUser } = await supabaseAdmin
       .from('users')
       .select('id, invitation_status')
       .eq('email', email)
@@ -81,10 +87,43 @@ export async function POST(request: NextRequest) {
       // If pending, we can resend the invitation
     }
 
-    // Generate invitation token
-    const invitationToken = uuidv4();
-    const invitationExpiresAt = new Date();
-    invitationExpiresAt.setDate(invitationExpiresAt.getDate() + 7); // 7 days
+    // Also check if auth user exists but not in public.users (edge case)
+    const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const existingAuthUser = authUsers?.users?.find(u => u.email === email);
+    if (existingAuthUser && !existingUser) {
+      // Auth user exists but no public.users record - create one
+      console.log('[Invite] Found orphan auth user, creating public.users record');
+      const { error: insertError } = await supabaseAdmin
+        .from('users')
+        .insert({
+          id: existingAuthUser.id,
+          email,
+          name,
+          phone: phone || null,
+          role,
+          invitation_token: invitationToken,
+          invitation_expires_at: invitationExpiresAt.toISOString(),
+          invitation_status: 'pending',
+          is_active: false,
+        });
+
+      if (insertError) {
+        console.error('Failed to create user record for orphan auth user:', insertError);
+        return NextResponse.json(
+          { error: 'Failed to create invitation', details: insertError.message },
+          { status: 500 }
+        );
+      }
+
+      // Send invitation email
+      const emailResult = await sendInvitationEmail(email, name, role, invitationToken);
+
+      return NextResponse.json({
+        success: true,
+        message: `Invitation sent to ${email}`,
+        emailSent: emailResult.success,
+      });
+    }
 
     if (existingUser) {
       // Update existing pending invitation (use admin to bypass RLS)
@@ -108,12 +147,33 @@ export async function POST(request: NextRequest) {
         );
       }
     } else {
-      // Create a pending invitation record (use admin to bypass RLS)
-      // Note: We don't create the auth.users entry yet - that happens when they accept
+      // First, create an auth user with a temporary password (they'll set their own on accept)
+      const tempPassword = crypto.randomBytes(32).toString('hex');
+
+      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password: tempPassword,
+        email_confirm: false, // Don't confirm email yet
+        user_metadata: {
+          name,
+          role,
+          invitation_pending: true,
+        },
+      });
+
+      if (authError) {
+        console.error('Failed to create auth user:', authError);
+        return NextResponse.json(
+          { error: 'Failed to create invitation', details: authError.message },
+          { status: 500 }
+        );
+      }
+
+      // Now create the public.users record with the auth user's ID
       const { error: insertError } = await supabaseAdmin
         .from('users')
         .insert({
-          id: uuidv4(), // Temporary ID, will be replaced when auth user is created
+          id: authUser.user.id, // Use the auth user's ID to satisfy FK constraint
           email,
           name,
           phone: phone || null,
@@ -125,7 +185,9 @@ export async function POST(request: NextRequest) {
         });
 
       if (insertError) {
-        console.error('Failed to create invitation:', insertError);
+        console.error('Failed to create user record:', insertError);
+        // Clean up the auth user we just created
+        await supabaseAdmin.auth.admin.deleteUser(authUser.user.id);
         return NextResponse.json(
           { error: 'Failed to create invitation', details: insertError.message },
           { status: 500 }
