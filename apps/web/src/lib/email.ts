@@ -14,7 +14,8 @@ function getResend(): Resend {
   return resendClient;
 }
 
-const FROM_EMAIL = 'Maiyuri Bricks <noreply@maiyuribricks.com>';
+// Use RESEND_FROM_EMAIL env var if domain is verified, otherwise use Resend's test sender
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'Maiyuri Bricks <onboarding@resend.dev>';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://maiyuri-bricks-app.vercel.app';
 
 export interface SendEmailResult {
