@@ -147,7 +147,8 @@ export async function POST(request: NextRequest) {
         );
       }
     } else {
-      // First, create an auth user with a temporary password (they'll set their own on accept)
+      // Create an auth user with a temporary password (they'll set their own on accept)
+      // Note: The on_auth_user_created trigger will auto-create the public.users record
       const tempPassword = crypto.randomBytes(32).toString('hex');
 
       const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -169,12 +170,10 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Now create the public.users record with the auth user's ID
-      const { error: insertError } = await supabaseAdmin
+      // The trigger already created the public.users record, now UPDATE it with invitation fields
+      const { error: updateError } = await supabaseAdmin
         .from('users')
-        .insert({
-          id: authUser.user.id, // Use the auth user's ID to satisfy FK constraint
-          email,
+        .update({
           name,
           phone: phone || null,
           role,
@@ -182,14 +181,15 @@ export async function POST(request: NextRequest) {
           invitation_expires_at: invitationExpiresAt.toISOString(),
           invitation_status: 'pending',
           is_active: false, // Not active until they accept
-        });
+        })
+        .eq('id', authUser.user.id);
 
-      if (insertError) {
-        console.error('Failed to create user record:', insertError);
+      if (updateError) {
+        console.error('Failed to update user record:', updateError);
         // Clean up the auth user we just created
         await supabaseAdmin.auth.admin.deleteUser(authUser.user.id);
         return NextResponse.json(
-          { error: 'Failed to create invitation', details: insertError.message },
+          { error: 'Failed to create invitation', details: updateError.message },
           { status: 500 }
         );
       }
