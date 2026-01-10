@@ -61,44 +61,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create the auth user
-    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: invitation.email,
-      password,
-      email_confirm: true, // Auto-confirm since they were invited
-      user_metadata: {
-        name: invitation.name,
-        role: invitation.role,
-        phone: invitation.phone,
-      },
-    });
+    // The auth user was already created during invitation.
+    // Now we just need to update their password and confirm their email.
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+      invitation.id, // The invitation.id IS the auth user's ID
+      {
+        password,
+        email_confirm: true, // Confirm email since they accepted the invite
+        user_metadata: {
+          name: invitation.name,
+          role: invitation.role,
+          phone: invitation.phone,
+          invitation_pending: false, // Clear the pending flag
+        },
+      }
+    );
 
     if (authError) {
-      console.error('Failed to create auth user:', authError);
+      console.error('Failed to update auth user:', authError);
       return NextResponse.json(
         { error: authError.message },
         { status: 500 }
       );
     }
 
-    // Update the users table with the real auth user ID
-    // First, delete the temporary record
-    await supabaseAdmin
-      .from('users')
-      .delete()
-      .eq('id', invitation.id);
-
-    // Then insert with the real auth user ID
-    // Note: The trigger on auth.users should handle this automatically
-    // But we update to make sure the invitation fields are cleared
+    // Update the public.users record to mark invitation as accepted
     const { error: updateError } = await supabaseAdmin
       .from('users')
-      .upsert({
-        id: authUser.user.id,
-        email: invitation.email,
-        name: invitation.name,
-        phone: invitation.phone,
-        role: invitation.role,
+      .update({
         invitation_token: null,
         invitation_expires_at: null,
         invitation_status: 'active',
@@ -108,7 +98,8 @@ export async function POST(request: NextRequest) {
           whatsapp: false,
           daily_summary: true,
         },
-      });
+      })
+      .eq('id', invitation.id);
 
     if (updateError) {
       console.error('Failed to update user record:', updateError);
