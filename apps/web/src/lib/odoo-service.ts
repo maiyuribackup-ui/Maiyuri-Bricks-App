@@ -496,29 +496,74 @@ export async function syncAllLeadsToOdoo(): Promise<SyncResult> {
 }
 
 /**
- * Pull all quotes/orders from Odoo for synced leads
+ * Process leads concurrently with limited concurrency
  */
-export async function syncAllQuotesFromOdoo(): Promise<SyncResult> {
+async function processLeadsConcurrently<T>(
+  leads: Array<{ id: string; name: string }>,
+  processor: (leadId: string) => Promise<T>,
+  concurrency: number = 5
+): Promise<T[]> {
+  const results: T[] = [];
+
+  for (let i = 0; i < leads.length; i += concurrency) {
+    const batch = leads.slice(i, i + concurrency);
+    const batchResults = await Promise.all(
+      batch.map(lead => processor(lead.id))
+    );
+    results.push(...batchResults);
+  }
+
+  return results;
+}
+
+/**
+ * Pull all quotes/orders from Odoo for synced leads (with batching)
+ * @param limit - Max leads to process (default 10 for serverless timeout)
+ * @param offset - Skip first N leads for pagination
+ */
+export async function syncAllQuotesFromOdoo(
+  limit: number = 10,
+  offset: number = 0
+): Promise<SyncResult> {
   try {
-    // Get all leads that are synced with Odoo
+    // Get total count first
+    const { count: totalCount } = await getSupabase()
+      .from('leads')
+      .select('id', { count: 'exact', head: true })
+      .not('odoo_lead_id', 'is', null)
+      .eq('is_archived', false);
+
+    // Get batch of leads that are synced with Odoo
     const { data: leads, error } = await getSupabase()
       .from('leads')
       .select('id, name, odoo_lead_id')
       .not('odoo_lead_id', 'is', null)
-      .eq('is_archived', false);
+      .eq('is_archived', false)
+      .order('odoo_synced_at', { ascending: true, nullsFirst: true })
+      .range(offset, offset + limit - 1);
 
     if (error) {
       return { success: false, message: 'Failed to fetch leads', error: error.message };
     }
 
     if (!leads || leads.length === 0) {
-      return { success: true, message: 'No synced leads found' };
+      return {
+        success: true,
+        message: 'No more leads to sync',
+        data: { updated: 0, noQuotes: 0, failed: 0, total: totalCount || 0, hasMore: false }
+      };
     }
 
     const results = { updated: 0, noQuotes: 0, failed: 0 };
 
-    for (const lead of leads) {
-      const result = await pullQuotesFromOdoo(lead.id);
+    // Process leads concurrently (5 at a time) instead of sequentially
+    const pullResults = await processLeadsConcurrently(
+      leads,
+      pullQuotesFromOdoo,
+      5
+    );
+
+    for (const result of pullResults) {
       if (result.success) {
         const quotes = result.data?.quotes as unknown[];
         if (quotes && quotes.length > 0) {
@@ -531,10 +576,19 @@ export async function syncAllQuotesFromOdoo(): Promise<SyncResult> {
       }
     }
 
+    const hasMore = offset + leads.length < (totalCount || 0);
+    const nextOffset = hasMore ? offset + limit : null;
+
     return {
       success: true,
-      message: `Updated ${results.updated} leads with quotes/orders`,
-      data: results,
+      message: `Updated ${results.updated}/${leads.length} leads with quotes/orders`,
+      data: {
+        ...results,
+        processed: leads.length,
+        total: totalCount || 0,
+        hasMore,
+        nextOffset,
+      },
     };
   } catch (err) {
     return {
@@ -546,11 +600,16 @@ export async function syncAllQuotesFromOdoo(): Promise<SyncResult> {
 }
 
 /**
- * Full bidirectional sync
+ * Full bidirectional sync (batched to avoid timeout)
+ * @param pullLimit - Max leads to pull quotes for (default 10)
+ * @param pullOffset - Offset for pull pagination
  */
-export async function fullSync(): Promise<SyncResult> {
+export async function fullSync(
+  pullLimit: number = 10,
+  pullOffset: number = 0
+): Promise<SyncResult> {
   const pushResult = await syncAllLeadsToOdoo();
-  const pullResult = await syncAllQuotesFromOdoo();
+  const pullResult = await syncAllQuotesFromOdoo(pullLimit, pullOffset);
 
   return {
     success: pushResult.success && pullResult.success,

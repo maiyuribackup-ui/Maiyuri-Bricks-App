@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fullSync } from '@/lib/odoo-service';
+import { syncAllLeadsToOdoo, syncAllQuotesFromOdoo } from '@/lib/odoo-service';
 
 // GET /api/odoo/cron
 // Scheduled sync endpoint for Vercel Cron or external cron services
 //
-// This endpoint should be called periodically (e.g., every 15 minutes)
-// to keep Odoo and the app in sync.
+// This endpoint processes sync in batches to avoid timeout:
+// - Pushes all pending leads (up to 50)
+// - Pulls quotes for 10 leads per cron run (pagination handled automatically)
 //
 // Vercel Cron config in vercel.json:
-// { "crons": [{ "path": "/api/odoo/cron", "schedule": "*/15 * * * *" }] }
+// { "crons": [{ "path": "/api/odoo/cron", "schedule": "*/5 * * * *" }] }
 export async function GET(request: NextRequest) {
   // Verify cron secret for security (optional but recommended)
   const authHeader = request.headers.get('authorization');
@@ -24,14 +25,25 @@ export async function GET(request: NextRequest) {
   try {
     console.log('[Odoo Cron] Starting scheduled sync...');
 
-    const result = await fullSync();
+    // Push pending leads first (this is already batched to 50)
+    const pushResult = await syncAllLeadsToOdoo();
+    console.log('[Odoo Cron] Push completed:', pushResult.message);
 
-    console.log('[Odoo Cron] Sync completed:', result.message);
+    // Pull quotes in a single batch (10 leads, oldest synced first)
+    // Next cron run will pick up the next batch automatically
+    const pullResult = await syncAllQuotesFromOdoo(10, 0);
+    console.log('[Odoo Cron] Pull completed:', pullResult.message);
+
+    const message = `Push: ${pushResult.message} | Pull: ${pullResult.message}`;
+    console.log('[Odoo Cron] Sync completed:', message);
 
     return NextResponse.json({
-      success: result.success,
-      message: result.message,
-      data: result.data,
+      success: pushResult.success && pullResult.success,
+      message,
+      data: {
+        push: pushResult.data,
+        pull: pullResult.data,
+      },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
