@@ -335,7 +335,8 @@ Respond with JSON:
  */
 export async function generateSuggestions(
   leadContext: string,
-  notesContext: string
+  notesContext: string,
+  language: LanguageCode = 'en'
 ): Promise<CloudCoreResult<{
   suggestions: Array<{
     id: string;
@@ -347,6 +348,10 @@ export async function generateSuggestions(
   nextBestAction: string;
   suggestedFollowUpDate: string;
 }>> {
+  const languageInstruction = language === 'ta'
+    ? '\n\nIMPORTANT: Respond entirely in Tamil (தமிழ்). All text must be in Tamil script.'
+    : '';
+
   const systemPrompt = `You are a sales advisor for a brick manufacturing business.
 Generate actionable suggestions to help close leads.
 
@@ -354,7 +359,7 @@ Suggestion Types:
 - action: Tasks to complete
 - response: What to say to the lead
 - insight: Observations about the lead
-- warning: Potential issues to address`;
+- warning: Potential issues to address${languageInstruction}`;
 
   const userPrompt = `Generate suggestions for this lead:
 

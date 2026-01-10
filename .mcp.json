@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/mcp.json",
+  "mcpServers": {
+    "odoo": {
+      "command": "uvx",
+      "args": ["mcp-server-odoo"],
+      "env": {
+        "ODOO_URL": "https://CRM.MAIYURI.COM",
+        "ODOO_USER": "maiyuribricks@gmail.com",
+        "ODOO_PASSWORD": "Priyam2019",
+        "ODOO_DB": "lite2",
+        "ODOO_YOLO": "read",
+        "ODOO_MCP_LOG_LEVEL": "INFO",
+        "ODOO_MCP_DEFAULT_LIMIT": "10",
+        "ODOO_MCP_MAX_LIMIT": "100"
+      }
+    }
+  }
+}

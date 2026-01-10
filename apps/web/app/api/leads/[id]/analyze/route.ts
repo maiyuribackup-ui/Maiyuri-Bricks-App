@@ -1,9 +1,29 @@
 import { NextRequest } from 'next/server';
 import { kernels, services } from '@maiyuri/api';
 import { success, error, notFound } from '@/lib/api-utils';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { getUserFromRequest } from '@/lib/supabase-server';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
+}
+
+// Helper to get user's language preference
+async function getUserLanguagePreference(request: NextRequest): Promise<'en' | 'ta'> {
+  try {
+    const authUser = await getUserFromRequest(request);
+    if (!authUser) return 'en';
+
+    const { data: user } = await getSupabaseAdmin()
+      .from('users')
+      .select('language_preference')
+      .eq('id', authUser.id)
+      .single();
+
+    return (user?.language_preference as 'en' | 'ta') || 'en';
+  } catch {
+    return 'en';
+  }
 }
 
 // POST /api/leads/[id]/analyze - Analyze a lead with AI using CloudCore
@@ -11,10 +31,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
+    // Get user's language preference
+    const language = await getUserLanguagePreference(request);
+
     // Use CloudCore's lead analyst kernel for full analysis
     const result = await kernels.leadAnalyst.analyze({
       leadId: id,
       analysisType: 'full_analysis',
+      language,
       options: {
         includeSimilarLeads: false,
         includeHistoricalData: false,
@@ -89,8 +113,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
+    // Get user's language preference
+    const language = await getUserLanguagePreference(request);
+
     // Use CloudCore's quick analyze for lightweight analysis
-    const result = await kernels.leadAnalyst.quickAnalyze(id);
+    const result = await kernels.leadAnalyst.quickAnalyze(id, { language });
 
     if (!result.success || !result.data) {
       if (result.error?.code === 'LEAD_NOT_FOUND') {

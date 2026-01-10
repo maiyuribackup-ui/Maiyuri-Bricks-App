@@ -151,6 +151,7 @@ export async function answerQuestion(
     leadId: parsed.data.leadId,
     includeNotes: parsed.data.includeNotes,
     maxSources: parsed.data.maxSources,
+    language: parsed.data.language,
   });
 }
 

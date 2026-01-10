@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteClient, getUserFromRequest } from '@/lib/supabase-server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendInvitationEmail } from '@/lib/email';
+import { notifyStaffInvited } from '@/lib/telegram';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 
@@ -208,6 +209,11 @@ export async function POST(request: NextRequest) {
       // Don't fail the request, just log the error
       // The invitation is still valid
     }
+
+    // Send Telegram notification (non-blocking)
+    notifyStaffInvited(name, email, role).catch((err) => {
+      console.error('Failed to send Telegram notification:', err);
+    });
 
     return NextResponse.json({
       success: true,

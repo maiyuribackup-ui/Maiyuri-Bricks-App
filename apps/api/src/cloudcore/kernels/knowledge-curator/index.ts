@@ -163,6 +163,7 @@ export async function answerQuestion(
     leadId?: string;
     includeNotes?: boolean;
     maxSources?: number;
+    language?: 'en' | 'ta';
   }
 ): Promise<CloudCoreResult<{
   answer: string;
@@ -170,10 +171,11 @@ export async function answerQuestion(
   confidence: number;
 }>> {
   const startTime = Date.now();
+  const language = options?.language || 'en';
 
   try {
     // Use the new Gemini File Search RAG
-    const ragResult = await gemini.queryKnowledgeBase(question);
+    const ragResult = await gemini.queryKnowledgeBase(question, { language });
 
     if (!ragResult.success || !ragResult.data) {
         return {

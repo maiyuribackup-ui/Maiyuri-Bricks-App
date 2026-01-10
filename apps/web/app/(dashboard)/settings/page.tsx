@@ -255,6 +255,8 @@ function NotificationSettings() {
     telegram: false,
   });
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [telegramStatus, setTelegramStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [telegramError, setTelegramError] = useState('');
 
   const handleToggle = (key: keyof typeof settings) => {
     setSettings(prev => ({ ...prev, [key]: !prev[key] }));
@@ -265,6 +267,29 @@ function NotificationSettings() {
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 2000);
     }, 500);
+  };
+
+  const testTelegram = async () => {
+    setTelegramStatus('testing');
+    setTelegramError('');
+    try {
+      const res = await fetch('/api/notifications/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'test' }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTelegramStatus('success');
+        setTimeout(() => setTelegramStatus('idle'), 3000);
+      } else {
+        setTelegramStatus('error');
+        setTelegramError(data.error || 'Failed to send test message');
+      }
+    } catch (err) {
+      setTelegramStatus('error');
+      setTelegramError('Network error. Please try again.');
+    }
   };
 
   return (
@@ -278,7 +303,7 @@ function NotificationSettings() {
         )}
       </div>
       <div className="space-y-6">
-        {[
+        {([
           {
             id: 'new_leads',
             title: 'New Lead Alerts',
@@ -299,12 +324,7 @@ function NotificationSettings() {
             title: 'Daily Summary',
             description: 'Daily digest of lead activity and metrics',
           },
-          {
-            id: 'telegram',
-            title: 'Telegram Notifications',
-            description: 'Send notifications to Telegram bot',
-          },
-        ].map((setting) => (
+        ] as const).map((setting) => (
           <div key={setting.id} className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-medium text-slate-900 dark:text-white">
@@ -325,6 +345,48 @@ function NotificationSettings() {
             </label>
           </div>
         ))}
+
+        {/* Telegram Settings */}
+        <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-sm font-medium text-slate-900 dark:text-white">
+                Telegram Notifications
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Send notifications to Telegram bot
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={testTelegram}
+                disabled={telegramStatus === 'testing'}
+                className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50"
+              >
+                {telegramStatus === 'testing' ? 'Testing...' : 'Test Connection'}
+              </button>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.telegram}
+                  onChange={() => handleToggle('telegram')}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+          </div>
+          {telegramStatus === 'success' && (
+            <p className="text-sm text-green-600 dark:text-green-400">
+              Test message sent successfully! Check your Telegram.
+            </p>
+          )}
+          {telegramStatus === 'error' && (
+            <p className="text-sm text-red-600 dark:text-red-400">
+              {telegramError}
+            </p>
+          )}
+        </div>
       </div>
     </Card>
   );
@@ -620,7 +682,7 @@ function TeamSettings() {
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Phone (for WhatsApp)
+                      Phone (for Notifications)
                     </label>
                     <input
                       type="tel"

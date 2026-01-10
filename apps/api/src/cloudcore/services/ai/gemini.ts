@@ -594,8 +594,10 @@ export async function addToKnowledgeBase(
  * Fetches all documents from Supabase and embeds them in the system instruction
  */
 export async function queryKnowledgeBase(
-  query: string
+  query: string,
+  options?: { language?: 'en' | 'ta' }
 ): Promise<CloudCoreResult<{ answer: string; citations: string[] }>> {
+  const language = options?.language || 'en';
   const startTime = Date.now();
 
   try {
@@ -642,6 +644,10 @@ ${doc.answer_text || ''}
 `).join('\n');
 
     // 3. Create system instruction with RAG rules
+    const languageInstruction = language === 'ta'
+      ? '\n\nIMPORTANT: Respond entirely in Tamil (தமிழ்). All text must be in Tamil script.'
+      : '';
+
     const systemInstruction = `
 You are a highly intelligent Knowledge Base Assistant for Maiyuri Bricks.
 Your goal is to answer the user's questions strictly based on the provided <DOCUMENT> blocks.
@@ -651,7 +657,7 @@ RULES:
 2. If the answer is not in the documents, say "I cannot find information regarding this in the knowledge base."
 3. Cite the document title when you reference specific facts (e.g., [Document Title]).
 4. Be concise and professional.
-5. You can use markdown for formatting tables, lists, and code.
+5. You can use markdown for formatting tables, lists, and code.${languageInstruction}
 
 CONTEXT LIBRARY:
 ${contextBlock}

@@ -97,6 +97,7 @@ export type AnalysisType =
 export interface LeadAnalysisRequest {
   leadId: string;
   analysisType: AnalysisType;
+  language?: 'en' | 'ta';
   context?: KernelContext;
   options?: {
     includeSimilarLeads?: boolean;
@@ -351,6 +352,85 @@ export interface ConversationMessage {
 }
 
 // ============================================
+// Archive Curator Kernel Types
+// ============================================
+
+export interface ArchiveThreshold {
+  days: number;
+  enabled: boolean;
+}
+
+export interface ArchiveConfig {
+  converted_days: ArchiveThreshold;
+  lost_days: ArchiveThreshold;
+  cold_inactivity_days: ArchiveThreshold;
+}
+
+export type ArchiveSuggestionStatus = 'pending' | 'accepted' | 'dismissed';
+export type ArchiveCriteriaType = 'converted' | 'lost' | 'cold_inactive';
+
+export interface ArchiveSuggestion {
+  id: string;
+  lead_id: string;
+  suggestion_reason: string;
+  suggested_at: string;
+  ai_confidence: number | null;
+  status: ArchiveSuggestionStatus;
+  processed_at?: string | null;
+  processed_by?: string | null;
+  lead?: Lead;
+}
+
+export interface ArchiveCriteria {
+  type: ArchiveCriteriaType;
+  days: number;
+  count: number;
+}
+
+export interface ArchiveSuggestionsRequest {
+  refresh?: boolean;
+  userId?: string;
+}
+
+export interface ArchiveSuggestionsResponse {
+  suggestions: ArchiveSuggestion[];
+  criteria: ArchiveCriteria[];
+  total_candidates: number;
+  generated_at: string;
+}
+
+export interface BatchArchiveRequest {
+  lead_ids: string[];
+  reason?: string;
+  archived_by?: string;
+}
+
+export interface BatchArchiveResponse {
+  archived_count: number;
+  lead_ids: string[];
+}
+
+export interface BatchRestoreRequest {
+  lead_ids: string[];
+}
+
+export interface BatchRestoreResponse {
+  restored_count: number;
+  lead_ids: string[];
+}
+
+export interface ProcessSuggestionsRequest {
+  suggestion_ids: string[];
+  action: 'accept' | 'dismiss';
+  user_id?: string;
+}
+
+export interface ProcessSuggestionsResponse {
+  processed_count: number;
+  archived_count?: number;
+}
+
+// ============================================
 // KPI Scorer Kernel Types
 // ============================================
 
@@ -474,4 +554,35 @@ export interface KPIDashboardResponse {
   alerts: KPIAlert[];
   recommendations: string[];
   generatedAt: string;
+}
+
+// ============================================
+// Discount Advisor Kernel Types
+// ============================================
+
+export interface DiscountFactor {
+  name: string;
+  impact: 'increase' | 'decrease' | 'neutral';
+  weight: number;
+  description: string;
+}
+
+export interface DiscountSuggestion {
+  suggestedPercentage: number;
+  maxRecommended: number;
+  minAcceptable: number;
+  confidence: number;
+  reasoning: string;
+  factors: DiscountFactor[];
+  urgencyLevel: 'high' | 'medium' | 'low';
+  competitiveNote?: string;
+}
+
+export interface DiscountSuggestionRequest {
+  leadId: string;
+  subtotal: number;
+  itemsCount: number;
+  distanceKm?: number;
+  productCategories?: string[];
+  language?: 'en' | 'ta';
 }

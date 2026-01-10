@@ -19,6 +19,7 @@ import * as coach from './kernels/coach';
 import * as kpiScorer from './kernels/kpi-scorer';
 import * as salesCoach from './kernels/sales-coach';
 import * as archiveCurator from './kernels/archive-curator';
+import * as discountAdvisor from './kernels/discount-advisor';
 
 export const kernels = {
   leadAnalyst,
@@ -28,6 +29,7 @@ export const kernels = {
   kpiScorer,
   salesCoach,
   archiveCurator,
+  discountAdvisor,
 };
 
 // Services - namespaced to avoid collisions

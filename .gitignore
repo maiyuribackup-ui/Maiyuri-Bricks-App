@@ -49,3 +49,5 @@ bun.lockb
 
 # Supabase
 .supabase/
+.vercel
+.env*.local

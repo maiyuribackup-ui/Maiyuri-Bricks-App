@@ -22,6 +22,8 @@ def main():
     
     upload_file(ftp, "deploy.zip")
     upload_file(ftp, "unzip.php")
+    upload_file(ftp, "setup.php")
+    upload_file(ftp, "flatten.php")
     
     ftp.quit()
     print("Files uploaded.")

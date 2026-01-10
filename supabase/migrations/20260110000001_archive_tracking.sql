@@ -45,21 +45,25 @@ CREATE INDEX IF NOT EXISTS idx_archive_suggestions_status ON public.archive_sugg
 ALTER TABLE public.archive_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.archive_suggestions ENABLE ROW LEVEL SECURITY;
 
--- Archive config policies
+-- Archive config policies (drop if exists to avoid conflicts)
+DROP POLICY IF EXISTS "Founders can manage archive config" ON public.archive_config;
 CREATE POLICY "Founders can manage archive config" ON public.archive_config
   FOR ALL USING (
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'founder')
   );
 
+DROP POLICY IF EXISTS "Authenticated users can read archive config" ON public.archive_config;
 CREATE POLICY "Authenticated users can read archive config" ON public.archive_config
   FOR SELECT USING (auth.role() = 'authenticated');
 
--- Archive suggestions policies
+-- Archive suggestions policies (drop if exists to avoid conflicts)
+DROP POLICY IF EXISTS "Founders can manage archive suggestions" ON public.archive_suggestions;
 CREATE POLICY "Founders can manage archive suggestions" ON public.archive_suggestions
   FOR ALL USING (
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'founder')
   );
 
+DROP POLICY IF EXISTS "Staff can view archive suggestions" ON public.archive_suggestions;
 CREATE POLICY "Staff can view archive suggestions" ON public.archive_suggestions
   FOR SELECT USING (auth.role() = 'authenticated');
 

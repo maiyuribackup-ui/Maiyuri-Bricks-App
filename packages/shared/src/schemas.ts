@@ -136,3 +136,82 @@ export type BatchArchiveInput = z.infer<typeof batchArchiveSchema>;
 export type BatchRestoreInput = z.infer<typeof batchRestoreSchema>;
 export type ArchiveSuggestionActionInput = z.infer<typeof archiveSuggestionActionSchema>;
 
+// Price Estimator Schemas
+export const productCategorySchema = z.enum(['cement_interlock', 'mud_interlock', 'project']);
+export const productSizeSchema = z.enum(['6_inch', '8_inch']).nullable();
+export const estimateStatusSchema = z.enum(['draft', 'sent', 'accepted', 'rejected', 'expired']);
+
+export const createProductSchema = z.object({
+  name: z.string().min(1, 'Product name is required'),
+  category: productCategorySchema,
+  size: productSizeSchema.optional(),
+  unit: z.string().min(1, 'Unit is required'),
+  base_price: z.number().positive('Price must be positive'),
+  description: z.string().nullable().optional(),
+  is_active: z.boolean().default(true),
+});
+
+export const updateProductSchema = createProductSchema.partial();
+
+export const factorySettingsSchema = z.object({
+  name: z.string().min(1).optional(),
+  latitude: z.number().min(-90).max(90, 'Invalid latitude'),
+  longitude: z.number().min(-180).max(180, 'Invalid longitude'),
+  address: z.string().nullable().optional(),
+  transport_rate_per_km: z.number().positive('Rate must be positive'),
+  min_transport_charge: z.number().min(0, 'Minimum charge cannot be negative'),
+});
+
+export const updateFactorySettingsSchema = factorySettingsSchema.partial();
+
+export const estimateItemSchema = z.object({
+  product_id: z.string().uuid('Invalid product ID'),
+  quantity: z.number().positive('Quantity must be positive'),
+  unit_price: z.number().positive().optional(), // Uses product base_price if not provided
+  notes: z.string().nullable().optional(),
+});
+
+export const createEstimateSchema = z.object({
+  delivery_address: z.string().min(5, 'Delivery address is required'),
+  delivery_latitude: z.number().min(-90).max(90).optional(),
+  delivery_longitude: z.number().min(-180).max(180).optional(),
+  distance_km: z.number().min(0).optional(),
+  items: z.array(estimateItemSchema).min(1, 'At least one item is required'),
+  discount_percentage: z.number().min(0).max(50, 'Maximum 50% discount allowed').optional(),
+  discount_reason: z.string().nullable().optional(),
+  valid_until: z.string().optional(),
+  notes: z.string().nullable().optional(),
+  // AI suggestion data (optional - saved when AI suggestion is applied)
+  ai_suggested_discount: z.number().min(0).max(50).optional(),
+  ai_discount_reasoning: z.string().nullable().optional(),
+  ai_confidence: z.number().min(0).max(1).optional(),
+});
+
+export const updateEstimateSchema = createEstimateSchema.partial().extend({
+  status: estimateStatusSchema.optional(),
+});
+
+export const calculateDistanceSchema = z.object({
+  destination_address: z.string().min(5).optional(),
+  destination_latitude: z.number().min(-90).max(90),
+  destination_longitude: z.number().min(-180).max(180),
+});
+
+export const discountSuggestionRequestSchema = z.object({
+  lead_id: z.string().uuid(),
+  subtotal: z.number().positive(),
+  items_count: z.number().int().positive(),
+  distance_km: z.number().min(0).optional(),
+});
+
+// Export Price Estimator types
+export type CreateProductInput = z.infer<typeof createProductSchema>;
+export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+export type FactorySettingsInput = z.infer<typeof factorySettingsSchema>;
+export type UpdateFactorySettingsInput = z.infer<typeof updateFactorySettingsSchema>;
+export type EstimateItemInput = z.infer<typeof estimateItemSchema>;
+export type CreateEstimateInput = z.infer<typeof createEstimateSchema>;
+export type UpdateEstimateInput = z.infer<typeof updateEstimateSchema>;
+export type CalculateDistanceInput = z.infer<typeof calculateDistanceSchema>;
+export type DiscountSuggestionRequestInput = z.infer<typeof discountSuggestionRequestSchema>;
+

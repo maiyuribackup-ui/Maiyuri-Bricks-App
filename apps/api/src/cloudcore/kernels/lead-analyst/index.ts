@@ -69,7 +69,7 @@ export async function analyze(
         break;
 
       case 'summary_only':
-        response.summary = await generateSummary(lead, recentNotes);
+        response.summary = await generateSummary(lead, recentNotes, 500, request.language || 'en');
         break;
 
       case 'scoring_only':
@@ -77,11 +77,11 @@ export async function analyze(
         break;
 
       case 'suggestions_only':
-        response.suggestions = await generateSuggestions(lead, recentNotes);
+        response.suggestions = await generateSuggestions(lead, recentNotes, request.language || 'en');
         break;
 
       case 'quick_update':
-        await runQuickUpdate(lead, recentNotes.slice(0, 3), response);
+        await runQuickUpdate(lead, recentNotes.slice(0, 3), response, request.language || 'en');
         break;
 
       default:
@@ -133,11 +133,12 @@ async function runFullAnalysis(
   response: LeadAnalysisResponse,
   request: LeadAnalysisRequest
 ): Promise<void> {
+  const language = request.language || 'en';
   // Run all analyses in parallel
   const [summary, score, suggestions] = await Promise.all([
-    generateSummary(lead, notes),
+    generateSummary(lead, notes, 500, language),
     generateScore(lead, notes, request),
-    generateSuggestions(lead, notes),
+    generateSuggestions(lead, notes, language),
   ]);
 
   response.summary = summary;
@@ -151,11 +152,12 @@ async function runFullAnalysis(
 async function runQuickUpdate(
   lead: Lead,
   notes: Note[],
-  response: LeadAnalysisResponse
+  response: LeadAnalysisResponse,
+  language: 'en' | 'ta' = 'en'
 ): Promise<void> {
   const [summary, suggestions] = await Promise.all([
-    generateSummary(lead, notes, 200),
-    generateSuggestions(lead, notes),
+    generateSummary(lead, notes, 200, language),
+    generateSuggestions(lead, notes, language),
   ]);
 
   response.summary = summary;
@@ -168,10 +170,15 @@ async function runQuickUpdate(
 async function generateSummary(
   lead: Lead,
   notes: Note[],
-  maxLength: number = 500
+  maxLength: number = 500,
+  language: 'en' | 'ta' = 'en'
 ): Promise<LeadSummary> {
   const leadContext = formatLeadContext(lead);
   const notesContext = formatNotesContext(notes);
+
+  const languageInstruction = language === 'ta'
+    ? '\n\nIMPORTANT: Respond entirely in Tamil (தமிழ்). All text must be in Tamil script.'
+    : '';
 
   const result = await claude.completeJson<{
     summary: string;
@@ -185,7 +192,7 @@ Create a concise summary (max ${maxLength} characters) focusing on:
 - Key discussion points
 - Customer requirements
 - Next steps and action items
-- Important dates or commitments`,
+- Important dates or commitments${languageInstruction}`,
     userPrompt: `Summarize this lead:
 
 LEAD INFORMATION:
@@ -290,12 +297,13 @@ async function generateScore(
  */
 async function generateSuggestions(
   lead: Lead,
-  notes: Note[]
+  notes: Note[],
+  language: 'en' | 'ta' = 'en'
 ): Promise<LeadSuggestions> {
   const leadContext = formatLeadContext(lead);
   const notesContext = formatNotesContext(notes);
 
-  const result = await claude.generateSuggestions(leadContext, notesContext);
+  const result = await claude.generateSuggestions(leadContext, notesContext, language);
 
   if (result.success && result.data) {
     return {
@@ -446,11 +454,13 @@ function buildUpdatedFields(response: LeadAnalysisResponse): Partial<Lead> {
  * Quick analyze - lighter weight analysis for real-time UI
  */
 export async function quickAnalyze(
-  leadId: string
+  leadId: string,
+  options?: { language?: 'en' | 'ta' }
 ): Promise<CloudCoreResult<{ summary: string; score: number; nextAction: string }>> {
   const result = await analyze({
     leadId,
     analysisType: 'quick_update',
+    language: options?.language || 'en',
   });
 
   if (!result.success || !result.data) {

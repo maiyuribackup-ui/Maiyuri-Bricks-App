@@ -53,6 +53,7 @@ export const AnalysisTypeSchema = z.enum([
 export const LeadAnalysisRequestSchema = z.object({
   leadId: UUIDSchema,
   analysisType: AnalysisTypeSchema.default('full_analysis'),
+  language: z.enum(['en', 'ta']).default('en'),
   options: z
     .object({
       includeSimilarLeads: z.boolean().default(false),
@@ -205,6 +206,7 @@ export const QuestionAnswerRequestSchema = z.object({
   leadId: UUIDSchema.optional(),
   includeNotes: z.boolean().default(true),
   maxSources: z.number().int().positive().max(10).default(5),
+  language: z.enum(['en', 'ta']).default('en'),
 });
 
 export const QuestionAnswerResponseSchema = z.object({
