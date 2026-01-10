@@ -13,11 +13,13 @@ const ODOO_CONFIG = {
   password: process.env.ODOO_PASSWORD || '',
 };
 
-// Supabase client for server-side operations
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazy Supabase client for server-side operations
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 interface OdooLead {
   id: number;
@@ -243,7 +245,7 @@ function mapStatusToStage(status: string): string {
 export async function pushLeadToOdoo(leadId: string): Promise<SyncResult> {
   try {
     // Fetch lead from Supabase
-    const { data: lead, error } = await supabase
+    const { data: lead, error } = await getSupabase()
       .from('leads')
       .select('*')
       .eq('id', leadId)
@@ -305,7 +307,7 @@ export async function pushLeadToOdoo(leadId: string): Promise<SyncResult> {
     }
 
     // Update Supabase with Odoo ID
-    await supabase
+    await getSupabase()
       .from('leads')
       .update({
         odoo_lead_id: odooLeadId,
@@ -315,7 +317,7 @@ export async function pushLeadToOdoo(leadId: string): Promise<SyncResult> {
       .eq('id', leadId);
 
     // Log sync
-    await supabase.from('odoo_sync_log').insert({
+    await getSupabase().from('odoo_sync_log').insert({
       lead_id: leadId,
       sync_type: 'lead_push',
       status: 'success',
@@ -331,14 +333,14 @@ export async function pushLeadToOdoo(leadId: string): Promise<SyncResult> {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
 
     // Log error
-    await supabase.from('odoo_sync_log').insert({
+    await getSupabase().from('odoo_sync_log').insert({
       lead_id: leadId,
       sync_type: 'lead_push',
       status: 'error',
       error_message: errorMessage,
     });
 
-    await supabase
+    await getSupabase()
       .from('leads')
       .update({ odoo_sync_status: 'error' })
       .eq('id', leadId);
@@ -352,7 +354,7 @@ export async function pushLeadToOdoo(leadId: string): Promise<SyncResult> {
  */
 export async function pullQuotesFromOdoo(leadId: string): Promise<SyncResult> {
   try {
-    const { data: lead, error } = await supabase
+    const { data: lead, error } = await getSupabase()
       .from('leads')
       .select('odoo_lead_id, odoo_partner_id')
       .eq('id', leadId)
@@ -394,7 +396,7 @@ export async function pullQuotesFromOdoo(leadId: string): Promise<SyncResult> {
       updateData.odoo_order_date = latestOrder.date_order;
 
       // If order exists and lead not converted, update status
-      const { data: currentLead } = await supabase
+      const { data: currentLead } = await getSupabase()
         .from('leads')
         .select('status')
         .eq('id', leadId)
@@ -407,11 +409,11 @@ export async function pullQuotesFromOdoo(leadId: string): Promise<SyncResult> {
 
     if (Object.keys(updateData).length > 0) {
       updateData.odoo_synced_at = new Date().toISOString();
-      await supabase.from('leads').update(updateData).eq('id', leadId);
+      await getSupabase().from('leads').update(updateData).eq('id', leadId);
     }
 
     // Log sync
-    await supabase.from('odoo_sync_log').insert({
+    await getSupabase().from('odoo_sync_log').insert({
       lead_id: leadId,
       sync_type: 'quote_pull',
       status: 'success',
@@ -435,7 +437,7 @@ export async function pullQuotesFromOdoo(leadId: string): Promise<SyncResult> {
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
 
-    await supabase.from('odoo_sync_log').insert({
+    await getSupabase().from('odoo_sync_log').insert({
       lead_id: leadId,
       sync_type: 'quote_pull',
       status: 'error',
@@ -452,7 +454,7 @@ export async function pullQuotesFromOdoo(leadId: string): Promise<SyncResult> {
 export async function syncAllLeadsToOdoo(): Promise<SyncResult> {
   try {
     // Get all leads that need syncing
-    const { data: leads, error } = await supabase
+    const { data: leads, error } = await getSupabase()
       .from('leads')
       .select('id, name')
       .or('odoo_sync_status.eq.pending,odoo_sync_status.is.null')
@@ -499,7 +501,7 @@ export async function syncAllLeadsToOdoo(): Promise<SyncResult> {
 export async function syncAllQuotesFromOdoo(): Promise<SyncResult> {
   try {
     // Get all leads that are synced with Odoo
-    const { data: leads, error } = await supabase
+    const { data: leads, error } = await getSupabase()
       .from('leads')
       .select('id, name, odoo_lead_id')
       .not('odoo_lead_id', 'is', null)
