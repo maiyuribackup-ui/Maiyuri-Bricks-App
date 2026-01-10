@@ -1,6 +1,18 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy initialization to avoid build-time errors
+let resendClient: Resend | null = null;
+
+function getResend(): Resend {
+  if (!resendClient) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      throw new Error('RESEND_API_KEY is not configured');
+    }
+    resendClient = new Resend(apiKey);
+  }
+  return resendClient;
+}
 
 const FROM_EMAIL = 'Maiyuri Bricks <noreply@maiyuribricks.com>';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://maiyuri-bricks-app.vercel.app';
@@ -24,7 +36,7 @@ export async function sendInvitationEmail(
   const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: 'You are invited to join Maiyuri Bricks Lead Management',
@@ -96,7 +108,7 @@ export async function sendPasswordResetEmail(
   resetUrl: string
 ): Promise<SendEmailResult> {
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: 'Reset your Maiyuri Bricks password',
@@ -167,7 +179,7 @@ export async function sendWelcomeEmail(
   const dashboardUrl = `${APP_URL}/dashboard`;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: 'Welcome to Maiyuri Bricks!',
@@ -236,7 +248,7 @@ export async function sendNotificationEmail(
   content: string
 ): Promise<SendEmailResult> {
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: FROM_EMAIL,
       to: email,
       subject,
