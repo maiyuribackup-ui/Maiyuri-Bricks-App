@@ -5,7 +5,9 @@
         "build": "turbo run build",
         "dev": "turbo run dev",
         "lint": "turbo run lint",
-        "format": "prettier --write \"**/*.{ts,tsx,md}\""
+        "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+        "test": "bun test --test-name-pattern '.*' apps/api",
+        "test:e2e": "cd apps/web && bun run test:e2e"
     },
     "devDependencies": {
         "prettier": "^3.0.0",

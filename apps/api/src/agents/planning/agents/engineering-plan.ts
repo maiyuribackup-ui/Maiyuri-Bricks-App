@@ -35,7 +35,13 @@ import type {
 import { validateSchema } from '../validators/schema-validator';
 import { retryWithBackoff, type RetryConfig } from '../utils/retry';
 import { logger } from '../utils/logger';
-import { SYSTEM_RULES } from '../prompts/system-rules';
+import {
+  SYSTEM_RULES,
+  NBC_REQUIREMENTS,
+  STRUCTURAL_RULES,
+  ROOM_ADJACENCY_RULES,
+  VALIDATION_RULES,
+} from '../prompts/system-rules';
 
 /**
  * Agent configuration
@@ -430,9 +436,36 @@ export class EngineeringPlanAgent {
 
     return `${SYSTEM_RULES}
 
+${NBC_REQUIREMENTS}
+
+${STRUCTURAL_RULES}
+
+${ROOM_ADJACENCY_RULES}
+
 ## Engineering Plan Agent
 
 You are generating engineering specifications for a ${input.buildableEnvelope.maxFloors}-floor residential building in Tamil Nadu.
+
+### CRITICAL ENGINEERING RULES (from Indian Building Code)
+
+**Staircase Requirements (NBC 2016):**
+- Tread depth: MINIMUM 250mm (10 inches)
+- Riser height: MAXIMUM 190mm (7.5 inches)
+- Width: MINIMUM 900mm (3 feet), 1000mm recommended
+- Max risers per flight: 15 steps
+- Handrail: 1000-1200mm height, both sides
+
+**Vastu Staircase Rules:**
+- MUST turn CLOCKWISE when ascending
+- Steps count: ALWAYS ODD number (9, 11, 15, 21)
+- Position: South, West, Southwest, Northwest preferred
+- AVOID: Northeast, Center (Brahmasthan)
+
+**Load-Bearing Wall Rules:**
+- External walls: 9 inches (230mm) typical
+- Internal walls: 4.5 inches (115mm) partitions
+- NEVER breach load-bearing walls without structural engineer approval
+- Plumbing must NOT cut completely through load-bearing walls
 
 ### Structural Strategy: ${input.structuralStrategy.toUpperCase()}
 

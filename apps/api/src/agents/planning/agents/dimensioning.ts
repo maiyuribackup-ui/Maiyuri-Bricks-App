@@ -36,7 +36,11 @@ import type {
 import { validateSchema } from '../validators/schema-validator';
 import { retryWithBackoff, type RetryConfig } from '../utils/retry';
 import { logger } from '../utils/logger';
-import { SYSTEM_RULES } from '../prompts/system-rules';
+import {
+  SYSTEM_RULES,
+  NBC_REQUIREMENTS,
+  VALIDATION_RULES,
+} from '../prompts/system-rules';
 
 /**
  * Agent configuration

@@ -425,11 +425,4 @@ Scales safely
 Matches real architectural workflows
 
 Next step (recommended)
-
-Next we should define:
-
-Claude SDK orchestration code skeleton
-
-OR retry & failure handling strategy
-
-OR database schema for DesignContext
+per

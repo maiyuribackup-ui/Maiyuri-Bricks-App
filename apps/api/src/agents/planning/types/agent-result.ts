@@ -20,7 +20,8 @@ export type AgentName =
   | 'engineering-plan'
   | 'design-validation'
   | 'narrative'
-  | 'visualization';
+  | 'visualization'
+  | 'floor-plan-image';
 
 /**
  * Agent platform assignment per PRD
@@ -38,6 +39,7 @@ export const AGENT_PLATFORMS: Record<AgentName, 'vercel' | 'railway'> = {
   'design-validation': 'railway',        // Cross-checking all data
   'narrative': 'vercel',                 // Text generation, lightweight
   'visualization': 'vercel',             // Prompt generation
+  'floor-plan-image': 'railway',         // Gemini image generation, long-running
 };
 
 /**

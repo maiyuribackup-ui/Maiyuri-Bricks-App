@@ -5,6 +5,34 @@
  * They define the core behavioral contract for the pipeline.
  */
 
+// Import comprehensive Indian house engineering rules
+import {
+  NBC_REQUIREMENTS,
+  TAMIL_NADU_REGULATIONS,
+  VASTU_PRINCIPLES,
+  ROOM_ADJACENCY_RULES,
+  TRADITIONAL_ELEMENTS,
+  VERNACULAR_ARCHITECTURE,
+  STRUCTURAL_RULES,
+  ENGINEERING_RULES_SUMMARY,
+  INDIAN_HOUSE_ENGINEERING_RULES,
+  VALIDATION_RULES,
+} from './indian-house-rules';
+
+// Re-export for use by other modules
+export {
+  NBC_REQUIREMENTS,
+  TAMIL_NADU_REGULATIONS,
+  VASTU_PRINCIPLES,
+  ROOM_ADJACENCY_RULES,
+  TRADITIONAL_ELEMENTS,
+  VERNACULAR_ARCHITECTURE,
+  STRUCTURAL_RULES,
+  ENGINEERING_RULES_SUMMARY,
+  INDIAN_HOUSE_ENGINEERING_RULES,
+  VALIDATION_RULES,
+};
+
 /**
  * Global prompt contract - injected into all agents
  */
@@ -56,68 +84,77 @@ Include 'assumptions' array if you made any assumptions (with risk level).
 
 /**
  * Eco-design enforcement rules - added to relevant agents
+ * Now includes traditional Tamil Nadu architecture elements
  */
 export const ECO_DESIGN_RULES = `## ECO-DESIGN REQUIREMENTS (NON-NEGOTIABLE)
 
 These elements are MANDATORY in every design:
 
-1. **Central Courtyard (Mutram)**
+1. **Central Courtyard (Mutram)** - MANDATORY
    - Open-to-sky courtyard is required
-   - Minimum area based on plot size
-   - Provides natural light and ventilation
+   - Minimum size: 6'×6' for small plots, 8'×8' preferred
+   - Provides natural light and ventilation (stack effect)
+   - Fresh air enters windows, hot air rises and escapes
+   - Tulsi plant pedestal traditional but optional
+   - Rainwater harvesting integration
+   - Satisfies Brahmasthan (Vastu center space) requirement
 
-2. **Veranda**
-   - Transition space between inside and outside
-   - Minimum 4 feet width
-   - Shaded outdoor living area
+2. **Veranda (Thinnai)** - MANDATORY
+   - Raised, shaded platform at entrance
+   - Minimum 4 feet width (5 feet preferred)
+   - Along the road-facing/entrance side
+   - Deep overhang or roof cover
+   - Traditional seating optional (built-in bench)
+   - Buffer between public street and private home
 
-3. **Cross Ventilation**
-   - Every habitable room must have cross-ventilation
+3. **Cross Ventilation** - MANDATORY
+   - Every habitable room MUST have cross-ventilation
    - Openings on opposite or adjacent walls
-   - Natural airflow path through the house
+   - Window-to-wall ratio: 20% optimal
+   - Minimum ventilation: 10% of floor area (NBC requirement)
+   - Natural airflow path through the entire house
 
 4. **West Wall Minimization**
    - Minimize openings on west-facing walls
-   - Use service rooms as buffer on west side
+   - Use service rooms (toilet, store, utility) as buffer on west side
    - Prevent afternoon heat gain
+   - Deep overhangs (2-3 feet) if west windows necessary
 
-5. **Rainwater Harvesting**
+5. **Rainwater Harvesting** - MANDATORY
    - Provision for rainwater collection
-   - Roof drainage to sump
-   - Recharge pit if space permits
+   - Roof drainage channeled to courtyard/sump
+   - Recharge pit in courtyard if space permits
+   - Overflow to percolation pit
 
 6. **Expansion-Ready Structure**
    - Design must accommodate future vertical expansion
-   - Structural provisions for additional floor
-   - Accessible staircase position
+   - Foundation designed for +1 or +2 floors
+   - Columns with rebar provision for extension
+   - Staircase positioned for upper floor access
+   - Terrace access planned
 
-If any of these cannot be implemented, you MUST:
-- Flag it as a violation
-- Explain why it's not possible
+7. **Climate-Responsive Design**
+   - High ceilings (10-12 feet) for heat rise
+   - Large openings for airflow
+   - Shaded outdoor spaces (verandah, courtyard edges)
+   - Thick walls (9" or more) for thermal mass
+   - Sloped roof preferred (better than flat concrete)
+
+${TRADITIONAL_ELEMENTS}
+
+If any eco-design element cannot be implemented, you MUST:
+- Flag it as a violation with severity level
+- Explain why it's not possible (site constraints, regulations)
 - Propose an alternative that maintains the eco-principle
 `;
 
 /**
  * Vastu guidelines - added to vastu agent
+ * Now uses comprehensive Vastu principles from research
  */
 export const VASTU_GUIDELINES = `## VASTU GUIDELINES
 
-Vastu is a GUIDE, not an override. It must NOT:
-- Violate building setbacks
-- Compromise eco-design principles
-- Make the design unbuildable
-
-### Directional Preferences (when possible)
-
-**Northeast (Ishaanya)** - Water elements, pooja room, open space
-**East (Indra)** - Main entrance preferred, living areas
-**Southeast (Agni)** - Kitchen, fire elements
-**South (Yama)** - Master bedroom, heavy furniture
-**Southwest (Nairutya)** - Master bedroom alternative, storage
-**West (Varuna)** - Dining, children's room
-**Northwest (Vayu)** - Guest room, garage, utilities
-**North (Kubera)** - Living room, treasury, office
-**Center (Brahmasthana)** - Keep open, courtyard ideal
+${VASTU_PRINCIPLES}
 
 ### Conflict Resolution
 
@@ -126,38 +163,36 @@ When Vastu conflicts with other requirements:
 2. Explain which principle takes precedence and why
 3. Propose an acceptable deviation with reasoning
 4. Flag it in 'conflicts' array
+
+### Priority Order (MUST FOLLOW)
+1. **Safety & NBC** - Cannot be overridden
+2. **Functional** - Room adjacency, circulation
+3. **Vastu** - Directional placement (advisory)
+4. **Traditional** - Cultural elements
 `;
 
 /**
  * Regulation guidelines - added to regulation agent
+ * Now uses comprehensive NBC and Tamil Nadu regulations
  */
 export const REGULATION_GUIDELINES = `## BUILDING REGULATIONS
 
-### Setback Rules (Tamil Nadu Defaults)
-- Front setback: Minimum 5 feet (may vary by road width)
-- Rear setback: Minimum 3-5 feet
-- Side setbacks: Minimum 3 feet each side
-- Total open space: Minimum 50% of plot area for plots under 1500 sqft
+${NBC_REQUIREMENTS}
 
-### FSI (Floor Space Index)
-- Residential: 1.5 to 2.0 depending on zone
-- Calculate: Total built-up area / Plot area
-- Must not exceed permissible FSI
+${TAMIL_NADU_REGULATIONS}
 
-### Height Restrictions
-- Generally 15m or 4 floors for residential
-- May vary by zone and road width
+### Additional Placement Rules
 
-### Staircase Requirements
-- Minimum width: 3 feet
-- Maximum riser height: 7.5 inches
-- Minimum tread depth: 10 inches
-- Headroom: Minimum 7 feet
+**Toilet/Kitchen:**
+- Toilets must NOT be adjacent to kitchen (hygiene)
+- Toilets must have proper ventilation (min 0.37 sq.m opening)
+- Kitchen requires external ventilation (min 1 sq.m opening)
+- Do not share walls between toilet and pooja room
 
-### Toilet/Kitchen Placement
-- Toilets must not be adjacent to kitchen
-- Toilets must have proper ventilation
-- Kitchen requires external ventilation
+**Cross-Ventilation:**
+- Every habitable room MUST have cross-ventilation
+- Openings on opposite or adjacent walls
+- Window-to-wall ratio: 20% optimal
 
 IMPORTANT: When city/authority is not specified, use Tamil Nadu residential defaults and flag as an assumption.
 `;

@@ -317,6 +317,32 @@ export const visualizationSchema = z.object({
   floor_plan_prompt: z.string(),
 });
 
+/**
+ * Generated Image Data Schema
+ */
+const generatedImageDataSchema = z.object({
+  base64Data: z.string(),
+  mimeType: z.enum(['image/png', 'image/jpeg']),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  generatedAt: z.date().or(z.string().transform(s => new Date(s))),
+});
+
+/**
+ * Agent 13: Floor Plan Image Output Schema
+ */
+export const floorPlanImageSchema = z.object({
+  floorPlan: generatedImageDataSchema.optional(),
+  courtyard: generatedImageDataSchema.optional(),
+  exterior: generatedImageDataSchema.optional(),
+  interior: generatedImageDataSchema.optional(),
+  metadata: z.object({
+    model: z.string(),
+    totalImagesGenerated: z.number(),
+    generationTime: z.number(),
+  }),
+});
+
 // ============================================
 // Schema Registry
 // ============================================
@@ -334,6 +360,7 @@ const schemaRegistry: Record<AgentName, z.ZodSchema> = {
   'design-validation': designValidationSchema,
   'narrative': narrativeSchema,
   'visualization': visualizationSchema,
+  'floor-plan-image': floorPlanImageSchema,
 };
 
 /**
