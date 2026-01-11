@@ -114,12 +114,55 @@ export function FloorPlanChatbot({
       const firstQuestion = getNextQuestion({});
       if (firstQuestion) {
         setTimeout(() => {
-          addMessage({
-            role: 'assistant',
-            content: firstQuestion.question,
-            type: 'options',
-            options: firstQuestion.options,
-          });
+          // Handle form questions differently
+          if (firstQuestion.type === 'form') {
+            // Determine field configuration based on question ID
+            const isPlotDimensions = firstQuestion.id === 'plotDimensions';
+            const isClientName = firstQuestion.id === 'clientName';
+
+            addMessage({
+              role: 'assistant',
+              content: firstQuestion.question,
+              type: 'form',
+              formFields: firstQuestion.fields?.map((f) => {
+                if (isClientName) {
+                  return {
+                    name: f,
+                    label: 'Client/Project Name',
+                    type: 'text' as const,
+                    placeholder: 'e.g., Kumar Residence, Villa Phase 2',
+                    required: true,
+                  };
+                }
+
+                if (isPlotDimensions) {
+                  return {
+                    name: f,
+                    label: f.charAt(0).toUpperCase() + f.slice(1) + ' (feet)',
+                    type: 'number' as const,
+                    placeholder: 'e.g., 30',
+                    required: true,
+                  };
+                }
+
+                // Default form field
+                return {
+                  name: f,
+                  label: f.charAt(0).toUpperCase() + f.slice(1),
+                  type: 'text' as const,
+                  placeholder: '',
+                  required: true,
+                };
+              }),
+            });
+          } else {
+            addMessage({
+              role: 'assistant',
+              content: firstQuestion.question,
+              type: 'options',
+              options: firstQuestion.options,
+            });
+          }
         }, 500);
       }
     }
