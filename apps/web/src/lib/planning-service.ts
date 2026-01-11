@@ -359,6 +359,7 @@ export const planningService = {
         rear: 6,
         left: 3,
         right: 3,
+        unit: 'feet' as const,
       },
       requirements: {
         bedrooms,
