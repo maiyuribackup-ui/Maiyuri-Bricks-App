@@ -158,6 +158,39 @@ ${statusData.message || 'Please confirm the blueprint to proceed with the 3D vie
               type: 'text',
             });
           }
+        } else if (statusData.status === 'halted') {
+          // Pipeline halted - needs human input
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+
+          setIsGenerating(false);
+          setGenerationProgress(null);
+          setStatus('halted');
+
+          // Display open questions from agents
+          const openQuestions = statusData.openQuestions || [];
+          if (openQuestions.length > 0) {
+            addMessage({
+              role: 'assistant',
+              content: `I need some clarification to proceed with your floor plan design. Here are ${openQuestions.length} questions from our design agents:
+
+${openQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
+
+Please provide your answers so I can continue.`,
+              type: 'text',
+            });
+
+            // TODO: Add UI for answering open questions
+            // For now, show as text and allow user to answer via chat
+          } else {
+            addMessage({
+              role: 'assistant',
+              content: statusData.message || 'The design process has been paused. I need some additional information to continue.',
+              type: 'text',
+            });
+          }
         } else if (statusData.status === 'failed') {
           // Generation failed - stop polling
           if (pollingIntervalRef.current) {
@@ -208,6 +241,8 @@ ${statusData.message || 'Please confirm the blueprint to proceed with the 3D vie
           if (firstQuestion.type === 'form') {
             // Determine field configuration based on question ID
             const isPlotDimensions = firstQuestion.id === 'plotDimensions';
+            const isSetbacks = firstQuestion.id === 'setbacks';
+            const isNumericForm = isPlotDimensions || isSetbacks;
             const isClientName = firstQuestion.id === 'clientName';
 
             addMessage({
@@ -633,6 +668,8 @@ ${statusData.message || 'Please confirm the blueprint to proceed with the 3D vie
                 setTimeout(() => {
                   if (nextQ.type === 'form') {
                     const isPlotDimensions = nextQ.id === 'plotDimensions';
+                    const isSetbacks = nextQ.id === 'setbacks';
+                    const isNumericForm = isPlotDimensions || isSetbacks;
 
                     addMessage({
                       role: 'assistant',
@@ -640,11 +677,11 @@ ${statusData.message || 'Please confirm the blueprint to proceed with the 3D vie
                       type: 'form',
                       formFields: nextQ.fields?.map((f) => ({
                         name: f,
-                        label: isPlotDimensions
+                        label: isNumericForm
                           ? f.charAt(0).toUpperCase() + f.slice(1) + ' (feet)'
                           : f.charAt(0).toUpperCase() + f.slice(1),
-                        type: isPlotDimensions ? ('number' as const) : ('text' as const),
-                        placeholder: isPlotDimensions ? 'e.g., 30' : '',
+                        type: isNumericForm ? ('number' as const) : ('text' as const),
+                        placeholder: isNumericForm ? (isSetbacks ? 'e.g., 5' : 'e.g., 30') : '',
                         required: true,
                       })),
                     });
@@ -683,6 +720,8 @@ ${statusData.message || 'Please confirm the blueprint to proceed with the 3D vie
               setTimeout(() => {
                 if (nextQuestion.type === 'form') {
                   const isPlotDimensions = nextQuestion.id === 'plotDimensions';
+                  const isSetbacks = nextQuestion.id === 'setbacks';
+                  const isNumericForm = isPlotDimensions || isSetbacks;
 
                   addMessage({
                     role: 'assistant',
@@ -690,11 +729,11 @@ ${statusData.message || 'Please confirm the blueprint to proceed with the 3D vie
                     type: 'form',
                     formFields: nextQuestion.fields?.map((f) => ({
                       name: f,
-                      label: isPlotDimensions
+                      label: isNumericForm
                         ? f.charAt(0).toUpperCase() + f.slice(1) + ' (feet)'
                         : f.charAt(0).toUpperCase() + f.slice(1),
-                      type: isPlotDimensions ? ('number' as const) : ('text' as const),
-                      placeholder: isPlotDimensions ? 'e.g., 30' : '',
+                      type: isNumericForm ? ('number' as const) : ('text' as const),
+                      placeholder: isNumericForm ? (isSetbacks ? 'e.g., 5' : 'e.g., 30') : '',
                       required: true,
                     })),
                   });

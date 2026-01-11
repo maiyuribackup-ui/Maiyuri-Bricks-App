@@ -19,6 +19,7 @@ const SubmitAnswerRequestSchema = z.object({
 interface QuestionConfig {
   id: string;
   question: string;
+  helpText?: string;
   type: 'single-select' | 'multi-select' | 'form' | 'upload';
   options?: {
     label: string;
@@ -85,6 +86,13 @@ const RESIDENTIAL_QUESTIONS: QuestionConfig[] = [
       { label: 'East', value: 'east', icon: '➡️', recommended: true },
       { label: 'West', value: 'west', icon: '⬅️' },
     ],
+  },
+  {
+    id: 'setbacks',
+    question: 'What are the required setback distances from plot boundaries (in feet)?',
+    type: 'form',
+    fields: ['north', 'south', 'east', 'west'],
+    helpText: 'Setbacks are the minimum distances that must be maintained from plot boundaries. Common values: 3-10 feet depending on local regulations.',
   },
   {
     id: 'bedrooms',

@@ -68,6 +68,7 @@ export interface QuestionConfig {
   id: string;
   question: string;
   description?: string;
+  helpText?: string;
   type: QuestionType;
   options?: QuickOption[];
   fields?: string[];

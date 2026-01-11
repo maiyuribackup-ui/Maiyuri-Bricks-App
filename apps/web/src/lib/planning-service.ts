@@ -313,6 +313,77 @@ export const planningService = {
   },
 
   /**
+   * Map user-provided setbacks (north, south, east, west) to orientation-based setbacks (front, rear, left, right)
+   * based on the road-facing side
+   */
+  mapSetbacksToOrientation(inputs: Record<string, unknown>): {
+    front: number;
+    rear: number;
+    left: number;
+    right: number;
+    unit: 'feet';
+  } {
+    const setbackData = inputs.setbacks as Record<string, unknown> | undefined;
+    const roadSide = (inputs.roadSide as string) || 'east';
+
+    // Default setbacks for Tamil Nadu residential (in feet)
+    const defaultSetbacks = {
+      front: 10,
+      rear: 6,
+      left: 3,
+      right: 3,
+    };
+
+    // If user didn't provide setbacks, use defaults
+    if (!setbackData) {
+      return { ...defaultSetbacks, unit: 'feet' as const };
+    }
+
+    // Extract user-provided values (in feet)
+    const north = typeof setbackData.north === 'string' ? parseFloat(setbackData.north) : (setbackData.north as number) || defaultSetbacks.front;
+    const south = typeof setbackData.south === 'string' ? parseFloat(setbackData.south) : (setbackData.south as number) || defaultSetbacks.rear;
+    const east = typeof setbackData.east === 'string' ? parseFloat(setbackData.east) : (setbackData.east as number) || defaultSetbacks.left;
+    const west = typeof setbackData.west === 'string' ? parseFloat(setbackData.west) : (setbackData.west as number) || defaultSetbacks.right;
+
+    // Map based on road-facing direction
+    let front: number, rear: number, left: number, right: number;
+
+    switch (roadSide) {
+      case 'north':
+        front = north;
+        rear = south;
+        left = west;
+        right = east;
+        break;
+      case 'south':
+        front = south;
+        rear = north;
+        left = east;
+        right = west;
+        break;
+      case 'east':
+        front = east;
+        rear = west;
+        left = north;
+        right = south;
+        break;
+      case 'west':
+        front = west;
+        rear = east;
+        left = south;
+        right = north;
+        break;
+      default:
+        front = defaultSetbacks.front;
+        rear = defaultSetbacks.rear;
+        left = defaultSetbacks.left;
+        right = defaultSetbacks.right;
+    }
+
+    return { front, rear, left, right, unit: 'feet' as const };
+  },
+
+  /**
    * Map chatbot inputs to DesignContext
    */
   mapInputsToContext(session: PlanningSession): Partial<DesignContext> {
@@ -352,15 +423,8 @@ export const planningService = {
         side: ((inputs.roadSide as string) || 'east') as 'north' | 'south' | 'east' | 'west',
         width: 30,
       },
-      // Default setbacks for manual input (in feet)
-      // These are typical residential setbacks in Tamil Nadu
-      setbacks: {
-        front: 10,
-        rear: 6,
-        left: 3,
-        right: 3,
-        unit: 'feet' as const,
-      },
+      // Map user-provided setbacks or use defaults
+      setbacks: this.mapSetbacksToOrientation(inputs),
       requirements: {
         bedrooms,
         bathrooms,
