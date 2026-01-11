@@ -251,8 +251,12 @@ export const planningService = {
    * Update session inputs
    */
   async updateInputs(sessionId: string, inputs: Record<string, unknown>): Promise<PlanningSession | null> {
-    const session = sessions.get(sessionId);
-    if (!session) return null;
+    // Try to get from memory first, then load from database if needed
+    let session = sessions.get(sessionId);
+    if (!session) {
+      session = await this.getSessionAsync(sessionId);
+      if (!session) return null;
+    }
 
     session.inputs = { ...session.inputs, ...inputs };
     session.updatedAt = new Date();
