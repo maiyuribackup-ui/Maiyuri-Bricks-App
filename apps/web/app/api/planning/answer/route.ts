@@ -669,7 +669,8 @@ export async function POST(request: NextRequest) {
         continue;
       }
       // Check if this question has been answered
-      if (!updatedSession.inputs[q.id]) {
+      // Use `in` operator to check for property existence (handles falsy values correctly)
+      if (!(q.id in updatedSession.inputs)) {
         startIndex = i;
         break;
       }
