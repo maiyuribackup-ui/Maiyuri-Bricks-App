@@ -108,6 +108,11 @@ export type RoofType = 'rcc' | 'mangalore' | 'metal';
 export type BudgetRange = 'under-20' | '20-30' | '30-50' | '50-80' | 'above-80';
 
 export interface FloorPlanInputs {
+  // Phase 0: Client Information
+  clientName?: string;
+  clientContact?: string;
+  clientLocation?: string;
+
   // Phase 1: Project Setup
   projectType: ProjectType;
   plotInput: 'upload' | 'manual';

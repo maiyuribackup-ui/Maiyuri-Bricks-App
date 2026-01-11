@@ -17,6 +17,27 @@ import type {
  */
 const QUESTION_FLOW: QuestionConfig[] = [
   // ============================================
+  // Phase 0: Client Information
+  // ============================================
+  {
+    id: 'clientName',
+    question: "What's the client or project name for this floor plan?",
+    description: "This helps us organize your files with a meaningful name (e.g., Kumar Residence, Villa Project Phase 2)",
+    type: 'form',
+    fields: ['clientName'],
+    validation: (value) => {
+      const name = typeof value === 'string' ? value : '';
+      if (!name || name.trim().length < 2) {
+        return 'Please enter a client or project name (at least 2 characters)';
+      }
+      if (name.length > 100) {
+        return 'Name is too long (max 100 characters)';
+      }
+      return null;
+    },
+  },
+
+  // ============================================
   // Phase 1: Project Type
   // ============================================
   {

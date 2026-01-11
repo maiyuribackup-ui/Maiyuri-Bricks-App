@@ -36,6 +36,12 @@ interface QuestionConfig {
  */
 const RESIDENTIAL_QUESTIONS: QuestionConfig[] = [
   {
+    id: 'clientName',
+    question: "What's the client or project name for this floor plan?",
+    type: 'form',
+    fields: ['clientName'],
+  },
+  {
     id: 'plotInput',
     question:
       "Let's start with your plot. Do you have a land survey document?",
@@ -323,6 +329,12 @@ const RESIDENTIAL_QUESTIONS: QuestionConfig[] = [
  */
 const COMPOUND_QUESTIONS: QuestionConfig[] = [
   {
+    id: 'clientName',
+    question: "What's the client or project name for this floor plan?",
+    type: 'form',
+    fields: ['clientName'],
+  },
+  {
     id: 'plotInput',
     question: 'Do you have a survey document for your plot?',
     type: 'single-select',
@@ -404,6 +416,12 @@ const COMPOUND_QUESTIONS: QuestionConfig[] = [
  * Question flow for commercial projects
  */
 const COMMERCIAL_QUESTIONS: QuestionConfig[] = [
+  {
+    id: 'clientName',
+    question: "What's the client or project name for this floor plan?",
+    type: 'form',
+    fields: ['clientName'],
+  },
   {
     id: 'plotInput',
     question: 'Do you have a survey document?',
@@ -538,8 +556,8 @@ export async function POST(request: NextRequest) {
 
     const { sessionId, questionId, answer } = parsed.data;
 
-    // Get session from planning service
-    const session = planningService.getSession(sessionId);
+    // Get session from planning service (load from DB if not in memory)
+    let session = await planningService.getSessionAsync(sessionId);
     if (!session) {
       return error('Session not found. Please start a new session.', 404);
     }
@@ -602,8 +620,29 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Store the answer
-    planningService.updateInputs(sessionId, { [questionId]: answer });
+    // Store the answer - handle form questions specially
+    let inputsToUpdate: Record<string, unknown> = {};
+
+    // Special handling for client name form question
+    if (questionId === 'clientName' && typeof answer === 'object' && !Array.isArray(answer) && answer !== null) {
+      // Unwrap single-field form
+      const formData = answer as Record<string, unknown>;
+      if ('clientName' in formData) {
+        inputsToUpdate = {
+          clientName: formData.clientName,
+          clientContact: formData.clientContact,
+          clientLocation: formData.clientLocation,
+        };
+      }
+    } else if (typeof answer === 'object' && !Array.isArray(answer) && answer !== null) {
+      // For multi-field forms (like plotDimensions), keep as nested object
+      inputsToUpdate = { [questionId]: answer };
+    } else {
+      // For simple answers (string, array)
+      inputsToUpdate = { [questionId]: answer };
+    }
+
+    await planningService.updateInputs(sessionId, inputsToUpdate);
 
     // Get updated session
     const updatedSession = planningService.getSession(sessionId)!;

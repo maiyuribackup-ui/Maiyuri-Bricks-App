@@ -29,6 +29,9 @@ export interface DbFloorPlanSession {
   user_id: string | null;
   status: SessionStatus;
   project_type: 'residential' | 'compound' | 'commercial' | null;
+  client_name: string | null;
+  client_contact: string | null;
+  client_location: string | null;
   collected_inputs: Partial<FloorPlanInputs>;
   generated_images: GeneratedImages;
   blueprint_image: { base64Data: string; mimeType: string } | null;
@@ -95,7 +98,10 @@ class FloorPlanSupabaseService {
    */
   async createSession(
     userId?: string,
-    projectType?: 'residential' | 'compound' | 'commercial'
+    projectType?: 'residential' | 'compound' | 'commercial',
+    clientName?: string,
+    clientContact?: string,
+    clientLocation?: string
   ): Promise<FloorPlanResult<DbFloorPlanSession>> {
     try {
       const supabase = getSupabaseAdmin();
@@ -105,6 +111,9 @@ class FloorPlanSupabaseService {
         .insert({
           user_id: userId || null,
           project_type: projectType || null,
+          client_name: clientName || null,
+          client_contact: clientContact || null,
+          client_location: clientLocation || null,
           status: 'collecting',
           collected_inputs: {},
           generated_images: {},
@@ -352,6 +361,42 @@ class FloorPlanSupabaseService {
     } catch (err) {
       console.error('Error setting current question:', err);
       return { success: false, error: 'Failed to set current question' };
+    }
+  }
+
+  /**
+   * Update client information
+   */
+  async updateClientInfo(
+    sessionId: string,
+    clientInfo: {
+      clientName?: string;
+      clientContact?: string;
+      clientLocation?: string;
+    }
+  ): Promise<FloorPlanResult<void>> {
+    try {
+      const supabase = getSupabaseAdmin();
+
+      const updateData: Record<string, unknown> = {};
+      if (clientInfo.clientName !== undefined) updateData.client_name = clientInfo.clientName;
+      if (clientInfo.clientContact !== undefined) updateData.client_contact = clientInfo.clientContact;
+      if (clientInfo.clientLocation !== undefined) updateData.client_location = clientInfo.clientLocation;
+
+      const { error } = await supabase
+        .from('floor_plan_sessions')
+        .update(updateData)
+        .eq('id', sessionId);
+
+      if (error) {
+        console.error('Error updating client info:', error);
+        return { success: false, error: error.message };
+      }
+
+      return { success: true };
+    } catch (err) {
+      console.error('Error updating client info:', err);
+      return { success: false, error: 'Failed to update client info' };
     }
   }
 

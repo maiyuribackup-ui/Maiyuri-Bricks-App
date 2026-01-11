@@ -25,8 +25,8 @@ export async function GET(
   try {
     const { sessionId } = await params;
 
-    // Get session from planning service
-    const session = planningService.getSession(sessionId);
+    // Get session from planning service (load from DB if needed)
+    const session = await planningService.getSessionAsync(sessionId);
     if (!session) {
       return error('Session not found', 404);
     }

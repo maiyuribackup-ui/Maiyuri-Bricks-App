@@ -100,13 +100,36 @@ const sessions = new Map<string, PlanningSession>();
 /**
  * Convert DB session to local PlanningSession format
  */
+/**
+ * Calculate current question index based on collected inputs
+ * This is needed when loading sessions from database
+ */
+function calculateQuestionIndex(
+  projectType: string,
+  inputs: Record<string, unknown>
+): number {
+  // Import question configs from the answer route
+  // For now, return a reasonable default based on input count
+  // The answer route will recalculate the correct next question
+  const inputKeys = Object.keys(inputs);
+
+  // If budgetRange is answered (last question for residential), we're done
+  if (inputs.budgetRange) {
+    return 100; // High number to indicate all questions answered
+  }
+
+  // Otherwise, use the number of answered questions as a rough index
+  return inputKeys.length;
+}
+
 function dbToSession(db: DbFloorPlanSession): PlanningSession {
+  const inputs = db.collected_inputs as Record<string, unknown>;
   return {
     sessionId: db.id,
     projectType: db.project_type || 'residential',
     status: db.status,
-    inputs: db.collected_inputs as Record<string, unknown>,
-    currentQuestionIndex: 0, // Will be derived from question flow
+    inputs,
+    currentQuestionIndex: calculateQuestionIndex(db.project_type || 'residential', inputs),
     createdAt: new Date(db.created_at),
     updatedAt: new Date(db.updated_at),
     designContext: db.design_context as unknown as DesignContext | undefined,
@@ -238,9 +261,43 @@ export const planningService = {
     // Persist to Supabase
     if (USE_SUPABASE) {
       await floorPlanSupabase.updateCollectedInputs(sessionId, inputs as Record<string, unknown>);
+
+      // If client info is in inputs, also update the dedicated columns
+      if (inputs.clientName || inputs.clientContact || inputs.clientLocation) {
+        await floorPlanSupabase.updateClientInfo(sessionId, {
+          clientName: inputs.clientName as string | undefined,
+          clientContact: inputs.clientContact as string | undefined,
+          clientLocation: inputs.clientLocation as string | undefined,
+        });
+      }
     }
 
     return session;
+  },
+
+  /**
+   * Update client information for a session
+   */
+  async updateClientInfo(
+    sessionId: string,
+    clientInfo: {
+      clientName?: string;
+      clientContact?: string;
+      clientLocation?: string;
+    }
+  ): Promise<void> {
+    const session = sessions.get(sessionId);
+    if (session) {
+      // Update local session inputs
+      session.inputs = { ...session.inputs, ...clientInfo };
+      session.updatedAt = new Date();
+      sessions.set(sessionId, session);
+    }
+
+    // Persist to Supabase
+    if (USE_SUPABASE) {
+      await floorPlanSupabase.updateClientInfo(sessionId, clientInfo);
+    }
   },
 
   /**
@@ -294,6 +351,14 @@ export const planningService = {
       road: {
         side: ((inputs.roadSide as string) || 'east') as 'north' | 'south' | 'east' | 'west',
         width: 30,
+      },
+      // Default setbacks for manual input (in feet)
+      // These are typical residential setbacks in Tamil Nadu
+      setbacks: {
+        front: 10,
+        rear: 6,
+        left: 3,
+        right: 3,
       },
       requirements: {
         bedrooms,

@@ -116,10 +116,30 @@ export class PlanningOrchestrator {
       });
 
       // ============================================
-      // Stage 1: Diagram Interpretation
+      // Stage 1: Diagram Interpretation (Conditional)
       // ============================================
-      await this.executeStage(context, 'diagram-interpreter', input);
-      if (this.shouldHalt(context)) return this.halt(context);
+      // Only run diagram interpreter if we have an image to analyze
+      // If manual dimensions were provided, skip this stage
+      const hasImage = !!(input.imageUrl || input.imageBase64);
+
+      if (hasImage) {
+        await this.executeStage(context, 'diagram-interpreter', input);
+        if (this.shouldHalt(context)) return this.halt(context);
+      } else {
+        // Manual dimensions provided - create plot context from existing data
+        logger.info('Skipping diagram interpreter - using manual dimensions', {
+          sessionId: context.sessionId,
+        });
+
+        // The plot dimensions should already be in the existingContext
+        // from the planning service's mapInputsToContext method
+        if (!context.plot || !context.plot.width || !context.plot.depth) {
+          throw new PipelineError(
+            'Manual dimensions required but not found in context. Expected plot.width and plot.depth.',
+            context
+          );
+        }
+      }
 
       // ============================================
       // Stage 2: Parallel - Regulation, Engineer, Eco
