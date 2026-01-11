@@ -74,6 +74,10 @@ export function FloorPlanChatbot({
   } | null>(null);
   const [isConfirmingBlueprint, setIsConfirmingBlueprint] = useState(false);
 
+  // Backend session tracking
+  const backendSessionIdRef = useRef<string | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
   // Hooks
   const {
     session,
@@ -87,10 +91,10 @@ export function FloorPlanChatbot({
   const { getNextQuestion, isLastQuestion, getSmartDefault } = useQuestionFlow();
 
   const {
-    startSession,
+    startSession: startBackendSession,
     submitAnswer,
     modifyDesign,
-    confirmBlueprint,
+    confirmBlueprint: confirmBlueprintAPI,
     getStatus,
     isLoading,
     error,
@@ -100,6 +104,92 @@ export function FloorPlanChatbot({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [session.messages, generationProgress]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Poll for generation status when generating
+  useEffect(() => {
+    if (!isGenerating || !backendSessionIdRef.current) {
+      return;
+    }
+
+    const pollStatus = async () => {
+      try {
+        const statusData = await getStatus();
+
+        if (statusData.status === 'pending' || statusData.status === 'in_progress') {
+          // Update progress - StatusResponse.progress is a number, not an object
+          setGenerationProgress({
+            stage: statusData.currentStage || 'Generating...',
+            percent: statusData.progress || 0,
+            stages: statusData.stages || BLUEPRINT_STAGES,
+          });
+        } else if (statusData.status === 'awaiting_blueprint_confirmation') {
+          // Generation complete - stop polling
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+
+          setIsGenerating(false);
+          setGenerationProgress(null);
+          setStatus('awaiting_blueprint_confirmation');
+
+          // Fetch blueprint data
+          if (statusData.blueprint) {
+            setBlueprintData({
+              image: statusData.blueprint.base64Data || '',
+              mimeType: statusData.blueprint.mimeType || 'image/png',
+              designSummary: statusData.designSummary || {},
+            });
+
+            addMessage({
+              role: 'assistant',
+              content: `Your blueprint is ready! Please review the floor plan design before I generate the 3D isometric view.
+
+${statusData.message || 'Please confirm the blueprint to proceed with the 3D view.'}`,
+              type: 'text',
+            });
+          }
+        } else if (statusData.status === 'failed') {
+          // Generation failed - stop polling
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+
+          setIsGenerating(false);
+          setGenerationProgress(null);
+          setStatus('failed');
+
+          addMessage({
+            role: 'assistant',
+            content: `I encountered an issue while generating your floor plan: ${statusData.error || 'Unknown error'}. Would you like to try again?`,
+            type: 'error',
+          });
+        }
+      } catch (err) {
+        console.error('Error polling status:', err);
+      }
+    };
+
+    // Start polling every 3 seconds
+    pollStatus(); // Initial call
+    pollingIntervalRef.current = setInterval(pollStatus, 3000);
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, [isGenerating, getStatus, addMessage, setStatus]);
 
   // Initialize chat with welcome message
   useEffect(() => {
@@ -184,12 +274,27 @@ export function FloorPlanChatbot({
         type: 'text',
       });
 
-      // Update collected inputs
+      // Update local inputs for UI state
       const newInputs: Partial<FloorPlanInputs> = {};
 
       switch (currentQuestion.id) {
         case 'projectType':
           newInputs.projectType = value as ProjectType;
+
+          // Initialize backend session when project type is selected
+          try {
+            const response = await startBackendSession(value as ProjectType);
+            backendSessionIdRef.current = response.sessionId;
+            console.log('Backend session started:', response.sessionId);
+          } catch (err) {
+            console.error('Failed to start backend session:', err);
+            addMessage({
+              role: 'assistant',
+              content: 'I encountered an issue starting your session. Please try refreshing the page.',
+              type: 'error',
+            });
+            return;
+          }
           break;
         case 'plotInput':
           newInputs.plotInput = value as 'upload' | 'manual';
@@ -270,85 +375,193 @@ export function FloorPlanChatbot({
       const updatedInputs = { ...session.collectedInputs, ...newInputs };
       updateInputs(newInputs);
 
-      // Check if we're done collecting or need next question
-      if (isLastQuestion(updatedInputs)) {
-        // Start generation
-        startGeneration(updatedInputs);
+      // Submit answer to backend API (if session started)
+      if (backendSessionIdRef.current) {
+        try {
+          const response = await submitAnswer(currentQuestion.id, value);
+
+          // Check response status
+          if (response.status === 'generating') {
+            // Backend started generation automatically
+            setIsGenerating(true);
+            setStatus('generating');
+
+            addMessage({
+              role: 'assistant',
+              content: response.message || "Perfect! I have all the information I need. Let me design your floor plan...",
+              type: 'text',
+            });
+
+            // Initialize progress
+            setGenerationProgress({
+              stage: 'Starting design process...',
+              percent: 0,
+              stages: (response.progress && 'stages' in response.progress) ? response.progress.stages : BLUEPRINT_STAGES,
+            });
+
+            // Polling will handle the rest via useEffect
+            return;
+          }
+
+          // Show next question from backend
+          if (response.nextQuestion) {
+            const nextQ = response.nextQuestion;
+
+            setTimeout(() => {
+              // Add any message from backend
+              if (response.message) {
+                addMessage({
+                  role: 'assistant',
+                  content: response.message,
+                  type: 'text',
+                });
+              }
+
+              setTimeout(() => {
+                // Handle different question types
+                if (nextQ.type === 'form') {
+                  const isPlotDimensions = nextQ.id === 'plotDimensions';
+                  const isClientName = nextQ.id === 'clientName';
+
+                  addMessage({
+                    role: 'assistant',
+                    content: nextQ.question,
+                    type: 'form',
+                    formFields: nextQ.fields?.map((f) => {
+                      if (isClientName) {
+                        return {
+                          name: f,
+                          label: 'Client/Project Name',
+                          type: 'text' as const,
+                          placeholder: 'e.g., Kumar Residence, Villa Phase 2',
+                          required: true,
+                        };
+                      }
+
+                      if (isPlotDimensions) {
+                        return {
+                          name: f,
+                          label: f.charAt(0).toUpperCase() + f.slice(1) + ' (feet)',
+                          type: 'number' as const,
+                          placeholder: 'e.g., 30',
+                          required: true,
+                        };
+                      }
+
+                      return {
+                        name: f,
+                        label: f.charAt(0).toUpperCase() + f.slice(1),
+                        type: 'text' as const,
+                        placeholder: '',
+                        required: true,
+                      };
+                    }),
+                  });
+                } else if (nextQ.type === 'upload') {
+                  // Handle upload question type
+                  setShowUploader(true);
+                  addMessage({
+                    role: 'assistant',
+                    content: nextQ.question,
+                    type: 'text',
+                  });
+                } else {
+                  // Handle single-select, multi-select
+                  addMessage({
+                    role: 'assistant',
+                    content: nextQ.question,
+                    type: 'options',
+                    options: nextQ.options,
+                  });
+                }
+              }, 400);
+            }, 600);
+          }
+        } catch (err) {
+          console.error('Error submitting answer:', err);
+          addMessage({
+            role: 'assistant',
+            content: 'I encountered an issue processing your answer. Please try again.',
+            type: 'error',
+          });
+        }
       } else {
-        // Get next question
-        const nextQuestion = getNextQuestion(updatedInputs);
-        if (nextQuestion) {
-          setTimeout(() => {
-            // Add description if exists
-            if (nextQuestion.description) {
-              addMessage({
-                role: 'assistant',
-                content: nextQuestion.description,
-                type: 'text',
-              });
-            }
+        // Fallback to local flow if backend session not started
+        if (isLastQuestion(updatedInputs)) {
+          startGeneration(updatedInputs);
+        } else {
+          const nextQuestion = getNextQuestion(updatedInputs);
+          if (nextQuestion) {
+            setTimeout(() => {
+              if (nextQuestion.description) {
+                addMessage({
+                  role: 'assistant',
+                  content: nextQuestion.description,
+                  type: 'text',
+                });
+              }
 
-            // Handle form questions differently
-            if (nextQuestion.type === 'form') {
-              // Determine field configuration based on question ID
-              const isPlotDimensions = nextQuestion.id === 'plotDimensions';
-              const isClientName = nextQuestion.id === 'clientName';
+              setTimeout(() => {
+                if (nextQuestion.type === 'form') {
+                  const isPlotDimensions = nextQuestion.id === 'plotDimensions';
+                  const isClientName = nextQuestion.id === 'clientName';
 
-              addMessage({
-                role: 'assistant',
-                content: nextQuestion.question,
-                type: 'form',
-                formFields: nextQuestion.fields?.map((f) => {
-                  if (isClientName) {
-                    return {
-                      name: f,
-                      label: 'Client/Project Name',
-                      type: 'text' as const,
-                      placeholder: 'e.g., Kumar Residence, Villa Phase 2',
-                      required: true,
-                    };
-                  }
+                  addMessage({
+                    role: 'assistant',
+                    content: nextQuestion.question,
+                    type: 'form',
+                    formFields: nextQuestion.fields?.map((f) => {
+                      if (isClientName) {
+                        return {
+                          name: f,
+                          label: 'Client/Project Name',
+                          type: 'text' as const,
+                          placeholder: 'e.g., Kumar Residence, Villa Phase 2',
+                          required: true,
+                        };
+                      }
 
-                  if (isPlotDimensions) {
-                    return {
-                      name: f,
-                      label: f.charAt(0).toUpperCase() + f.slice(1) + ' (feet)',
-                      type: 'number' as const,
-                      placeholder: 'e.g., 30',
-                      required: true,
-                    };
-                  }
+                      if (isPlotDimensions) {
+                        return {
+                          name: f,
+                          label: f.charAt(0).toUpperCase() + f.slice(1) + ' (feet)',
+                          type: 'number' as const,
+                          placeholder: 'e.g., 30',
+                          required: true,
+                        };
+                      }
 
-                  // Default form field
-                  return {
-                    name: f,
-                    label: f.charAt(0).toUpperCase() + f.slice(1),
-                    type: 'text' as const,
-                    placeholder: '',
-                    required: true,
-                  };
-                }),
-              });
-            } else {
-              addMessage({
-                role: 'assistant',
-                content: nextQuestion.question,
-                type: 'options',
-                options: nextQuestion.options,
-              });
-            }
-          }, 600);
+                      return {
+                        name: f,
+                        label: f.charAt(0).toUpperCase() + f.slice(1),
+                        type: 'text' as const,
+                        placeholder: '',
+                        required: true,
+                      };
+                    }),
+                  });
+                } else {
+                  addMessage({
+                    role: 'assistant',
+                    content: nextQuestion.question,
+                    type: 'options',
+                    options: nextQuestion.options,
+                  });
+                }
+              }, 400);
+            }, 600);
+          }
         }
       }
     },
-    [session.collectedInputs, getNextQuestion, isLastQuestion, addMessage, updateInputs]
+    [session.collectedInputs, getNextQuestion, isLastQuestion, addMessage, updateInputs, submitAnswer, startBackendSession, setStatus]
   );
 
   /**
    * Handle form submission (for dimensions and client name)
    */
   const handleFormSubmit = useCallback(
-    (values: Record<string, string>) => {
+    async (values: Record<string, string>) => {
       const currentQuestion = getNextQuestion(session.collectedInputs);
       if (!currentQuestion) return;
 
@@ -373,47 +586,129 @@ export function FloorPlanChatbot({
 
         updateInputs({ clientName });
 
-        // Get next question with updated inputs
-        const updatedInputs = { ...session.collectedInputs, clientName };
-        const nextQuestion = getNextQuestion(updatedInputs);
+        // Submit to backend API if session active
+        if (backendSessionIdRef.current) {
+          try {
+            const response = await submitAnswer(currentQuestion.id, values as Record<string, unknown>);
 
-        if (nextQuestion) {
-          setTimeout(() => {
+            // Check response status
+            if (response.status === 'generating') {
+              setIsGenerating(true);
+              setStatus('generating');
+
+              addMessage({
+                role: 'assistant',
+                content: response.message || "Perfect! I have all the information I need. Let me design your floor plan...",
+                type: 'text',
+              });
+
+              setGenerationProgress({
+                stage: 'Starting design process...',
+                percent: 0,
+                stages: (response.progress && 'stages' in response.progress) ? response.progress.stages : BLUEPRINT_STAGES,
+              });
+
+              return;
+            }
+
+            // Show next question from backend
+            if (response.nextQuestion) {
+              const nextQ = response.nextQuestion;
+
+              setTimeout(() => {
+                if (response.message) {
+                  addMessage({
+                    role: 'assistant',
+                    content: response.message,
+                    type: 'text',
+                  });
+                } else {
+                  addMessage({
+                    role: 'assistant',
+                    content: `Perfect! I'll create files for "${clientName}".`,
+                    type: 'text',
+                  });
+                }
+
+                setTimeout(() => {
+                  if (nextQ.type === 'form') {
+                    const isPlotDimensions = nextQ.id === 'plotDimensions';
+
+                    addMessage({
+                      role: 'assistant',
+                      content: nextQ.question,
+                      type: 'form',
+                      formFields: nextQ.fields?.map((f) => ({
+                        name: f,
+                        label: isPlotDimensions
+                          ? f.charAt(0).toUpperCase() + f.slice(1) + ' (feet)'
+                          : f.charAt(0).toUpperCase() + f.slice(1),
+                        type: isPlotDimensions ? ('number' as const) : ('text' as const),
+                        placeholder: isPlotDimensions ? 'e.g., 30' : '',
+                        required: true,
+                      })),
+                    });
+                  } else {
+                    addMessage({
+                      role: 'assistant',
+                      content: nextQ.question,
+                      type: 'options',
+                      options: nextQ.options,
+                    });
+                  }
+                }, 400);
+              }, 600);
+            }
+          } catch (err) {
+            console.error('Error submitting client name:', err);
             addMessage({
               role: 'assistant',
-              content: `Perfect! I'll create files for "${clientName}". ${nextQuestion.description || ''}`,
-              type: 'text',
+              content: 'I encountered an issue processing your input. Please try again.',
+              type: 'error',
             });
+          }
+        } else {
+          // Fallback to local flow
+          const updatedInputs = { ...session.collectedInputs, clientName };
+          const nextQuestion = getNextQuestion(updatedInputs);
 
+          if (nextQuestion) {
             setTimeout(() => {
-              // Check question type before rendering
-              if (nextQuestion.type === 'form') {
-                const isPlotDimensions = nextQuestion.id === 'plotDimensions';
+              addMessage({
+                role: 'assistant',
+                content: `Perfect! I'll create files for "${clientName}". ${nextQuestion.description || ''}`,
+                type: 'text',
+              });
 
-                addMessage({
-                  role: 'assistant',
-                  content: nextQuestion.question,
-                  type: 'form',
-                  formFields: nextQuestion.fields?.map((f) => ({
-                    name: f,
-                    label: isPlotDimensions
-                      ? f.charAt(0).toUpperCase() + f.slice(1) + ' (feet)'
-                      : f.charAt(0).toUpperCase() + f.slice(1),
-                    type: isPlotDimensions ? ('number' as const) : ('text' as const),
-                    placeholder: isPlotDimensions ? 'e.g., 30' : '',
-                    required: true,
-                  })),
-                });
-              } else {
-                addMessage({
-                  role: 'assistant',
-                  content: nextQuestion.question,
-                  type: 'options',
-                  options: nextQuestion.options,
-                });
-              }
-            }, 400);
-          }, 600);
+              setTimeout(() => {
+                if (nextQuestion.type === 'form') {
+                  const isPlotDimensions = nextQuestion.id === 'plotDimensions';
+
+                  addMessage({
+                    role: 'assistant',
+                    content: nextQuestion.question,
+                    type: 'form',
+                    formFields: nextQuestion.fields?.map((f) => ({
+                      name: f,
+                      label: isPlotDimensions
+                        ? f.charAt(0).toUpperCase() + f.slice(1) + ' (feet)'
+                        : f.charAt(0).toUpperCase() + f.slice(1),
+                      type: isPlotDimensions ? ('number' as const) : ('text' as const),
+                      placeholder: isPlotDimensions ? 'e.g., 30' : '',
+                      required: true,
+                    })),
+                  });
+                } else {
+                  addMessage({
+                    role: 'assistant',
+                    content: nextQuestion.question,
+                    type: 'options',
+                    options: nextQuestion.options,
+                  });
+                }
+              }, 400);
+            }, 600);
+          }
         }
         return;
       }
@@ -440,31 +735,95 @@ export function FloorPlanChatbot({
 
         updateInputs({ plotDimensions, plotArea });
 
-        // Get next question with updated inputs
-        const updatedInputs = { ...session.collectedInputs, plotDimensions, plotArea };
-        const nextQuestion = getNextQuestion(updatedInputs);
+        // Submit to backend API if session active
+        if (backendSessionIdRef.current) {
+          try {
+            const response = await submitAnswer(currentQuestion.id, values as Record<string, unknown>);
 
-        if (nextQuestion) {
-          setTimeout(() => {
+            // Check response status
+            if (response.status === 'generating') {
+              setIsGenerating(true);
+              setStatus('generating');
+
+              addMessage({
+                role: 'assistant',
+                content: response.message || "Perfect! I have all the information I need. Let me design your floor plan...",
+                type: 'text',
+              });
+
+              setGenerationProgress({
+                stage: 'Starting design process...',
+                percent: 0,
+                stages: (response.progress && 'stages' in response.progress) ? response.progress.stages : BLUEPRINT_STAGES,
+              });
+
+              return;
+            }
+
+            // Show next question from backend
+            if (response.nextQuestion) {
+              const nextQ = response.nextQuestion;
+
+              setTimeout(() => {
+                if (response.message) {
+                  addMessage({
+                    role: 'assistant',
+                    content: response.message,
+                    type: 'text',
+                  });
+                } else {
+                  addMessage({
+                    role: 'assistant',
+                    content: `Great! Your plot area is approximately ${Math.round(plotArea)} sq.ft.`,
+                    type: 'text',
+                  });
+                }
+
+                setTimeout(() => {
+                  addMessage({
+                    role: 'assistant',
+                    content: nextQ.question,
+                    type: 'options',
+                    options: nextQ.options,
+                  });
+                }, 400);
+              }, 600);
+            }
+          } catch (err) {
+            console.error('Error submitting plot dimensions:', err);
             addMessage({
               role: 'assistant',
-              content: `Great! Your plot area is approximately ${Math.round(plotArea)} sq.ft. ${nextQuestion.description || ''}`,
-              type: 'text',
+              content: 'I encountered an issue processing your dimensions. Please try again.',
+              type: 'error',
             });
+          }
+        } else {
+          // Fallback to local flow
+          const updatedInputs = { ...session.collectedInputs, plotDimensions, plotArea };
+          const nextQuestion = getNextQuestion(updatedInputs);
 
+          if (nextQuestion) {
             setTimeout(() => {
               addMessage({
                 role: 'assistant',
-                content: nextQuestion.question,
-                type: 'options',
-                options: nextQuestion.options,
+                content: `Great! Your plot area is approximately ${Math.round(plotArea)} sq.ft. ${nextQuestion.description || ''}`,
+                type: 'text',
               });
-            }, 400);
-          }, 600);
+
+              setTimeout(() => {
+                addMessage({
+                  role: 'assistant',
+                  content: nextQuestion.question,
+                  type: 'options',
+                  options: nextQuestion.options,
+                });
+              }, 400);
+            }, 600);
+          }
         }
       }
     },
-    [session.collectedInputs, getNextQuestion, addMessage, updateInputs]
+    [session.collectedInputs, getNextQuestion, addMessage, updateInputs, submitAnswer, setStatus]
   );
 
   /**
@@ -597,7 +956,9 @@ export function FloorPlanChatbot({
 
       // Mock blueprint data (in production, this comes from the API)
       const mockDesignSummary: BlueprintDesignSummary = {
-        plotSize: inputs.plotDimensions
+        plotSize: inputs.plotDimensions &&
+                  !isNaN(inputs.plotDimensions.east) &&
+                  !isNaN(inputs.plotDimensions.north)
           ? `${inputs.plotDimensions.east}'×${inputs.plotDimensions.north}'`
           : "40'×60'",
         roomCount: (parseInt(inputs.bedrooms as string) || 2) + 3, // bedrooms + living + kitchen + bathroom
@@ -643,66 +1004,24 @@ Please confirm the blueprint to proceed with the 3D view, or let me know if you'
    * Handle blueprint confirmation
    */
   const handleBlueprintConfirm = async () => {
+    if (!backendSessionIdRef.current) {
+      console.error('No backend session ID');
+      return;
+    }
+
     setIsConfirmingBlueprint(true);
 
     try {
-      // In production, call the API
-      // const result = await confirmBlueprint(true);
+      // Call backend API to confirm blueprint
+      const result = await confirmBlueprintAPI(true);
 
-      addMessage({
-        role: 'assistant',
-        content: "Great! You've approved the blueprint. Now generating your 3D isometric view...",
-        type: 'text',
-      });
-
-      setStatus('generating_isometric');
       setBlueprintData(null);
 
-      // Initialize isometric progress
-      setIsGenerating(true);
-      setGenerationProgress({
-        stage: 'Preparing 3D visualization...',
-        percent: 75,
-        stages: ISOMETRIC_STAGES.map((s, i) => ({
-          ...s,
-          status: i === 0 ? 'in_progress' : 'pending',
-        })),
-      });
-
-      // Simulate isometric generation
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      setGenerationProgress((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          stage: 'Rendering isometric view...',
-          percent: 90,
-          stages: prev.stages.map((s, i) => ({
-            ...s,
-            status: i === 0 ? 'completed' : 'in_progress',
-          })),
-        };
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      setGenerationProgress((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          stage: 'Complete!',
-          percent: 100,
-          stages: prev.stages.map((s) => ({ ...s, status: 'completed' as const })),
-        };
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setIsGenerating(false);
-      setGenerationProgress(null);
-      setStatus('presenting');
-
-      addMessage({
-        role: 'assistant',
-        content: `Your design is complete! Here's your ECO-FRIENDLY ${session.collectedInputs.hasMutram ? 'COURTYARD ' : ''}HOUSE with:
+      if (result.status === 'complete') {
+        // Backend has all images ready - show them
+        addMessage({
+          role: 'assistant',
+          content: result.message || `Your design is complete! Here's your ECO-FRIENDLY ${session.collectedInputs.hasMutram ? 'COURTYARD ' : ''}HOUSE with:
 
 • 3D Isometric View
 • Detailed Floor Plan
@@ -710,10 +1029,32 @@ Please confirm the blueprint to proceed with the 3D view, or let me know if you'
 • Eco-friendly design elements
 
 Would you like to make any changes to this design?`,
-        type: 'text',
-      });
+          type: 'text',
+        });
 
-      setStatus('iterating');
+        setStatus('iterating');
+      } else if (result.status === 'generating_isometric') {
+        // Backend is generating isometric views
+        addMessage({
+          role: 'assistant',
+          content: result.message || "Great! You've approved the blueprint. Now generating your 3D isometric view...",
+          type: 'text',
+        });
+
+        setStatus('generating_isometric');
+        setIsGenerating(true);
+
+        // Initialize progress if provided
+        if (result.progress) {
+          setGenerationProgress({
+            stage: result.progress.stage || 'Preparing 3D visualization...',
+            percent: result.progress.percent || 75,
+            stages: result.stages || ISOMETRIC_STAGES,
+          });
+        }
+
+        // Polling will handle the rest
+      }
     } catch (err) {
       console.error('Blueprint confirmation error:', err);
       addMessage({
@@ -730,14 +1071,18 @@ Would you like to make any changes to this design?`,
    * Handle blueprint rejection
    */
   const handleBlueprintReject = async (feedback?: string) => {
+    if (!backendSessionIdRef.current) {
+      console.error('No backend session ID');
+      return;
+    }
+
     setIsConfirmingBlueprint(true);
 
     try {
-      // In production, call the API
-      // const result = await confirmBlueprint(false, feedback);
+      // Call backend API to reject blueprint
+      const result = await confirmBlueprintAPI(false, feedback);
 
       setBlueprintData(null);
-      setStatus('collecting');
 
       if (feedback) {
         addMessage({
@@ -748,22 +1093,21 @@ Would you like to make any changes to this design?`,
 
         addMessage({
           role: 'assistant',
-          content: `I understand you want to "${feedback}". Let me redesign with those changes in mind.
+          content: result.message || `I understand you want to make changes. Let me redesign with those modifications in mind.
 
 What specific aspect would you like me to modify?`,
           type: 'text',
         });
-
-        setStatus('iterating');
       } else {
         addMessage({
           role: 'assistant',
-          content: `No problem! Let's modify the design. What changes would you like to make to the floor plan?`,
+          content: result.message || `No problem! Let's modify the design. What changes would you like to make to the floor plan?`,
           type: 'text',
         });
-
-        setStatus('iterating');
       }
+
+      // Update status based on result
+      setStatus(result.status === 'collecting' ? 'collecting' : 'iterating');
     } catch (err) {
       console.error('Blueprint rejection error:', err);
       addMessage({

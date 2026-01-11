@@ -222,7 +222,9 @@ export interface AnswerRequest {
 export interface AnswerResponse {
   nextQuestion?: QuestionConfig;
   status: SessionStatus;
-  progress?: ProgressData;
+  message?: string;
+  inputs?: FloorPlanInputs;
+  progress?: ProgressData | { current: number; total: number };
   generatedImages?: GeneratedImages;
   designSummary?: DesignContextSummary;
 }
@@ -241,8 +243,10 @@ export interface ModifyResponse {
 }
 
 export interface StatusResponse {
-  status: 'pending' | 'in_progress' | 'complete' | 'failed' | 'awaiting_blueprint_confirmation' | 'generating_isometric';
+  status: 'collecting' | 'generating' | 'pending' | 'in_progress' | 'complete' | 'failed' | 'awaiting_blueprint_confirmation' | 'generating_isometric' | 'halted';
+  message?: string;
   currentStage?: string;
+  currentAgent?: string;
   progress?: number;
   phase?: GenerationPhase;
   error?: string;
@@ -252,10 +256,21 @@ export interface StatusResponse {
   };
   designSummary?: BlueprintDesignSummary;
   confirmationOptions?: ConfirmationOption[];
+  openQuestions?: string[];
   result?: {
     images: GeneratedImages;
     designContext: DesignContextSummary;
   };
+  summary?: {
+    plotSize?: string;
+    totalBuiltUp?: number;
+    roomCount?: number;
+    hasCourtyard?: boolean;
+    hasVerandah?: boolean;
+    vastuCompliant?: boolean;
+    ecoFeatures?: string[];
+  };
+  stages?: ProgressStage[];
 }
 
 export interface BlueprintDesignSummary {
@@ -357,7 +372,7 @@ export interface UseQuestionFlowReturn {
 
 export interface UseFloorPlanGenerationReturn {
   startSession: (projectType: ProjectType) => Promise<StartSessionResponse>;
-  submitAnswer: (questionId: string, answer: string | string[]) => Promise<AnswerResponse>;
+  submitAnswer: (questionId: string, answer: string | string[] | Record<string, unknown>) => Promise<AnswerResponse>;
   modifyDesign: (modification: string) => Promise<ModifyResponse>;
   confirmModification: () => Promise<ModifyResponse>;
   cancelModification: () => void;

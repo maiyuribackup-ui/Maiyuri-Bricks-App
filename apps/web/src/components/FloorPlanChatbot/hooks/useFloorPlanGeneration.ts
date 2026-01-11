@@ -63,7 +63,7 @@ export function useFloorPlanGeneration(): UseFloorPlanGenerationReturn {
    * Submit an answer to the current question
    */
   const submitAnswer = useCallback(
-    async (questionId: string, answer: string | string[]): Promise<AnswerResponse> => {
+    async (questionId: string, answer: string | string[] | Record<string, unknown>): Promise<AnswerResponse> => {
       if (!sessionIdRef.current) {
         throw new Error('No active session');
       }
@@ -241,7 +241,8 @@ export function useFloorPlanGeneration(): UseFloorPlanGenerationReturn {
         throw new Error(errorData.error || 'Failed to get status');
       }
 
-      return await response.json();
+      const data = await response.json();
+      return data.data || data;
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to get status';
       setError(message);
