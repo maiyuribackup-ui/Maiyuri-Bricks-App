@@ -247,17 +247,44 @@ export function FloorPlanChatbot({
 
             // Handle form questions differently
             if (nextQuestion.type === 'form') {
+              // Determine field configuration based on question ID
+              const isPlotDimensions = nextQuestion.id === 'plotDimensions';
+              const isClientName = nextQuestion.id === 'clientName';
+
               addMessage({
                 role: 'assistant',
                 content: nextQuestion.question,
                 type: 'form',
-                formFields: nextQuestion.fields?.map((f) => ({
-                  name: f,
-                  label: f.charAt(0).toUpperCase() + f.slice(1) + ' (feet)',
-                  type: 'number' as const,
-                  placeholder: 'e.g., 30',
-                  required: true,
-                })),
+                formFields: nextQuestion.fields?.map((f) => {
+                  if (isClientName) {
+                    return {
+                      name: f,
+                      label: 'Client/Project Name',
+                      type: 'text' as const,
+                      placeholder: 'e.g., Kumar Residence, Villa Phase 2',
+                      required: true,
+                    };
+                  }
+
+                  if (isPlotDimensions) {
+                    return {
+                      name: f,
+                      label: f.charAt(0).toUpperCase() + f.slice(1) + ' (feet)',
+                      type: 'number' as const,
+                      placeholder: 'e.g., 30',
+                      required: true,
+                    };
+                  }
+
+                  // Default form field
+                  return {
+                    name: f,
+                    label: f.charAt(0).toUpperCase() + f.slice(1),
+                    type: 'text' as const,
+                    placeholder: '',
+                    required: true,
+                  };
+                }),
               });
             } else {
               addMessage({
@@ -275,14 +302,60 @@ export function FloorPlanChatbot({
   );
 
   /**
-   * Handle form submission (for dimensions)
+   * Handle form submission (for dimensions and client name)
    */
   const handleFormSubmit = useCallback(
     (values: Record<string, string>) => {
       const currentQuestion = getNextQuestion(session.collectedInputs);
       if (!currentQuestion) return;
 
-      // Add user's input as message
+      // Handle client name submission
+      if (currentQuestion.id === 'clientName') {
+        const clientName = values.clientName?.trim();
+
+        if (!clientName || clientName.length < 2) {
+          addMessage({
+            role: 'system',
+            content: 'Please enter a valid client or project name (at least 2 characters).',
+            type: 'error',
+          });
+          return;
+        }
+
+        addMessage({
+          role: 'user',
+          content: `Client Name: ${clientName}`,
+          type: 'text',
+        });
+
+        updateInputs({ clientName });
+
+        // Get next question with updated inputs
+        const updatedInputs = { ...session.collectedInputs, clientName };
+        const nextQuestion = getNextQuestion(updatedInputs);
+
+        if (nextQuestion) {
+          setTimeout(() => {
+            addMessage({
+              role: 'assistant',
+              content: `Perfect! I'll create files for "${clientName}". ${nextQuestion.description || ''}`,
+              type: 'text',
+            });
+
+            setTimeout(() => {
+              addMessage({
+                role: 'assistant',
+                content: nextQuestion.question,
+                type: 'options',
+                options: nextQuestion.options,
+              });
+            }, 400);
+          }, 600);
+        }
+        return;
+      }
+
+      // Add user's input as message for plot dimensions
       if (currentQuestion.id === 'plotDimensions') {
         addMessage({
           role: 'user',

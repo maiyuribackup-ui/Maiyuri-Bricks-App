@@ -177,7 +177,7 @@ export function ChatMessage({ message, onOptionSelect, onFormSubmit }: ChatMessa
             }}
             className="space-y-3"
           >
-            <div className="grid grid-cols-2 gap-3">
+            <div className={message.formFields.length > 1 ? "grid grid-cols-2 gap-3" : "space-y-3"}>
               {message.formFields.map((field) => (
                 <div key={field.name}>
                   <label className="block text-xs text-slate-400 mb-1">
