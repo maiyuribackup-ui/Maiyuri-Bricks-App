@@ -662,23 +662,32 @@ export async function POST(request: NextRequest) {
     // Find the first unanswered question by checking inputs
     // This is more reliable than trusting the stored index
     let startIndex = 0;
+    const answeredQuestions: string[] = [];
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       // Skip questions that don't apply due to conditions
       if (q.condition && !q.condition(updatedSession.inputs)) {
+        console.log(`[Q-Flow] Question ${i} (${q.id}): SKIPPED (condition not met)`);
         continue;
       }
       // Check if this question has been answered
       // Use `in` operator to check for property existence (handles falsy values correctly)
-      if (!(q.id in updatedSession.inputs)) {
+      const isAnswered = q.id in updatedSession.inputs;
+      if (isAnswered) {
+        answeredQuestions.push(q.id);
+        console.log(`[Q-Flow] Question ${i} (${q.id}): ANSWERED (value: ${JSON.stringify(updatedSession.inputs[q.id])})`);
+      } else {
+        console.log(`[Q-Flow] Question ${i} (${q.id}): UNANSWERED - will start from here`);
         startIndex = i;
         break;
       }
       // If we've checked all questions, start from the end
       if (i === questions.length - 1) {
+        console.log(`[Q-Flow] All questions answered! Total: ${answeredQuestions.length}`);
         startIndex = questions.length;
       }
     }
+    console.log(`[Q-Flow] Summary: ${answeredQuestions.length} answered, starting from index ${startIndex}`);
 
     // Get next question
     const { question: nextQuestion, newIndex } = getNextQuestion(
