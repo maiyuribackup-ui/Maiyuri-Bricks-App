@@ -7,7 +7,7 @@
  * before proceeding to generate the 3D isometric view.
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import type { BlueprintConfirmationProps } from './types';
 
 export function BlueprintConfirmation({
@@ -21,6 +21,33 @@ export function BlueprintConfirmation({
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [isZoomed, setIsZoomed] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  // Generate download URL for the blueprint image
+  const downloadBlueprint = useCallback(() => {
+    try {
+      // Convert base64 to blob
+      const byteCharacters = atob(blueprintImage);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `floor-plan-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download blueprint:', error);
+    }
+  }, [blueprintImage, mimeType]);
 
   const handleReject = () => {
     if (showFeedback && feedback.trim()) {
@@ -53,35 +80,72 @@ export function BlueprintConfirmation({
 
       {/* Blueprint Image */}
       <div className="p-4">
-        <div
-          className={`relative bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300 ${
-            isZoomed ? 'fixed inset-4 z-50' : ''
-          }`}
-          onClick={() => setIsZoomed(!isZoomed)}
-        >
-          {isZoomed && (
-            <div
-              className="absolute inset-0 bg-black/80 -z-10"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsZoomed(false);
-              }}
-            />
-          )}
-          <img
-            src={`data:${mimeType};base64,${blueprintImage}`}
-            alt="Generated Blueprint"
-            className={`w-full h-auto ${isZoomed ? 'max-h-[90vh] object-contain' : ''}`}
-          />
-          {!isZoomed && (
-            <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1">
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-              </svg>
-              Click to zoom
-            </div>
-          )}
+        {/* Download Link - Always visible */}
+        <div className="mb-3 flex items-center justify-between">
+          <button
+            onClick={downloadBlueprint}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Download Blueprint (PNG)
+          </button>
+          <span className="text-slate-400 text-xs">
+            floor-plan-{Date.now()}.png
+          </span>
         </div>
+
+        {/* Image Display with Error Fallback */}
+        {imageError ? (
+          <div className="bg-slate-700/50 rounded-xl p-8 text-center">
+            <svg className="w-16 h-16 mx-auto text-slate-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <p className="text-slate-300 mb-2">Image preview unavailable</p>
+            <p className="text-slate-500 text-sm mb-4">Click the download button above to view your floor plan</p>
+            <button
+              onClick={downloadBlueprint}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Download Floor Plan
+            </button>
+          </div>
+        ) : (
+          <div
+            className={`relative bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300 ${
+              isZoomed ? 'fixed inset-4 z-50' : ''
+            }`}
+            onClick={() => setIsZoomed(!isZoomed)}
+          >
+            {isZoomed && (
+              <div
+                className="absolute inset-0 bg-black/80 -z-10"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsZoomed(false);
+                }}
+              />
+            )}
+            <img
+              src={`data:${mimeType};base64,${blueprintImage}`}
+              alt="Generated Blueprint"
+              className={`w-full h-auto ${isZoomed ? 'max-h-[90vh] object-contain' : ''}`}
+              onError={() => setImageError(true)}
+            />
+            {!isZoomed && (
+              <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                </svg>
+                Click to zoom
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Design Summary */}

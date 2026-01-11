@@ -207,6 +207,39 @@ Please provide your answers so I can continue.`,
             content: `I encountered an issue while generating your floor plan: ${statusData.error || 'Unknown error'}. Would you like to try again?`,
             type: 'error',
           });
+        } else if (statusData.status === 'complete') {
+          // Generation complete with all images - stop polling
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+
+          setIsGenerating(false);
+          setGenerationProgress(null);
+          setStatus('complete');
+
+          // Store the generated images
+          if (statusData.result?.images) {
+            setGeneratedImages(statusData.result.images);
+          }
+
+          // Add completion message with download links
+          addMessage({
+            role: 'assistant',
+            content: statusData.message || `Your floor plan design is complete!
+
+Here are your generated images:
+• Floor Plan (2D Blueprint)
+• 3D Isometric/Exterior View
+
+Click the download buttons below to save your images as PNG files.`,
+            type: 'text',
+          });
+
+          // Notify parent component if callback provided
+          if (onDesignComplete && statusData.result?.images && statusData.result?.designContext) {
+            onDesignComplete(statusData.result.images, statusData.result.designContext);
+          }
         }
       } catch (err) {
         console.error('Error polling status:', err);
@@ -1404,6 +1437,145 @@ Would you like to make any other changes?`,
               onReject={handleBlueprintReject}
               isLoading={isConfirmingBlueprint}
             />
+          </div>
+        )}
+
+        {/* Final generated images with download buttons */}
+        {session.status === 'complete' && session.generatedImages && (
+          <div className="mt-4 bg-slate-800/90 rounded-2xl border border-slate-700/50 overflow-hidden">
+            <div className="px-5 py-4 bg-gradient-to-r from-emerald-600/20 to-teal-500/20 border-b border-slate-700/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+                  <span className="text-xl">✅</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">Design Complete!</h3>
+                  <p className="text-slate-400 text-sm">Download your floor plan images below</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* Floor Plan Download */}
+              {session.generatedImages.floorPlan && (
+                <div className="bg-slate-700/50 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">📐</span>
+                      <div>
+                        <h4 className="font-medium text-white">2D Floor Plan</h4>
+                        <p className="text-slate-400 text-sm">Detailed blueprint with room dimensions</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const base64 = session.generatedImages.floorPlan || '';
+                        const byteCharacters = atob(base64);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                          byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        const blob = new Blob([byteArray], { type: 'image/png' });
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `floor-plan-${Date.now()}.png`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download PNG
+                    </button>
+                  </div>
+                </div>
+              )}
+              {/* Exterior/3D View Download */}
+              {session.generatedImages.exterior && (
+                <div className="bg-slate-700/50 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🏠</span>
+                      <div>
+                        <h4 className="font-medium text-white">3D Exterior View</h4>
+                        <p className="text-slate-400 text-sm">Isometric view of your home</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const base64 = session.generatedImages.exterior || '';
+                        const byteCharacters = atob(base64);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                          byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        const blob = new Blob([byteArray], { type: 'image/png' });
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `exterior-3d-${Date.now()}.png`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download PNG
+                    </button>
+                  </div>
+                </div>
+              )}
+              {/* Courtyard View Download (if applicable) */}
+              {session.generatedImages.courtyard && (
+                <div className="bg-slate-700/50 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🌿</span>
+                      <div>
+                        <h4 className="font-medium text-white">Courtyard View</h4>
+                        <p className="text-slate-400 text-sm">Interior courtyard visualization</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const base64 = session.generatedImages.courtyard || '';
+                        const byteCharacters = atob(base64);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                          byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        const blob = new Blob([byteArray], { type: 'image/png' });
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `courtyard-${Date.now()}.png`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download PNG
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
