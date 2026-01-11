@@ -75,6 +75,7 @@ CREATE POLICY "Founders can delete users" ON public.users
 
 -- Update select policy to only show active users (unless founder)
 DROP POLICY IF EXISTS "Users can view all users" ON public.users;
+DROP POLICY IF EXISTS "Users can view active users" ON public.users;
 CREATE POLICY "Users can view active users" ON public.users
   FOR SELECT USING (
     auth.role() = 'authenticated' AND (
@@ -85,6 +86,7 @@ CREATE POLICY "Users can view active users" ON public.users
 
 -- Allow founders to update any user (for role changes, deactivation)
 DROP POLICY IF EXISTS "Founders can update users" ON public.users;
+DROP POLICY IF EXISTS "Founders can update any user" ON public.users;
 CREATE POLICY "Founders can update any user" ON public.users
   FOR UPDATE USING (
     EXISTS (
