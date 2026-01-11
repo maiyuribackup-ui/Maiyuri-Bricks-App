@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { success, error, handleZodError } from '@/lib/api-utils';
 import { ZodError } from 'zod';
 import { planningService } from '@/lib/planning-service';
+import { floorPlanSupabase } from '@/lib/floor-plan-supabase';
 
 /**
  * Request schema for submitting an answer
@@ -658,15 +659,38 @@ export async function POST(request: NextRequest) {
     // Get question flow for this project type
     const questions = getQuestionFlow(updatedSession.projectType);
 
+    // Find the first unanswered question by checking inputs
+    // This is more reliable than trusting the stored index
+    let startIndex = 0;
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      // Skip questions that don't apply due to conditions
+      if (q.condition && !q.condition(updatedSession.inputs)) {
+        continue;
+      }
+      // Check if this question has been answered
+      if (!updatedSession.inputs[q.id]) {
+        startIndex = i;
+        break;
+      }
+      // If we've checked all questions, start from the end
+      if (i === questions.length - 1) {
+        startIndex = questions.length;
+      }
+    }
+
     // Get next question
     const { question: nextQuestion, newIndex } = getNextQuestion(
       questions,
-      updatedSession.currentQuestionIndex,
+      startIndex,
       updatedSession.inputs
     );
 
     // Update session index
     planningService.setQuestionIndex(sessionId, newIndex);
+
+    // Persist current question ID to database
+    await floorPlanSupabase.setCurrentQuestion(sessionId, nextQuestion?.id || null);
 
     // If no more questions, start generation
     if (!nextQuestion) {
