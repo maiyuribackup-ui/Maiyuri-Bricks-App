@@ -861,8 +861,106 @@ Please provide your answers so I can continue.`,
           }
         }
       }
+
+      // Handle setbacks submission
+      if (currentQuestion.id === 'setbacks') {
+        addMessage({
+          role: 'user',
+          content: `Setbacks: North ${values.north}', South ${values.south}', East ${values.east}', West ${values.west}'`,
+          type: 'text',
+        });
+
+        const setbacks = {
+          north: parseFloat(values.north),
+          south: parseFloat(values.south),
+          east: parseFloat(values.east),
+          west: parseFloat(values.west),
+        };
+
+        updateInputs({ setbacks });
+
+        // Submit to backend API if session active
+        if (backendSessionIdRef.current) {
+          try {
+            const response = await submitAnswer(currentQuestion.id, values as Record<string, unknown>);
+
+            // Check response status
+            if (response.status === 'generating') {
+              setIsGenerating(true);
+              setStatus('generating');
+
+              addMessage({
+                role: 'assistant',
+                content: response.message || "Perfect! I have all the information I need. Let me design your floor plan...",
+                type: 'text',
+              });
+
+              setGenerationProgress({
+                stage: 'Starting design process...',
+                percent: 0,
+                stages: (response.progress && 'stages' in response.progress) ? response.progress.stages : BLUEPRINT_STAGES,
+              });
+
+              return;
+            }
+
+            // Show next question from backend
+            if (response.nextQuestion) {
+              const nextQ = response.nextQuestion;
+
+              setTimeout(() => {
+                if (response.message) {
+                  addMessage({
+                    role: 'assistant',
+                    content: response.message,
+                    type: 'text',
+                  });
+                }
+
+                setTimeout(() => {
+                  if (nextQ.type === 'form') {
+                    const isPlotDimensions = nextQ.id === 'plotDimensions';
+                    const isSetbacks = nextQ.id === 'setbacks';
+                    const isNumericForm = isPlotDimensions || isSetbacks;
+
+                    addMessage({
+                      role: 'assistant',
+                      content: nextQ.question,
+                      type: 'form',
+                      formFields: nextQ.fields?.map((f) => ({
+                        name: f,
+                        label: isNumericForm
+                          ? f.charAt(0).toUpperCase() + f.slice(1) + ' (feet)'
+                          : f.charAt(0).toUpperCase() + f.slice(1),
+                        type: isNumericForm ? ('number' as const) : ('text' as const),
+                        placeholder: isNumericForm ? (isSetbacks ? 'e.g., 5' : 'e.g., 30') : '',
+                        required: true,
+                      })),
+                    });
+                  } else {
+                    addMessage({
+                      role: 'assistant',
+                      content: nextQ.question,
+                      type: 'options',
+                      options: nextQ.options,
+                    });
+                  }
+                }, 400);
+              }, 600);
+            }
+          } catch (err) {
+            console.error('Error submitting setbacks:', err);
+            addMessage({
+              role: 'assistant',
+              content: 'I encountered an issue processing your setbacks. Please try again.',
+              type: 'error',
+            });
+          }
+        }
+        return;
+      }
     },
-    [session.collectedInputs, getNextQuestion, addMessage, updateInputs, submitAnswer, setStatus]
+    [session.collectedInputs, getNextQuestion, addMessage, updateInputs, submitAnswer, setStatus, backendSessionIdRef]
   );
 
   /**
