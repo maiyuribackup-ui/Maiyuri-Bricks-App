@@ -32,27 +32,12 @@ interface QuestionResponse {
  * Get the first question based on project type
  */
 function getFirstQuestion(projectType: string): QuestionResponse {
-  // All projects start with plot input method
+  // All projects start with client name
   return {
-    id: 'plotInput',
-    question:
-      "Let's start with your plot. Do you have a land survey document?",
-    type: 'single-select',
-    options: [
-      {
-        label: 'Upload Survey',
-        value: 'upload',
-        icon: '📄',
-        recommended: true,
-        description: 'Auto-extract dimensions from your survey document',
-      },
-      {
-        label: 'Enter Manually',
-        value: 'manual',
-        icon: '✏️',
-        description: 'Type in your plot dimensions',
-      },
-    ],
+    id: 'clientName',
+    question: "What's the client or project name for this floor plan?",
+    type: 'form',
+    fields: ['clientName'],
   };
 }
 

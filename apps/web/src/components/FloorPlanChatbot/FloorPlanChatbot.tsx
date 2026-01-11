@@ -166,7 +166,7 @@ export function FloorPlanChatbot({
         }, 500);
       }
     }
-  }, []);
+  }, [session.messages.length, addMessage, getNextQuestion]);
 
   /**
    * Handle option selection
