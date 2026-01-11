@@ -386,12 +386,32 @@ export function FloorPlanChatbot({
             });
 
             setTimeout(() => {
-              addMessage({
-                role: 'assistant',
-                content: nextQuestion.question,
-                type: 'options',
-                options: nextQuestion.options,
-              });
+              // Check question type before rendering
+              if (nextQuestion.type === 'form') {
+                const isPlotDimensions = nextQuestion.id === 'plotDimensions';
+
+                addMessage({
+                  role: 'assistant',
+                  content: nextQuestion.question,
+                  type: 'form',
+                  formFields: nextQuestion.fields?.map((f) => ({
+                    name: f,
+                    label: isPlotDimensions
+                      ? f.charAt(0).toUpperCase() + f.slice(1) + ' (feet)'
+                      : f.charAt(0).toUpperCase() + f.slice(1),
+                    type: isPlotDimensions ? ('number' as const) : ('text' as const),
+                    placeholder: isPlotDimensions ? 'e.g., 30' : '',
+                    required: true,
+                  })),
+                });
+              } else {
+                addMessage({
+                  role: 'assistant',
+                  content: nextQuestion.question,
+                  type: 'options',
+                  options: nextQuestion.options,
+                });
+              }
             }, 400);
           }, 600);
         }
