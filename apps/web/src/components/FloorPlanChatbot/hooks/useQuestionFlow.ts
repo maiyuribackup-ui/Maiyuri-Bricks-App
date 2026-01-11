@@ -412,6 +412,7 @@ export function useQuestionFlow(): UseQuestionFlowReturn {
       // Find answered question IDs
       const answeredIds = new Set<string>();
 
+      if (inputs.clientName) answeredIds.add('clientName');
       if (inputs.projectType) answeredIds.add('projectType');
       if (inputs.plotInput) answeredIds.add('plotInput');
       if (inputs.plotDimensions) answeredIds.add('plotDimensions');
