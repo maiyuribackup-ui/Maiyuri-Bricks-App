@@ -26,8 +26,18 @@ export function BlueprintConfirmation({
   // Generate download URL for the blueprint image
   const downloadBlueprint = useCallback(() => {
     try {
+      // Handle both object format { base64Data, mimeType } and raw string format
+      const base64 = typeof blueprintImage === 'object' && blueprintImage && 'base64Data' in blueprintImage
+        ? (blueprintImage as unknown as { base64Data: string }).base64Data
+        : blueprintImage;
+
+      if (!base64) {
+        console.error('No blueprint image data available for download');
+        return;
+      }
+
       // Convert base64 to blob
-      const byteCharacters = atob(blueprintImage);
+      const byteCharacters = atob(base64);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
         byteNumbers[i] = byteCharacters.charCodeAt(i);

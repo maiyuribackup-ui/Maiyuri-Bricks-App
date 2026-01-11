@@ -1468,7 +1468,14 @@ Would you like to make any other changes?`,
                     </div>
                     <button
                       onClick={() => {
-                        const base64 = session.generatedImages.floorPlan || '';
+                        const imageData = session.generatedImages.floorPlan;
+                        const base64 = typeof imageData === 'object' && imageData && 'base64Data' in imageData
+                          ? (imageData as { base64Data: string }).base64Data
+                          : (typeof imageData === 'string' ? imageData : '');
+                        if (!base64) {
+                          console.error('No floor plan image data available for download');
+                          return;
+                        }
                         const byteCharacters = atob(base64);
                         const byteNumbers = new Array(byteCharacters.length);
                         for (let i = 0; i < byteCharacters.length; i++) {
@@ -1508,7 +1515,14 @@ Would you like to make any other changes?`,
                     </div>
                     <button
                       onClick={() => {
-                        const base64 = session.generatedImages.exterior || '';
+                        const imageData = session.generatedImages.exterior;
+                        const base64 = typeof imageData === 'object' && imageData && 'base64Data' in imageData
+                          ? (imageData as { base64Data: string }).base64Data
+                          : (typeof imageData === 'string' ? imageData : '');
+                        if (!base64) {
+                          console.error('No exterior image data available for download');
+                          return;
+                        }
                         const byteCharacters = atob(base64);
                         const byteNumbers = new Array(byteCharacters.length);
                         for (let i = 0; i < byteCharacters.length; i++) {
@@ -1548,7 +1562,14 @@ Would you like to make any other changes?`,
                     </div>
                     <button
                       onClick={() => {
-                        const base64 = session.generatedImages.courtyard || '';
+                        const imageData = session.generatedImages.courtyard;
+                        const base64 = typeof imageData === 'object' && imageData && 'base64Data' in imageData
+                          ? (imageData as { base64Data: string }).base64Data
+                          : (typeof imageData === 'string' ? imageData : '');
+                        if (!base64) {
+                          console.error('No courtyard image data available for download');
+                          return;
+                        }
                         const byteCharacters = atob(base64);
                         const byteNumbers = new Array(byteCharacters.length);
                         for (let i = 0; i < byteCharacters.length; i++) {
