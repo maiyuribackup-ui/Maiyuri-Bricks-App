@@ -40,8 +40,15 @@ const SURVEY_DATA = {
 
 test.describe('Floor Plan Generator', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to the floor plan generator page
-    await page.goto('/floor-plan-generator');
+    // Login first
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'ram@maiyuri.app');
+    await page.fill('input[type="password"]', 'TempPass123!');
+    await page.click('button[type="submit"]');
+    await page.waitForURL(/\/(dashboard|leads)/, { timeout: 15000 });
+
+    // Navigate to the design (floor plan chatbot) page
+    await page.goto('/design');
     await page.waitForLoadState('networkidle');
   });
 
