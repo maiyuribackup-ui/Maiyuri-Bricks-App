@@ -9,7 +9,16 @@ import { GoogleGenAI as GeminiClient } from '@google/genai';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { GeminiModels, type CloudCoreResult, type TokenUsage } from '../../types';
+import {
+  GeminiModels,
+  GeminiImageModels,
+  type CloudCoreResult,
+  type TokenUsage,
+  type ImageGenerationConfig,
+  type ImageGenerationResult,
+  type GeneratedImage,
+  type ImageAspectRatio,
+} from '../../types';
 
 // Initialize Gemini client
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '');
@@ -536,6 +545,398 @@ Return a JSON object:
 }
 
 /**
+ * Generate images using Gemini's image generation capability
+ * Uses the native image generation with responseModalities
+ *
+ * @param prompt - Text description of the image to generate
+ * @param options - Image generation configuration options
+ * @returns Generated images with optional text response
+ *
+ * @example
+ * const result = await generateImage('A modern brick house with Tamil architecture');
+ * if (result.success && result.data) {
+ *   const base64Image = result.data.images[0].base64Data;
+ * }
+ */
+export async function generateImage(
+  prompt: string,
+  options: ImageGenerationConfig = {}
+): Promise<CloudCoreResult<ImageGenerationResult>> {
+  const startTime = Date.now();
+
+  try {
+    // Use the new @google/genai client for image generation
+    const geminiClient = new GeminiClient({ apiKey: process.env.GOOGLE_AI_API_KEY });
+
+    // Build generation config
+    const responseModalities = options.includeTextResponse
+      ? ['TEXT', 'IMAGE']
+      : ['IMAGE'];
+
+    // Build the request with image config if specified
+    const generationConfig: Record<string, unknown> = {
+      responseModalities,
+    };
+
+    // Add image config if aspect ratio is specified
+    if (options.aspectRatio) {
+      generationConfig.imageConfig = {
+        aspectRatio: options.aspectRatio,
+      };
+    }
+
+    const result = await geminiClient.models.generateContent({
+      model: GeminiImageModels.FLASH_IMAGE,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: generationConfig,
+    });
+
+    // Parse the response to extract images
+    const images: GeneratedImage[] = [];
+    let textResponse: string | undefined;
+
+    // Handle response from the new SDK format
+    if (result.candidates && result.candidates.length > 0) {
+      const candidate = result.candidates[0];
+      if (candidate.content && candidate.content.parts) {
+        for (const part of candidate.content.parts) {
+          // Check for inline image data
+          if (part.inlineData && part.inlineData.data) {
+            images.push({
+              base64Data: part.inlineData.data,
+              mimeType: (part.inlineData.mimeType as 'image/png' | 'image/jpeg') || 'image/png',
+            });
+          }
+          // Check for text response
+          if (part.text) {
+            textResponse = part.text;
+          }
+        }
+      }
+    }
+
+    // Also check the simplified response format
+    if (images.length === 0 && result.text) {
+      textResponse = result.text;
+    }
+
+    if (images.length === 0) {
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: 'IMAGE_GENERATION_FAILED',
+          message: 'No images were generated. The model may have declined the request.',
+          details: { response: result },
+        },
+        meta: {
+          processingTime: Date.now() - startTime,
+        },
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        images,
+        text: textResponse,
+        model: GeminiImageModels.FLASH_IMAGE,
+      },
+      meta: {
+        processingTime: Date.now() - startTime,
+        imageCount: images.length,
+      },
+    };
+  } catch (error) {
+    console.error('Image generation error:', error);
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: 'IMAGE_GENERATION_ERROR',
+        message: error instanceof Error ? error.message : 'Image generation failed',
+        details: error instanceof Error ? { stack: error.stack } : undefined,
+      },
+      meta: {
+        processingTime: Date.now() - startTime,
+      },
+    };
+  }
+}
+
+/**
+ * Edit an existing image using Gemini's image-to-image capability
+ *
+ * @param prompt - Text description of how to edit the image
+ * @param sourceImage - Base64-encoded source image to edit
+ * @param mimeType - MIME type of the source image
+ * @param options - Image generation configuration options
+ * @returns Modified image with optional text response
+ *
+ * @example
+ * const result = await editImage(
+ *   'Add a red brick wall in the background',
+ *   base64ImageData,
+ *   'image/png'
+ * );
+ */
+export async function editImage(
+  prompt: string,
+  sourceImage: string,
+  mimeType: 'image/png' | 'image/jpeg' | 'image/webp' = 'image/png',
+  options: ImageGenerationConfig = {}
+): Promise<CloudCoreResult<ImageGenerationResult>> {
+  const startTime = Date.now();
+
+  try {
+    const geminiClient = new GeminiClient({ apiKey: process.env.GOOGLE_AI_API_KEY });
+
+    // Strip data URL prefix if present
+    const base64Data = sourceImage.replace(/^data:image\/\w+;base64,/, '');
+
+    // Build generation config
+    const responseModalities = options.includeTextResponse
+      ? ['TEXT', 'IMAGE']
+      : ['IMAGE'];
+
+    const generationConfig: Record<string, unknown> = {
+      responseModalities,
+    };
+
+    if (options.aspectRatio) {
+      generationConfig.imageConfig = {
+        aspectRatio: options.aspectRatio,
+      };
+    }
+
+    const result = await geminiClient.models.generateContent({
+      model: GeminiImageModels.FLASH_IMAGE,
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                mimeType,
+                data: base64Data,
+              },
+            },
+            { text: prompt },
+          ],
+        },
+      ],
+      config: generationConfig,
+    });
+
+    // Parse the response
+    const images: GeneratedImage[] = [];
+    let textResponse: string | undefined;
+
+    if (result.candidates && result.candidates.length > 0) {
+      const candidate = result.candidates[0];
+      if (candidate.content && candidate.content.parts) {
+        for (const part of candidate.content.parts) {
+          if (part.inlineData && part.inlineData.data) {
+            images.push({
+              base64Data: part.inlineData.data,
+              mimeType: (part.inlineData.mimeType as 'image/png' | 'image/jpeg') || 'image/png',
+            });
+          }
+          if (part.text) {
+            textResponse = part.text;
+          }
+        }
+      }
+    }
+
+    if (images.length === 0) {
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: 'IMAGE_EDIT_FAILED',
+          message: 'No edited images were generated. The model may have declined the request.',
+        },
+        meta: {
+          processingTime: Date.now() - startTime,
+        },
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        images,
+        text: textResponse,
+        model: GeminiImageModels.FLASH_IMAGE,
+      },
+      meta: {
+        processingTime: Date.now() - startTime,
+        imageCount: images.length,
+      },
+    };
+  } catch (error) {
+    console.error('Image edit error:', error);
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: 'IMAGE_EDIT_ERROR',
+        message: error instanceof Error ? error.message : 'Image editing failed',
+      },
+      meta: {
+        processingTime: Date.now() - startTime,
+      },
+    };
+  }
+}
+
+/**
+ * Generate images with reference images for style transfer or character consistency
+ *
+ * @param prompt - Text description of the image to generate
+ * @param referenceImages - Array of base64-encoded reference images
+ * @param options - Image generation configuration options
+ * @returns Generated image influenced by reference images
+ *
+ * @example
+ * const result = await generateImageWithReferences(
+ *   'A house in the same architectural style',
+ *   [{ data: base64Image1, mimeType: 'image/png' }],
+ *   { aspectRatio: '16:9' }
+ * );
+ */
+export async function generateImageWithReferences(
+  prompt: string,
+  referenceImages: Array<{ data: string; mimeType: 'image/png' | 'image/jpeg' | 'image/webp' }>,
+  options: ImageGenerationConfig = {}
+): Promise<CloudCoreResult<ImageGenerationResult>> {
+  const startTime = Date.now();
+
+  try {
+    if (referenceImages.length === 0) {
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: 'INVALID_INPUT',
+          message: 'At least one reference image is required',
+        },
+        meta: {
+          processingTime: Date.now() - startTime,
+        },
+      };
+    }
+
+    // Gemini Flash supports up to 3 reference images
+    if (referenceImages.length > 3) {
+      console.warn('Gemini Flash supports up to 3 reference images. Using first 3.');
+      referenceImages = referenceImages.slice(0, 3);
+    }
+
+    const geminiClient = new GeminiClient({ apiKey: process.env.GOOGLE_AI_API_KEY });
+
+    // Build parts array with reference images and prompt
+    const parts: Array<{ inlineData?: { mimeType: string; data: string }; text?: string }> = [];
+
+    for (const ref of referenceImages) {
+      const base64Data = ref.data.replace(/^data:image\/\w+;base64,/, '');
+      parts.push({
+        inlineData: {
+          mimeType: ref.mimeType,
+          data: base64Data,
+        },
+      });
+    }
+
+    parts.push({ text: prompt });
+
+    // Build generation config
+    const responseModalities = options.includeTextResponse
+      ? ['TEXT', 'IMAGE']
+      : ['IMAGE'];
+
+    const generationConfig: Record<string, unknown> = {
+      responseModalities,
+    };
+
+    if (options.aspectRatio) {
+      generationConfig.imageConfig = {
+        aspectRatio: options.aspectRatio,
+      };
+    }
+
+    const result = await geminiClient.models.generateContent({
+      model: GeminiImageModels.FLASH_IMAGE,
+      contents: [{ role: 'user', parts }],
+      config: generationConfig,
+    });
+
+    // Parse the response
+    const images: GeneratedImage[] = [];
+    let textResponse: string | undefined;
+
+    if (result.candidates && result.candidates.length > 0) {
+      const candidate = result.candidates[0];
+      if (candidate.content && candidate.content.parts) {
+        for (const part of candidate.content.parts) {
+          if (part.inlineData && part.inlineData.data) {
+            images.push({
+              base64Data: part.inlineData.data,
+              mimeType: (part.inlineData.mimeType as 'image/png' | 'image/jpeg') || 'image/png',
+            });
+          }
+          if (part.text) {
+            textResponse = part.text;
+          }
+        }
+      }
+    }
+
+    if (images.length === 0) {
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: 'IMAGE_GENERATION_FAILED',
+          message: 'No images were generated with references.',
+        },
+        meta: {
+          processingTime: Date.now() - startTime,
+        },
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        images,
+        text: textResponse,
+        model: GeminiImageModels.FLASH_IMAGE,
+      },
+      meta: {
+        processingTime: Date.now() - startTime,
+        imageCount: images.length,
+        referenceCount: referenceImages.length,
+      },
+    };
+  } catch (error) {
+    console.error('Image generation with references error:', error);
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: 'IMAGE_GENERATION_ERROR',
+        message: error instanceof Error ? error.message : 'Image generation with references failed',
+      },
+      meta: {
+        processingTime: Date.now() - startTime,
+      },
+    };
+  }
+}
+
+/**
  * Detect language from text
  */
 function detectLanguage(text: string): string {
@@ -714,6 +1115,413 @@ ${contextBlock}
 }
 
 
+/**
+ * Generate high-quality 4K images using Gemini Pro Image model
+ * (Nano Banana Pro - gemini-3-pro-image-preview)
+ *
+ * Best for:
+ * - Photorealistic 3D architectural visualizations
+ * - 4K resolution output
+ * - Complex scenes with multiple rooms and dimensions
+ *
+ * @param prompt - Detailed text description of the image
+ * @param options - Image generation configuration
+ * @returns Generated 4K image
+ */
+export async function generateProImage(
+  prompt: string,
+  options: ImageGenerationConfig = {}
+): Promise<CloudCoreResult<ImageGenerationResult>> {
+  const startTime = Date.now();
+
+  try {
+    const geminiClient = new GeminiClient({ apiKey: process.env.GOOGLE_AI_API_KEY });
+
+    // Build generation config for Pro model
+    const responseModalities = options.includeTextResponse
+      ? ['TEXT', 'IMAGE']
+      : ['IMAGE'];
+
+    const generationConfig: Record<string, unknown> = {
+      responseModalities,
+    };
+
+    // Add image config for aspect ratio and size
+    const imageConfig: Record<string, unknown> = {};
+    if (options.aspectRatio) {
+      imageConfig.aspectRatio = options.aspectRatio;
+    }
+    // Pro model supports up to 4K - default to high quality
+    if (options.imageSize) {
+      imageConfig.imageSize = options.imageSize;
+    }
+    if (Object.keys(imageConfig).length > 0) {
+      generationConfig.imageConfig = imageConfig;
+    }
+
+    const result = await geminiClient.models.generateContent({
+      model: GeminiImageModels.PRO_IMAGE, // gemini-3-pro-image-preview
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: generationConfig,
+    });
+
+    // Parse the response
+    const images: GeneratedImage[] = [];
+    let textResponse: string | undefined;
+
+    if (result.candidates && result.candidates.length > 0) {
+      const candidate = result.candidates[0];
+      if (candidate.content && candidate.content.parts) {
+        for (const part of candidate.content.parts) {
+          if (part.inlineData && part.inlineData.data) {
+            images.push({
+              base64Data: part.inlineData.data,
+              mimeType: (part.inlineData.mimeType as 'image/png' | 'image/jpeg') || 'image/png',
+            });
+          }
+          if (part.text) {
+            textResponse = part.text;
+          }
+        }
+      }
+    }
+
+    if (images.length === 0) {
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: 'PRO_IMAGE_GENERATION_FAILED',
+          message: 'No images were generated by Gemini Pro. The model may have declined the request.',
+          details: { response: result },
+        },
+        meta: {
+          processingTime: Date.now() - startTime,
+        },
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        images,
+        text: textResponse,
+        model: GeminiImageModels.PRO_IMAGE,
+      },
+      meta: {
+        processingTime: Date.now() - startTime,
+        imageCount: images.length,
+        model: 'gemini-3-pro-image-preview',
+        resolution: '4K',
+      },
+    };
+  } catch (error) {
+    console.error('Pro image generation error:', error);
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: 'PRO_IMAGE_GENERATION_ERROR',
+        message: error instanceof Error ? error.message : 'Pro image generation failed',
+        details: error instanceof Error ? { stack: error.stack } : undefined,
+      },
+      meta: {
+        processingTime: Date.now() - startTime,
+      },
+    };
+  }
+}
+
+/**
+ * Generate 3D Isometric Floor Plan using Gemini Pro
+ *
+ * Creates photorealistic 3D isometric floor plan visualizations
+ * with exact dimensions, labels, and architectural details.
+ *
+ * @param floorPlanData - Floor plan specifications
+ * @returns Generated 3D isometric floor plan image
+ */
+export async function generate3DIsometricFloorPlan(
+  floorPlanData: {
+    title: string;
+    plotDimensions: { north: number; south: number; east: number; west: number };
+    setbacks: { north: number; south: number; east: number; west: number };
+    rooms: Array<{
+      name: string;
+      width: number;
+      depth: number;
+      zone: string;
+    }>;
+    roadSide: 'north' | 'south' | 'east' | 'west';
+    roadWidth: number;
+    orientation: string;
+    ecoFeatures?: string[];
+  }
+): Promise<CloudCoreResult<ImageGenerationResult>> {
+  // Build room specifications string
+  const roomSpecs = floorPlanData.rooms
+    .map(r => `${r.name.toUpperCase()}: ${r.width}'-0" × ${r.depth}'-0"`)
+    .join('\n');
+
+  // Build eco features string
+  const ecoFeatures = floorPlanData.ecoFeatures || [
+    'Traditional mutram (open-to-sky courtyard)',
+    'Shaded veranda in the front',
+    'Naturally ventilated and well-lit rooms',
+    'Rainwater recharge pit in courtyard',
+    'Spacious design with future expansion possible',
+  ];
+  const ecoFeaturesText = ecoFeatures.map(f => `✓ ${f}`).join('\n');
+
+  // Create the detailed prompt for 3D isometric rendering
+  const prompt = `Create a PHOTOREALISTIC 3D ISOMETRIC architectural floor plan visualization.
+
+**TITLE (at top center):**
+GROUND FLOOR PLAN: ${floorPlanData.title}
+
+**PLOT DIMENSIONS (header subtitle):**
+PLOT DIMENSIONS: NORTH: ${floorPlanData.plotDimensions.north}'-0", SOUTH: ${floorPlanData.plotDimensions.south}'-6", EAST: ${floorPlanData.plotDimensions.east}'-0", WEST: ${floorPlanData.plotDimensions.west}'-0"
+SETBACKS: NORTH: ${floorPlanData.setbacks.north}'-0", SOUTH: ${floorPlanData.setbacks.south}'-0", EAST: ${floorPlanData.setbacks.east}'-6", WEST: ${floorPlanData.setbacks.west}'-0"
+
+**ROOM LAYOUT WITH EXACT DIMENSIONS (labels inside each room):**
+${roomSpecs}
+
+**VISUAL STYLE:**
+- 3D isometric cutaway view showing interior layout
+- Camera angle: 45-degree elevated view from ${floorPlanData.roadSide} corner
+- Photorealistic rendering with warm lighting
+- Terracotta/ceramic floor tiles visible
+- Cream/beige lime-washed walls
+- Wooden furniture and fixtures
+- Traditional Tamil Nadu residential architecture
+- Green plants and courtyard vegetation visible
+- Dimension lines on exterior showing plot boundaries
+
+**ANNOTATIONS:**
+- Black text labels with white background for each room
+- Room dimensions in format: WIDTH'-HEIGHT" × DEPTH'-HEIGHT"
+- Compass rose in top-right showing ${floorPlanData.orientation}-facing
+- Road shown on ${floorPlanData.roadSide} side labeled "${floorPlanData.roadWidth}'-0" WIDE ROAD"
+
+**BOTTOM BANNER (dark green background, white text):**
+ECO-FRIENDLY FEATURES: Suitable for construction with CSEB / Mud Bricks
+${ecoFeaturesText}
+
+**IMPORTANT ACCURACY REQUIREMENTS:**
+- ALL dimensions must be EXACTLY as specified - NO rounding
+- Room labels must be clearly visible and legible
+- Walls must have proper thickness (9" external, 4.5" internal)
+- Scale must be consistent throughout
+- Include dimension lines for overall plot size
+
+Generate a single, high-quality, photorealistic 3D isometric floor plan image.`;
+
+  // Use Pro model for 4K output
+  return generateProImage(prompt, {
+    aspectRatio: '4:3',
+    imageSize: '4K',
+    includeTextResponse: false,
+  });
+}
+
+/**
+ * Generate 3D Courtyard (Mutram) View using Gemini Pro
+ *
+ * Creates photorealistic 3D interior courtyard visualization
+ * showing the traditional Tamil Nadu open-to-sky space.
+ *
+ * @param courtyardData - Courtyard specifications
+ * @returns Generated 3D courtyard image
+ */
+export async function generate3DCourtyardView(
+  courtyardData: {
+    courtyardSize: { width: number; depth: number };
+    surroundingRooms: Array<{ name: string; side: string }>;
+    features?: string[];
+    style?: string;
+  }
+): Promise<CloudCoreResult<ImageGenerationResult>> {
+  const surroundingDesc = courtyardData.surroundingRooms
+    .map(r => `${r.name} on the ${r.side}`)
+    .join(', ');
+
+  const features = courtyardData.features || [
+    'Tulsi (holy basil) plant in decorative pot at center',
+    'Terracotta tile flooring with traditional pattern',
+    'Rainwater collection pit with decorative grate',
+    'Wooden pillared corridors (thinnai) around perimeter',
+    'Brass oil lamps (vilakku) in niches',
+  ];
+  const featuresText = features.map(f => `- ${f}`).join('\n');
+
+  const prompt = `Create a PHOTOREALISTIC 3D INTERIOR VIEW of a traditional Tamil Nadu courtyard (mutram).
+
+**SCENE DESCRIPTION:**
+A beautiful open-to-sky courtyard (${courtyardData.courtyardSize.width}' × ${courtyardData.courtyardSize.depth}') in a traditional Tamil Nadu home.
+
+**CAMERA POSITION:**
+- Standing at ground level looking up and across the courtyard
+- Eye-level perspective (5 feet height)
+- Capturing the open sky above and surrounding rooms
+
+**SURROUNDING ROOMS VISIBLE:**
+${surroundingDesc}
+
+**COURTYARD FEATURES:**
+${featuresText}
+
+**ARCHITECTURAL DETAILS:**
+- Traditional wooden pillars with carved brackets
+- Lime-washed cream/white walls
+- Terracotta Mangalore tile roof visible at edges
+- Traditional wooden doors and windows with brass hardware
+- Carved wooden ceiling beams in covered corridors
+- Stone or cement jali (lattice) work for ventilation
+
+**LIGHTING:**
+- Natural daylight streaming from open sky
+- Soft shadows from surrounding roof overhangs
+- Warm golden hour lighting
+- Dappled light through any vegetation
+
+**VEGETATION:**
+- Central Tulsi plant in ornate pot
+- Potted flowering plants (jasmine, hibiscus)
+- Climbing plants on pillars (optional)
+- Fresh green foliage
+
+**ATMOSPHERE:**
+- Peaceful, serene traditional home
+- Clean, well-maintained surfaces
+- ${courtyardData.style || 'Traditional Tamil Nadu Brahmin agraharam style'}
+- Spiritual and welcoming ambiance
+
+**QUALITY:**
+- Photorealistic rendering
+- High detail on textures (wood grain, tile patterns, lime wash)
+- Accurate proportions and perspective
+- Professional architectural visualization quality
+
+Generate a single, stunning, photorealistic interior courtyard view.`;
+
+  return generateProImage(prompt, {
+    aspectRatio: '4:3',
+    imageSize: '4K',
+    includeTextResponse: false,
+  });
+}
+
+/**
+ * Generate 3D Exterior View using Gemini Pro
+ *
+ * Creates photorealistic 3D exterior facade visualization
+ * of a traditional Tamil Nadu eco-friendly house.
+ *
+ * @param exteriorData - Exterior specifications
+ * @returns Generated 3D exterior image
+ */
+export async function generate3DExteriorView(
+  exteriorData: {
+    plotWidth: number;
+    plotDepth: number;
+    floors: number;
+    facingDirection: string;
+    roadSide: string;
+    roadWidth: number;
+    hasVerandah: boolean;
+    verandahWidth?: number;
+    roofType?: string;
+    wallFinish?: string;
+    features?: string[];
+  }
+): Promise<CloudCoreResult<ImageGenerationResult>> {
+  const features = exteriorData.features || [
+    'Sloped Mangalore tile roof in terracotta red',
+    'Lime-washed exterior walls in cream/off-white',
+    'Traditional wooden front door with brass fittings',
+    'Carved wooden window frames with iron grilles',
+    'Low compound wall with ornate gate',
+    'Verandah with wooden pillars and sit-out',
+  ];
+  const featuresText = features.map(f => `- ${f}`).join('\n');
+
+  const prompt = `Create a PHOTOREALISTIC 3D EXTERIOR VIEW of a traditional Tamil Nadu eco-friendly house.
+
+**HOUSE SPECIFICATIONS:**
+- Plot: ${exteriorData.plotWidth}' × ${exteriorData.plotDepth}'
+- Floors: ${exteriorData.floors} (G${exteriorData.floors > 1 ? '+' + (exteriorData.floors - 1) : ''})
+- Facing: ${exteriorData.facingDirection}
+- Road on ${exteriorData.roadSide} side (${exteriorData.roadWidth}' wide)
+${exteriorData.hasVerandah ? `- Front verandah: ${exteriorData.verandahWidth || 4}' deep` : ''}
+
+**CAMERA POSITION:**
+- Street-level view from the road
+- 3/4 angle showing front facade and one side
+- Slight upward angle to capture roof
+- Distance: approximately 30-40 feet from house
+
+**ARCHITECTURAL STYLE:**
+Traditional Tamil Nadu residential architecture with eco-friendly elements
+
+**EXTERIOR FEATURES:**
+${featuresText}
+
+**ROOF DETAILS:**
+- ${exteriorData.roofType || 'Sloped Mangalore tile roof'} in terracotta red
+- Traditional clay ridge tiles
+- Roof overhang for rain protection
+- Visible wooden rafters at eaves
+
+**WALL FINISH:**
+- ${exteriorData.wallFinish || 'Lime-washed walls'} in cream/off-white color
+- Clean, fresh appearance
+- Subtle texture of lime wash visible
+
+**FRONT FEATURES:**
+- Main entrance with ornate wooden door
+- Traditional kolam (rangoli) pattern at entrance
+- Brass door knocker and handle
+- Name plate or house number
+
+**LANDSCAPING:**
+- Small front garden with flowering plants
+- Coconut palm or banana plant
+- Jasmine or hibiscus bushes
+- Potted plants on verandah
+
+**COMPOUND WALL:**
+- Low brick wall (3-4 feet) with lime wash
+- Ornate iron or wooden gate
+- Brass bell at gate
+- House number visible
+
+**LIGHTING:**
+- Golden hour (evening) lighting
+- Warm, inviting glow
+- Soft shadows emphasizing architectural details
+- Clear blue sky with few clouds
+
+**ATMOSPHERE:**
+- Peaceful residential neighborhood
+- Well-maintained property
+- Traditional yet timeless design
+- Welcoming and homely feel
+
+**QUALITY:**
+- Photorealistic architectural visualization
+- High detail on materials and textures
+- Accurate proportions and perspective
+- Magazine-quality exterior shot
+
+Generate a single, stunning, photorealistic exterior facade view.`;
+
+  return generateProImage(prompt, {
+    aspectRatio: '16:9',
+    imageSize: '4K',
+    includeTextResponse: false,
+  });
+}
+
 export default {
   complete,
   completeJson,
@@ -724,4 +1532,12 @@ export default {
   summarizeTranscription,
   addToKnowledgeBase,
   queryKnowledgeBase,
+  // Image generation
+  generateImage,
+  generateProImage,
+  generate3DIsometricFloorPlan,
+  generate3DCourtyardView,
+  generate3DExteriorView,
+  editImage,
+  generateImageWithReferences,
 };

@@ -10,3 +10,4 @@ export * from './knowledge';
 export * from './coaching';
 export * from './transcription';
 export * from './health';
+export * from './image-generation';

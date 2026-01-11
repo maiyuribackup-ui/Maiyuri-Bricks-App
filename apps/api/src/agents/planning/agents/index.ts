@@ -18,4 +18,5 @@ export * from './dimensioning';
 export * from './engineering-plan';
 export * from './design-validation';
 // export * from './narrative';
-// export * from './visualization';
+export * from './visualization';
+export * from './floor-plan-image';

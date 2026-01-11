@@ -61,6 +61,58 @@ export const GeminiModels = {
   PRO: 'gemini-2.5-pro',
 } as const;
 
+export const GeminiImageModels = {
+  // Image generation models - native multimodal output
+  // Uses generateContent API with responseModalities: ['IMAGE']
+  FLASH_IMAGE: 'gemini-2.5-flash-image',     // Nano Banana: Fast, 1024px images
+  PRO_IMAGE: 'gemini-3-pro-image-preview',   // Nano Banana Pro: 4K, 14 reference images
+} as const;
+
+// ============================================
+// Image Generation Types
+// ============================================
+
+export type ImageAspectRatio =
+  | '1:1'
+  | '2:3'
+  | '3:2'
+  | '3:4'
+  | '4:3'
+  | '4:5'
+  | '5:4'
+  | '9:16'
+  | '16:9'
+  | '21:9';
+
+export type ImageSize = '1K' | '2K' | '4K';
+
+export interface ImageGenerationConfig {
+  /** Aspect ratio for generated images */
+  aspectRatio?: ImageAspectRatio;
+  /** Image size/resolution (only for Pro model) */
+  imageSize?: ImageSize;
+  /** Number of images to generate (default: 1) */
+  numberOfImages?: number;
+  /** Whether to include text response alongside image */
+  includeTextResponse?: boolean;
+}
+
+export interface GeneratedImage {
+  /** Base64-encoded image data */
+  base64Data: string;
+  /** MIME type of the image */
+  mimeType: 'image/png' | 'image/jpeg';
+}
+
+export interface ImageGenerationResult {
+  /** Generated images */
+  images: GeneratedImage[];
+  /** Optional text response from the model */
+  text?: string;
+  /** Model used for generation */
+  model: string;
+}
+
 // ============================================
 // Kernel Types
 // ============================================

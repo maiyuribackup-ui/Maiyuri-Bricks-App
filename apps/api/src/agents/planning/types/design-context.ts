@@ -350,6 +350,40 @@ export interface DesignContext {
   };
 
   // ============================================
+  // Agent 13: Floor Plan Image Generator
+  // ============================================
+  generatedImages?: {
+    floorPlan?: {
+      base64Data: string;
+      mimeType: 'image/png' | 'image/jpeg';
+      width?: number;
+      height?: number;
+      generatedAt: Date;
+    };
+    courtyard?: {
+      base64Data: string;
+      mimeType: 'image/png' | 'image/jpeg';
+      width?: number;
+      height?: number;
+      generatedAt: Date;
+    };
+    exterior?: {
+      base64Data: string;
+      mimeType: 'image/png' | 'image/jpeg';
+      width?: number;
+      height?: number;
+      generatedAt: Date;
+    };
+    interior?: {
+      base64Data: string;
+      mimeType: 'image/png' | 'image/jpeg';
+      width?: number;
+      height?: number;
+      generatedAt: Date;
+    };
+  };
+
+  // ============================================
   // Aggregated Open Questions (Halt Trigger)
   // ============================================
   openQuestions: OpenQuestion[];

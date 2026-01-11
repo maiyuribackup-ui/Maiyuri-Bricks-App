@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+ezdxf
+numpy
+opencv-python
+google-generativeai
+python-dotenv
+pydantic
+Pillow

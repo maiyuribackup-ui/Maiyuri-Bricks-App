@@ -194,6 +194,13 @@ export class PlanningOrchestrator {
         await this.executeStage(context, 'visualization', this.extractVisualizationInput(context));
       }
 
+      // ============================================
+      // Stage 10: Floor Plan Image Generation
+      // ============================================
+      if (context.renderPrompts) {
+        await this.executeStage(context, 'floor-plan-image', this.extractFloorPlanImageInput(context));
+      }
+
       // Success!
       context.status = 'completed';
       context.updatedAt = new Date();
@@ -449,6 +456,17 @@ export class PlanningOrchestrator {
           floorPlan: data.floor_plan_prompt as string,
         };
         break;
+
+      case 'floor-plan-image':
+        if (data.floorPlan || data.courtyard || data.exterior || data.interior) {
+          context.generatedImages = {
+            floorPlan: data.floorPlan as DesignContext['generatedImages'] extends undefined ? undefined : NonNullable<DesignContext['generatedImages']>['floorPlan'],
+            courtyard: data.courtyard as DesignContext['generatedImages'] extends undefined ? undefined : NonNullable<DesignContext['generatedImages']>['courtyard'],
+            exterior: data.exterior as DesignContext['generatedImages'] extends undefined ? undefined : NonNullable<DesignContext['generatedImages']>['exterior'],
+            interior: data.interior as DesignContext['generatedImages'] extends undefined ? undefined : NonNullable<DesignContext['generatedImages']>['interior'],
+          };
+        }
+        break;
     }
   }
 
@@ -563,6 +581,36 @@ export class PlanningOrchestrator {
       ecoElements: context.ecoMandatory,
       materials: context.materialPreferences?.map(m => m.material),
       orientation: context.orientation,
+    };
+  }
+
+  private extractFloorPlanImageInput(context: DesignContext) {
+    return {
+      renderPrompts: context.renderPrompts || {},
+      rooms: context.rooms?.map(r => ({
+        id: r.id,
+        name: r.name,
+        type: r.type,
+        width: r.width,
+        depth: r.depth,
+        area_sqft: r.areaSqft,
+        zone: r.zone,
+        adjacent_to: r.adjacentTo || [],
+      })),
+      plotDimensions: context.plot
+        ? {
+            width: context.plot.width,
+            depth: context.plot.depth,
+            unit: context.plot.unit,
+          }
+        : undefined,
+      orientation: context.orientation,
+      ecoElements: context.ecoMandatory,
+      materials: context.materialPreferences?.map(m => m.material),
+      // Vastu zones for room placement algorithm
+      vastuZones: context.vastuZones,
+      // Road side for entrance/verandah placement
+      roadSide: context.road?.side,
     };
   }
 }

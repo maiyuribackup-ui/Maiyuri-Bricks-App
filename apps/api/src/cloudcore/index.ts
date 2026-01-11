@@ -62,6 +62,7 @@ import * as coachingRoutes from './routes/coaching';
 import * as transcriptionRoutes from './routes/transcription';
 import * as healthRoutes from './routes/health';
 import * as kpiRoutes from './routes/kpi';
+import * as imageGenerationRoutes from './routes/image-generation';
 
 export const routes = {
   leads: leadsRoutes,
@@ -72,6 +73,7 @@ export const routes = {
   transcription: transcriptionRoutes,
   health: healthRoutes,
   kpi: kpiRoutes,
+  imageGeneration: imageGenerationRoutes,
 };
 
 // Contracts - export as namespace to avoid collisions with types

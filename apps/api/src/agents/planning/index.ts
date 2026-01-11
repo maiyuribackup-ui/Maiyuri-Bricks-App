@@ -64,6 +64,17 @@ export {
   createDesignValidationAgent,
 } from './agents/design-validation';
 
+export {
+  VisualizationAgent,
+  createVisualizationAgent,
+} from './agents/visualization';
+
+export {
+  FloorPlanImageAgent,
+  createFloorPlanImageAgent,
+  createFullVisualizationAgent,
+} from './agents/floor-plan-image';
+
 // Base Agent
 export { BaseAgent, type BaseAgentConfig, DEFAULT_AGENT_CONFIG } from './agents/base-agent';
 
@@ -119,6 +130,8 @@ import { createArchitecturalZoningAgent as createZoning } from './agents/archite
 import { createDimensioningAgent as createDimensioning } from './agents/dimensioning';
 import { createEngineeringPlanAgent as createEngineering } from './agents/engineering-plan';
 import { createDesignValidationAgent as createValidation } from './agents/design-validation';
+import { createVisualizationAgent as createVisualization } from './agents/visualization';
+import { createFloorPlanImageAgent as createFloorPlanImage } from './agents/floor-plan-image';
 
 /**
  * Create a new planning orchestrator with all agents registered
@@ -162,9 +175,17 @@ export function createPlanningPipeline(
   // Agent 10: Design Validation (cross-validate against all constraints)
   orchestrator.registerAgent(createValidation());
 
-  // Future agents will be registered here as they are implemented:
+  // Agent 11: Narrative (design rationale and summaries) - not yet implemented
   // orchestrator.registerAgent(createNarrativeAgent());
-  // orchestrator.registerAgent(createVisualizationAgent());
+
+  // Agent 12: Visualization (render prompt generation)
+  orchestrator.registerAgent(createVisualization());
+
+  // Agent 13: Floor Plan Image (AI image generation from render prompts)
+  orchestrator.registerAgent(createFloorPlanImage({
+    imagesToGenerate: ['floorPlan'],
+    parallel: false,
+  }));
 
   return orchestrator;
 }

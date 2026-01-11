@@ -503,6 +503,65 @@ export const KPIDashboardResponseSchema = z.object({
 });
 
 // ============================================
+// Image Generation Contracts
+// ============================================
+
+export const ImageAspectRatioSchema = z.enum([
+  '1:1',
+  '2:3',
+  '3:2',
+  '3:4',
+  '4:3',
+  '4:5',
+  '5:4',
+  '9:16',
+  '16:9',
+  '21:9',
+]);
+
+export const ImageSizeSchema = z.enum(['1K', '2K', '4K']);
+
+export const ImageMimeTypeSchema = z.enum(['image/png', 'image/jpeg', 'image/webp']);
+
+export const ImageGenerationRequestSchema = z.object({
+  prompt: z.string().min(1).max(5000),
+  aspectRatio: ImageAspectRatioSchema.optional(),
+  imageSize: ImageSizeSchema.optional(),
+  includeTextResponse: z.boolean().default(false),
+});
+
+export const ImageEditRequestSchema = z.object({
+  prompt: z.string().min(1).max(5000),
+  sourceImage: z.string().min(1), // Base64-encoded image
+  mimeType: ImageMimeTypeSchema.default('image/png'),
+  aspectRatio: ImageAspectRatioSchema.optional(),
+  includeTextResponse: z.boolean().default(false),
+});
+
+export const ReferenceImageSchema = z.object({
+  data: z.string().min(1), // Base64-encoded image
+  mimeType: ImageMimeTypeSchema,
+});
+
+export const ImageGenerationWithReferencesRequestSchema = z.object({
+  prompt: z.string().min(1).max(5000),
+  referenceImages: z.array(ReferenceImageSchema).min(1).max(3),
+  aspectRatio: ImageAspectRatioSchema.optional(),
+  includeTextResponse: z.boolean().default(false),
+});
+
+export const GeneratedImageSchema = z.object({
+  base64Data: z.string(),
+  mimeType: ImageMimeTypeSchema,
+});
+
+export const ImageGenerationResponseSchema = z.object({
+  images: z.array(GeneratedImageSchema),
+  text: z.string().optional(),
+  model: z.string(),
+});
+
+// ============================================
 // Type exports
 // ============================================
 
@@ -540,3 +599,11 @@ export type BusinessKPIScore = z.infer<typeof BusinessKPIScoreSchema>;
 export type BusinessKPIResponse = z.infer<typeof BusinessKPIResponseSchema>;
 export type KPIAlert = z.infer<typeof KPIAlertSchema>;
 export type KPIDashboardResponse = z.infer<typeof KPIDashboardResponseSchema>;
+
+// Image Generation Types
+export type ImageGenerationRequest = z.infer<typeof ImageGenerationRequestSchema>;
+export type ImageEditRequest = z.infer<typeof ImageEditRequestSchema>;
+export type ReferenceImage = z.infer<typeof ReferenceImageSchema>;
+export type ImageGenerationWithReferencesRequest = z.infer<typeof ImageGenerationWithReferencesRequestSchema>;
+export type GeneratedImage = z.infer<typeof GeneratedImageSchema>;
+export type ImageGenerationResponse = z.infer<typeof ImageGenerationResponseSchema>;

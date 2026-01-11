@@ -419,3 +419,90 @@ export interface VisualizationOutput {
   interior_prompt: string;
   floor_plan_prompt: string;
 }
+
+// ============================================
+// Agent 13: Floor Plan Image Generator
+// ============================================
+
+export interface FloorPlanImageInput {
+  renderPrompts: {
+    floorPlan?: string;
+    courtyard?: string;
+    exterior?: string;
+    interior?: string;
+  };
+  rooms?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    width: number;
+    depth: number;
+    area_sqft: number;
+    zone: string;
+    adjacent_to: string[];
+    adjacentTo?: string[]; // Alias for snake_case
+  }>;
+  plotDimensions?: {
+    width: number;
+    depth: number;
+    unit: string;
+  };
+  orientation?: Direction | string;
+  ecoElements?: string[];
+  materials?: string[];
+
+  // Engineering plan properties for CAD Backend Bridge
+  wallSystem?: {
+    external_thickness_inches: number;
+    internal_thickness_inches: number;
+    material: string;
+    load_bearing_walls: string[];
+  };
+  staircase?: {
+    type: 'straight' | 'l-shaped' | 'u-shaped' | 'spiral';
+    position: string;
+    width_feet: number;
+    riser_height_inches: number;
+    tread_width_inches: number;
+  } | null;
+  plumbingStrategy?: {
+    wet_areas_grouped: boolean;
+    shaft_positions: string[];
+    sewer_connection: Direction | string;
+  } | null;
+  ventilationShafts?: Array<{
+    position: string;
+    serves_rooms: string[];
+  }>;
+  expansionProvision?: {
+    direction: Direction | string;
+    type: 'vertical' | 'horizontal';
+    notes: string;
+  } | null;
+
+  // Vastu zones for room placement (direction -> room types/ids)
+  vastuZones?: Record<string, string[]>;
+
+  // Road side for entrance placement (determines verandah position)
+  roadSide?: Direction | string;
+}
+
+export interface GeneratedImageData {
+  base64Data: string;
+  mimeType: 'image/png' | 'image/jpeg';
+  width?: number;
+  height?: number;
+  generatedAt: Date;
+}
+
+export interface FloorPlanImageOutput {
+  floorPlan?: GeneratedImageData;
+  courtyard?: GeneratedImageData;
+  exterior?: GeneratedImageData;
+  interior?: GeneratedImageData;
+  metadata: {
+    model: string;
+    totalImagesGenerated: number;
+    generationTime: number;
+  };
+}
