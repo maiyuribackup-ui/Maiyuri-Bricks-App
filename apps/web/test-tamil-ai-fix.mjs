@@ -18,6 +18,9 @@ async function testTamilLanguageFix() {
   let failed = 0;
 
   try {
+    // Tamil character pattern (Unicode range for Tamil script)
+    const tamilPattern = /[\u0B80-\u0BFF]/;
+
     // Step 1: Login
     console.log('1. Logging in...');
     await page.goto(`${BASE_URL}/login`);
@@ -68,7 +71,6 @@ async function testTamilLanguageFix() {
       const pageContent = await page.content();
 
       // Check for Tamil characters in the page
-      const tamilPattern = /[\u0B80-\u0BFF]/;
       const hasTamilText = tamilPattern.test(pageContent);
 
       if (hasTamilText) {

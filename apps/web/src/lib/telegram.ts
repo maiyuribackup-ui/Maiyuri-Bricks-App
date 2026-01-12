@@ -71,6 +71,17 @@ export async function sendTelegramMessage(
  * Notification Templates
  */
 
+export interface NewLeadNotification {
+  id: string;
+  name: string;
+  phone: string;
+  source?: string;
+  location?: string;
+  requirements?: string;
+  budget?: number;
+  assignedStaff?: string;
+}
+
 export async function notifyNewLead(
   leadName: string,
   phone: string,
@@ -85,6 +96,48 @@ ${source ? `📍 *Source:* ${source}` : ''}
 [View in Dashboard](https://maiyuri-bricks-app.vercel.app/leads)`;
 
   return sendTelegramMessage(message);
+}
+
+/**
+ * Enhanced new lead notification with full details
+ */
+export async function notifyNewLeadDetailed(
+  lead: NewLeadNotification
+): Promise<SendTelegramResult> {
+  const {
+    id,
+    name,
+    phone,
+    source,
+    location,
+    requirements,
+    budget,
+    assignedStaff,
+  } = lead;
+
+  // Format budget in Indian Rupees
+  const formatBudget = (amount: number) => {
+    if (amount >= 10000000) return `₹${(amount / 10000000).toFixed(2)} Cr`;
+    if (amount >= 100000) return `₹${(amount / 100000).toFixed(2)} L`;
+    return `₹${amount.toLocaleString('en-IN')}`;
+  };
+
+  const message = `🆕 *New Lead Added*
+
+👤 *Name:* ${name}
+📱 *Phone:* ${phone}
+${source ? `📍 *Source:* ${source}` : ''}
+${location ? `🏠 *Location:* ${location}` : ''}
+${requirements ? `📋 *Requirements:*
+${requirements.slice(0, 200)}${requirements.length > 200 ? '...' : ''}` : ''}
+${budget ? `💰 *Budget:* ${formatBudget(budget)}` : ''}
+${assignedStaff ? `👷 *Assigned to:* ${assignedStaff}` : ''}
+
+⏰ *Time:* ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+
+[View Lead Details](https://maiyuri-bricks-app.vercel.app/leads/${id})`;
+
+  return sendTelegramMessage(message.trim());
 }
 
 export async function notifyLeadUpdated(
@@ -178,6 +231,109 @@ export async function notifyAIInsight(
 💡 *Insight:* ${insight.slice(0, 200)}${insight.length > 200 ? '...' : ''}`;
 
   return sendTelegramMessage(message);
+}
+
+/**
+ * Comprehensive AI Analysis notification with full details
+ */
+export interface AIAnalysisNotification {
+  leadId: string;
+  leadName: string;
+  phone?: string;
+  source?: string;
+  status?: string;
+  summary?: string;
+  score?: number;
+  nextAction?: string;
+  followUpDate?: string;
+  factors?: Array<{
+    factor: string;
+    impact: 'positive' | 'negative' | 'neutral';
+  }>;
+  suggestions?: Array<{
+    type: string;
+    content: string;
+    priority: 'high' | 'medium' | 'low';
+  }>;
+}
+
+export async function notifyAIAnalysis(
+  analysis: AIAnalysisNotification
+): Promise<SendTelegramResult> {
+  const {
+    leadId,
+    leadName,
+    phone,
+    source,
+    status,
+    summary,
+    score,
+    nextAction,
+    followUpDate,
+    factors,
+    suggestions,
+  } = analysis;
+
+  // Score emoji based on value
+  const getScoreEmoji = (s: number) => {
+    if (s >= 0.8) return '🔥';
+    if (s >= 0.6) return '🟢';
+    if (s >= 0.4) return '🟡';
+    return '🔴';
+  };
+
+  // Impact emoji
+  const getImpactEmoji = (impact: string) => {
+    if (impact === 'positive') return '✅';
+    if (impact === 'negative') return '❌';
+    return '➖';
+  };
+
+  // Priority emoji
+  const getPriorityEmoji = (priority: string) => {
+    if (priority === 'high') return '🔴';
+    if (priority === 'medium') return '🟡';
+    return '🟢';
+  };
+
+  // Build factors section
+  let factorsSection = '';
+  if (factors && factors.length > 0) {
+    factorsSection = `
+📊 *Key Factors:*
+${factors.slice(0, 5).map(f => `${getImpactEmoji(f.impact)} ${f.factor}`).join('\n')}`;
+  }
+
+  // Build suggestions section
+  let suggestionsSection = '';
+  if (suggestions && suggestions.length > 0) {
+    suggestionsSection = `
+💡 *AI Suggestions:*
+${suggestions.slice(0, 3).map(s => `${getPriorityEmoji(s.priority)} ${s.content.slice(0, 100)}${s.content.length > 100 ? '...' : ''}`).join('\n')}`;
+  }
+
+  const message = `🤖 *AI Lead Analysis Complete*
+
+👤 *Lead:* ${leadName}
+${phone ? `📱 *Phone:* ${phone}` : ''}
+${source ? `📍 *Source:* ${source}` : ''}
+${status ? `📋 *Status:* ${status.toUpperCase()}` : ''}
+
+${score !== undefined ? `${getScoreEmoji(score)} *Conversion Score:* ${Math.round(score * 100)}%` : ''}
+
+${summary ? `📝 *AI Summary:*
+${summary.slice(0, 300)}${summary.length > 300 ? '...' : ''}` : ''}
+${factorsSection}
+${suggestionsSection}
+
+${nextAction ? `🎯 *Next Best Action:*
+${nextAction}` : ''}
+
+${followUpDate ? `📅 *Suggested Follow-up:* ${followUpDate}` : ''}
+
+[View Lead Details](https://maiyuri-bricks-app.vercel.app/leads/${leadId})`;
+
+  return sendTelegramMessage(message.trim());
 }
 
 export async function notifyQuoteReceived(

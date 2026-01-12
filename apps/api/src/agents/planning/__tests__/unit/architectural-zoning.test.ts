@@ -4,7 +4,7 @@
  * Tests for the architectural zoning agent.
  */
 
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   ArchitecturalZoningAgent,
   createArchitecturalZoningAgent,
@@ -17,11 +17,11 @@ import { createMockContext } from '../mocks/context.mock';
 let mockResponseQueue: string[] = [];
 
 // Mock the Gemini SDK
-jest.mock('@google/generative-ai', () => {
+vi.mock('@google/generative-ai', () => {
   return {
-    GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
-      getGenerativeModel: jest.fn().mockReturnValue({
-        generateContent: jest.fn().mockImplementation(async () => {
+    GoogleGenerativeAI: vi.fn().mockImplementation(() => ({
+      getGenerativeModel: vi.fn().mockReturnValue({
+        generateContent: vi.fn().mockImplementation(async () => {
           const response = mockResponseQueue.shift();
           if (!response) {
             throw new Error('No mock response available');
@@ -51,6 +51,29 @@ function mockGeminiResponse(response: unknown): void {
  */
 function clearMocks(): void {
   mockResponseQueue = [];
+}
+
+/**
+ * Create a valid ArchitecturalZoningInput with defaults
+ */
+function createInput(overrides: Partial<ArchitecturalZoningInput> = {}): ArchitecturalZoningInput {
+  const defaultRequirements = {
+    bedrooms: 2,
+    bathrooms: 1,
+    hasPooja: false,
+    hasParking: false,
+    hasStore: false,
+  };
+  return {
+    requirements: { ...defaultRequirements, ...overrides.requirements },
+    vastuZones: overrides.vastuZones ?? {
+      northeast: ['pooja', 'water'],
+      southeast: ['kitchen'],
+      southwest: ['master-bedroom'],
+      northwest: ['living'],
+    },
+    ecoConstraints: overrides.ecoConstraints ?? [],
+  };
 }
 
 describe('ArchitecturalZoningAgent', () => {
@@ -90,15 +113,7 @@ describe('ArchitecturalZoningAgent', () => {
       });
 
       it('should fail when bedrooms is zero', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 0,
-            bathrooms: 1,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 0, bathrooms: 1, hasPooja: false, hasParking: false, hasStore: false } });
         const result = await agent.execute(input, mockContext);
 
         expect(result.success).toBe(false);
@@ -106,15 +121,7 @@ describe('ArchitecturalZoningAgent', () => {
       });
 
       it('should fail when bedrooms exceeds maximum', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 7,
-            bathrooms: 4,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 7, bathrooms: 4, hasPooja: false, hasParking: false, hasStore: false } });
         const result = await agent.execute(input, mockContext);
 
         expect(result.success).toBe(false);
@@ -122,15 +129,7 @@ describe('ArchitecturalZoningAgent', () => {
       });
 
       it('should fail when bathrooms is zero', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 2,
-            bathrooms: 0,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 2, bathrooms: 0, hasPooja: false, hasParking: false, hasStore: false } });
         const result = await agent.execute(input, mockContext);
 
         expect(result.success).toBe(false);
@@ -138,15 +137,7 @@ describe('ArchitecturalZoningAgent', () => {
       });
 
       it('should fail when bathrooms exceeds bedrooms + 1', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 2,
-            bathrooms: 4,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 2, bathrooms: 4, hasPooja: false, hasParking: false, hasStore: false } });
         const result = await agent.execute(input, mockContext);
 
         expect(result.success).toBe(false);
@@ -155,15 +146,7 @@ describe('ArchitecturalZoningAgent', () => {
     });
 
     describe('successful zoning analysis', () => {
-      const validInput: ArchitecturalZoningInput = {
-        requirements: {
-          bedrooms: 3,
-          bathrooms: 2,
-          hasPooja: true,
-          hasParking: true,
-          hasStore: true,
-        },
-      };
+      const validInput = createInput({ requirements: { bedrooms: 3, bathrooms: 2, hasPooja: true, hasParking: true, hasStore: true } });
 
       const mockSuccessResponse = {
         zones: {
@@ -234,15 +217,7 @@ describe('ArchitecturalZoningAgent', () => {
     });
 
     describe('zone classification', () => {
-      const validInput: ArchitecturalZoningInput = {
-        requirements: {
-          bedrooms: 2,
-          bathrooms: 2,
-          hasPooja: true,
-          hasParking: false,
-          hasStore: true,
-        },
-      };
+      const validInput = createInput({ requirements: { bedrooms: 2, bathrooms: 2, hasPooja: true, hasParking: false, hasStore: true } });
 
       it('should classify living room as public', async () => {
         mockGeminiResponse({
@@ -322,15 +297,7 @@ describe('ArchitecturalZoningAgent', () => {
     });
 
     describe('mandatory adjacencies', () => {
-      const validInput: ArchitecturalZoningInput = {
-        requirements: {
-          bedrooms: 2,
-          bathrooms: 2,
-          hasPooja: false,
-          hasParking: false,
-          hasStore: true,
-        },
-      };
+      const validInput = createInput({ requirements: { bedrooms: 2, bathrooms: 2, hasPooja: false, hasParking: false, hasStore: true } });
 
       it('should always include kitchen-dining adjacency', async () => {
         mockGeminiResponse({
@@ -400,15 +367,7 @@ describe('ArchitecturalZoningAgent', () => {
       });
 
       it('should add secondary bedroom-bathroom rules', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 3,
-            bathrooms: 2,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 3, bathrooms: 2, hasPooja: false, hasParking: false, hasStore: false } });
 
         mockGeminiResponse({
           zones: {
@@ -434,15 +393,7 @@ describe('ArchitecturalZoningAgent', () => {
 
     describe('room list generation', () => {
       it('should include core rooms always', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 1,
-            bathrooms: 1,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 1, bathrooms: 1, hasPooja: false, hasParking: false, hasStore: false } });
 
         mockGeminiResponse({
           zones: {
@@ -472,15 +423,7 @@ describe('ArchitecturalZoningAgent', () => {
       });
 
       it('should add pooja room when requested', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 2,
-            bathrooms: 2,
-            hasPooja: true,
-            hasParking: false,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 2, bathrooms: 2, hasPooja: true, hasParking: false, hasStore: false } });
 
         mockGeminiResponse({
           zones: {
@@ -501,15 +444,7 @@ describe('ArchitecturalZoningAgent', () => {
       });
 
       it('should add parking when requested', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 2,
-            bathrooms: 2,
-            hasPooja: false,
-            hasParking: true,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 2, bathrooms: 2, hasPooja: false, hasParking: true, hasStore: false } });
 
         mockGeminiResponse({
           zones: {
@@ -530,15 +465,7 @@ describe('ArchitecturalZoningAgent', () => {
       });
 
       it('should add store when requested', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 2,
-            bathrooms: 2,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: true,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 2, bathrooms: 2, hasPooja: false, hasParking: false, hasStore: true } });
 
         mockGeminiResponse({
           zones: {
@@ -559,15 +486,7 @@ describe('ArchitecturalZoningAgent', () => {
       });
 
       it('should always include courtyard (eco requirement)', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 1,
-            bathrooms: 1,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 1, bathrooms: 1, hasPooja: false, hasParking: false, hasStore: false } });
 
         mockGeminiResponse({
           zones: {
@@ -590,15 +509,7 @@ describe('ArchitecturalZoningAgent', () => {
 
     describe('circulation logic', () => {
       it('should use courtyard-centric circulation when courtyard present', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 2,
-            bathrooms: 2,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 2, bathrooms: 2, hasPooja: false, hasParking: false, hasStore: false } });
 
         mockGeminiResponse({
           zones: {
@@ -619,15 +530,7 @@ describe('ArchitecturalZoningAgent', () => {
       });
 
       it('should include LLM circulation logic when provided', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 2,
-            bathrooms: 2,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 2, bathrooms: 2, hasPooja: false, hasParking: false, hasStore: false } });
 
         mockGeminiResponse({
           zones: {
@@ -650,15 +553,7 @@ describe('ArchitecturalZoningAgent', () => {
 
     describe('entry sequence', () => {
       it('should use with-veranda sequence when veranda present', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 2,
-            bathrooms: 2,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 2, bathrooms: 2, hasPooja: false, hasParking: false, hasStore: false } });
 
         mockGeminiResponse({
           zones: {
@@ -679,15 +574,7 @@ describe('ArchitecturalZoningAgent', () => {
       });
 
       it('should use LLM entry sequence when provided', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 2,
-            bathrooms: 2,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 2, bathrooms: 2, hasPooja: false, hasParking: false, hasStore: false } });
 
         mockGeminiResponse({
           zones: {
@@ -710,21 +597,10 @@ describe('ArchitecturalZoningAgent', () => {
 
     describe('vastu zones integration', () => {
       it('should accept vastu zones input', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 2,
-            bathrooms: 2,
-            hasPooja: true,
-            hasParking: false,
-            hasStore: false,
-          },
-          vastuZones: {
-            northeast: ['pooja'],
-            southeast: ['kitchen'],
-            southwest: ['master-bedroom'],
-            northwest: ['store'],
-          },
-        };
+        const input = createInput({
+          requirements: { bedrooms: 2, bathrooms: 2, hasPooja: true, hasParking: false, hasStore: false },
+          vastuZones: { northeast: ['pooja'], southeast: ['kitchen'], southwest: ['master-bedroom'], northwest: ['store'] },
+        });
 
         mockGeminiResponse({
           zones: {
@@ -746,20 +622,10 @@ describe('ArchitecturalZoningAgent', () => {
 
     describe('eco constraints integration', () => {
       it('should accept eco constraints input', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 2,
-            bathrooms: 2,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: false,
-          },
-          ecoConstraints: [
-            'Central courtyard required',
-            'Cross-ventilation paths must be maintained',
-            'West wall buffer zone',
-          ],
-        };
+        const input = createInput({
+          requirements: { bedrooms: 2, bathrooms: 2, hasPooja: false, hasParking: false, hasStore: false },
+          ecoConstraints: ['Central courtyard required', 'Cross-ventilation paths must be maintained', 'West wall buffer zone'],
+        });
 
         mockGeminiResponse({
           zones: {
@@ -780,15 +646,7 @@ describe('ArchitecturalZoningAgent', () => {
     });
 
     describe('assumptions extraction', () => {
-      const validInput: ArchitecturalZoningInput = {
-        requirements: {
-          bedrooms: 2,
-          bathrooms: 2,
-          hasPooja: false,
-          hasParking: true,
-          hasStore: false,
-        },
-      };
+      const validInput = createInput({ requirements: { bedrooms: 2, bathrooms: 2, hasPooja: false, hasParking: true, hasStore: false } });
 
       it('should add courtyard central assumption', async () => {
         mockGeminiResponse({
@@ -882,15 +740,7 @@ describe('ArchitecturalZoningAgent', () => {
 
     describe('open questions extraction', () => {
       it('should ask about guest room when bedrooms >= 3', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 3,
-            bathrooms: 2,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 3, bathrooms: 2, hasPooja: false, hasParking: false, hasStore: false } });
 
         mockGeminiResponse({
           zones: {
@@ -915,15 +765,7 @@ describe('ArchitecturalZoningAgent', () => {
       });
 
       it('should ask about home office when bedrooms >= 2', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 2,
-            bathrooms: 2,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 2, bathrooms: 2, hasPooja: false, hasParking: false, hasStore: false } });
 
         mockGeminiResponse({
           zones: {
@@ -947,15 +789,7 @@ describe('ArchitecturalZoningAgent', () => {
       });
 
       it('should always ask about dining style', async () => {
-        const input: ArchitecturalZoningInput = {
-          requirements: {
-            bedrooms: 1,
-            bathrooms: 1,
-            hasPooja: false,
-            hasParking: false,
-            hasStore: false,
-          },
-        };
+        const input = createInput({ requirements: { bedrooms: 1, bathrooms: 1, hasPooja: false, hasParking: false, hasStore: false } });
 
         mockGeminiResponse({
           zones: {
@@ -980,15 +814,7 @@ describe('ArchitecturalZoningAgent', () => {
     });
 
     describe('error handling', () => {
-      const validInput: ArchitecturalZoningInput = {
-        requirements: {
-          bedrooms: 2,
-          bathrooms: 2,
-          hasPooja: false,
-          hasParking: false,
-          hasStore: false,
-        },
-      };
+      const validInput = createInput({ requirements: { bedrooms: 2, bathrooms: 2, hasPooja: false, hasParking: false, hasStore: false } });
 
       it('should handle JSON parsing errors gracefully', async () => {
         mockGeminiResponse('invalid json {{{');
@@ -1029,15 +855,7 @@ describe('ArchitecturalZoningAgent', () => {
     });
 
     describe('response parsing', () => {
-      const validInput: ArchitecturalZoningInput = {
-        requirements: {
-          bedrooms: 2,
-          bathrooms: 2,
-          hasPooja: false,
-          hasParking: false,
-          hasStore: false,
-        },
-      };
+      const validInput = createInput({ requirements: { bedrooms: 2, bathrooms: 2, hasPooja: false, hasParking: false, hasStore: false } });
 
       it('should handle markdown-wrapped JSON response', async () => {
         const wrappedResponse = '```json\n' + JSON.stringify({
@@ -1083,15 +901,7 @@ describe('ArchitecturalZoningAgent', () => {
     });
 
     describe('merge behavior', () => {
-      const validInput: ArchitecturalZoningInput = {
-        requirements: {
-          bedrooms: 2,
-          bathrooms: 2,
-          hasPooja: false,
-          hasParking: false,
-          hasStore: false,
-        },
-      };
+      const validInput = createInput({ requirements: { bedrooms: 2, bathrooms: 2, hasPooja: false, hasParking: false, hasStore: false } });
 
       it('should ensure all rooms are in exactly one zone', async () => {
         mockGeminiResponse({

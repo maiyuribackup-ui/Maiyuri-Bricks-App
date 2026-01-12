@@ -3,6 +3,7 @@ import { kernels, services } from '@maiyuri/api';
 import { success, error, notFound } from '@/lib/api-utils';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getUserFromRequest } from '@/lib/supabase-server';
+import { notifyAIAnalysis } from '@/lib/telegram';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -83,9 +84,36 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Fetch updated lead
     const leadResult = await services.supabase.getLead(id);
+    const updatedLead = leadResult.data;
+
+    // Send Telegram notification with AI analysis details (non-blocking)
+    if (updatedLead) {
+      notifyAIAnalysis({
+        leadId: id,
+        leadName: updatedLead.name,
+        phone: updatedLead.contact,
+        source: updatedLead.source,
+        status: updatedLead.status,
+        summary: result.data.summary?.text,
+        score: result.data.score?.value,
+        nextAction: result.data.suggestions?.nextBestAction,
+        followUpDate: result.data.suggestions?.suggestedFollowUpDate,
+        factors: result.data.score?.factors.map((f) => ({
+          factor: f.name,
+          impact: f.impact as 'positive' | 'negative' | 'neutral',
+        })),
+        suggestions: result.data.suggestions?.items.map((s) => ({
+          type: s.type,
+          content: s.content,
+          priority: s.priority as 'high' | 'medium' | 'low',
+        })),
+      }).catch((err) => {
+        console.error('Failed to send Telegram AI analysis notification:', err);
+      });
+    }
 
     return success({
-      lead: leadResult.data,
+      lead: updatedLead,
       analysis: {
         summary: result.data.summary?.text,
         score: result.data.score?.value,

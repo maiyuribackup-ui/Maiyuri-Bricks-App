@@ -78,6 +78,10 @@ export function FloorPlanChatbot({
   const backendSessionIdRef = useRef<string | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Open questions state for halted generation
+  const [pendingQuestions, setPendingQuestions] = useState<string[]>([]);
+  const [questionAnswers, setQuestionAnswers] = useState<Record<number, string>>({});
+
   // Hooks
   const {
     session,
@@ -172,18 +176,15 @@ ${statusData.message || 'Please confirm the blueprint to proceed with the 3D vie
           // Display open questions from agents
           const openQuestions = statusData.openQuestions || [];
           if (openQuestions.length > 0) {
+            // Store questions for the UI form
+            setPendingQuestions(openQuestions);
+            setQuestionAnswers({});
+
             addMessage({
               role: 'assistant',
-              content: `I need some clarification to proceed with your floor plan design. Here are ${openQuestions.length} questions from our design agents:
-
-${openQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
-
-Please provide your answers so I can continue.`,
+              content: `I need some clarification to proceed with your floor plan design. Please answer the ${openQuestions.length} question${openQuestions.length > 1 ? 's' : ''} below:`,
               type: 'text',
             });
-
-            // TODO: Add UI for answering open questions
-            // For now, show as text and allow user to answer via chat
           } else {
             addMessage({
               role: 'assistant',
@@ -1437,6 +1438,91 @@ Would you like to make any other changes?`,
               onReject={handleBlueprintReject}
               isLoading={isConfirmingBlueprint}
             />
+          </div>
+        )}
+
+        {/* Open Questions Form - shown when generation is halted */}
+        {session.status === 'halted' && pendingQuestions.length > 0 && (
+          <div className="mt-4 bg-slate-800/90 rounded-2xl border border-amber-500/30 overflow-hidden">
+            <div className="px-5 py-4 bg-gradient-to-r from-amber-600/20 to-orange-500/20 border-b border-slate-700/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                  <span className="text-xl">❓</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">Clarification Needed</h3>
+                  <p className="text-slate-400 text-sm">Please answer these questions to continue</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 space-y-4">
+              {pendingQuestions.map((question, index) => (
+                <div key={index} className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-300">
+                    {index + 1}. {question}
+                  </label>
+                  <input
+                    type="text"
+                    value={questionAnswers[index] || ''}
+                    onChange={(e) => setQuestionAnswers(prev => ({ ...prev, [index]: e.target.value }))}
+                    placeholder="Type your answer..."
+                    className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                  />
+                </div>
+              ))}
+              <button
+                onClick={async () => {
+                  // Check all questions are answered
+                  const allAnswered = pendingQuestions.every((_, i) => questionAnswers[i]?.trim());
+                  if (!allAnswered) {
+                    addMessage({
+                      role: 'assistant',
+                      content: 'Please answer all questions before continuing.',
+                      type: 'text',
+                    });
+                    return;
+                  }
+
+                  // Submit answers via chat
+                  const answersText = pendingQuestions
+                    .map((q, i) => `Q: ${q}\nA: ${questionAnswers[i]}`)
+                    .join('\n\n');
+
+                  addMessage({
+                    role: 'user',
+                    content: answersText,
+                    type: 'text',
+                  });
+
+                  // Clear pending questions
+                  setPendingQuestions([]);
+                  setQuestionAnswers({});
+
+                  // Resume generation with answers
+                  try {
+                    await modifyDesign(answersText);
+                    addMessage({
+                      role: 'assistant',
+                      content: 'Thank you for the clarification! Let me continue with your design...',
+                      type: 'text',
+                    });
+                    setStatus('generating');
+                    setIsGenerating(true);
+                  } catch (err) {
+                    console.error('Failed to submit answers:', err);
+                    addMessage({
+                      role: 'assistant',
+                      content: 'Sorry, I encountered an error processing your answers. Please try again.',
+                      type: 'error',
+                    });
+                  }
+                }}
+                disabled={!pendingQuestions.every((_, i) => questionAnswers[i]?.trim())}
+                className="w-full px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 disabled:from-slate-600 disabled:to-slate-700 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-amber-500/20"
+              >
+                Submit Answers & Continue
+              </button>
+            </div>
           </div>
         )}
 

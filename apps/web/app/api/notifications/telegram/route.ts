@@ -4,8 +4,12 @@ import {
   testTelegramConnection,
   sendTelegramMessage,
   notifyNewLead,
+  notifyNewLeadDetailed,
   notifyStaffInvited,
   notifyDailySummary,
+  notifyAIAnalysis,
+  type AIAnalysisNotification,
+  type NewLeadNotification,
 } from '@/lib/telegram';
 
 /**
@@ -88,6 +92,28 @@ export async function POST(request: NextRequest) {
           );
         }
         result = await notifyDailySummary(payload.stats);
+        break;
+
+      case 'new_lead_detailed':
+        // Notify about new lead with full details
+        if (!payload?.lead) {
+          return NextResponse.json(
+            { error: 'lead object is required' },
+            { status: 400 }
+          );
+        }
+        result = await notifyNewLeadDetailed(payload.lead as NewLeadNotification);
+        break;
+
+      case 'ai_analysis':
+        // Notify about AI analysis results
+        if (!payload?.analysis) {
+          return NextResponse.json(
+            { error: 'analysis object is required' },
+            { status: 400 }
+          );
+        }
+        result = await notifyAIAnalysis(payload.analysis as AIAnalysisNotification);
         break;
 
       default:

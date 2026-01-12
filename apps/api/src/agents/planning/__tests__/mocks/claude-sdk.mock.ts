@@ -5,6 +5,7 @@
  * for unit and integration testing.
  */
 
+import { vi, type MockedObject } from 'vitest';
 import Anthropic from '@anthropic-ai/sdk';
 
 /**
@@ -73,10 +74,10 @@ export function getLastCall(): (typeof mockCallHistory)[0] | undefined {
 /**
  * Create a mock Anthropic client
  */
-export function createMockAnthropicClient(): jest.Mocked<Anthropic> {
+export function createMockAnthropicClient(): MockedObject<Anthropic> {
   const mockClient = {
     messages: {
-      create: jest.fn().mockImplementation(async (params) => {
+      create: vi.fn().mockImplementation(async (params) => {
         // Record the call
         mockCallHistory.push({
           model: params.model,
@@ -115,7 +116,7 @@ export function createMockAnthropicClient(): jest.Mocked<Anthropic> {
         } as Anthropic.Message;
       }),
     },
-  } as unknown as jest.Mocked<Anthropic>;
+  } as unknown as MockedObject<Anthropic>;
 
   return mockClient;
 }

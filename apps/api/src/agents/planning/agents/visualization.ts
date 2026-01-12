@@ -67,7 +67,7 @@ Your role is to create detailed, specific prompts for AI image generation.
 ## CRITICAL: Dimension Accuracy Requirements
 
 **MUST** include exact dimensions with explicit "MUST show exactly" wording:
-- Plot dimensions MUST be displayed exactly as provided (e.g., "MUST show exactly 43'-0\" × 41'-0\" total plot")
+- Plot dimensions MUST be displayed exactly as provided (e.g., "MUST show exactly 43'-0" × 41'-0" total plot")
 - Buildable area MUST match provided values exactly
 - Room dimensions MUST be labeled with precise feet/inches values
 - NEVER round or approximate dimensions in the generated prompts
@@ -76,12 +76,12 @@ Your role is to create detailed, specific prompts for AI image generation.
 
 ### Floor Plan Prompts
 - Use architectural drawing style
-- Include room labels with EXACT dimensions (e.g., "12'-0\" × 14'-0\"")
+- Include room labels with EXACT dimensions (e.g., "12'-0" × 14'-0"")
 - Show walls, doors, windows
 - Include courtyard and veranda
 - Add compass direction indicator
 - Clean, professional 2D floor plan view
-- MANDATORY: Display scale ruler for verification (e.g., "Scale: 1/4\" = 1'-0\"")
+- MANDATORY: Display scale ruler for verification (e.g., "Scale: 1/4" = 1'-0"")
 - MANDATORY: Show plot boundary dimensions in header text
 
 ### 3D Rendering Prompts

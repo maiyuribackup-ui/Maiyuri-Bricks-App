@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { success, created, error, parseBody, parseQuery } from '@/lib/api-utils';
-import { notifyNewLead } from '@/lib/telegram';
+import { notifyNewLeadDetailed } from '@/lib/telegram';
 import {
   createLeadSchema,
   paginationSchema,
@@ -83,8 +83,17 @@ export async function POST(request: NextRequest) {
       return error('Failed to create lead', 500);
     }
 
-    // Send Telegram notification (non-blocking)
-    notifyNewLead(lead.name, lead.contact, lead.source).catch((err) => {
+    // Send detailed Telegram notification (non-blocking)
+    notifyNewLeadDetailed({
+      id: lead.id,
+      name: lead.name,
+      phone: lead.contact,
+      source: lead.source,
+      location: lead.location,
+      requirements: lead.requirements,
+      budget: lead.budget,
+      assignedStaff: lead.assigned_staff,
+    }).catch((err) => {
       console.error('Failed to send Telegram notification:', err);
     });
 

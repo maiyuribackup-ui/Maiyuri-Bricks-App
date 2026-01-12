@@ -9,7 +9,7 @@
  * - Plan expansion provisions
  */
 
-import { describe, it, expect, beforeEach, jest } from 'bun:test';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   EngineeringPlanAgent,
   createEngineeringPlanAgent,
@@ -21,10 +21,10 @@ import type { DesignContext, Room } from '../../types/design-context';
 let mockResponseQueue: string[] = [];
 
 // Mock Google Generative AI
-jest.mock('@google/generative-ai', () => ({
-  GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
-    getGenerativeModel: jest.fn().mockReturnValue({
-      generateContent: jest.fn().mockImplementation(async () => {
+vi.mock('@google/generative-ai', () => ({
+  GoogleGenerativeAI: vi.fn().mockImplementation(() => ({
+    getGenerativeModel: vi.fn().mockReturnValue({
+      generateContent: vi.fn().mockImplementation(async () => {
         if (mockResponseQueue.length === 0) {
           throw new Error('No mock response available');
         }
@@ -44,14 +44,17 @@ jest.mock('@google/generative-ai', () => ({
 function createMockContext(): DesignContext {
   return {
     sessionId: 'test-session-123',
-    projectId: 'test-project',
+    createdAt: new Date(),
+    updatedAt: new Date(),
     status: 'in_progress',
+    currentAgent: null,
+    openQuestions: [],
+    assumptions: [],
     plot: {
       width: 40,
       depth: 60,
       area: 2400,
       unit: 'feet',
-      roadFacing: 'south',
     },
   };
 }
@@ -64,10 +67,10 @@ function createSampleRooms(): Room[] {
     { id: 'living', name: 'Living Room', type: 'living', width: 14, depth: 12, areaSqft: 168, zone: 'public' },
     { id: 'dining', name: 'Dining Room', type: 'dining', width: 10, depth: 10, areaSqft: 100, zone: 'semi_private' },
     { id: 'kitchen', name: 'Kitchen', type: 'kitchen', width: 10, depth: 8, areaSqft: 80, zone: 'service' },
-    { id: 'master-bedroom', name: 'Master Bedroom', type: 'master-bedroom', width: 14, depth: 12, areaSqft: 168, zone: 'private' },
+    { id: 'master-bedroom', name: 'Master Bedroom', type: 'bedroom', width: 14, depth: 12, areaSqft: 168, zone: 'private' },
     { id: 'bedroom-2', name: 'Bedroom 2', type: 'bedroom', width: 12, depth: 10, areaSqft: 120, zone: 'private' },
-    { id: 'attached-bathroom', name: 'Attached Bathroom', type: 'attached-bathroom', width: 6, depth: 8, areaSqft: 48, zone: 'private', adjacentTo: ['master-bedroom'] },
-    { id: 'common-bathroom', name: 'Common Bathroom', type: 'common-bathroom', width: 5, depth: 7, areaSqft: 35, zone: 'service', adjacentTo: ['kitchen'] },
+    { id: 'attached-bathroom', name: 'Attached Bathroom', type: 'bathroom', width: 6, depth: 8, areaSqft: 48, zone: 'private', adjacentTo: ['master-bedroom'] },
+    { id: 'common-bathroom', name: 'Common Bathroom', type: 'bathroom', width: 5, depth: 7, areaSqft: 35, zone: 'service', adjacentTo: ['kitchen'] },
   ];
 }
 
@@ -467,9 +470,9 @@ describe('EngineeringPlanAgent', () => {
       it('should detect wet areas grouping', async () => {
         // Rooms with adjacent wet areas
         const roomsWithGroupedWetAreas: Room[] = [
-          ...createSampleRooms().filter(r => !r.type.includes('bathroom')),
-          { id: 'attached-bathroom', name: 'Attached Bathroom', type: 'attached-bathroom', width: 6, depth: 8, areaSqft: 48, zone: 'private', adjacentTo: ['common-bathroom'] },
-          { id: 'common-bathroom', name: 'Common Bathroom', type: 'common-bathroom', width: 5, depth: 7, areaSqft: 35, zone: 'service', adjacentTo: ['attached-bathroom'] },
+          ...createSampleRooms().filter(r => r.type !== 'bathroom'),
+          { id: 'attached-bathroom', name: 'Attached Bathroom', type: 'bathroom', width: 6, depth: 8, areaSqft: 48, zone: 'private', adjacentTo: ['common-bathroom'] },
+          { id: 'common-bathroom', name: 'Common Bathroom', type: 'bathroom', width: 5, depth: 7, areaSqft: 35, zone: 'service', adjacentTo: ['attached-bathroom'] },
         ];
 
         const groupedInput: EngineeringPlanInput = {

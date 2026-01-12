@@ -1,9 +1,10 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Select } from '@maiyuri/ui';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { toast } from 'sonner';
 import {
   KPICard,
   ConversionChart,
@@ -151,6 +152,7 @@ const periodOptions = [
 
 export default function DashboardPage() {
   const [period, setPeriod] = useState('30');
+  const queryClient = useQueryClient();
 
   const { data: analytics, isLoading } = useQuery({
     queryKey: ['dashboard-analytics', period],
@@ -160,6 +162,49 @@ export default function DashboardPage() {
   const statusCountsData = analytics?.statusCounts
     ? getDefaultStatusCounts(analytics.statusCounts)
     : [];
+
+  // Handle call/message actions for priority leads
+  const handleLeadAction = useCallback((leadId: string, action: string) => {
+    const lead = analytics?.priorityLeads?.find(l => l.id === leadId);
+    if (!lead?.contact) {
+      toast.error('No contact information available');
+      return;
+    }
+
+    // Clean phone number (remove spaces, dashes)
+    const cleanPhone = lead.contact.replace(/[\s-]/g, '');
+
+    if (action === 'call') {
+      // Open phone dialer
+      window.location.href = `tel:${cleanPhone}`;
+      toast.success(`Calling ${lead.name}...`);
+    } else if (action === 'message') {
+      // Open WhatsApp (common in India) or SMS
+      const whatsappUrl = `https://wa.me/${cleanPhone.replace(/^\+/, '')}`;
+      window.open(whatsappUrl, '_blank');
+      toast.success(`Opening WhatsApp for ${lead.name}...`);
+    }
+  }, [analytics?.priorityLeads]);
+
+  // Handle task completion
+  const handleTaskComplete = useCallback(async (taskId: string) => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'done' }),
+      });
+
+      if (!res.ok) throw new Error('Failed to complete task');
+
+      toast.success('Task marked as complete');
+      // Refresh dashboard data
+      queryClient.invalidateQueries({ queryKey: ['dashboard-analytics'] });
+    } catch (error) {
+      console.error('Task completion error:', error);
+      toast.error('Failed to complete task');
+    }
+  }, [queryClient]);
 
   return (
     <div className="space-y-6">
@@ -251,10 +296,7 @@ export default function DashboardPage() {
       <AIPriorityActions
         leads={analytics?.priorityLeads || []}
         loading={isLoading}
-        onAction={(leadId, action) => {
-          console.log(`Action: ${action} for lead: ${leadId}`);
-          // TODO: Implement call/message actions
-        }}
+        onAction={handleLeadAction}
       />
 
       {/* High Value Analytics - Response Time & Aging */}
@@ -308,10 +350,7 @@ export default function DashboardPage() {
         <UpcomingTasks
           tasks={analytics?.upcomingTasks || []}
           loading={isLoading}
-          onComplete={(taskId) => {
-            console.log(`Complete task: ${taskId}`);
-            // TODO: Implement task completion
-          }}
+          onComplete={handleTaskComplete}
         />
       </div>
     </div>

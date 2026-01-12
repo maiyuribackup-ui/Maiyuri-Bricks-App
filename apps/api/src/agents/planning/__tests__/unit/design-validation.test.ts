@@ -9,7 +9,7 @@
  * - Validate dimensional constraints
  */
 
-import { describe, it, expect, beforeEach, jest } from 'bun:test';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   DesignValidationAgent,
   createDesignValidationAgent,
@@ -21,10 +21,10 @@ import type { DesignContext, Room } from '../../types/design-context';
 let mockResponseQueue: string[] = [];
 
 // Mock Google Generative AI
-jest.mock('@google/generative-ai', () => ({
-  GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
-    getGenerativeModel: jest.fn().mockReturnValue({
-      generateContent: jest.fn().mockImplementation(async () => {
+vi.mock('@google/generative-ai', () => ({
+  GoogleGenerativeAI: vi.fn().mockImplementation(() => ({
+    getGenerativeModel: vi.fn().mockReturnValue({
+      generateContent: vi.fn().mockImplementation(async () => {
         if (mockResponseQueue.length === 0) {
           throw new Error('No mock response available');
         }

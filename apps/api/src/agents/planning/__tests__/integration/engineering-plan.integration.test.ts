@@ -10,7 +10,7 @@
  * handling real-world scenarios and edge cases.
  */
 
-import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createEngineeringPlanAgent, EngineeringPlanAgent } from '../../agents/engineering-plan';
 import { DesignValidationAgent, createDesignValidationAgent } from '../../agents/design-validation';
 import {
@@ -27,10 +27,10 @@ import type { DesignContext, Room, StructuralStrategy } from '../../types/design
 import type { EngineeringPlanInput, EngineeringPlanOutput } from '../../types/contracts';
 
 // Mock the Google Generative AI
-jest.mock('@google/generative-ai', () => ({
-  GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
-    getGenerativeModel: jest.fn().mockReturnValue({
-      generateContent: jest.fn(),
+vi.mock('@google/generative-ai', () => ({
+  GoogleGenerativeAI: vi.fn().mockImplementation(() => ({
+    getGenerativeModel: vi.fn().mockReturnValue({
+      generateContent: vi.fn(),
     }),
   })),
 }));
@@ -45,7 +45,7 @@ describe('EngineeringPlanAgent Integration', () => {
 
   afterEach(() => {
     clearMocks();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Pipeline Context Integration', () => {
@@ -56,7 +56,7 @@ describe('EngineeringPlanAgent Integration', () => {
 
       // Verify the context has all required fields for EngineeringPlanAgent
       expect(context.rooms).toBeDefined();
-      expect(context.rooms.length).toBeGreaterThan(0);
+      expect(context.rooms?.length).toBeGreaterThan(0);
       expect(context.buildableEnvelope).toBeDefined();
       expect(context.buildableEnvelope?.maxFloors).toBeDefined();
     });
@@ -72,12 +72,9 @@ describe('EngineeringPlanAgent Integration', () => {
         buildableEnvelope: {
           width: context.buildableEnvelope!.width,
           depth: context.buildableEnvelope!.depth,
-          maxFloors: context.buildableEnvelope!.maxFloors,
+          maxFloors: context.buildableEnvelope!.maxFloors!,
         },
-        ecoConstraints: {
-          hasCourtyard: context.courtyardSpec?.required ?? false,
-          ventilationStrategy: context.energyStrategy?.crossVentilation ? 'cross' : 'standard',
-        },
+        // Note: ecoConstraints doesn't exist in EngineeringPlanInput type
       };
 
       expect(input.rooms).toHaveLength(7);
@@ -110,15 +107,12 @@ describe('EngineeringPlanAgent Integration', () => {
         buildableEnvelope: {
           width: context.buildableEnvelope!.width,
           depth: context.buildableEnvelope!.depth,
-          maxFloors: context.buildableEnvelope!.maxFloors,
+          maxFloors: context.buildableEnvelope!.maxFloors!,
         },
-        ecoConstraints: {
-          hasCourtyard: false,
-          ventilationStrategy: 'standard',
-        },
+        // Note: ecoConstraints doesn't exist in EngineeringPlanInput type
       };
 
-      expect(input.ecoConstraints.hasCourtyard).toBe(false);
+      expect(input.structuralStrategy).toBe('load-bearing');
     });
   });
 
@@ -216,12 +210,12 @@ describe('EngineeringPlanAgent Integration', () => {
         { id: 'living', name: 'Living Room', type: 'living', width: 15, depth: 12, areaSqft: 180, zone: 'public' },
         { id: 'kitchen', name: 'Kitchen', type: 'kitchen', width: 10, depth: 10, areaSqft: 100, zone: 'semi_private' },
         { id: 'master', name: 'Master Bedroom', type: 'bedroom', width: 14, depth: 12, areaSqft: 168, zone: 'private' },
-        { id: 'master-bath', name: 'Master Bathroom', type: 'attached-bathroom', width: 5, depth: 7, areaSqft: 35, zone: 'private' },
-        { id: 'common-bath', name: 'Common Bathroom', type: 'common-bathroom', width: 5, depth: 6, areaSqft: 30, zone: 'semi_private' },
+        { id: 'master-bath', name: 'Master Bathroom', type: 'bathroom', width: 5, depth: 7, areaSqft: 35, zone: 'private' },
+        { id: 'common-bath', name: 'Common Bathroom', type: 'bathroom', width: 5, depth: 6, areaSqft: 30, zone: 'semi_private' },
         { id: 'utility', name: 'Utility Area', type: 'utility', width: 4, depth: 5, areaSqft: 20, zone: 'service' },
       ];
 
-      const wetAreaTypes = ['kitchen', 'attached-bathroom', 'common-bathroom', 'utility'];
+      const wetAreaTypes = ['kitchen', 'bathroom', 'utility'];
       const wetAreas = rooms.filter(r => wetAreaTypes.includes(r.type));
 
       expect(wetAreas).toHaveLength(4);
@@ -310,56 +304,41 @@ describe('EngineeringPlanAgent Integration', () => {
   describe('Output Format Validation', () => {
     it('should produce output compatible with DesignValidationAgent input', () => {
       const mockOutput: EngineeringPlanOutput = {
-        wallSystem: {
-          externalThickness: 9,
-          internalThickness: 4.5,
+        wall_system: {
+          external_thickness_inches: 9,
+          internal_thickness_inches: 4.5,
           material: 'Burnt clay brick masonry with cement mortar 1:6',
-          loadBearingWalls: ['north-external', 'south-external', 'east-external', 'west-external'],
+          load_bearing_walls: ['north-external', 'south-external', 'east-external', 'west-external'],
         },
         staircase: {
-          type: 'L-shaped',
-          width: 3.5,
+          type: 'l-shaped',
+          width_feet: 3.5,
           position: 'central',
-          riserHeight: 7,
-          treadWidth: 10,
-          numSteps: 17,
-          hasLanding: true,
+          riser_height_inches: 7,
+          tread_width_inches: 10,
         },
-        plumbing: {
-          strategy: 'grouped',
-          wetAreas: ['kitchen', 'master-bath', 'common-bath'],
-          shaftPositions: ['east-central'],
-          stackVentLocations: ['roof-east'],
+        plumbing_strategy: {
+          wet_areas_grouped: true,
+          shaft_positions: ['east-central'],
+          sewer_connection: 'east',
         },
-        ventilation: {
-          shafts: [
-            { id: 'V1', position: 'central', serves: ['kitchen', 'common-bath'] },
-          ],
-          crossVentilationEnabled: true,
-        },
-        expansion: {
-          foundationProvision: 'single-floor-addition',
-          columnStubsProvided: false,
-          estimatedAddition: 400,
-        },
-        assumptions: [
-          { id: 'A1', description: 'Standard floor height of 10 feet assumed' },
+        ventilation_shafts: [
+          { position: 'central', serves_rooms: ['kitchen', 'common-bath'] },
         ],
-        openQuestions: [],
-        tokenUsage: {
-          input: 1200,
-          output: 800,
-          total: 2000,
+        expansion_provision: {
+          direction: 'north',
+          type: 'vertical',
+          notes: 'Foundation designed for single-floor addition',
         },
+        // TODO: assumptions, openQuestions, tokenUsage don't exist in EngineeringPlanOutput type
       };
 
       // Validate output structure
-      expect(mockOutput.wallSystem).toBeDefined();
+      expect(mockOutput.wall_system).toBeDefined();
       expect(mockOutput.staircase).toBeDefined();
-      expect(mockOutput.plumbing).toBeDefined();
-      expect(mockOutput.ventilation).toBeDefined();
-      expect(mockOutput.expansion).toBeDefined();
-      expect(mockOutput.tokenUsage).toBeDefined();
+      expect(mockOutput.plumbing_strategy).toBeDefined();
+      expect(mockOutput.ventilation_shafts).toBeDefined();
+      expect(mockOutput.expansion_provision).toBeDefined();
 
       // Output should be compatible with DesignValidationAgent
       // which expects engineeringPlan in context
@@ -470,7 +449,7 @@ describe('EngineeringPlanAgent with DesignValidationAgent Chain', () => {
 
   afterEach(() => {
     clearMocks();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should produce output that validation agent can consume', () => {
@@ -480,79 +459,89 @@ describe('EngineeringPlanAgent with DesignValidationAgent Chain', () => {
 
     // EngineeringPlanAgent output format
     const engineeringOutput: EngineeringPlanOutput = {
-      wallSystem: {
-        externalThickness: 9,
-        internalThickness: 4.5,
+      wall_system: {
+        external_thickness_inches: 9,
+        internal_thickness_inches: 4.5,
         material: 'Burnt clay brick masonry with cement mortar 1:6',
-        loadBearingWalls: ['north-external', 'south-external', 'east-external', 'west-external'],
+        load_bearing_walls: ['north-external', 'south-external', 'east-external', 'west-external'],
       },
-      staircase: null, // Single floor, no staircase
-      plumbing: {
-        strategy: 'grouped',
-        wetAreas: ['kitchen', 'master-bath', 'common-bath'],
-        shaftPositions: ['east-central'],
-        stackVentLocations: ['roof-east'],
+      staircase: {
+        type: 'straight',
+        position: 'north',
+        width_feet: 3,
+        riser_height_inches: 7,
+        tread_width_inches: 10,
       },
-      ventilation: {
-        shafts: [],
-        crossVentilationEnabled: true,
+      plumbing_strategy: {
+        wet_areas_grouped: true,
+        shaft_positions: ['east-central'],
+        sewer_connection: 'east',
       },
-      expansion: {
-        foundationProvision: 'single-floor-addition',
-        columnStubsProvided: false,
-        estimatedAddition: 400,
+      ventilation_shafts: [],
+      expansion_provision: {
+        direction: 'north',
+        type: 'vertical',
+        notes: 'Foundation designed for single-floor addition',
       },
-      assumptions: [],
-      openQuestions: [],
-      tokenUsage: {
-        input: 1200,
-        output: 800,
-        total: 2000,
-      },
+      // TODO: assumptions, openQuestions, tokenUsage don't exist in EngineeringPlanOutput type
     };
 
     // Context should be updated with engineering plan
+    // Note: DesignContext doesn't have engineeringPlan field - it has individual fields
+    // Need to map from snake_case (output) to camelCase (context)
     const updatedContext: DesignContext = {
       ...context,
-      engineeringPlan: engineeringOutput,
+      wallSystem: {
+        externalThickness: engineeringOutput.wall_system.external_thickness_inches,
+        internalThickness: engineeringOutput.wall_system.internal_thickness_inches,
+        material: engineeringOutput.wall_system.material,
+        loadBearingWalls: engineeringOutput.wall_system.load_bearing_walls,
+      },
+      staircase: {
+        type: engineeringOutput.staircase.type,
+        position: engineeringOutput.staircase.position,
+        width: engineeringOutput.staircase.width_feet,
+        riserHeight: engineeringOutput.staircase.riser_height_inches,
+        treadWidth: engineeringOutput.staircase.tread_width_inches,
+      },
     };
 
     // Validation agent should be able to use this context
-    expect(updatedContext.engineeringPlan).toBeDefined();
-    expect(updatedContext.engineeringPlan?.wallSystem).toBeDefined();
+    expect(updatedContext.wallSystem).toBeDefined();
+    expect(updatedContext.staircase).toBeDefined();
   });
 
   it('should trigger validation errors for invalid engineering output', () => {
     // Invalid: load-bearing building with no load-bearing walls identified
     const invalidOutput: EngineeringPlanOutput = {
-      wallSystem: {
-        externalThickness: 9,
-        internalThickness: 4.5,
+      wall_system: {
+        external_thickness_inches: 9,
+        internal_thickness_inches: 4.5,
         material: 'Burnt clay brick masonry',
-        loadBearingWalls: [], // Invalid for load-bearing strategy
+        load_bearing_walls: [], // Invalid for load-bearing strategy
       },
-      staircase: null,
-      plumbing: {
-        strategy: 'grouped',
-        wetAreas: [],
-        shaftPositions: [],
-        stackVentLocations: [],
+      staircase: {
+        type: 'straight',
+        position: 'north',
+        width_feet: 2.5, // Too narrow
+        riser_height_inches: 7,
+        tread_width_inches: 10,
       },
-      ventilation: {
-        shafts: [],
-        crossVentilationEnabled: false,
+      plumbing_strategy: {
+        wet_areas_grouped: false,
+        shaft_positions: [],
+        sewer_connection: 'north',
       },
-      expansion: {
-        foundationProvision: 'none',
-        columnStubsProvided: false,
-        estimatedAddition: 0,
+      ventilation_shafts: [],
+      expansion_provision: {
+        direction: 'north',
+        type: 'vertical',
+        notes: 'None',
       },
-      assumptions: [],
-      openQuestions: [],
-      tokenUsage: { input: 0, output: 0, total: 0 },
+      // TODO: assumptions, openQuestions, tokenUsage don't exist in EngineeringPlanOutput type
     };
 
     // Validation agent should catch this inconsistency
-    expect(invalidOutput.wallSystem.loadBearingWalls).toHaveLength(0);
+    expect(invalidOutput.wall_system.load_bearing_walls).toHaveLength(0);
   });
 });

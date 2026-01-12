@@ -4,7 +4,7 @@
  * Tests the orchestrator with multiple agents working together.
  */
 
-import { describe, it, expect, beforeEach } from '@jest/globals';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { PlanningOrchestrator } from '../../orchestrator';
 import { HaltError, DesignValidationError } from '../../errors';
 import {

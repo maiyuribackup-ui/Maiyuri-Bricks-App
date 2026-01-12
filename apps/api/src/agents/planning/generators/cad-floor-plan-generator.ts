@@ -93,7 +93,7 @@ const FONT_SIZE = 0.5; // feet for labels
  * e.g., "29'-6\"" => 29.5
  */
 export function parseFeetInches(input: string): number {
-  const match = input.match(/(\d+)'[- ]?(\d+)?\"?/);
+  const match = input.match(/(\d+)'[- ]?(\d+)?"?/);
   if (match) {
     const feet = parseInt(match[1], 10);
     const inches = match[2] ? parseInt(match[2], 10) : 0;
@@ -535,6 +535,15 @@ export function validateProportions(model: makerjs.IModel): {
 } {
   const measurements = makerjs.measure.modelExtents(model);
   const errors: string[] = [];
+
+  // Handle case where model has no measurable extents
+  if (!measurements) {
+    return {
+      isValid: false,
+      measurements: { width: 0, depth: 0, lowX: 0, lowY: 0, highX: 0, highY: 0 },
+      errors: ['Model has no measurable extents'],
+    };
+  }
 
   // The actual measurements from the model
   const width = measurements.high[0] - measurements.low[0];

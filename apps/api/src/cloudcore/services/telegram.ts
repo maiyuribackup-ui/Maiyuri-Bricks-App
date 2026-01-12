@@ -11,7 +11,7 @@ export interface TelegramConfig {
 }
 
 // Singleton config (can be updated via environment variables)
-let config: TelegramConfig = {
+const config: TelegramConfig = {
   botToken: process.env.TELEGRAM_BOT_TOKEN,
   chatId: process.env.TELEGRAM_CHAT_ID,
 };

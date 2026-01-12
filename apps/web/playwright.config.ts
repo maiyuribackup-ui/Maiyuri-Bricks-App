@@ -45,12 +45,13 @@ export default defineConfig({
     },
   ],
 
-  /* Run your local dev server before starting the tests (skip for production) */
-  ...(isProduction ? {} : {
+  /* Run your local dev server before starting the tests (skip for production or existing server) */
+  ...(isProduction || process.env.SKIP_WEBSERVER ? {} : {
     webServer: {
       command: 'npm run dev',
       url: 'http://localhost:3000',
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: true,
+      timeout: 120000,
     },
   }),
 });

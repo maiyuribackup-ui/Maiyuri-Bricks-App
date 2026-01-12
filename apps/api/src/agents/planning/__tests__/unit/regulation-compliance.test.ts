@@ -4,7 +4,7 @@
  * Tests for the Tamil Nadu building regulation compliance agent.
  */
 
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   RegulationComplianceAgent,
   createRegulationComplianceAgent,
@@ -17,11 +17,11 @@ import { createMockContext } from '../mocks/context.mock';
 let mockResponseQueue: string[] = [];
 
 // Mock the Gemini SDK
-jest.mock('@google/generative-ai', () => {
+vi.mock('@google/generative-ai', () => {
   return {
-    GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
-      getGenerativeModel: jest.fn().mockReturnValue({
-        generateContent: jest.fn().mockImplementation(async () => {
+    GoogleGenerativeAI: vi.fn().mockImplementation(() => ({
+      getGenerativeModel: vi.fn().mockReturnValue({
+        generateContent: vi.fn().mockImplementation(async () => {
           const response = mockResponseQueue.shift();
           if (!response) {
             throw new Error('No mock response available');

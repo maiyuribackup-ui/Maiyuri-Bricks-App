@@ -4,7 +4,7 @@
  * Tests the template method pattern and common agent functionality.
  */
 
-import { describe, it, expect, beforeEach, jest } from 'bun:test';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BaseAgent, type BaseAgentConfig } from '../../agents/base-agent';
 import type { DesignContext } from '../../types/design-context';
 import type { AgentName } from '../../types/agent-result';
@@ -13,10 +13,10 @@ import type { AgentName } from '../../types/agent-result';
 let mockResponseQueue: string[] = [];
 
 // Mock Anthropic SDK
-jest.mock('@anthropic-ai/sdk', () => ({
-  default: jest.fn().mockImplementation(() => ({
+vi.mock('@anthropic-ai/sdk', () => ({
+  default: vi.fn().mockImplementation(() => ({
     messages: {
-      create: jest.fn().mockImplementation(async () => {
+      create: vi.fn().mockImplementation(async () => {
         if (mockResponseQueue.length === 0) {
           throw new Error('No mock response available');
         }
