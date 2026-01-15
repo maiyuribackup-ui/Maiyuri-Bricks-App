@@ -215,3 +215,69 @@ export type UpdateEstimateInput = z.infer<typeof updateEstimateSchema>;
 export type CalculateDistanceInput = z.infer<typeof calculateDistanceSchema>;
 export type DiscountSuggestionRequestInput = z.infer<typeof discountSuggestionRequestSchema>;
 
+// Call Recording Schemas (Telegram Audio Ingestion)
+export const callRecordingStatusSchema = z.enum([
+  'pending',
+  'downloading',
+  'converting',
+  'uploading',
+  'transcribing',
+  'analyzing',
+  'completed',
+  'failed',
+]);
+
+export const callRecordingInsightsSchema = z.object({
+  complaints: z.array(z.string()).optional(),
+  negative_feedback: z.array(z.string()).optional(),
+  negotiation_signals: z.array(z.string()).optional(),
+  price_expectations: z.array(z.string()).optional(),
+  positive_signals: z.array(z.string()).optional(),
+  recommended_actions: z.array(z.string()).optional(),
+  sentiment: z.enum(['positive', 'negative', 'neutral', 'mixed']).optional(),
+});
+
+// Schema for creating a new call recording (from Telegram webhook)
+export const createCallRecordingSchema = z.object({
+  phone_number: z.string().min(10, 'Valid phone number required'),
+  telegram_file_id: z.string().min(1, 'Telegram file ID is required'),
+  telegram_message_id: z.number().int().positive(),
+  telegram_chat_id: z.number().int(),
+  telegram_user_id: z.number().int().nullable().optional(),
+  original_filename: z.string().min(1, 'Filename is required'),
+  lead_id: z.string().uuid().nullable().optional(),
+  file_size_bytes: z.number().int().positive().optional(),
+  audio_hash: z.string().nullable().optional(),
+});
+
+// Schema for updating a call recording (from worker processing)
+export const updateCallRecordingSchema = z.object({
+  processing_status: callRecordingStatusSchema.optional(),
+  error_message: z.string().nullable().optional(),
+  retry_count: z.number().int().min(0).optional(),
+  mp3_gdrive_file_id: z.string().nullable().optional(),
+  mp3_gdrive_url: z.string().url().nullable().optional(),
+  transcription_text: z.string().nullable().optional(),
+  transcription_language: z.string().nullable().optional(),
+  transcription_confidence: z.number().min(0).max(1).nullable().optional(),
+  ai_summary: z.string().nullable().optional(),
+  ai_insights: callRecordingInsightsSchema.optional(),
+  ai_score_impact: z.number().min(-1).max(1).nullable().optional(),
+  duration_seconds: z.number().int().positive().nullable().optional(),
+  processed_at: z.string().nullable().optional(),
+});
+
+// Schema for admin filtering call recordings
+export const callRecordingFiltersSchema = z.object({
+  processing_status: callRecordingStatusSchema.optional(),
+  lead_id: z.string().uuid().optional(),
+  phone_number: z.string().optional(),
+  from_date: z.string().optional(),
+  to_date: z.string().optional(),
+});
+
+// Export Call Recording types
+export type CreateCallRecordingInput = z.infer<typeof createCallRecordingSchema>;
+export type UpdateCallRecordingInput = z.infer<typeof updateCallRecordingSchema>;
+export type CallRecordingFiltersInput = z.infer<typeof callRecordingFiltersSchema>;
+export type CallRecordingInsightsInput = z.infer<typeof callRecordingInsightsSchema>;

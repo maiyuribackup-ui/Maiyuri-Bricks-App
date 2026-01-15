@@ -276,3 +276,71 @@ export interface DistanceCalculation {
   durationMinutes: number;
   transportCost: number;
 }
+
+// Call Recording Types (Telegram Audio Ingestion)
+export type CallRecordingStatus =
+  | 'pending'
+  | 'downloading'
+  | 'converting'
+  | 'uploading'
+  | 'transcribing'
+  | 'analyzing'
+  | 'completed'
+  | 'failed';
+
+export interface CallRecordingInsights {
+  complaints?: string[];
+  negative_feedback?: string[];
+  negotiation_signals?: string[];
+  price_expectations?: string[];
+  positive_signals?: string[];
+  recommended_actions?: string[];
+  sentiment?: 'positive' | 'negative' | 'neutral' | 'mixed';
+}
+
+export interface CallRecording {
+  id: string;
+  lead_id: string | null;
+  phone_number: string;
+
+  // Telegram metadata
+  telegram_file_id: string;
+  telegram_message_id: number;
+  telegram_chat_id: number;
+  telegram_user_id: number | null;
+  original_filename: string;
+
+  // Google Drive storage
+  mp3_gdrive_file_id: string | null;
+  mp3_gdrive_url: string | null;
+
+  // Transcription data
+  transcription_text: string | null;
+  transcription_language: string | null;
+  transcription_confidence: number | null;
+
+  // AI Analysis results
+  ai_summary: string | null;
+  ai_insights: CallRecordingInsights;
+  ai_score_impact: number | null;
+
+  // Processing status
+  processing_status: CallRecordingStatus;
+  error_message: string | null;
+  retry_count: number;
+
+  // Audio metadata
+  duration_seconds: number | null;
+  file_size_bytes: number | null;
+
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+  processed_at: string | null;
+
+  // Duplicate detection
+  audio_hash: string | null;
+
+  // Joined fields
+  lead?: Lead;
+}
