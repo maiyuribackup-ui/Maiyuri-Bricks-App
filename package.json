@@ -10,6 +10,7 @@
         "test:e2e": "cd apps/web && bun run test:e2e"
     },
     "devDependencies": {
+        "globals": "^17.0.0",
         "prettier": "^3.0.0",
         "turbo": "^2.0.0",
         "typescript": "^5.0.0"

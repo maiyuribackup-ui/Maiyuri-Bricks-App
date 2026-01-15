@@ -16,7 +16,9 @@ import type {
   LeadSuggestions,
   Lead,
   Note,
+  CallRecording,
 } from '../../types';
+import type { LeadUrgency, ConversionLever } from '@maiyuri/shared';
 
 export const KERNEL_CONFIG = {
   name: 'LeadAnalyst',
@@ -36,10 +38,11 @@ export async function analyze(
   const startTime = Date.now();
 
   try {
-    // Fetch lead and notes
-    const [leadResult, notesResult] = await Promise.all([
+    // Fetch lead, notes, and call recordings in parallel
+    const [leadResult, notesResult, callRecordingsResult] = await Promise.all([
       db.getLead(request.leadId),
       db.getNotes(request.leadId),
+      db.getCallRecordings(request.leadId),
     ]);
 
     if (!leadResult.success || !leadResult.data) {
@@ -55,8 +58,10 @@ export async function analyze(
 
     const lead = leadResult.data;
     const notes = notesResult.data || [];
+    const callRecordings = callRecordingsResult.data || [];
     const maxNotes = request.options?.maxNotesToAnalyze || 10;
     const recentNotes = notes.slice(0, maxNotes);
+    const recentCallRecordings = callRecordings.slice(0, 5); // Limit to 5 most recent calls
 
     // Build response based on analysis type
     const response: LeadAnalysisResponse = {
@@ -65,23 +70,23 @@ export async function analyze(
 
     switch (request.analysisType) {
       case 'full_analysis':
-        await runFullAnalysis(lead, recentNotes, response, request);
+        await runFullAnalysis(lead, recentNotes, recentCallRecordings, response, request);
         break;
 
       case 'summary_only':
-        response.summary = await generateSummary(lead, recentNotes, 500, request.language || 'en');
+        response.summary = await generateSummary(lead, recentNotes, recentCallRecordings, 500, request.language || 'en');
         break;
 
       case 'scoring_only':
-        response.score = await generateScore(lead, recentNotes, request);
+        response.score = await generateScore(lead, recentNotes, recentCallRecordings, request);
         break;
 
       case 'suggestions_only':
-        response.suggestions = await generateSuggestions(lead, recentNotes, request.language || 'en');
+        response.suggestions = await generateSuggestions(lead, recentNotes, recentCallRecordings, request.language || 'en');
         break;
 
       case 'quick_update':
-        await runQuickUpdate(lead, recentNotes.slice(0, 3), response, request.language || 'en');
+        await runQuickUpdate(lead, recentNotes.slice(0, 3), recentCallRecordings.slice(0, 2), response, request.language || 'en');
         break;
 
       default:
@@ -96,13 +101,19 @@ export async function analyze(
     }
 
     // Persist AI fields to database
-    if (response.summary || response.score || response.suggestions) {
-      response.updatedFields = buildUpdatedFields(response);
-      await db.updateLeadAI(request.leadId, {
+    if (response.summary || response.score || response.suggestions || response.updatedFields) {
+      const fieldsToUpdate = buildUpdatedFields(response);
+      response.updatedFields = { ...response.updatedFields, ...fieldsToUpdate };
+
+      await db.updateLead(request.leadId, {
         ai_summary: response.summary?.text,
         ai_score: response.score?.value,
         next_action: response.suggestions?.nextBestAction,
         follow_up_date: response.suggestions?.suggestedFollowUpDate,
+        // New intelligence fields
+        urgency: response.updatedFields?.urgency,
+        dominant_objection: response.updatedFields?.dominant_objection,
+        best_conversion_lever: response.updatedFields?.best_conversion_lever,
       });
     }
 
@@ -125,25 +136,37 @@ export async function analyze(
 }
 
 /**
- * Run full analysis (summary + score + suggestions)
+ * Run full analysis (summary + score + suggestions + intelligence extraction)
  */
 async function runFullAnalysis(
   lead: Lead,
   notes: Note[],
+  callRecordings: CallRecording[],
   response: LeadAnalysisResponse,
   request: LeadAnalysisRequest
 ): Promise<void> {
   const language = request.language || 'en';
   // Run all analyses in parallel
-  const [summary, score, suggestions] = await Promise.all([
-    generateSummary(lead, notes, 500, language),
-    generateScore(lead, notes, request),
-    generateSuggestions(lead, notes, language),
+  const [summary, score, suggestions, intelligence] = await Promise.all([
+    generateSummary(lead, notes, callRecordings, 500, language),
+    generateScore(lead, notes, callRecordings, request),
+    generateSuggestions(lead, notes, callRecordings, language),
+    extractLeadIntelligence(lead, notes, callRecordings),
   ]);
 
   response.summary = summary;
   response.score = score;
   response.suggestions = suggestions;
+
+  // Merge intelligence fields into updatedFields
+  if (intelligence) {
+    response.updatedFields = {
+      ...response.updatedFields,
+      urgency: intelligence.urgency,
+      dominant_objection: intelligence.dominantObjection,
+      best_conversion_lever: intelligence.bestConversionLever,
+    };
+  }
 }
 
 /**
@@ -152,12 +175,13 @@ async function runFullAnalysis(
 async function runQuickUpdate(
   lead: Lead,
   notes: Note[],
+  callRecordings: CallRecording[],
   response: LeadAnalysisResponse,
   language: 'en' | 'ta' = 'en'
 ): Promise<void> {
   const [summary, suggestions] = await Promise.all([
-    generateSummary(lead, notes, 200, language),
-    generateSuggestions(lead, notes, language),
+    generateSummary(lead, notes, callRecordings, 200, language),
+    generateSuggestions(lead, notes, callRecordings, language),
   ]);
 
   response.summary = summary;
@@ -170,11 +194,13 @@ async function runQuickUpdate(
 async function generateSummary(
   lead: Lead,
   notes: Note[],
+  callRecordings: CallRecording[],
   maxLength: number = 500,
   language: 'en' | 'ta' = 'en'
 ): Promise<LeadSummary> {
   const leadContext = formatLeadContext(lead);
   const notesContext = formatNotesContext(notes);
+  const callContext = formatCallRecordingsContext(callRecordings);
 
   const languageInstruction = language === 'ta'
     ? '\n\nIMPORTANT: Respond entirely in Tamil (தமிழ்). All text must be in Tamil script.'
@@ -189,8 +215,9 @@ async function generateSummary(
   }>({
     systemPrompt: `You are a sales assistant summarizing lead interactions for a brick manufacturing business.
 Create a concise summary (max ${maxLength} characters) focusing on:
-- Key discussion points
-- Customer requirements
+- Key discussion points from notes AND call recordings
+- Customer requirements and objections
+- Buying signals and price expectations
 - Next steps and action items
 - Important dates or commitments${languageInstruction}`,
     userPrompt: `Summarize this lead:
@@ -198,8 +225,11 @@ Create a concise summary (max ${maxLength} characters) focusing on:
 LEAD INFORMATION:
 ${leadContext}
 
-INTERACTION HISTORY:
+INTERACTION NOTES:
 ${notesContext || 'No notes available'}
+
+CALL RECORDINGS ANALYSIS:
+${callContext || 'No call recordings available'}
 
 Respond with JSON:
 {
@@ -237,17 +267,28 @@ Respond with JSON:
 async function generateScore(
   lead: Lead,
   notes: Note[],
+  callRecordings: CallRecording[],
   request: LeadAnalysisRequest
 ): Promise<LeadScore> {
   const leadContext = formatLeadContext(lead);
   const notesContext = formatNotesContext(notes);
+  const callContext = formatCallRecordingsContext(callRecordings);
 
   // Calculate basic metrics
   const daysSinceCreated = Math.floor(
     (Date.now() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24)
   );
   const notesCount = notes.length;
-  const interactionFrequency = daysSinceCreated > 0 ? notesCount / daysSinceCreated : 0;
+  const callsCount = callRecordings.length;
+  const interactionFrequency = daysSinceCreated > 0 ? (notesCount + callsCount) / daysSinceCreated : 0;
+
+  // Calculate call-based signals
+  const positiveCallSignals = callRecordings.filter(
+    (c) => c.ai_insights?.sentiment === 'positive' || (c.ai_insights?.positive_signals?.length || 0) > 0
+  ).length;
+  const negativeCallSignals = callRecordings.filter(
+    (c) => c.ai_insights?.sentiment === 'negative' || (c.ai_insights?.complaints?.length || 0) > 0
+  ).length;
 
   // Get historical data if requested
   let historicalContext = '';
@@ -265,13 +306,19 @@ async function generateScore(
     }
   }
 
+  // Combine notes and call context for scoring
+  const combinedContext = `${notesContext}\n\nCALL RECORDINGS:\n${callContext}`;
+
   const result = await claude.generateScore(
     leadContext,
-    notesContext,
+    combinedContext,
     {
       daysSinceCreated,
       notesCount,
+      callsCount,
       interactionFrequency: parseFloat(interactionFrequency.toFixed(2)),
+      positiveCallSignals,
+      negativeCallSignals,
     }
   );
 
@@ -289,7 +336,7 @@ async function generateScore(
   }
 
   // Fallback to basic scoring
-  return calculateBasicScore(lead, notes);
+  return calculateBasicScore(lead, notes, callRecordings);
 }
 
 /**
@@ -298,12 +345,17 @@ async function generateScore(
 async function generateSuggestions(
   lead: Lead,
   notes: Note[],
+  callRecordings: CallRecording[],
   language: 'en' | 'ta' = 'en'
 ): Promise<LeadSuggestions> {
   const leadContext = formatLeadContext(lead);
   const notesContext = formatNotesContext(notes);
+  const callContext = formatCallRecordingsContext(callRecordings);
 
-  const result = await claude.generateSuggestions(leadContext, notesContext, language);
+  // Combine contexts for suggestions
+  const combinedContext = `${notesContext}\n\nCALL RECORDINGS INSIGHTS:\n${callContext}`;
+
+  const result = await claude.generateSuggestions(leadContext, combinedContext, language);
 
   if (result.success && result.data) {
     return {
@@ -316,7 +368,7 @@ async function generateSuggestions(
       })),
       nextBestAction: result.data.nextBestAction,
       suggestedFollowUpDate: result.data.suggestedFollowUpDate,
-      priority: determinePriority(lead),
+      priority: determinePriority(lead, callRecordings),
     };
   }
 
@@ -324,7 +376,7 @@ async function generateSuggestions(
   return {
     items: [],
     nextBestAction: generateBasicNextAction(lead),
-    priority: determinePriority(lead),
+    priority: determinePriority(lead, callRecordings),
   };
 }
 
@@ -363,9 +415,113 @@ function formatNotesContext(notes: Note[]): string {
 }
 
 /**
+ * Format call recordings for context - extracts key insights for AI analysis
+ */
+function formatCallRecordingsContext(callRecordings: CallRecording[]): string {
+  if (!callRecordings.length) {
+    return 'No call recordings available';
+  }
+
+  return callRecordings
+    .map((call, i) => {
+      const insights = call.ai_insights || {};
+      const parts = [
+        `[Call ${i + 1}] ${call.created_at}:`,
+        call.ai_summary ? `Summary: ${call.ai_summary}` : '',
+        insights.sentiment ? `Sentiment: ${insights.sentiment}` : '',
+        insights.positive_signals?.length ? `Positive Signals: ${insights.positive_signals.join(', ')}` : '',
+        insights.complaints?.length ? `Complaints: ${insights.complaints.join(', ')}` : '',
+        insights.negative_feedback?.length ? `Concerns: ${insights.negative_feedback.join(', ')}` : '',
+        insights.negotiation_signals?.length ? `Negotiation Signals: ${insights.negotiation_signals.join(', ')}` : '',
+        insights.price_expectations?.length ? `Price Expectations: ${insights.price_expectations.join(', ')}` : '',
+        insights.recommended_actions?.length ? `Recommended Actions: ${insights.recommended_actions.join(', ')}` : '',
+        call.transcription_text ? `\nTranscript excerpt: ${call.transcription_text.slice(0, 500)}...` : '',
+      ].filter(Boolean);
+
+      return parts.join('\n');
+    })
+    .join('\n\n---\n\n');
+}
+
+/**
+ * Extract lead intelligence fields from call recordings and notes
+ */
+async function extractLeadIntelligence(
+  lead: Lead,
+  notes: Note[],
+  callRecordings: CallRecording[]
+): Promise<{
+  urgency: LeadUrgency | null;
+  dominantObjection: string | null;
+  bestConversionLever: ConversionLever | null;
+} | null> {
+  // If no call recordings, skip intelligence extraction
+  if (!callRecordings.length && !notes.length) {
+    return null;
+  }
+
+  const leadContext = formatLeadContext(lead);
+  const notesContext = formatNotesContext(notes);
+  const callContext = formatCallRecordingsContext(callRecordings);
+
+  const result = await claude.completeJson<{
+    urgency: string;
+    dominant_objection: string | null;
+    best_conversion_lever: string;
+    reasoning: string;
+  }>({
+    systemPrompt: `You are a sales intelligence analyst for a brick manufacturing business.
+Analyze the lead's interactions to extract structured intelligence that helps sales prioritize and close deals.
+
+URGENCY LEVELS:
+- immediate: Ready to buy within days/weeks, has active project, expressed urgency
+- 1-3_months: Has timeline but not immediate, gathering quotes, planning phase
+- 3-6_months: Early research, no immediate need, future project
+- unknown: Cannot determine from available information
+
+CONVERSION LEVERS:
+- proof: Customer needs quality evidence, samples, references, testimonials
+- price: Price is the main decision factor, comparing quotes, budget conscious
+- visit: Customer wants to see factory, meet team, establish trust
+- relationship: Personal relationship matters, needs rapport building
+- timeline: Speed of delivery/execution is critical factor`,
+    userPrompt: `Extract intelligence from this lead's interactions:
+
+LEAD INFORMATION:
+${leadContext}
+
+INTERACTION NOTES:
+${notesContext || 'No notes available'}
+
+CALL RECORDINGS ANALYSIS:
+${callContext || 'No call recordings available'}
+
+Respond with JSON:
+{
+  "urgency": "immediate|1-3_months|3-6_months|unknown",
+  "dominant_objection": "The main barrier preventing purchase (null if none identified)",
+  "best_conversion_lever": "proof|price|visit|relationship|timeline",
+  "reasoning": "Brief explanation of your analysis"
+}`,
+    maxTokens: 512,
+    temperature: 0.3,
+  });
+
+  if (result.success && result.data) {
+    return {
+      urgency: result.data.urgency as LeadUrgency,
+      dominantObjection: result.data.dominant_objection,
+      bestConversionLever: result.data.best_conversion_lever as ConversionLever,
+    };
+  }
+
+  return null;
+}
+
+/**
  * Calculate basic score without AI
  */
-function calculateBasicScore(lead: Lead, notes: Note[]): LeadScore {
+function calculateBasicScore(lead: Lead, notes: Note[], callRecordings: CallRecording[] = []): LeadScore {
   const factors: LeadScore['factors'] = [];
   let baseScore = 0.5;
 
@@ -386,13 +542,37 @@ function calculateBasicScore(lead: Lead, notes: Note[]): LeadScore {
   });
   baseScore = baseScore * 0.7 + statusScore * 0.3;
 
-  if (notes.length >= 5) {
+  const totalInteractions = notes.length + callRecordings.length;
+  if (totalInteractions >= 5) {
     factors.push({
-      name: 'High engagement (5+ interactions)',
+      name: `High engagement (${totalInteractions} interactions)`,
       impact: 'positive',
       weight: 0.2,
     });
     baseScore += 0.1;
+  }
+
+  // Boost for call recordings (indicates serious interest)
+  if (callRecordings.length > 0) {
+    factors.push({
+      name: `Has ${callRecordings.length} call recording(s)`,
+      impact: 'positive',
+      weight: 0.15,
+    });
+    baseScore += 0.05 * Math.min(callRecordings.length, 3);
+  }
+
+  // Check for positive signals in calls
+  const positiveCallCount = callRecordings.filter(
+    (c) => c.ai_insights?.sentiment === 'positive'
+  ).length;
+  if (positiveCallCount > 0) {
+    factors.push({
+      name: `${positiveCallCount} positive call sentiment(s)`,
+      impact: 'positive',
+      weight: 0.15,
+    });
+    baseScore += 0.05 * positiveCallCount;
   }
 
   return {
@@ -422,11 +602,18 @@ function generateBasicNextAction(lead: Lead): string {
 }
 
 /**
- * Determine priority based on lead status
+ * Determine priority based on lead status and call recordings
  */
-function determinePriority(lead: Lead): 'high' | 'medium' | 'low' {
-  if (lead.status === 'hot') return 'high';
-  if (lead.status === 'follow_up') return 'medium';
+function determinePriority(lead: Lead, callRecordings: CallRecording[] = []): 'high' | 'medium' | 'low' {
+  // Check for urgency signals in call recordings
+  const hasUrgentCall = callRecordings.some(
+    (c) => c.ai_insights?.positive_signals?.some(
+      (s) => s.toLowerCase().includes('urgent') || s.toLowerCase().includes('immediate')
+    )
+  );
+
+  if (lead.status === 'hot' || hasUrgentCall) return 'high';
+  if (lead.status === 'follow_up' || callRecordings.length > 0) return 'medium';
   return 'low';
 }
 

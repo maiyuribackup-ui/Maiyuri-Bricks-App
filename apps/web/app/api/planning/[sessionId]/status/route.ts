@@ -126,14 +126,16 @@ export async function GET(
           stages,
         });
 
-      case 'complete':
+      case 'complete': {
+        const storedImages = session.generatedImages;
+        const contextImages = session.designContext?.generatedImages;
         return success({
           status: 'complete',
           result: progress?.result || {
             images: {
-              floorPlan: session.designContext?.generatedImages?.floorPlan,
-              courtyard: session.designContext?.generatedImages?.courtyard,
-              exterior: session.designContext?.generatedImages?.exterior,
+              floorPlan: storedImages?.floorPlan || contextImages?.floorPlan,
+              courtyard: storedImages?.courtyard || contextImages?.courtyard,
+              exterior: storedImages?.exterior || contextImages?.exterior,
             },
             designContext: {
               rooms: session.designContext?.rooms,
@@ -158,6 +160,7 @@ export async function GET(
           },
           stages,
         });
+      }
 
       case 'failed':
         return success({

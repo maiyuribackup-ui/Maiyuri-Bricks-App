@@ -2,10 +2,10 @@
  * CloudCore Type Definitions
  */
 
-import type { Lead, Note, User, KnowledgebaseEntry } from '@maiyuri/shared';
+import type { Lead, Note, User, KnowledgebaseEntry, CallRecording, CallRecordingInsights, LeadUrgency, ConversionLever } from '@maiyuri/shared';
 
 // Re-export shared types
-export type { Lead, Note, User, KnowledgebaseEntry };
+export type { Lead, Note, User, KnowledgebaseEntry, CallRecording, CallRecordingInsights, LeadUrgency, ConversionLever };
 
 // ============================================
 // Core Result Types

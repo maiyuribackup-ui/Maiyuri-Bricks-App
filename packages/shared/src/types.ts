@@ -4,6 +4,10 @@ export type LeadStatus = 'new' | 'follow_up' | 'hot' | 'cold' | 'converted' | 'l
 
 export type UserRole = 'founder' | 'accountant' | 'engineer';
 
+// Lead Intelligence Types - for decision cockpit
+export type LeadUrgency = 'immediate' | '1-3_months' | '3-6_months' | 'unknown';
+export type ConversionLever = 'proof' | 'price' | 'visit' | 'relationship' | 'timeline';
+
 export type LanguagePreference = 'en' | 'ta';
 
 export interface AIFactor {
@@ -30,6 +34,11 @@ export interface Lead {
   ai_score?: number | null;
   ai_factors?: AIFactor[] | null;
   ai_suggestions?: AISuggestionItem[] | null;
+  // Lead Intelligence - consolidated from call recordings
+  urgency?: LeadUrgency | null;
+  dominant_objection?: string | null;
+  best_conversion_lever?: ConversionLever | null;
+  lost_reason?: string | null;
   next_action?: string | null;
   follow_up_date?: string | null;
   created_at: string;
@@ -288,6 +297,11 @@ export type CallRecordingStatus =
   | 'completed'
   | 'failed';
 
+// Call Recording Structured Types for Decision Cockpit
+export type CallIntent = 'price_enquiry' | 'technical_validation' | 'site_visit' | 'comparison' | 'research' | 'complaint' | 'order_follow_up';
+export type BuyerRole = 'owner' | 'engineer' | 'contractor' | 'influencer' | 'unknown';
+export type UrgencySignal = 'immediate' | '1-3_months' | '3-6_months' | 'unknown';
+
 export interface CallRecordingInsights {
   complaints?: string[];
   negative_feedback?: string[];
@@ -296,6 +310,12 @@ export interface CallRecordingInsights {
   positive_signals?: string[];
   recommended_actions?: string[];
   sentiment?: 'positive' | 'negative' | 'neutral' | 'mixed';
+  // Structured fields for decision cockpit
+  primary_intent?: CallIntent;
+  buyer_role?: BuyerRole;
+  urgency_signal?: UrgencySignal;
+  key_objection?: string;
+  budget_range?: string;
 }
 
 export interface CallRecording {

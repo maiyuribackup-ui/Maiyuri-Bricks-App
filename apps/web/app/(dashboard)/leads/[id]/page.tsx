@@ -6,8 +6,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Card, Button, Badge, Spinner, Modal } from '@maiyuri/ui';
-import { createNoteSchema, type CreateNoteInput, type Lead, type Note, type LeadStatus } from '@maiyuri/shared';
+import { createNoteSchema, type CreateNoteInput, type Lead, type Note, type LeadStatus, type CallRecording } from '@maiyuri/shared';
 import { AIAnalysisPanel, AudioUpload } from '@/components/leads';
+import { LeadIntelligenceSummary } from '@/components/leads/LeadIntelligenceSummary';
+import { LeadActivityTimeline } from '@/components/timeline';
 import { PriceEstimatorPanel } from '@/components/estimates';
 import Link from 'next/link';
 import { Toaster, toast } from 'sonner';
@@ -32,6 +34,12 @@ async function fetchLead(id: string) {
 async function fetchNotes(leadId: string) {
   const res = await fetch(`/api/leads/${leadId}/notes`);
   if (!res.ok) throw new Error('Failed to fetch notes');
+  return res.json();
+}
+
+async function fetchCallRecordings(leadId: string) {
+  const res = await fetch(`/api/leads/${leadId}/call-recordings`);
+  if (!res.ok) throw new Error('Failed to fetch call recordings');
   return res.json();
 }
 
@@ -97,8 +105,14 @@ export default function LeadDetailPage() {
     queryFn: () => fetchNotes(leadId),
   });
 
+  const { data: callRecordingsData, isLoading: callRecordingsLoading } = useQuery({
+    queryKey: ['callRecordings', leadId],
+    queryFn: () => fetchCallRecordings(leadId),
+  });
+
   const lead: Lead | null = leadData?.data;
   const notes: Note[] = notesData?.data || [];
+  const callRecordings: CallRecording[] = callRecordingsData?.data || [];
 
   const statusMutation = useMutation({
     mutationFn: (status: LeadStatus) => updateLeadStatus(leadId, status),
@@ -221,64 +235,42 @@ export default function LeadDetailPage() {
         </div>
       </div>
 
+      {/* Lead Intelligence Summary - Decision Cockpit */}
+      <LeadIntelligenceSummary
+        lead={lead}
+        onRefresh={() => {
+          queryClient.invalidateQueries({ queryKey: ['lead', leadId] });
+        }}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Notes Section */}
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                Notes & Interactions
-              </h2>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    setShowAudioUpload(!showAudioUpload);
-                    setShowNoteForm(false);
-                  }}
-                >
-                  <MicrophoneIcon className="h-4 w-4 mr-1" />
-                  {showAudioUpload ? 'Cancel' : 'Audio'}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setShowNoteForm(!showNoteForm);
-                    setShowAudioUpload(false);
-                  }}
-                >
-                  {showNoteForm ? 'Cancel' : 'Add Note'}
-                </Button>
-              </div>
-            </div>
+          {/* Audio Upload Section (shown above timeline) */}
+          {showAudioUpload && (
+            <Card className="p-4 bg-slate-50 dark:bg-slate-800">
+              <AudioUpload
+                leadId={leadId}
+                onTranscriptionComplete={async (transcription) => {
+                  // Create a note with the transcription
+                  await noteMutation.mutateAsync({
+                    text: transcription.text,
+                    lead_id: leadId,
+                  });
+                  setShowAudioUpload(false);
+                }}
+                onError={(error) => {
+                  console.error('Audio upload error:', error);
+                }}
+              />
+            </Card>
+          )}
 
-            {/* Audio Upload Section */}
-            {showAudioUpload && (
-              <div className="mb-6 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                <AudioUpload
-                  leadId={leadId}
-                  onTranscriptionComplete={async (transcription) => {
-                    // Create a note with the transcription
-                    await noteMutation.mutateAsync({
-                      text: transcription.text,
-                      lead_id: leadId,
-                    });
-                    setShowAudioUpload(false);
-                  }}
-                  onError={(error) => {
-                    console.error('Audio upload error:', error);
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Add Note Form */}
-            {showNoteForm && (
+          {/* Add Note Form (shown above timeline) */}
+          {showNoteForm && (
+            <Card className="p-4 bg-slate-50 dark:bg-slate-800">
               <form
                 onSubmit={handleSubmit((data) => noteMutation.mutate(data))}
-                className="mb-6 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg"
               >
                 <textarea
                   {...register('text')}
@@ -295,52 +287,25 @@ export default function LeadDetailPage() {
                   </Button>
                 </div>
               </form>
-            )}
+            </Card>
+          )}
 
-            {/* Notes Timeline */}
-            {notesLoading ? (
-              <div className="flex justify-center py-8">
-                <Spinner />
-              </div>
-            ) : notes.length === 0 ? (
-              <p className="text-center py-8 text-slate-500">
-                No notes yet. Add your first note above.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {notes.map((note) => (
-                  <div
-                    key={note.id}
-                    className="border-l-2 border-slate-200 dark:border-slate-700 pl-4 pb-4"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs text-slate-500">
-                        {new Date(note.date).toLocaleDateString()}
-                      </span>
-                      {note.confidence_score && (
-                        <Badge
-                          variant={
-                            note.confidence_score >= 0.7 ? 'success' :
-                            note.confidence_score >= 0.4 ? 'warning' : 'danger'
-                          }
-                        >
-                          {Math.round(note.confidence_score * 100)}% confidence
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
-                      {note.text}
-                    </p>
-                    {note.ai_summary && (
-                      <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-sm text-blue-700 dark:text-blue-300">
-                        <strong>AI Summary:</strong> {note.ai_summary}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+          {/* Unified Lead Activity Timeline */}
+          <LeadActivityTimeline
+            notes={notes}
+            callRecordings={callRecordings}
+            loading={notesLoading || callRecordingsLoading}
+            onAddNote={() => {
+              setShowNoteForm(!showNoteForm);
+              setShowAudioUpload(false);
+            }}
+            onAddAudio={() => {
+              setShowAudioUpload(!showAudioUpload);
+              setShowNoteForm(false);
+            }}
+            showNoteForm={showNoteForm}
+            showAudioUpload={showAudioUpload}
+          />
         </div>
 
         {/* Sidebar */}
@@ -566,14 +531,6 @@ function TrashIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-    </svg>
-  );
-}
-
-function MicrophoneIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
     </svg>
   );
 }

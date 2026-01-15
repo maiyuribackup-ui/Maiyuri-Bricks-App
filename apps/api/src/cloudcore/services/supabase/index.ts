@@ -4,7 +4,7 @@
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { Lead, Note, User, KnowledgebaseEntry, CloudCoreResult } from '../../types';
+import type { Lead, Note, User, KnowledgebaseEntry, CloudCoreResult, CallRecording, CallRecordingInsights, LeadUrgency, ConversionLever } from '../../types';
 
 // Lazy initialization to avoid build-time errors
 let _supabase: SupabaseClient | null = null;
@@ -393,6 +393,155 @@ export async function deleteNote(id: string): Promise<CloudCoreResult<void>> {
 }
 
 // ============================================
+// Call Recording Operations
+// ============================================
+
+export async function getCallRecordings(leadId: string): Promise<CloudCoreResult<CallRecording[]>> {
+  const startTime = Date.now();
+
+  try {
+    const { data, error } = await supabase
+      .from('call_recordings')
+      .select('*')
+      .eq('lead_id', leadId)
+      .eq('processing_status', 'completed')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    return {
+      success: true,
+      data: (data || []) as CallRecording[],
+      meta: { processingTime: Date.now() - startTime },
+    };
+  } catch (error) {
+    console.error('Error getting call recordings:', error);
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: 'GET_CALL_RECORDINGS_ERROR',
+        message: error instanceof Error ? error.message : 'Failed to get call recordings',
+      },
+    };
+  }
+}
+
+/**
+ * Update lead intelligence fields from call recording insights.
+ * Called after a call recording is analyzed to consolidate intelligence at the lead level.
+ */
+export async function updateLeadFromCallInsights(
+  leadId: string,
+  insights: CallRecordingInsights,
+  options?: {
+    scoreImpact?: number;
+    updateAIScore?: boolean;
+  }
+): Promise<CloudCoreResult<Lead>> {
+  const startTime = Date.now();
+
+  try {
+    // Map call recording insights to lead intelligence fields
+    const updates: Partial<Lead> = {};
+
+    // Map urgency signal to lead urgency
+    if (insights.urgency_signal) {
+      updates.urgency = insights.urgency_signal as LeadUrgency;
+    }
+
+    // Map key objection to dominant objection
+    if (insights.key_objection) {
+      updates.dominant_objection = insights.key_objection;
+    }
+
+    // Determine best conversion lever based on primary intent
+    if (insights.primary_intent) {
+      const intentToLever: Record<string, ConversionLever> = {
+        price_enquiry: 'price',
+        technical_validation: 'proof',
+        site_visit: 'visit',
+        comparison: 'price',
+        research: 'proof',
+        complaint: 'relationship',
+        order_follow_up: 'timeline',
+      };
+      const lever = intentToLever[insights.primary_intent];
+      if (lever) {
+        updates.best_conversion_lever = lever;
+      }
+    }
+
+    // Update AI score if requested and impact is provided
+    // Note: ai_score is stored as 0-1 (e.g., 0.75 = 75%), scoreImpact should also be 0-1 scale
+    if (options?.updateAIScore && options.scoreImpact !== undefined) {
+      // Get current lead to adjust score
+      const { data: currentLead, error: getError } = await supabase
+        .from('leads')
+        .select('ai_score')
+        .eq('id', leadId)
+        .single();
+
+      if (!getError && currentLead) {
+        const currentScore = currentLead.ai_score || 0.5;
+        // Apply score impact (capped between 0-1)
+        const newScore = Math.max(0, Math.min(1, currentScore + options.scoreImpact));
+        // Round to 2 decimal places to match NUMERIC(3,2) constraint
+        updates.ai_score = Math.round(newScore * 100) / 100;
+      }
+    }
+
+    // Only update if there are changes
+    if (Object.keys(updates).length === 0) {
+      // Return current lead if no updates
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('id', leadId)
+        .single();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: data as Lead,
+        meta: { processingTime: Date.now() - startTime },
+      };
+    }
+
+    // Apply updates
+    const { data, error } = await supabase
+      .from('leads')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', leadId)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return {
+      success: true,
+      data: data as Lead,
+      meta: { processingTime: Date.now() - startTime },
+    };
+  } catch (error) {
+    console.error('Error updating lead from call insights:', error);
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: 'UPDATE_LEAD_FROM_CALL_INSIGHTS_ERROR',
+        message: error instanceof Error ? error.message : 'Failed to update lead from call insights',
+      },
+    };
+  }
+}
+
+// ============================================
 // User Operations
 // ============================================
 
@@ -700,6 +849,9 @@ export default {
   createNote,
   updateNote,
   deleteNote,
+  // Call Recordings
+  getCallRecordings,
+  updateLeadFromCallInsights,
   // Users
   getUser,
   getUsers,

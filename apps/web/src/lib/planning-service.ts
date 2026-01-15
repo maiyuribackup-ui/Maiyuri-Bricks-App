@@ -39,6 +39,12 @@ export interface PlanningSession {
   designContext?: DesignContext;
   generationProgress?: GenerationProgress;
   blueprintImage?: { base64Data: string; mimeType: string };
+  generatedImages?: {
+    floorPlan?: string;
+    courtyard?: string;
+    exterior?: string;
+    interior?: string;
+  };
   error?: string;
 }
 
@@ -80,7 +86,7 @@ const BLUEPRINT_STAGES = [
 ];
 
 /**
- * Generation stages for progress tracking - Isometric Phase (after blueprint confirmation)
+ * Generation stages for progress tracking - Isometric Phase
  */
 const ISOMETRIC_STAGES = [
   { id: 'visualization', label: 'Preparing 3D visualization', icon: '🎨', agentName: 'visualization' },
@@ -90,7 +96,7 @@ const ISOMETRIC_STAGES = [
 /**
  * Combined stages for full progress display
  */
-const ALL_STAGES = [...BLUEPRINT_STAGES, { id: 'confirmation', label: 'Awaiting blueprint confirmation', icon: '✋', agentName: 'user-confirmation' }, ...ISOMETRIC_STAGES];
+const ALL_STAGES = [...BLUEPRINT_STAGES, ...ISOMETRIC_STAGES];
 
 /**
  * In-memory session store (fallback when Supabase is disabled)
@@ -134,6 +140,7 @@ function dbToSession(db: DbFloorPlanSession): PlanningSession {
     updatedAt: new Date(db.updated_at),
     designContext: db.design_context as unknown as DesignContext | undefined,
     blueprintImage: db.blueprint_image || undefined,
+    generatedImages: db.generated_images || undefined,
     generationProgress: undefined, // Loaded separately from progress table
   };
 }
@@ -478,7 +485,7 @@ export const planningService = {
   },
 
   /**
-   * Start floor plan generation - runs full pipeline but pauses for blueprint confirmation
+   * Start floor plan generation - runs full pipeline and returns all images
    */
   async startGeneration(sessionId: string): Promise<void> {
     const session = sessions.get(sessionId);
@@ -526,29 +533,37 @@ export const planningService = {
         ? { imageBase64: surveyImage, mimeType: 'image/png' as const }
         : {};
 
-      // Run full pipeline - we'll pause after showing blueprint for confirmation
+      // Run full pipeline - generate all images in a single pass
       const context = await pipeline.runPipeline(
         pipelineInput,
         contextInput as Partial<DesignContext>,
         session.sessionId
       );
 
-      // Update session - pause for blueprint confirmation before revealing 3D views
+      // Update session - mark complete with all generated images
       const sess = sessions.get(sessionId);
       if (sess) {
-        sess.status = 'awaiting_blueprint_confirmation';
+        sess.status = 'complete';
         sess.designContext = context;
-        sess.blueprintImage = context.generatedImages?.floorPlan;
+        sess.generatedImages = {
+          floorPlan: context.generatedImages?.floorPlan?.base64Data,
+          courtyard: context.generatedImages?.courtyard?.base64Data,
+          exterior: context.generatedImages?.exterior?.base64Data,
+          interior: context.generatedImages?.interior?.base64Data,
+        };
         sess.generationProgress = {
           ...sess.generationProgress!,
-          status: 'awaiting_confirmation',
-          currentStage: 'Blueprint ready - awaiting your confirmation',
-          stageIndex: BLUEPRINT_STAGES.length,
-          percent: Math.round((BLUEPRINT_STAGES.length / ALL_STAGES.length) * 100),
-          phase: 'blueprint',
+          status: 'complete',
+          currentStage: 'Complete',
+          stageIndex: ALL_STAGES.length,
+          percent: 100,
+          completedAt: new Date(),
+          phase: 'isometric',
           result: {
             images: {
               floorPlan: context.generatedImages?.floorPlan,
+              courtyard: context.generatedImages?.courtyard,
+              exterior: context.generatedImages?.exterior,
             },
             designContext: context as unknown as Partial<DesignContext>,
           },
@@ -557,14 +572,18 @@ export const planningService = {
 
         // Persist to Supabase
         if (USE_SUPABASE) {
-          await floorPlanSupabase.updateSessionStatus(sessionId, 'awaiting_blueprint_confirmation');
-          await floorPlanSupabase.updateBlueprintImage(sessionId, context.generatedImages?.floorPlan || null);
+          await floorPlanSupabase.updateSessionStatus(sessionId, 'complete');
           await floorPlanSupabase.updateDesignContext(sessionId, context as unknown as import('./floor-plan-supabase').DbFloorPlanSession['design_context']);
+          await floorPlanSupabase.updateGeneratedImages(sessionId, {
+            floorPlan: context.generatedImages?.floorPlan?.base64Data,
+            courtyard: context.generatedImages?.courtyard?.base64Data,
+            exterior: context.generatedImages?.exterior?.base64Data,
+          });
           await floorPlanSupabase.updateProgress(sessionId, {
-            phase: 'blueprint',
-            current_stage: 'Blueprint ready - awaiting your confirmation',
-            percent: Math.round((BLUEPRINT_STAGES.length / ALL_STAGES.length) * 100),
-            stages: BLUEPRINT_STAGES.map(s => ({
+            phase: 'isometric',
+            current_stage: 'Complete',
+            percent: 100,
+            stages: ALL_STAGES.map(s => ({
               id: s.id,
               label: s.label,
               icon: s.icon,
@@ -597,7 +616,23 @@ export const planningService = {
             phase: 'blueprint',
           };
         }
+
+        // Always update in-memory cache first
         sessions.set(sessionId, sess);
+
+        // Then persist to Supabase (don't block on errors)
+        if (USE_SUPABASE) {
+          try {
+            if (error instanceof HaltError) {
+              await floorPlanSupabase.updateSessionStatus(sessionId, 'halted');
+              await floorPlanSupabase.updateDesignContext(sessionId, error.context as unknown as import('./floor-plan-supabase').DbFloorPlanSession['design_context']);
+            } else {
+              await floorPlanSupabase.updateSessionStatus(sessionId, 'failed');
+            }
+          } catch (supabaseError) {
+            console.error('Failed to persist session status to Supabase:', supabaseError);
+          }
+        }
       }
 
       // Re-throw validation errors for special handling
@@ -785,7 +820,6 @@ export const planningService = {
       status:
         !progress ? 'pending' :
         progress.status === 'failed' && progress.currentAgent === stage.agentName ? 'failed' :
-        stage.id === 'confirmation' && session?.status === 'awaiting_blueprint_confirmation' ? 'awaiting_confirmation' :
         i < (progress.stageIndex || 0) ? 'completed' :
         i === (progress.stageIndex || 0) ? 'in_progress' :
         'pending',
