@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "installCommand": "npm install --legacy-peer-deps --registry=https://registry.npmjs.org --no-audit",
+  "installCommand": "echo 'registry=https://registry.npmjs.org' > ~/.npmrc && npm install --legacy-peer-deps --no-audit",
   "buildCommand": "npm run build",
   "crons": [
     {
