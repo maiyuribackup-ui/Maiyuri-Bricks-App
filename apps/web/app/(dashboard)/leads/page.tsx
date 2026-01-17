@@ -12,22 +12,6 @@ import {
   type LeadStage,
 } from "@maiyuri/shared";
 import { Toaster, toast } from "sonner";
-import {
-  ArchiveSuggestionsPanel,
-  ArchiveConfigPanel,
-} from "@/components/archive";
-import { useArchiveSuggestions } from "@/hooks/useArchive";
-
-// Odoo sync function
-async function syncAllWithOdoo(type: "full" | "push" | "pull" = "full") {
-  const res = await fetch("/api/odoo/sync", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ type }),
-  });
-  if (!res.ok) throw new Error("Sync failed");
-  return res.json();
-}
 
 // ============================================================================
 // CONSTANTS & HELPERS
@@ -243,13 +227,7 @@ async function updateLeadStatus(id: string, status: LeadStatus) {
 export default function LeadsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [activeView, setActiveView] = useState<ViewType>("all");
-  const [showArchivePanel, setShowArchivePanel] = useState(false);
-  const [showConfigPanel, setShowConfigPanel] = useState(false);
   const queryClient = useQueryClient();
-
-  // Fetch archive suggestions count for badge
-  const { data: archiveData } = useArchiveSuggestions();
-  const pendingSuggestionsCount = archiveData?.suggestions?.length ?? 0;
 
   // Status Mutation
   const statusMutation = useMutation({
@@ -295,20 +273,6 @@ export default function LeadsPage() {
       toast.success(isArchivedView ? "Lead unarchived" : "Lead archived");
     },
     onError: () => toast.error("Failed to update lead"),
-  });
-
-  // Odoo Sync Mutation
-  const odooSyncMutation = useMutation({
-    mutationFn: (type: "full" | "push" | "pull") => syncAllWithOdoo(type),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["leads"] });
-      toast.success(`Odoo Sync: ${data.message}`);
-    },
-    onError: (error) => {
-      toast.error(
-        `Sync failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    },
   });
 
   const handleArchiveToggle = (e: React.MouseEvent, lead: Lead) => {
@@ -468,31 +432,6 @@ export default function LeadsPage() {
               Kanban
             </button>
           </div>
-          <Button
-            variant="secondary"
-            onClick={() => setShowArchivePanel(true)}
-            className="relative"
-          >
-            <ArchiveIcon className="h-4 w-4 mr-2" />
-            Smart Archive
-            {pendingSuggestionsCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-white">
-                {pendingSuggestionsCount > 9 ? "9+" : pendingSuggestionsCount}
-              </span>
-            )}
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => odooSyncMutation.mutate("full")}
-            disabled={odooSyncMutation.isPending}
-          >
-            <OdooIcon className="h-4 w-4 mr-2" />
-            {odooSyncMutation.isPending ? "Syncing..." : "Sync Odoo"}
-          </Button>
-          <Button variant="secondary" onClick={() => refetch()}>
-            <RefreshIcon className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
           <Link href="/leads/new">
             <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
               <PlusIcon className="h-4 w-4 mr-2" />
@@ -737,16 +676,6 @@ export default function LeadsPage() {
       ) : null}
 
       {hoveredLead && <LeadHoverCard lead={hoveredLead} />}
-
-      {/* Archive Panels */}
-      <ArchiveSuggestionsPanel
-        isOpen={showArchivePanel}
-        onClose={() => setShowArchivePanel(false)}
-      />
-      <ArchiveConfigPanel
-        isOpen={showConfigPanel}
-        onClose={() => setShowConfigPanel(false)}
-      />
     </div>
   );
 }
@@ -947,34 +876,6 @@ function EmptyState({
 function PlusIcon({ className: _className }: { className?: string }) {
   return <span>+</span>;
 }
-function RefreshIcon({ className: _className }: { className?: string }) {
-  return <span>🔄</span>;
-}
 function SearchIcon({ className: _className }: { className?: string }) {
   return <span>🔍</span>;
-}
-function ArchiveIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"
-      />
-    </svg>
-  );
-}
-
-function OdooIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
-    </svg>
-  );
 }
