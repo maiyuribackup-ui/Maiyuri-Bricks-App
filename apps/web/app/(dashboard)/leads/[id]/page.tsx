@@ -1,88 +1,103 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Card, Button, Badge, Spinner, Modal } from '@maiyuri/ui';
-import { createNoteSchema, type CreateNoteInput, type Lead, type Note, type LeadStatus, type CallRecording } from '@maiyuri/shared';
-import { AIAnalysisPanel, AudioUpload } from '@/components/leads';
-import { LeadIntelligenceSummary } from '@/components/leads/LeadIntelligenceSummary';
-import { LeadActivityTimeline } from '@/components/timeline';
-import { PriceEstimatorPanel } from '@/components/estimates';
-import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
-import Link from 'next/link';
-import { Toaster, toast } from 'sonner';
+import { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Card, Button, Badge, Spinner, Modal } from "@maiyuri/ui";
+import {
+  createNoteSchema,
+  type CreateNoteInput,
+  type Lead,
+  type Note,
+  type LeadStatus,
+  type CallRecording,
+} from "@maiyuri/shared";
+import {
+  AIAnalysisPanel,
+  AudioUpload,
+  WhatsAppButton,
+} from "@/components/leads";
+import { LeadIntelligenceSummary } from "@/components/leads/LeadIntelligenceSummary";
+import { LeadActivityTimeline } from "@/components/timeline";
+import { PriceEstimatorPanel } from "@/components/estimates";
+import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
+import Link from "next/link";
+import { Toaster, toast } from "sonner";
 
 const statusLabels: Record<LeadStatus, string> = {
-  new: 'New',
-  follow_up: 'Follow Up',
-  hot: 'Hot',
-  cold: 'Cold',
-  converted: 'Converted',
-  lost: 'Lost',
+  new: "New",
+  follow_up: "Follow Up",
+  hot: "Hot",
+  cold: "Cold",
+  converted: "Converted",
+  lost: "Lost",
 };
 
-const statusOptions: LeadStatus[] = ['new', 'follow_up', 'hot', 'cold', 'converted', 'lost'];
+const statusOptions: LeadStatus[] = [
+  "new",
+  "follow_up",
+  "hot",
+  "cold",
+  "converted",
+  "lost",
+];
 
 async function fetchLead(id: string) {
   const res = await fetch(`/api/leads/${id}`);
-  if (!res.ok) throw new Error('Failed to fetch lead');
+  if (!res.ok) throw new Error("Failed to fetch lead");
   return res.json();
 }
 
 async function fetchNotes(leadId: string) {
   const res = await fetch(`/api/leads/${leadId}/notes`);
-  if (!res.ok) throw new Error('Failed to fetch notes');
+  if (!res.ok) throw new Error("Failed to fetch notes");
   return res.json();
 }
 
 async function fetchCallRecordings(leadId: string) {
   const res = await fetch(`/api/leads/${leadId}/call-recordings`);
-  if (!res.ok) throw new Error('Failed to fetch call recordings');
+  if (!res.ok) throw new Error("Failed to fetch call recordings");
   return res.json();
 }
 
 async function updateLeadStatus(id: string, status: LeadStatus) {
   const res = await fetch(`/api/leads/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status }),
   });
-  if (!res.ok) throw new Error('Failed to update status');
+  if (!res.ok) throw new Error("Failed to update status");
   return res.json();
 }
 
 async function deleteLead(id: string) {
-  const res = await fetch(`/api/leads/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error('Failed to delete lead');
+  const res = await fetch(`/api/leads/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete lead");
   return res.json();
 }
 
-async function syncLeadWithOdoo(leadId: string, action: 'push' | 'pull' | 'both' = 'both') {
+async function syncLeadWithOdoo(
+  leadId: string,
+  action: "push" | "pull" | "both" = "both",
+) {
   const res = await fetch(`/api/odoo/sync/${leadId}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action }),
   });
-  if (!res.ok) throw new Error('Sync failed');
-  return res.json();
-}
-
-async function getLeadOdooStatus(leadId: string) {
-  const res = await fetch(`/api/odoo/sync/${leadId}`);
-  if (!res.ok) throw new Error('Failed to get sync status');
+  if (!res.ok) throw new Error("Sync failed");
   return res.json();
 }
 
 async function createNote(leadId: string, data: CreateNoteInput) {
   const res = await fetch(`/api/leads/${leadId}/notes`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...data, lead_id: leadId }),
   });
-  if (!res.ok) throw new Error('Failed to create note');
+  if (!res.ok) throw new Error("Failed to create note");
   return res.json();
 }
 
@@ -97,19 +112,20 @@ export default function LeadDetailPage() {
   const [showEstimator, setShowEstimator] = useState(false);
 
   const { data: leadData, isLoading: leadLoading } = useQuery({
-    queryKey: ['lead', leadId],
+    queryKey: ["lead", leadId],
     queryFn: () => fetchLead(leadId),
   });
 
   const { data: notesData, isLoading: notesLoading } = useQuery({
-    queryKey: ['notes', leadId],
+    queryKey: ["notes", leadId],
     queryFn: () => fetchNotes(leadId),
   });
 
-  const { data: callRecordingsData, isLoading: callRecordingsLoading } = useQuery({
-    queryKey: ['callRecordings', leadId],
-    queryFn: () => fetchCallRecordings(leadId),
-  });
+  const { data: callRecordingsData, isLoading: callRecordingsLoading } =
+    useQuery({
+      queryKey: ["callRecordings", leadId],
+      queryFn: () => fetchCallRecordings(leadId),
+    });
 
   const lead: Lead | null = leadData?.data;
   const notes: Note[] = notesData?.data || [];
@@ -118,16 +134,16 @@ export default function LeadDetailPage() {
   const statusMutation = useMutation({
     mutationFn: (status: LeadStatus) => updateLeadStatus(leadId, status),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lead', leadId] });
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteLead(leadId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-      router.push('/leads');
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      router.push("/leads");
     },
   });
 
@@ -144,7 +160,7 @@ export default function LeadDetailPage() {
   const noteMutation = useMutation({
     mutationFn: (data: CreateNoteInput) => createNote(leadId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notes', leadId] });
+      queryClient.invalidateQueries({ queryKey: ["notes", leadId] });
       reset();
       setShowNoteForm(false);
     },
@@ -152,18 +168,21 @@ export default function LeadDetailPage() {
 
   // Odoo Sync Mutation
   const odooSyncMutation = useMutation({
-    mutationFn: (action: 'push' | 'pull' | 'both') => syncLeadWithOdoo(leadId, action),
+    mutationFn: (action: "push" | "pull" | "both") =>
+      syncLeadWithOdoo(leadId, action),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['lead', leadId] });
+      queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
       const pushResult = data.results?.push;
       const pullResult = data.results?.pull;
-      let message = 'Sync completed: ';
-      if (pushResult?.success) message += pushResult.message + ' ';
+      let message = "Sync completed: ";
+      if (pushResult?.success) message += pushResult.message + " ";
       if (pullResult?.success) message += pullResult.message;
       toast.success(message.trim());
     },
     onError: (error) => {
-      toast.error(`Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(
+        `Sync failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     },
   });
 
@@ -189,58 +208,174 @@ export default function LeadDetailPage() {
   return (
     <div className="space-y-6">
       <Toaster position="top-right" />
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <Link
-            href="/leads"
-            className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 mt-1"
-          >
-            <ArrowLeftIcon className="h-5 w-5 text-slate-500" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-                {lead.name}
-              </h1>
-              <Badge
-                variant={
-                  lead.status === 'hot' ? 'danger' :
-                  lead.status === 'converted' ? 'success' :
-                  lead.status === 'follow_up' ? 'warning' : 'default'
-                }
+
+      {/* Enhanced Header Card - Issue #8 */}
+      <Card className="p-0 overflow-hidden">
+        {/* Status Color Bar */}
+        <div className={`h-2 ${getStatusColor(lead.status)}`} />
+
+        <div className="p-6">
+          {/* Top Row: Back, Name, Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+            <div className="flex items-start gap-4">
+              <Link
+                href="/leads"
+                className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 mt-1"
+              >
+                <ArrowLeftIcon className="h-5 w-5 text-slate-500" />
+              </Link>
+              <div>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {lead.name}
+                  </h1>
+                  <Badge
+                    variant={
+                      lead.status === "hot"
+                        ? "danger"
+                        : lead.status === "converted"
+                          ? "success"
+                          : lead.status === "follow_up"
+                            ? "warning"
+                            : "default"
+                    }
+                    className="text-sm px-3 py-1"
+                  >
+                    {statusLabels[lead.status]}
+                  </Badge>
+                </div>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  <PhoneIcon className="h-4 w-4 inline mr-1" />
+                  {lead.contact} • {lead.source} • {lead.lead_type}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 ml-11 sm:ml-0">
+              <Link href={`/leads/${leadId}/edit`}>
+                <Button variant="secondary" size="sm">
+                  <EditIcon className="h-4 w-4 mr-1" />
+                  Edit
+                </Button>
+              </Link>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setShowDeleteModal(true)}
+              >
+                <TrashIcon className="h-4 w-4 mr-1" />
+                Delete
+              </Button>
+            </div>
+          </div>
+
+          {/* Key Metrics Row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+            {/* AI Score */}
+            <div className="text-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                AI Score
+              </div>
+              <div
+                className={`text-2xl font-bold ${getScoreColor(lead.ai_score)}`}
+              >
+                {lead.ai_score != null ? `${lead.ai_score}%` : "—"}
+              </div>
+              {lead.ai_score != null && (
+                <div className="text-xs text-slate-500 mt-1">
+                  {getScoreLabel(lead.ai_score)}
+                </div>
+              )}
+            </div>
+
+            {/* Status */}
+            <div className="text-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                Status
+              </div>
+              <div
+                className={`text-lg font-semibold ${getStatusTextColor(lead.status)}`}
               >
                 {statusLabels[lead.status]}
-              </Badge>
+              </div>
+              {lead.urgency && (
+                <div className="text-xs text-slate-500 mt-1">
+                  {formatUrgency(lead.urgency)}
+                </div>
+              )}
             </div>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              {lead.contact} • {lead.source} • {lead.lead_type}
-            </p>
+
+            {/* Next Action */}
+            <div className="text-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                Next Action
+              </div>
+              <div className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                {lead.next_action || "—"}
+              </div>
+              {lead.follow_up_date && (
+                <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                  📅{" "}
+                  {new Date(lead.follow_up_date).toLocaleDateString("en-IN", {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Quote/Order Value */}
+            <div className="text-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                {lead.odoo_order_amount ? "Order Value" : "Quote Value"}
+              </div>
+              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                {lead.odoo_order_amount
+                  ? `₹${(lead.odoo_order_amount ?? 0).toLocaleString("en-IN")}`
+                  : lead.odoo_quote_amount
+                    ? `₹${(lead.odoo_quote_amount ?? 0).toLocaleString("en-IN")}`
+                    : "—"}
+              </div>
+              {(lead.odoo_quote_number || lead.odoo_order_number) && (
+                <div className="text-xs text-slate-500 mt-1">
+                  {lead.odoo_order_number || lead.odoo_quote_number}
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Classification & Location Row */}
+          {(lead.classification ||
+            lead.requirement_type ||
+            lead.site_region) && (
+            <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+              {lead.classification && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                  {formatClassification(lead.classification)}
+                </span>
+              )}
+              {lead.requirement_type && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                  {formatRequirementType(lead.requirement_type)}
+                </span>
+              )}
+              {(lead.site_region || lead.site_location) && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300">
+                  📍{" "}
+                  {[lead.site_location, lead.site_region]
+                    .filter(Boolean)
+                    .join(", ")}
+                </span>
+              )}
+            </div>
+          )}
         </div>
-        <div className="flex gap-2 ml-11 sm:ml-0">
-          <Link href={`/leads/${leadId}/edit`}>
-            <Button variant="secondary" size="sm">
-              <EditIcon className="h-4 w-4 mr-1" />
-              Edit
-            </Button>
-          </Link>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => setShowDeleteModal(true)}
-          >
-            <TrashIcon className="h-4 w-4 mr-1" />
-            Delete
-          </Button>
-        </div>
-      </div>
+      </Card>
 
       {/* Lead Intelligence Summary - Decision Cockpit */}
       <LeadIntelligenceSummary
         lead={lead}
         onRefresh={() => {
-          queryClient.invalidateQueries({ queryKey: ['lead', leadId] });
+          queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
         }}
       />
 
@@ -261,7 +396,7 @@ export default function LeadDetailPage() {
                   setShowAudioUpload(false);
                 }}
                 onError={(error) => {
-                  console.error('Audio upload error:', error);
+                  console.error("Audio upload error:", error);
                 }}
               />
             </Card>
@@ -274,17 +409,19 @@ export default function LeadDetailPage() {
                 onSubmit={handleSubmit((data) => noteMutation.mutate(data))}
               >
                 <textarea
-                  {...register('text')}
+                  {...register("text")}
                   rows={4}
                   placeholder="Enter note..."
                   className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 {errors.text && (
-                  <p className="mt-1 text-sm text-red-500">{errors.text.message}</p>
+                  <p className="mt-1 text-sm text-red-500">
+                    {errors.text.message}
+                  </p>
                 )}
                 <div className="mt-3 flex gap-2">
                   <Button type="submit" size="sm" disabled={isSubmitting}>
-                    {isSubmitting ? 'Saving...' : 'Save Note'}
+                    {isSubmitting ? "Saving..." : "Save Note"}
                   </Button>
                 </div>
               </form>
@@ -312,18 +449,34 @@ export default function LeadDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* Create Estimate Button */}
+          {/* Quick Actions Card */}
           <Card className="p-4">
-            <Button
-              className="w-full"
-              onClick={() => setShowEstimator(true)}
-            >
-              <CalculatorIcon className="h-4 w-4 mr-2" />
-              Create Estimate
-            </Button>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">
-              Generate a price estimate with AI-powered discount suggestions
-            </p>
+            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+              Quick Actions
+            </h3>
+            <div className="space-y-3">
+              {/* WhatsApp Button */}
+              <div>
+                <WhatsAppButton leadId={leadId} contactNumber={lead.contact} />
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 text-center">
+                  Generate AI-powered response for WhatsApp
+                </p>
+              </div>
+
+              {/* Create Estimate Button */}
+              <div>
+                <Button
+                  className="w-full"
+                  onClick={() => setShowEstimator(true)}
+                >
+                  <CalculatorIcon className="h-4 w-4 mr-2" />
+                  Create Estimate
+                </Button>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 text-center">
+                  Generate price estimate with AI discount suggestions
+                </p>
+              </div>
+            </div>
           </Card>
 
           {/* Odoo Sync Card */}
@@ -337,17 +490,17 @@ export default function LeadDetailPage() {
                 variant="secondary"
                 size="sm"
                 className="w-full"
-                onClick={() => odooSyncMutation.mutate('both')}
+                onClick={() => odooSyncMutation.mutate("both")}
                 disabled={odooSyncMutation.isPending}
               >
-                {odooSyncMutation.isPending ? 'Syncing...' : 'Sync Now'}
+                {odooSyncMutation.isPending ? "Syncing..." : "Sync Now"}
               </Button>
               <div className="flex gap-2">
                 <Button
                   variant="secondary"
                   size="sm"
                   className="flex-1 text-xs"
-                  onClick={() => odooSyncMutation.mutate('push')}
+                  onClick={() => odooSyncMutation.mutate("push")}
                   disabled={odooSyncMutation.isPending}
                 >
                   Push to Odoo
@@ -356,7 +509,7 @@ export default function LeadDetailPage() {
                   variant="secondary"
                   size="sm"
                   className="flex-1 text-xs"
-                  onClick={() => odooSyncMutation.mutate('pull')}
+                  onClick={() => odooSyncMutation.mutate("pull")}
                   disabled={odooSyncMutation.isPending}
                 >
                   Pull Quotes
@@ -368,7 +521,9 @@ export default function LeadDetailPage() {
                 <dl className="space-y-1 text-xs">
                   <div className="flex justify-between">
                     <dt className="text-slate-500">Odoo ID</dt>
-                    <dd className="font-medium text-slate-900 dark:text-white">#{lead.odoo_lead_id}</dd>
+                    <dd className="font-medium text-slate-900 dark:text-white">
+                      #{lead.odoo_lead_id}
+                    </dd>
                   </div>
                 </dl>
 
@@ -380,7 +535,10 @@ export default function LeadDetailPage() {
                         Quotation
                       </span>
                       <div className="flex items-center gap-2">
-                        <Badge variant="success" className="text-emerald-700 dark:text-emerald-300">
+                        <Badge
+                          variant="success"
+                          className="text-emerald-700 dark:text-emerald-300"
+                        >
                           {lead.odoo_quote_number}
                         </Badge>
                         {lead.odoo_quote_id && (
@@ -400,9 +558,10 @@ export default function LeadDetailPage() {
                     {lead.odoo_quote_amount && (
                       <div className="flex items-baseline gap-1">
                         <span className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
-                          ₹{lead.odoo_quote_amount.toLocaleString('en-IN', {
+                          ₹
+                          {lead.odoo_quote_amount.toLocaleString("en-IN", {
                             minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
+                            maximumFractionDigits: 2,
                           })}
                         </span>
                       </div>
@@ -410,11 +569,15 @@ export default function LeadDetailPage() {
 
                     {lead.odoo_quote_date && (
                       <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-                        Created: {new Date(lead.odoo_quote_date).toLocaleDateString('en-IN', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        })}
+                        Created:{" "}
+                        {new Date(lead.odoo_quote_date).toLocaleDateString(
+                          "en-IN",
+                          {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          },
+                        )}
                       </p>
                     )}
                   </div>
@@ -428,7 +591,10 @@ export default function LeadDetailPage() {
                         Confirmed Order
                       </span>
                       <div className="flex items-center gap-2">
-                        <Badge variant="default" className="text-blue-700 dark:text-blue-300">
+                        <Badge
+                          variant="default"
+                          className="text-blue-700 dark:text-blue-300"
+                        >
                           {lead.odoo_order_number}
                         </Badge>
                         {lead.odoo_order_id && (
@@ -448,9 +614,10 @@ export default function LeadDetailPage() {
                     {lead.odoo_order_amount && (
                       <div className="flex items-baseline gap-1">
                         <span className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                          ₹{lead.odoo_order_amount.toLocaleString('en-IN', {
+                          ₹
+                          {lead.odoo_order_amount.toLocaleString("en-IN", {
                             minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
+                            maximumFractionDigits: 2,
                           })}
                         </span>
                       </div>
@@ -458,11 +625,15 @@ export default function LeadDetailPage() {
 
                     {lead.odoo_order_date && (
                       <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                        Confirmed: {new Date(lead.odoo_order_date).toLocaleDateString('en-IN', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        })}
+                        Confirmed:{" "}
+                        {new Date(lead.odoo_order_date).toLocaleDateString(
+                          "en-IN",
+                          {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          },
+                        )}
                       </p>
                     )}
                   </div>
@@ -473,7 +644,10 @@ export default function LeadDetailPage() {
                     <div className="flex justify-between">
                       <dt className="text-slate-500">Last Sync</dt>
                       <dd className="text-slate-600 dark:text-slate-400">
-                        {new Date(lead.odoo_synced_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+                        {new Date(lead.odoo_synced_at).toLocaleString("en-IN", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
                       </dd>
                     </div>
                   )}
@@ -500,8 +674,8 @@ export default function LeadDetailPage() {
                   disabled={statusMutation.isPending}
                   className={`px-3 py-2 text-xs font-medium rounded-md transition-colors ${
                     lead.status === status
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                      ? "bg-blue-600 text-white"
+                      : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
                   }`}
                 >
                   {statusLabels[status]}
@@ -514,7 +688,7 @@ export default function LeadDetailPage() {
           <AIAnalysisPanel
             lead={lead}
             onAnalysisComplete={() => {
-              queryClient.invalidateQueries({ queryKey: ['lead', leadId] });
+              queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
             }}
           />
 
@@ -571,7 +745,8 @@ export default function LeadDetailPage() {
         size="sm"
       >
         <p className="text-slate-600 dark:text-slate-300">
-          Are you sure you want to delete <strong>{lead.name}</strong>? This action cannot be undone.
+          Are you sure you want to delete <strong>{lead.name}</strong>? This
+          action cannot be undone.
         </p>
         <div className="mt-6 flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
@@ -582,7 +757,7 @@ export default function LeadDetailPage() {
             onClick={() => deleteMutation.mutate()}
             disabled={deleteMutation.isPending}
           >
-            {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+            {deleteMutation.isPending ? "Deleting..." : "Delete"}
           </Button>
         </div>
       </Modal>
@@ -593,7 +768,7 @@ export default function LeadDetailPage() {
         isOpen={showEstimator}
         onClose={() => setShowEstimator(false)}
         onEstimateCreated={() => {
-          queryClient.invalidateQueries({ queryKey: ['estimates', leadId] });
+          queryClient.invalidateQueries({ queryKey: ["estimates", leadId] });
         }}
       />
     </div>
@@ -602,32 +777,72 @@ export default function LeadDetailPage() {
 
 function ArrowLeftIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+      />
     </svg>
   );
 }
 
 function EditIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+      />
     </svg>
   );
 }
 
 function TrashIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+      />
     </svg>
   );
 }
 
 function CalculatorIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 15.75V18m-7.5-6.75h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25V13.5zm0 2.25h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25V18zm2.498-6.75h.007v.008h-.007v-.008zm0 2.25h.007v.008h-.007V13.5zm0 2.25h.007v.008h-.007v-.008zm0 2.25h.007v.008h-.007V18zm2.504-6.75h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V13.5zm0 2.25h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V18zm2.498-6.75h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V13.5zM8.25 6h7.5v2.25h-7.5V6zM12 2.25c-1.892 0-3.758.11-5.593.322C5.307 2.7 4.5 3.65 4.5 4.757V19.5a2.25 2.25 0 002.25 2.25h10.5a2.25 2.25 0 002.25-2.25V4.757c0-1.108-.806-2.057-1.907-2.185A48.507 48.507 0 0012 2.25z" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15.75 15.75V18m-7.5-6.75h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25V13.5zm0 2.25h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25V18zm2.498-6.75h.007v.008h-.007v-.008zm0 2.25h.007v.008h-.007V13.5zm0 2.25h.007v.008h-.007v-.008zm0 2.25h.007v.008h-.007V18zm2.504-6.75h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V13.5zm0 2.25h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V18zm2.498-6.75h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V13.5zM8.25 6h7.5v2.25h-7.5V6zM12 2.25c-1.892 0-3.758.11-5.593.322C5.307 2.7 4.5 3.65 4.5 4.757V19.5a2.25 2.25 0 002.25 2.25h10.5a2.25 2.25 0 002.25-2.25V4.757c0-1.108-.806-2.057-1.907-2.185A48.507 48.507 0 0012 2.25z"
+      />
     </svg>
   );
 }
@@ -635,7 +850,122 @@ function CalculatorIcon({ className }: { className?: string }) {
 function OdooIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
     </svg>
   );
+}
+
+function PhoneIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"
+      />
+    </svg>
+  );
+}
+
+// Helper functions for Issue #8 - Enhanced Header Layout
+function getStatusColor(status: string): string {
+  switch (status) {
+    case "hot":
+      return "bg-red-500";
+    case "converted":
+      return "bg-emerald-500";
+    case "follow_up":
+      return "bg-amber-500";
+    case "new":
+      return "bg-blue-500";
+    case "cold":
+      return "bg-slate-400";
+    case "lost":
+      return "bg-slate-600";
+    default:
+      return "bg-slate-400";
+  }
+}
+
+function getStatusTextColor(status: string): string {
+  switch (status) {
+    case "hot":
+      return "text-red-600 dark:text-red-400";
+    case "converted":
+      return "text-emerald-600 dark:text-emerald-400";
+    case "follow_up":
+      return "text-amber-600 dark:text-amber-400";
+    case "new":
+      return "text-blue-600 dark:text-blue-400";
+    case "cold":
+      return "text-slate-500 dark:text-slate-400";
+    case "lost":
+      return "text-slate-600 dark:text-slate-500";
+    default:
+      return "text-slate-600 dark:text-slate-400";
+  }
+}
+
+function getScoreColor(score: number | null | undefined): string {
+  if (score == null) return "text-slate-400";
+  if (score >= 70) return "text-emerald-600 dark:text-emerald-400";
+  if (score >= 40) return "text-amber-600 dark:text-amber-400";
+  return "text-red-600 dark:text-red-400";
+}
+
+function getScoreLabel(score: number): string {
+  if (score >= 70) return "High Potential";
+  if (score >= 40) return "Medium";
+  return "Low Priority";
+}
+
+function formatUrgency(urgency: string): string {
+  switch (urgency) {
+    case "immediate":
+      return "🔥 Immediate";
+    case "1-3_months":
+      return "📅 1-3 Months";
+    case "3-6_months":
+      return "🗓️ 3-6 Months";
+    default:
+      return "❓ Unknown";
+  }
+}
+
+function formatClassification(classification: string): string {
+  switch (classification) {
+    case "direct_customer":
+      return "👤 Direct Customer";
+    case "vendor":
+      return "🏭 Vendor";
+    case "builder":
+      return "🏗️ Builder";
+    case "dealer":
+      return "🤝 Dealer";
+    case "architect":
+      return "📐 Architect";
+    default:
+      return classification;
+  }
+}
+
+function formatRequirementType(requirementType: string): string {
+  switch (requirementType) {
+    case "residential_house":
+      return "🏠 Residential House";
+    case "commercial_building":
+      return "🏢 Commercial Building";
+    case "eco_friendly_building":
+      return "🌿 Eco-Friendly Building";
+    case "compound_wall":
+      return "🧱 Compound Wall";
+    default:
+      return requirementType;
+  }
 }
