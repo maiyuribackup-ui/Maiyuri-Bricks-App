@@ -5,14 +5,15 @@ This document describes the complete Git workflow, version control strategy, and
 ## Table of Contents
 
 1. [Branch Strategy](#branch-strategy)
-2. [Development Workflow](#development-workflow)
-3. [Pull Request Process](#pull-request-process)
-4. [Release Process](#release-process)
-5. [Version Numbering](#version-numbering)
-6. [Hotfix Process](#hotfix-process)
-7. [CI/CD Pipeline](#cicd-pipeline)
-8. [Telegram Notifications](#telegram-notifications)
-9. [Troubleshooting](#troubleshooting)
+2. [Issue Management](#issue-management)
+3. [Development Workflow](#development-workflow)
+4. [Pull Request Process](#pull-request-process)
+5. [Release Process](#release-process)
+6. [Version Numbering](#version-numbering)
+7. [Hotfix Process](#hotfix-process)
+8. [CI/CD Pipeline](#cicd-pipeline)
+9. [Telegram Notifications](#telegram-notifications)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -55,6 +56,88 @@ The `main` branch has the following protections:
 | Require up-to-date branch | Yes |
 | Allow force push | No |
 | Allow deletions | No |
+
+---
+
+## Issue Management
+
+> **Full Guide:** See [ISSUE_WORKFLOW.md](./ISSUE_WORKFLOW.md) for complete issue fixing workflow with testing strategy.
+
+### Quick Start: Fix This Issue
+
+When you need to fix an issue, follow this comprehensive workflow:
+
+#### 1. Report Issue
+```bash
+gh issue create --label bug --title "Bug: Description"
+```
+
+#### 2. "Fix This Issue" Command Workflow
+
+```bash
+# Complete workflow includes:
+□ Create branch: fix/issue-<number>-description
+□ Implement fix
+□ Unit tests (80%+ coverage)
+□ Integration tests
+□ E2E tests in browser
+□ Test in production environment
+□ Create PR with test evidence
+□ Deploy and verify
+```
+
+#### 3. Testing Requirements
+
+| Test Type | Tool | Required | Coverage |
+|-----------|------|----------|----------|
+| **Unit** | Vitest | ✅ Yes | 80%+ |
+| **Integration** | Vitest | ✅ Yes | 70%+ |
+| **E2E Browser** | Playwright | ✅ Yes | Critical flows |
+| **Production** | Manual/E2E | ✅ Yes | All changes |
+
+#### 4. Production Testing Checklist
+
+- [ ] Test on Vercel preview deployment
+- [ ] Test with production data (read-only)
+- [ ] Test on real mobile device
+- [ ] No console errors
+- [ ] Browser tested: Chrome + Safari
+
+#### 5. Issue Templates
+
+**Bug Report:**
+```bash
+gh issue create --label bug \
+  --title "Bug: Brief description" \
+  --body "Description, Steps to Reproduce, Expected vs Actual"
+```
+
+**Feature Request:**
+```bash
+gh issue create --label enhancement \
+  --title "Feature: Brief description" \
+  --body "Problem, Proposed Solution, Who Benefits"
+```
+
+### Issue Lifecycle
+
+```
+Report → Triage → Assign → Fix → Test → Review → Merge → Deploy → Verify → Close
+   │        │        │       │      │       │        │        │         │       │
+  GH     Labels   Branch  Code   Unit   PR+CI   Main  Vercel  Prod    Auto-
+ Issue            Create        Integ                        Check   Close
+                                 E2E
+```
+
+### Issue Labels
+
+| Label | Purpose | Priority |
+|-------|---------|----------|
+| `bug` | Something broken | High |
+| `enhancement` | New feature | Medium |
+| `urgent` | Immediate fix needed | Critical |
+| `production` | Affects live site | High |
+| `needs-testing` | Requires thorough testing | - |
 
 ---
 

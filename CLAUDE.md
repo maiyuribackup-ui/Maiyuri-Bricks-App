@@ -153,6 +153,135 @@ npm run typecheck && npm run lint && npm run test
 - [ ] Conventional commit message
 - [ ] Documentation updated (if needed)
 
+---
+
+## Issue Fixing Workflow
+
+> **Full Guide:** See [docs/ISSUE_WORKFLOW.md](docs/ISSUE_WORKFLOW.md) for complete issue fixing workflow with comprehensive testing strategy.
+
+### When User Says "Fix This Issue"
+
+Follow this mandatory workflow:
+
+#### 1. Setup
+```bash
+git checkout main && git pull
+git checkout -b fix/issue-<number>-description
+```
+
+#### 2. Implement with Tests
+- Write unit tests FIRST (TDD recommended)
+- Implement fix
+- Ensure 80%+ test coverage
+
+#### 3. Testing Levels (ALL REQUIRED)
+
+| Test Type | Tool | Coverage | Status |
+|-----------|------|----------|--------|
+| **Unit** | Vitest | 80%+ | ☐ |
+| **Integration** | Vitest | 70%+ | ☐ |
+| **E2E Browser** | Playwright | Critical flows | ☐ |
+| **Production** | Manual/E2E | All changes | ☐ |
+
+#### 4. Production Testing (MANDATORY)
+- [ ] Test on Vercel preview deployment
+- [ ] Test with production data (read-only)
+- [ ] Test on real mobile device
+- [ ] Chrome + Safari (both desktop + mobile)
+- [ ] No console errors
+- [ ] No network errors
+
+#### 5. PR with Evidence
+```bash
+git commit -m "fix: description
+
+Testing:
+- ✅ Unit: 95% coverage
+- ✅ Integration: All passing
+- ✅ E2E: Chrome + Safari
+- ✅ Production: Preview verified
+
+Fixes #<issue-number>"
+```
+
+#### 6. Checklist Template
+Copy from: [.github/ISSUE_FIX_CHECKLIST.md](.github/ISSUE_FIX_CHECKLIST.md)
+
+### Testing Requirements
+
+**Unit Tests (Vitest):**
+```typescript
+// Co-locate with source files
+// File: component.test.ts or component.test.tsx
+import { describe, it, expect } from 'vitest';
+
+describe('Feature Name', () => {
+  it('should handle success case', () => {
+    // Test implementation
+  });
+
+  it('should handle error case', () => {
+    // Test edge cases
+  });
+});
+```
+
+**Integration Tests (Vitest):**
+```typescript
+// Test API routes, database operations
+// File: route.test.ts
+describe('POST /api/endpoint - Integration', () => {
+  beforeEach(async () => {
+    await setupTestDB();
+  });
+
+  it('should create resource', async () => {
+    // Test with real DB/services
+  });
+});
+```
+
+**E2E Tests (Playwright):**
+```typescript
+// File: tests/e2e/feature.spec.ts
+import { test, expect } from '@playwright/test';
+
+test('user flow end-to-end', async ({ page }) => {
+  await page.goto('/feature');
+  // Test critical user flows
+  await expect(page).toHaveURL(/success/);
+});
+```
+
+**Production Testing:**
+- Test on Vercel preview: `<branch>-<hash>.vercel.app`
+- Use production environment (read-only operations)
+- Test on real devices, not just DevTools
+- Verify no errors in console/network
+- Check Sentry for errors after deploy
+
+### Pre-Merge Requirements
+
+**All of these MUST pass:**
+```bash
+# 1. TypeScript
+npm run typecheck ✅
+
+# 2. Linting
+npm run lint ✅
+
+# 3. All tests
+npm run test ✅
+
+# 4. E2E tests
+npm run test:e2e ✅
+
+# 5. Production verification
+# Manual testing on preview deployment ✅
+```
+
+---
+
 ## Testing Strategy
 
 - **Unit tests:** Co-located with source, >80% coverage
