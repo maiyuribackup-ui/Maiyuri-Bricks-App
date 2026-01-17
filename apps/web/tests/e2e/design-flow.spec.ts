@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { trackErrors } from '../helpers/error-tracker';
 
 /**
  * Design Tab Flow E2E Test
@@ -8,6 +9,7 @@ import { test, expect, Page } from '@playwright/test';
  * 2. Complete question flow
  * 3. Verify blueprint generation
  * 4. Capture all network requests for integration verification
+ * 5. CRITICAL: Detect browser runtime errors (prevents bugs from escaping to production)
  */
 
 interface NetworkRequest {
@@ -50,6 +52,9 @@ test.describe('Design Tab - Floor Plan Generator', () => {
   });
 
   test('should load Design page with AI Architect chatbot', async ({ page }) => {
+    // CRITICAL: Track browser runtime errors
+    const errors = await trackErrors(page);
+
     await page.goto('/design');
 
     // Verify page header
@@ -70,9 +75,15 @@ test.describe('Design Tab - Floor Plan Generator', () => {
     console.log('\n=== PAGE LOAD NETWORK REQUESTS ===');
     networkRequests.filter(r => r.url.includes('api') || r.url.includes('supabase'))
       .forEach(r => console.log(`${r.method} ${r.url} -> ${r.status || 'pending'}`));
+
+    // CRITICAL: Fail if any runtime errors occurred
+    expect(errors, 'Page should have no runtime errors').toEqual([]);
   });
 
   test('should display project type selection options', async ({ page }) => {
+    // CRITICAL: Track browser runtime errors
+    const errors = await trackErrors(page);
+
     await page.goto('/design');
 
     // Wait for welcome message
@@ -97,9 +108,15 @@ test.describe('Design Tab - Floor Plan Generator', () => {
 
     // Either flow is acceptable - the test passes if we can start the flow
     expect(clientNameVisible || residentialVisible).toBeTruthy();
+
+    // CRITICAL: Fail if any runtime errors occurred
+    expect(errors, 'Page should have no runtime errors').toEqual([]);
   });
 
   test('should start session when project type is selected', async ({ page }) => {
+    // CRITICAL: Track browser runtime errors
+    const errors = await trackErrors(page);
+
     await page.goto('/design');
 
     // Wait for options to appear
@@ -133,10 +150,16 @@ test.describe('Design Tab - Floor Plan Generator', () => {
         networkFailures.forEach(f => console.log(`FAILED: ${f.url} - ${f.error}`));
       }
     }
+
+    // CRITICAL: Fail if any runtime errors occurred
+    expect(errors, 'Page should have no runtime errors').toEqual([]);
   });
 
   test('should complete full question flow for residential house', async ({ page }) => {
     test.setTimeout(120000); // 2 minutes for full flow
+
+    // CRITICAL: Track browser runtime errors
+    const errors = await trackErrors(page);
 
     await page.goto('/design');
     await page.waitForTimeout(2000);
@@ -280,9 +303,15 @@ test.describe('Design Tab - Floor Plan Generator', () => {
 
     // Take screenshot of final state
     await page.screenshot({ path: 'test-results/design-flow-final-state.png', fullPage: true });
+
+    // CRITICAL: Fail if any runtime errors occurred
+    expect(errors, 'Page should have no runtime errors').toEqual([]);
   });
 
   test('should verify API endpoints are correctly configured', async ({ page }) => {
+    // CRITICAL: Track browser runtime errors
+    const errors = await trackErrors(page);
+
     await page.goto('/design');
     await page.waitForTimeout(2000);
 
@@ -328,5 +357,8 @@ test.describe('Design Tab - Floor Plan Generator', () => {
     if (unexpectedLocalhost.length > 0) {
       console.log('\nWARNING: Backend calls to localhost:8000 failed - backend may not be running');
     }
+
+    // CRITICAL: Fail if any runtime errors occurred
+    expect(errors, 'Page should have no runtime errors').toEqual([]);
   });
 });

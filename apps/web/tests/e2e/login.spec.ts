@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { trackErrors } from '../helpers/error-tracker';
 
 test.describe('Login Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -6,6 +7,9 @@ test.describe('Login Page', () => {
   });
 
   test('should load login page with all elements', async ({ page }) => {
+    // CRITICAL: Track browser runtime errors
+    const errors = await trackErrors(page);
+
     // Check page title
     await expect(page).toHaveTitle(/Maiyuri Bricks/);
 
@@ -25,6 +29,9 @@ test.describe('Login Page', () => {
 
     // Check footer text
     await expect(page.getByText('Contact your administrator if you need access')).toBeVisible();
+
+    // CRITICAL: Fail if any runtime errors occurred
+    expect(errors, 'Page should have no runtime errors').toEqual([]);
   });
 
   test('should show validation error for empty email', async ({ page }) => {

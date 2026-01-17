@@ -6,9 +6,12 @@
  * receiving a Vastu-compliant floor plan.
  *
  * Based on Survey No. 63 test data.
+ *
+ * CRITICAL: All tests track browser runtime errors to prevent bugs from escaping to production.
  */
 
 import { test, expect } from '@playwright/test';
+import { trackErrors } from '../helpers/error-tracker';
 
 // Test data from Survey No. 63
 const SURVEY_DATA = {

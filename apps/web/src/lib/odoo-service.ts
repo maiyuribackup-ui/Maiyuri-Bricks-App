@@ -419,7 +419,16 @@ export async function pullQuotesFromOdoo(leadId: string): Promise<SyncResult> {
       lead_id: leadId,
       sync_type: 'quote_pull',
       status: 'success',
-      odoo_response: { quotes: quotes.map(q => ({ name: q.name, amount: q.amount_total, state: q.state })) },
+      odoo_response: {
+        quotes: quotes.map(q => ({
+          number: q.name,
+          amount: q.amount_total,
+          state: q.state,
+          date: q.date_order,
+        })),
+        latestQuote: latestQuote?.name,
+        latestOrder: latestOrder?.name,
+      },
     });
 
     return {

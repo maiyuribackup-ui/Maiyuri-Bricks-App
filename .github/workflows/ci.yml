@@ -30,14 +30,12 @@ jobs:
 
       - name: TypeScript check
         run: npm run typecheck
-        continue-on-error: true
 
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Run tests
-        run: npm run test || true
+        run: npm run test
         env:
           CI: true
 

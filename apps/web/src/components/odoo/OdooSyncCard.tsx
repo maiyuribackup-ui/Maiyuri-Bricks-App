@@ -9,12 +9,13 @@ interface OdooSyncCardProps {
     sync_type: string;
     status: string;
     created_at: string;
-    odoo_response: {
+    odoo_response?: {
       quotes?: Array<{
-        number: string;
-        amount: number;
-        state: string;
-        date: string;
+        number?: string;
+        name?: string; // Legacy field
+        amount?: number;
+        state?: string;
+        date?: string;
       }>;
       latestQuote?: string;
       latestOrder?: string;
@@ -24,7 +25,7 @@ interface OdooSyncCardProps {
 
 export function OdooSyncCard({ syncLog }: OdooSyncCardProps) {
   const { odoo_response } = syncLog;
-  const quotes = odoo_response.quotes || [];
+  const quotes = odoo_response?.quotes || [];
 
   return (
     <Card className="p-4 border-l-4 border-l-orange-500 bg-orange-50 dark:bg-orange-900/10">
@@ -67,13 +68,15 @@ export function OdooSyncCard({ syncLog }: OdooSyncCardProps) {
                   >
                     <div className="flex items-center gap-2">
                       <DocumentTextIcon className="h-4 w-4 text-emerald-600" />
-                      <span className="text-sm font-medium">{quote.number}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {quote.state}
-                      </Badge>
+                      <span className="text-sm font-medium">{quote.number || quote.name || 'N/A'}</span>
+                      {quote.state && (
+                        <Badge variant="outline" className="text-xs">
+                          {quote.state}
+                        </Badge>
+                      )}
                     </div>
                     <span className="text-sm font-bold text-emerald-600">
-                      ₹{quote.amount.toLocaleString('en-IN')}
+                      ₹{(quote.amount || 0).toLocaleString('en-IN')}
                     </span>
                   </div>
                 ))}
