@@ -187,16 +187,13 @@ async function runFullAnalysis(
   const notesContext = formatNotesContext(notes);
   const callContext = formatCallRecordingsContext(callRecordings);
 
-  // Run all analyses in parallel
-  const [summary, score, suggestions, intelligence, smartQuotePayloadResult] =
-    await Promise.all([
-      generateSummary(lead, notes, callRecordings, 500, language),
-      generateScore(lead, notes, callRecordings, request),
-      generateSuggestions(lead, notes, callRecordings, language),
-      extractLeadIntelligence(lead, notes, callRecordings),
-      // Generate SmartQuotePayload for personalized quote experiences
-      claude.generateSmartQuotePayload(leadContext, notesContext, callContext),
-    ]);
+  // Step 1: Run primary analyses in parallel
+  const [summary, score, suggestions, intelligence] = await Promise.all([
+    generateSummary(lead, notes, callRecordings, 500, language),
+    generateScore(lead, notes, callRecordings, request),
+    generateSuggestions(lead, notes, callRecordings, language),
+    extractLeadIntelligence(lead, notes, callRecordings),
+  ]);
 
   response.summary = summary;
   response.score = score;
@@ -211,6 +208,28 @@ async function runFullAnalysis(
       best_conversion_lever: intelligence.bestConversionLever,
     };
   }
+
+  // Step 2: Generate SmartQuotePayload AFTER primary analyses complete
+  // This allows it to use the analysis results for deterministic mapping
+  const existingAnalysis = {
+    factors: score?.factors?.map((f) => ({
+      factor: f.name,
+      impact: f.impact,
+    })),
+    suggestions: suggestions?.items?.map((s) => ({
+      type: s.type,
+      content: s.content,
+    })),
+    status: lead.status,
+    nextAction: suggestions?.nextBestAction,
+  };
+
+  const smartQuotePayloadResult = await claude.generateSmartQuotePayload(
+    leadContext,
+    notesContext,
+    callContext,
+    existingAnalysis,
+  );
 
   // Add SmartQuotePayload if generation was successful
   if (smartQuotePayloadResult.success && smartQuotePayloadResult.data) {

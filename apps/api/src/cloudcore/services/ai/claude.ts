@@ -495,11 +495,18 @@ Respond with JSON:
 
 /**
  * Generate SmartQuotePayload for personalized quotation experience
+ * This payload drives the Smart Quote UI with personalized, customer-facing content
  */
 export async function generateSmartQuotePayload(
   leadContext: string,
   notesContext: string,
   callRecordingsContext: string,
+  existingAnalysis?: {
+    factors?: Array<{ factor: string; impact: string }>;
+    suggestions?: Array<{ type: string; content: string }>;
+    status?: string;
+    nextAction?: string;
+  },
 ): Promise<
   CloudCoreResult<{
     language_default: "en" | "ta";
@@ -539,9 +546,19 @@ export async function generateSmartQuotePayload(
     };
   }>
 > {
+  // Build existing analysis context if available
+  const existingAnalysisContext = existingAnalysis
+    ? `
+## EXISTING AI ANALYSIS (Use for mapping)
+Factors: ${JSON.stringify(existingAnalysis.factors || [])}
+Suggestions: ${JSON.stringify(existingAnalysis.suggestions || [])}
+Status: ${existingAnalysis.status || "unknown"}
+Next Action: ${existingAnalysis.nextAction || "none"}`
+    : "";
+
   const systemPrompt = `You are a sales intelligence analyst for Maiyuri Bricks, a brick manufacturing company in Chennai.
 
-Analyze the lead's interactions to generate a SmartQuotePayload for a personalized quotation presentation.
+Generate a SmartQuotePayload for personalized quotation presentation. This payload is CUSTOMER-FACING - no CRM jargon allowed.
 
 ## CONTEXT ABOUT MAIYURI BRICKS
 - Products: Interlocking bricks (eco-friendly, no cement mortar needed)
@@ -549,75 +566,102 @@ Analyze the lead's interactions to generate a SmartQuotePayload for a personaliz
 - Location: Chennai, Tamil Nadu
 - Target: Homeowners, builders, architects in Tamil Nadu
 
-## OUTPUT REQUIREMENTS
+## DETERMINISTIC MAPPING RULES (MUST APPLY)
 
-### language_default
-- "ta" if the lead speaks Tamil primarily or is from rural Tamil Nadu
-- "en" for English speakers or urban professionals
+### Stage Mapping
+- If lead status = "hot" → stage: "hot"
+- Else infer from intent phrases in transcript/notes
 
-### persona
-- "homeowner": Building their own house
-- "builder": Construction contractor doing multiple projects
-- "architect": Design professional recommending materials
-- "unknown": Cannot determine from context
+### Objection Mapping (from existing factors or transcript)
+- Factor contains "Budget concerns" or mentions expensive → price (high)
+- Mentions seepage, rain, damp, water → water
+- Mentions approval, engineer, family decision → approval
+- Mentions alternative builder, other brick brand → resale or contractor_acceptance
+- MAX 2 objections only, ranked by severity
 
-### stage
-- "cold": Initial inquiry, just exploring, no urgency
-- "warm": Interested, has timeline, asking specific questions
-- "hot": Ready to buy, comparing quotes, urgent timeline
+### Route Decision Mapping
+- If nextAction mentions pricing, quote, cost → cost_estimate
+- If suggestion contains "site visit", factory → site_visit
+- If many technical questions in notes → technical_call
+- Else → nurture
+- Only ONE route_decision allowed
 
-### primary_angle & secondary_angle
-Choose the TOP 2 benefits that resonate most with this lead:
-- "health": Eco-friendly, no dust, better air quality
-- "cooling": Natural insulation, reduces AC costs in Chennai heat
-- "cost": 30% savings, faster construction, less labor
-- "sustainability": Green building, water harvesting compatible
-- "design": Aesthetic finish, modern look, design flexibility
+### Language Default
+- If transcript/notes language is Tamil or mixed Tamil-English → ta
+- Else → en
 
-### top_objections (max 3)
-Identify concerns mentioned or implied:
-- "price": Thinks it's expensive
-- "strength": Doubts structural integrity
-- "water": Worried about water absorption/seepage
-- "approval": Needs family/contractor approval
-- "maintenance": Worried about long-term care
-- "resale": Concerned about property value
-- "contractor_acceptance": Contractor unfamiliar with product
+## PRIMARY & SECONDARY ANGLE SELECTION (AI must choose, not list)
 
-### route_decision
-- "site_visit": Lead wants to see factory, needs proof
-- "technical_call": Has specific technical questions
-- "cost_estimate": Ready for detailed pricing
-- "nurture": Not ready, needs more education
+Selection Logic based on keywords in transcript/notes:
+- health, comfort, children, breathing, dust-free → "health"
+- heat, AC, summer, cool, insulation → "cooling"
+- budget, rate, comparison, savings, cost → "cost"
+- eco, sustainability, green, environment → "sustainability"
+- aesthetics, design, look, modern, finish → "design"
 
-### personalization_snippets
-Write 1-2 SHORT sentences (max 15 words each) that:
-- Reference something specific from their conversation
-- Feel personal, not generic
-- Work as an opening hook in the quote
+Primary = strongest signal from conversation
+Secondary = second strongest signal
+RULE: primary_angle MUST NOT equal secondary_angle
 
-### competitor_context
-- mentioned: true if any competitor brand mentioned
-- tone: How they talked about competitors`;
+## PERSONALIZATION SNIPPETS (CRITICAL - Customer-facing)
+
+These snippets appear directly in the Smart Quote shown to customer.
+
+Rules:
+- Max 2 sentences per language
+- Max 15 words per sentence
+- Must feel "made for me" - reference something specific from their conversation
+- NO internal jargon (no "score", "factor", "priority", "conversion")
+- NO raw data references
+- Calm, premium tone - not salesy
+- No hard selling or urgency pressure
+
+Example (English):
+"From your call, it's clear you're exploring an eco-friendly home that feels cooler and calmer inside."
+"Your main concern is budget, so we'll focus on a smart range instead of confusing numbers."
+
+Example (Tamil - Chennai conversational, NOT formal):
+"உங்கள் அழைப்பில் இருந்து தெரிகிறது—சென்னையின் வெப்பத்தில் குளிர்ச்சியாகவும் அமைதியாகவும் இருக்கும் இயற்கை வீடு தான் உங்கள் முன்னுரிமை."
+"உங்கள் முக்கிய கவலை பட்ஜெட் என்பதால், குழப்பம் இல்லாத 'ஸ்மார்ட் ரேஞ்ச்' மேல் தான் கவனம்."
+
+Avoid formal/old Tamil. Keep conversational Chennai Tamil.
+
+## COMPETITOR CONTEXT
+- mentioned: true if ANY competitor brand mentioned (Porotherm, Wienerberger, etc.)
+- tone: "curious" (just asking), "comparing" (active comparison), "doubtful" (skeptical of us), "none"
+
+## STRICT OUTPUT RULES (NON-NEGOTIABLE)
+- Output JSON only - no explanations, no markdown, no comments
+- No hallucination - if unsure, reduce confidence, not fabricate
+- If transcript is missing: infer cautiously, prefer cost_estimate or nurture, keep snippets generic but human
+
+## VALIDATION CHECKLIST (Your output MUST pass)
+✓ JSON matches schema exactly
+✓ primary_angle ≠ secondary_angle
+✓ max 2 objections
+✓ route_decision is singular (one value only)
+✓ personalization_snippets exist in BOTH en AND ta
+✓ No CRM words visible ("score", "factor", "priority", "conversion", "lead")`;
 
   const userPrompt = `Analyze this lead and generate a SmartQuotePayload:
 
 ## LEAD INFORMATION
 ${leadContext}
 
-## NOTES & INTERACTIONS
+## NOTES & INTERACTIONS (PRIMARY SOURCE)
 ${notesContext}
 
-## CALL RECORDINGS INSIGHTS
+## CALL RECORDINGS INSIGHTS (PRIMARY SOURCE)
 ${callRecordingsContext}
+${existingAnalysisContext}
 
-Generate the SmartQuotePayload JSON with all required fields.`;
+Output ONLY valid JSON matching the SmartQuotePayload schema.`;
 
   return completeJson({
     systemPrompt,
     userPrompt,
     maxTokens: 1024,
-    temperature: 0.5, // Lower temperature for more consistent structured output
+    temperature: 0.3, // Lower temperature for deterministic structured output
   });
 }
 
