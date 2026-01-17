@@ -368,7 +368,7 @@ export async function pullQuotesFromOdoo(leadId: string): Promise<SyncResult> {
     const quotes = await execute('sale.order', 'search_read', [
       [['opportunity_id', '=', lead.odoo_lead_id]],
     ], {
-      fields: ['name', 'amount_total', 'state', 'date_order', 'partner_id'],
+      fields: ['id', 'name', 'amount_total', 'state', 'date_order', 'partner_id'],
       order: 'create_date desc',
       limit: 5,
     }) as OdooQuote[];
@@ -385,12 +385,14 @@ export async function pullQuotesFromOdoo(leadId: string): Promise<SyncResult> {
     const updateData: Record<string, unknown> = {};
 
     if (latestQuote) {
+      updateData.odoo_quote_id = latestQuote.id;
       updateData.odoo_quote_number = latestQuote.name;
       updateData.odoo_quote_amount = latestQuote.amount_total;
       updateData.odoo_quote_date = latestQuote.date_order;
     }
 
     if (latestOrder) {
+      updateData.odoo_order_id = latestOrder.id;
       updateData.odoo_order_number = latestOrder.name;
       updateData.odoo_order_amount = latestOrder.amount_total;
       updateData.odoo_order_date = latestOrder.date_order;

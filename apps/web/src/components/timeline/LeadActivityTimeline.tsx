@@ -1,19 +1,40 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, Button, Badge, Spinner } from '@maiyuri/ui';
 import { format, startOfDay, isEqual, subDays } from 'date-fns';
 import type { Note, CallRecording } from '@maiyuri/shared';
 import { CallRecordingCard } from './CallRecordingCard';
+import { OdooSyncCard } from '../odoo/OdooSyncCard';
 
 // Activity types for the timeline
-type ActivityType = 'note' | 'call';
+type ActivityType = 'note' | 'call' | 'odoo_sync';
+
+interface OdooSyncLog {
+  id: string;
+  lead_id: string;
+  sync_type: 'lead_push' | 'lead_pull' | 'quote_pull';
+  status: 'success' | 'error';
+  odoo_response: {
+    quotes?: Array<{
+      number: string;
+      amount: number;
+      state: string;
+      date: string;
+    }>;
+    latestQuote?: string;
+    latestOrder?: string;
+  };
+  error_message?: string;
+  created_at: string;
+}
 
 interface Activity {
   type: ActivityType;
   id: string;
   timestamp: Date;
-  data: Note | CallRecording;
+  data: Note | CallRecording | OdooSyncLog;
 }
 
 interface DateGroup {
@@ -24,6 +45,7 @@ interface DateGroup {
 interface LeadActivityTimelineProps {
   notes: Note[];
   callRecordings: CallRecording[];
+  leadId: string;
   loading?: boolean;
   onAddNote?: () => void;
   onAddAudio?: () => void;
@@ -31,11 +53,12 @@ interface LeadActivityTimelineProps {
   showAudioUpload?: boolean;
 }
 
-type FilterType = 'all' | 'notes' | 'calls';
+type FilterType = 'all' | 'notes' | 'calls' | 'syncs';
 
 export function LeadActivityTimeline({
   notes,
   callRecordings,
+  leadId,
   loading = false,
   onAddNote,
   onAddAudio,
@@ -43,6 +66,17 @@ export function LeadActivityTimeline({
   showAudioUpload = false,
 }: LeadActivityTimelineProps) {
   const [filter, setFilter] = useState<FilterType>('all');
+
+  // Fetch sync logs
+  const { data: syncLogs = [] } = useQuery<OdooSyncLog[]>({
+    queryKey: ['odoo-sync-logs', leadId],
+    queryFn: async () => {
+      const response = await fetch(`/api/odoo/sync/${leadId}`);
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data.recentLogs || [];
+    },
+  });
 
   // Merge and sort activities
   const activities = useMemo(() => {
@@ -72,9 +106,23 @@ export function LeadActivityTimeline({
       });
     }
 
+    // Add sync logs
+    if (filter === 'all' || filter === 'syncs') {
+      syncLogs
+        .filter((log) => log.sync_type === 'quote_pull' && log.status === 'success')
+        .forEach((log) => {
+          merged.push({
+            type: 'odoo_sync',
+            id: log.id,
+            timestamp: new Date(log.created_at),
+            data: log,
+          });
+        });
+    }
+
     // Sort by timestamp descending (newest first)
     return merged.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-  }, [notes, callRecordings, filter]);
+  }, [notes, callRecordings, syncLogs, filter]);
 
   // Group activities by date
   const dateGroups = useMemo(() => {
@@ -109,7 +157,7 @@ export function LeadActivityTimeline({
     return groups;
   }, [activities]);
 
-  const totalCount = notes.length + callRecordings.length;
+  const totalCount = notes.length + callRecordings.length + syncLogs.filter((log) => log.sync_type === 'quote_pull' && log.status === 'success').length;
 
   return (
     <Card className="p-6">
@@ -134,6 +182,7 @@ export function LeadActivityTimeline({
             <option value="all">All Activity</option>
             <option value="notes">Notes Only</option>
             <option value="calls">Calls Only</option>
+            <option value="syncs">Odoo Syncs</option>
           </select>
 
           {/* Action Buttons */}
@@ -220,6 +269,8 @@ function TimelineItem({ activity }: TimelineItemProps) {
 
   const dotConfig = activity.type === 'call'
     ? { bg: 'bg-emerald-500', icon: <PhoneIcon className="h-3 w-3 text-white" /> }
+    : activity.type === 'odoo_sync'
+    ? { bg: 'bg-orange-500', icon: <SyncIcon className="h-3 w-3 text-white" /> }
     : { bg: 'bg-blue-500', icon: <DocumentIcon className="h-3 w-3 text-white" /> };
 
   return (
@@ -237,13 +288,15 @@ function TimelineItem({ activity }: TimelineItemProps) {
             {timeString}
           </span>
           <span className="text-xs text-slate-500 dark:text-slate-400">
-            {activity.type === 'call' ? 'Call Recording' : 'Note'}
+            {activity.type === 'call' ? 'Call Recording' : activity.type === 'odoo_sync' ? 'Odoo Sync' : 'Note'}
           </span>
         </div>
 
         {/* Activity Content */}
         {activity.type === 'call' ? (
           <CallRecordingCard recording={activity.data as CallRecording} />
+        ) : activity.type === 'odoo_sync' ? (
+          <OdooSyncCard syncLog={activity.data as OdooSyncLog} />
         ) : (
           <NoteCard note={activity.data as Note} />
         )}
@@ -329,6 +382,14 @@ function DocumentIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+    </svg>
+  );
+}
+
+function SyncIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
     </svg>
   );
 }

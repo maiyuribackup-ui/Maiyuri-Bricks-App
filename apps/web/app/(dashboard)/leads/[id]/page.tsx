@@ -11,6 +11,7 @@ import { AIAnalysisPanel, AudioUpload } from '@/components/leads';
 import { LeadIntelligenceSummary } from '@/components/leads/LeadIntelligenceSummary';
 import { LeadActivityTimeline } from '@/components/timeline';
 import { PriceEstimatorPanel } from '@/components/estimates';
+import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { Toaster, toast } from 'sonner';
 
@@ -294,6 +295,7 @@ export default function LeadDetailPage() {
           <LeadActivityTimeline
             notes={notes}
             callRecordings={callRecordings}
+            leadId={leadId}
             loading={notesLoading || callRecordingsLoading}
             onAddNote={() => {
               setShowNoteForm(!showNoteForm);
@@ -368,18 +370,105 @@ export default function LeadDetailPage() {
                     <dt className="text-slate-500">Odoo ID</dt>
                     <dd className="font-medium text-slate-900 dark:text-white">#{lead.odoo_lead_id}</dd>
                   </div>
-                  {lead.odoo_quote_number && (
-                    <div className="flex justify-between">
-                      <dt className="text-slate-500">Quote</dt>
-                      <dd className="font-medium text-emerald-600">{lead.odoo_quote_number}</dd>
+                </dl>
+
+                {/* Enhanced Quote Display */}
+                {lead.odoo_quote_number && (
+                  <div className="mb-3 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                        Quotation
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-emerald-700 border-emerald-300 dark:text-emerald-300 dark:border-emerald-700">
+                          {lead.odoo_quote_number}
+                        </Badge>
+                        {lead.odoo_quote_id && (
+                          <a
+                            href={`https://CRM.MAIYURI.COM/web#id=${lead.odoo_quote_id}&model=sale.order&view_type=form`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-200"
+                            title="Open in Odoo"
+                          >
+                            <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                          </a>
+                        )}
+                      </div>
                     </div>
-                  )}
-                  {lead.odoo_order_number && (
-                    <div className="flex justify-between">
-                      <dt className="text-slate-500">Order</dt>
-                      <dd className="font-medium text-blue-600">{lead.odoo_order_number}</dd>
+
+                    {lead.odoo_quote_amount && (
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
+                          ₹{lead.odoo_quote_amount.toLocaleString('en-IN', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}
+                        </span>
+                      </div>
+                    )}
+
+                    {lead.odoo_quote_date && (
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                        Created: {new Date(lead.odoo_quote_date).toLocaleDateString('en-IN', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Enhanced Order Display */}
+                {lead.odoo_order_number && (
+                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                        Confirmed Order
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-blue-700 border-blue-300 dark:text-blue-300 dark:border-blue-700">
+                          {lead.odoo_order_number}
+                        </Badge>
+                        {lead.odoo_order_id && (
+                          <a
+                            href={`https://CRM.MAIYURI.COM/web#id=${lead.odoo_order_id}&model=sale.order&view_type=form`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
+                            title="Open in Odoo"
+                          >
+                            <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                          </a>
+                        )}
+                      </div>
                     </div>
-                  )}
+
+                    {lead.odoo_order_amount && (
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                          ₹{lead.odoo_order_amount.toLocaleString('en-IN', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}
+                        </span>
+                      </div>
+                    )}
+
+                    {lead.odoo_order_date && (
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        Confirmed: {new Date(lead.odoo_order_date).toLocaleDateString('en-IN', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <dl className="space-y-1 text-xs mt-3">
                   {lead.odoo_synced_at && (
                     <div className="flex justify-between">
                       <dt className="text-slate-500">Last Sync</dt>
