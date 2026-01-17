@@ -19,6 +19,7 @@ import {
   AIAnalysisPanel,
   AudioUpload,
   WhatsAppButton,
+  SmartQuoteCard,
 } from "@/components/leads";
 import { LeadIntelligenceSummary } from "@/components/leads/LeadIntelligenceSummary";
 import { LeadActivityTimeline } from "@/components/timeline";
@@ -643,6 +644,12 @@ export default function LeadDetailPage() {
               </div>
             </div>
           </Card>
+
+          {/* Smart Quote Card */}
+          <SmartQuoteCard
+            lead={lead}
+            hasTranscripts={callRecordings.some((r) => r.transcription_text)}
+          />
 
           {/* Odoo Sync Card */}
           <Card className="p-4">

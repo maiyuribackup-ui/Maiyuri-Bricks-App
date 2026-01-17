@@ -405,3 +405,136 @@ export type CallRecordingFiltersInput = z.infer<
 export type CallRecordingInsightsInput = z.infer<
   typeof callRecordingInsightsSchema
 >;
+
+// ============================================================================
+// Smart Quote Schemas (AI-Personalized Quotation System)
+// ============================================================================
+
+export const smartQuoteLanguageSchema = z.enum(["en", "ta"]);
+export const smartQuoteStageSchema = z.enum(["cold", "warm", "hot"]);
+export const smartQuoteRouteSchema = z.enum([
+  "site_visit",
+  "technical_call",
+  "cost_estimate",
+  "nurture",
+]);
+export const smartQuotePageKeySchema = z.enum([
+  "entry",
+  "climate",
+  "cost",
+  "objection",
+  "cta",
+]);
+export const smartQuoteEventTypeSchema = z.enum([
+  "view",
+  "scroll",
+  "section_view",
+  "cta_click",
+  "lang_toggle",
+  "form_submit",
+]);
+export const smartQuoteObjectionTypeSchema = z.enum([
+  "price",
+  "strength",
+  "water",
+  "approval",
+  "maintenance",
+  "resale",
+]);
+export const smartQuoteObjectionSeveritySchema = z.enum([
+  "low",
+  "medium",
+  "high",
+]);
+export const smartQuoteImageScopeSchema = z.enum(["template", "lead_override"]);
+
+// Objection object schema
+export const smartQuoteObjectionSchema = z.object({
+  type: smartQuoteObjectionTypeSchema,
+  severity: smartQuoteObjectionSeveritySchema,
+});
+
+// Scores schema
+export const smartQuoteScoresSchema = z.object({
+  interest: z.number().min(0).max(1),
+  urgency: z.number().min(0).max(1),
+  price_sensitivity: z.number().min(0).max(1),
+  trust: z.number().min(0).max(1),
+});
+
+// Page block config schema
+export const smartQuotePageBlockSchema = z.object({
+  key: smartQuotePageKeySchema,
+  blocks: z.array(z.string()),
+});
+
+export const smartQuotePageConfigSchema = z.object({
+  pages: z.array(smartQuotePageBlockSchema),
+});
+
+// Copy map schema (bilingual content)
+export const smartQuoteCopyMapSchema = z.object({
+  en: z.record(z.string()),
+  ta: z.record(z.string()),
+});
+
+// Generate Smart Quote request (from admin)
+export const generateSmartQuoteSchema = z.object({
+  lead_id: z.string().uuid("Invalid lead ID"),
+  regenerate: z.boolean().default(false),
+});
+
+// Smart Quote event tracking (from customer page)
+export const smartQuoteEventSchema = z.object({
+  event_type: smartQuoteEventTypeSchema,
+  section_key: z.string().optional(),
+  payload: z.record(z.unknown()).optional(),
+});
+
+// CTA form submission (from customer)
+export const smartQuoteCtaSubmitSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  phone: z.string().min(10, "Valid phone number required"),
+  locality: z.string().optional(),
+  preferred_time: z.string().optional(),
+});
+
+// Image upload (admin)
+export const smartQuoteImageUploadSchema = z.object({
+  page_key: smartQuotePageKeySchema,
+  scope: smartQuoteImageScopeSchema,
+  smart_quote_id: z.string().uuid().nullable().optional(),
+});
+
+// Full Smart Quote schema (for validation of AI output)
+export const smartQuoteAIOutputSchema = z.object({
+  language_default: smartQuoteLanguageSchema,
+  persona: z.string().nullable(),
+  stage: smartQuoteStageSchema.nullable(),
+  primary_angle: z.string().nullable(),
+  secondary_angle: z.string().nullable(),
+  route_decision: smartQuoteRouteSchema.nullable(),
+  top_objections: z.array(smartQuoteObjectionSchema),
+  risk_flags: z.array(z.string()),
+  scores: smartQuoteScoresSchema,
+  page_config: smartQuotePageConfigSchema,
+  copy_map: smartQuoteCopyMapSchema,
+});
+
+// Export Smart Quote types
+export type SmartQuoteLanguageInput = z.infer<typeof smartQuoteLanguageSchema>;
+export type SmartQuoteStageInput = z.infer<typeof smartQuoteStageSchema>;
+export type SmartQuoteRouteInput = z.infer<typeof smartQuoteRouteSchema>;
+export type SmartQuotePageKeyInput = z.infer<typeof smartQuotePageKeySchema>;
+export type SmartQuoteEventTypeInput = z.infer<
+  typeof smartQuoteEventTypeSchema
+>;
+export type GenerateSmartQuoteInput = z.infer<typeof generateSmartQuoteSchema>;
+export type SmartQuoteEventInput = z.infer<typeof smartQuoteEventSchema>;
+export type SmartQuoteCtaSubmitInput = z.infer<
+  typeof smartQuoteCtaSubmitSchema
+>;
+export type SmartQuoteImageUploadInput = z.infer<
+  typeof smartQuoteImageUploadSchema
+>;
+export type SmartQuoteAIOutputInput = z.infer<typeof smartQuoteAIOutputSchema>;

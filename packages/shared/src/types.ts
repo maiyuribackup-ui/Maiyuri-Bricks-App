@@ -433,3 +433,118 @@ export interface CallRecording {
   // Joined fields
   lead?: Lead;
 }
+
+// ============================================================================
+// Smart Quote Types (AI-Personalized Quotation System)
+// ============================================================================
+
+export type SmartQuoteLanguage = "en" | "ta";
+export type SmartQuoteStage = "cold" | "warm" | "hot";
+export type SmartQuoteRoute =
+  | "site_visit"
+  | "technical_call"
+  | "cost_estimate"
+  | "nurture";
+export type SmartQuotePageKey =
+  | "entry"
+  | "climate"
+  | "cost"
+  | "objection"
+  | "cta";
+export type SmartQuoteEventType =
+  | "view"
+  | "scroll"
+  | "section_view"
+  | "cta_click"
+  | "lang_toggle"
+  | "form_submit";
+
+export type SmartQuoteObjectionType =
+  | "price"
+  | "strength"
+  | "water"
+  | "approval"
+  | "maintenance"
+  | "resale";
+
+export type SmartQuoteObjectionSeverity = "low" | "medium" | "high";
+
+export interface SmartQuoteScores {
+  interest: number;
+  urgency: number;
+  price_sensitivity: number;
+  trust: number;
+}
+
+export interface SmartQuoteObjection {
+  type: SmartQuoteObjectionType;
+  severity: SmartQuoteObjectionSeverity;
+}
+
+export interface SmartQuotePageBlock {
+  key: SmartQuotePageKey;
+  blocks: string[];
+}
+
+export interface SmartQuotePageConfig {
+  pages: SmartQuotePageBlock[];
+}
+
+export interface SmartQuoteCopyMap {
+  en: Record<string, string>;
+  ta: Record<string, string>;
+}
+
+export interface SmartQuote {
+  id: string;
+  lead_id: string;
+  link_slug: string;
+  language_default: SmartQuoteLanguage;
+  persona: string | null;
+  stage: SmartQuoteStage | null;
+  primary_angle: string | null;
+  secondary_angle: string | null;
+  route_decision: SmartQuoteRoute | null;
+  top_objections: SmartQuoteObjection[];
+  risk_flags: string[];
+  scores: SmartQuoteScores;
+  page_config: SmartQuotePageConfig;
+  copy_map: SmartQuoteCopyMap;
+  created_at: string;
+  updated_at: string;
+  // Joined fields
+  lead?: Lead;
+}
+
+export type SmartQuoteImageScope = "template" | "lead_override";
+
+export interface SmartQuoteImage {
+  id: string;
+  smart_quote_id: string | null;
+  page_key: SmartQuotePageKey;
+  scope: SmartQuoteImageScope;
+  image_url: string;
+  created_at: string;
+}
+
+export interface SmartQuoteEvent {
+  id: string;
+  smart_quote_id: string;
+  event_type: SmartQuoteEventType;
+  section_key: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+// Smart Quote with resolved images (for customer view)
+export interface SmartQuoteWithImages extends SmartQuote {
+  images: Record<SmartQuotePageKey, SmartQuoteImage | null>;
+}
+
+// Smart Quote CTA form submission
+export interface SmartQuoteCtaSubmission {
+  name: string;
+  phone: string;
+  locality?: string;
+  preferred_time?: string;
+}
