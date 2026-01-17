@@ -72,6 +72,67 @@ tests/               # E2E and integration tests (see tests/CLAUDE.md)
 - Extract complex logic into helpers
 - **Check LEARNINGS.md for similar bugs before fixing**
 
+## Development Checklists
+
+### Pre-Flight Checklist (Before Writing ANY Code)
+
+Run through this checklist before starting any coding task:
+
+```
+□ Understood the requirement completely (ask if unclear)
+□ Checked /docs/LEARNINGS.md for relevant past issues
+□ Identified edge cases and error scenarios
+□ Know input types, ranges, and possible invalid states
+□ Know expected output format and error responses
+□ Identified external dependencies and their failure modes
+□ Checked if similar code exists (reuse, don't reinvent)
+□ Considered security implications
+□ Considered performance implications
+```
+
+### Pre-Commit Quality Gate (Before Saving Code)
+
+Every piece of code must satisfy these criteria:
+
+```
+□ All error cases handled explicitly
+□ Input validation present for external inputs
+□ No hardcoded secrets, paths, or environment-specific values
+□ Meaningful variable and function names
+□ Complex logic has explanatory comments (WHY, not WHAT)
+□ No code duplication (DRY principle applied)
+□ Resource cleanup handled (subscriptions, event listeners)
+□ Types/interfaces defined for all data structures
+□ No console.log statements left (except intentional logging)
+□ No TODO/FIXME without ticket reference
+□ Null safety: All nullable values have defaults (??/?.operators)
+```
+
+### Quick Quality Commands
+
+```bash
+# Full quality gate
+bun typecheck && bun lint && bun test
+
+# Null safety scan
+/null-check
+
+# Full pre-commit validation
+/pre-commit
+```
+
+## Related Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [CODING_PRINCIPLES.md](docs/CODING_PRINCIPLES.md) | Detailed coding standards |
+| [LEARNINGS.md](docs/LEARNINGS.md) | Bug registry and prevention |
+| [TESTING.md](docs/TESTING.md) | Testing and debugging protocol |
+| [DATABASE_PATTERNS.md](docs/DATABASE_PATTERNS.md) | SQL safety and patterns |
+| [OBSERVABILITY.md](docs/OBSERVABILITY.md) | Logging and monitoring |
+| [ISSUE_WORKFLOW.md](docs/ISSUE_WORKFLOW.md) | Issue fixing workflow |
+| [GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md) | Git and release process |
+
 ## Security
 
 - Never commit tokens or API keys

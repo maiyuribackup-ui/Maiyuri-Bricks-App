@@ -20,15 +20,14 @@
 
 ## 1. Null Safety Issues
 
-### BUG-001: toLocaleString on Undefined (Critical)
+### [2026-01-17] BUG-001: NULL - toLocaleString on Undefined
 
-**Date:** January 17, 2026
 **Severity:** Critical (Production crash)
-**Files Affected:**
+**Files Affected:** `OdooSyncCard.tsx`, `KPICard.tsx`, `ProductInterestBreakdown.tsx`
 
-- `OdooSyncCard.tsx`
-- `KPICard.tsx`
-- `ProductInterestBreakdown.tsx`
+**Context:** Displaying formatted currency and numbers in UI components.
+
+**Mistake:** Called `.toLocaleString()` on values that could be `undefined` or `null`.
 
 **Error Message:**
 
@@ -36,34 +35,21 @@
 Cannot read properties of undefined (reading 'toLocaleString')
 ```
 
-**Root Cause:**
-Calling `.toLocaleString()` on values that could be `undefined` or `null` when database queries return incomplete data.
+**Root Cause:** Database queries can return incomplete data. TypeScript interface said `number` but actual value was `undefined`.
 
-**Bad Code:**
+**Prevention Rule:** Never call instance methods on unguarded nullable values; always use `(value ?? default).method()`.
+
+**Code Example:**
 
 ```typescript
-// CRASHED when value was null/undefined
-<span>₹{quote.amount.toLocaleString('en-IN')}</span>
-<span>{value.toLocaleString()}</span>
-<span>{product.avgQuantity.toLocaleString()} units</span>
+❌ Wrong:   <span>₹{quote.amount.toLocaleString('en-IN')}</span>
+✅ Correct: <span>₹{(quote?.amount ?? 0).toLocaleString('en-IN')}</span>
 ```
 
-**Good Code:**
+**Solution:**
 
 ```typescript
-// SAFE with default value
-<span>₹{(quote.amount || 0).toLocaleString('en-IN')}</span>
-<span>{(value || 0).toLocaleString()}</span>
-<span>{(product.avgQuantity || 0).toLocaleString()} units</span>
-
-// SAFER with optional chaining + nullish coalescing
-<span>₹{(quote?.amount ?? 0).toLocaleString('en-IN')}</span>
-```
-
-**Prevention Pattern:**
-
-```typescript
-// RULE: Always wrap potentially nullable values before method calls
+// Create safe helper
 const safeFormat = (value: number | null | undefined) =>
   (value ?? 0).toLocaleString('en-IN');
 
@@ -71,7 +57,7 @@ const safeFormat = (value: number | null | undefined) =>
 <span>₹{safeFormat(quote.amount)}</span>
 ```
 
-**Test Case to Add:**
+**Test Case:**
 
 ```typescript
 it('should handle undefined values gracefully', () => {
@@ -80,15 +66,19 @@ it('should handle undefined values gracefully', () => {
 });
 ```
 
+**Related Bugs:** BUG-002, BUG-005, BUG-006
 **Related Coding Principle:** [NULL-001](./CODING_PRINCIPLES.md#null-001-always-handle-null-undefined)
 
 ---
 
-### BUG-002: Optional Chaining Not Used on Nested Objects
+### [2026-01-17] BUG-002: NULL - Optional Chaining Not Used on Nested Objects
 
-**Date:** January 17, 2026
 **Severity:** High
 **Files Affected:** `OdooSyncCard.tsx`, `LeadActivityTimeline.tsx`
+
+**Context:** Accessing Odoo response data in sync log display.
+
+**Mistake:** Accessed nested object properties directly without checking if parent exists.
 
 **Error Message:**
 
@@ -96,65 +86,61 @@ it('should handle undefined values gracefully', () => {
 Cannot read properties of undefined (reading 'quotes')
 ```
 
-**Root Cause:**
-Accessing nested object properties without optional chaining when parent objects can be undefined.
+**Root Cause:** API responses don't always include all nested data. TypeScript types showed nested structure but actual data was sparse.
 
-**Bad Code:**
+**Prevention Rule:** For nested access, always use `?.` chain with `??` default: `obj?.level1?.level2 ?? defaultValue`.
+
+**Code Example:**
 
 ```typescript
-// CRASHED when odoo_response was undefined
-const quotes = syncLog.odoo_response.quotes;
+❌ Wrong:   const quotes = syncLog.odoo_response.quotes;
+✅ Correct: const quotes = syncLog?.odoo_response?.quotes ?? [];
 ```
 
-**Good Code:**
+**Solution:**
 
 ```typescript
-// SAFE with optional chaining and default
-const quotes = syncLog.odoo_response?.quotes ?? [];
-```
-
-**Prevention Pattern:**
-
-```typescript
-// RULE: For nested access, always use optional chaining
-const safeNestedAccess = <T>(obj: any, path: string, defaultValue: T): T => {
-  return path.split(".").reduce((o, k) => o?.[k], obj) ?? defaultValue;
-};
-
-// Or use lodash/get
+// Helper for deep access
 import { get } from "lodash";
 const quotes = get(syncLog, "odoo_response.quotes", []);
 ```
 
+**Related Bugs:** BUG-001, BUG-005
 **Related Coding Principle:** [NULL-002](./CODING_PRINCIPLES.md#null-002-optional-chaining-for-nested-access)
 
 ---
 
 ## 2. TypeScript Type Mismatches
 
-### BUG-003: Interface Does Not Match Database Schema
+### [2026-01-17] BUG-003: TYPE - Interface Does Not Match Database Schema
 
-**Date:** January 17, 2026
 **Severity:** Medium
 **Files Affected:** `odoo-service.ts`, `OdooSyncCard.tsx`
 
+**Context:** Displaying Odoo quote data in the sync card component.
+
+**Mistake:** Service and component used different property names for the same field (`name` vs `number`).
+
 **Error Message:**
+
+```
 Component expected `number` field but service saved as `name`
+```
 
 **Root Cause:**
 TypeScript interface defined field as `number: string` but service saved it as `name: string`, causing mismatch.
 
-**Bad Code:**
+**Prevention Rule:** Define types once in shared package; import everywhere—never duplicate interfaces.
+
+**Code Example:**
 
 ```typescript
-// Service saved:
-{ name: q.name, amount: q.amount_total }
-
-// Component expected:
-interface Quote { number: string; amount: number; }
+❌ Wrong:   { name: q.name, amount: q.amount_total }  // Service
+           interface Quote { number: string; }        // Component (different!)
+✅ Correct: import { OdooQuote } from "@maiyuri/shared"  // Both use same type
 ```
 
-**Good Code:**
+**Solution:**
 
 ```typescript
 // Create shared type used by both service and component
@@ -173,53 +159,40 @@ const quote: OdooQuote = { number: q.name, amount: q.amount_total, ... };
 interface Props { quotes: OdooQuote[]; }
 ```
 
-**Prevention Pattern:**
-
-1. Define types in `packages/shared/src/types/`
-2. Import from shared package in both frontend and backend
-3. Use Zod schemas to validate at boundaries
-
+**Related Bugs:** BUG-007
 **Related Coding Principle:** [TYPE-001](./CODING_PRINCIPLES.md#type-001-single-source-of-truth-for-types)
 
 ---
 
 ## 3. API Response Handling
 
-### BUG-004: Not Handling Empty API Responses
+### [2026-01-17] BUG-004: API - Not Handling Empty API Responses
 
-**Date:** TBD
 **Severity:** Medium
+**Files Affected:** Various API consumers
 
-**Common Error:**
+**Context:** Fetching and rendering lists from API endpoints.
+
+**Mistake:** Called `.map()` directly on API response without checking if array exists.
+
+**Error Message:**
 
 ```
 Cannot read properties of undefined (reading 'map')
 ```
 
-**Bad Code:**
+**Root Cause:** API can return empty or malformed responses; code assumed data always exists.
+
+**Prevention Rule:** Always validate API response structure with Zod schema before accessing properties.
+
+**Code Example:**
 
 ```typescript
-const data = await fetchLeads();
-return data.leads.map(l => ...); // CRASHES if data.leads is undefined
+❌ Wrong:   return data.leads.map(l => ...);  // CRASHES if data.leads is undefined
+✅ Correct: const leads = data?.leads ?? []; return leads.map(l => ...);
 ```
 
-**Good Code:**
-
-```typescript
-const data = await fetchLeads();
-const leads = data?.leads ?? [];
-return leads.map(l => ...);
-
-// Or with validation
-const result = LeadsResponseSchema.safeParse(data);
-if (!result.success) {
-  console.error('Invalid API response', result.error);
-  return [];
-}
-return result.data.leads.map(l => ...);
-```
-
-**Prevention Pattern:**
+**Solution:**
 
 ```typescript
 // Always validate API responses with Zod
@@ -243,41 +216,40 @@ async function fetchWithValidation<T>(
 }
 ```
 
+**Related Bugs:** BUG-001, BUG-002
 **Related Coding Principle:** [API-001](./CODING_PRINCIPLES.md#api-001-validate-all-api-responses)
 
 ---
 
 ## 4. React Rendering Issues
 
-### BUG-005: Conditional Rendering Not Checking All Dependencies
+### [2026-01-17] BUG-005: REACT - Conditional Rendering Not Checking All Dependencies
 
-**Date:** TBD
 **Severity:** Medium
+**Files Affected:** Various React components
 
-**Bad Code:**
+**Context:** Conditionally rendering nested data in React components.
 
-```typescript
-// Only checks lead, not nested properties
-{lead && (
-  <div>{lead.odoo.quoteAmount.toLocaleString()}</div>
-)}
+**Mistake:** Used `&&` to check parent object but accessed deeply nested property that could be undefined.
+
+**Error Message:**
+
+```
+Cannot read properties of undefined (reading 'toLocaleString')
 ```
 
-**Good Code:**
+**Root Cause:** `lead && ...` only checks if `lead` is truthy, not if `lead.odoo.quoteAmount` exists.
+
+**Prevention Rule:** Conditional render checks must match the exact property chain being accessed.
+
+**Code Example:**
 
 ```typescript
-// Check the exact property being accessed
-{lead?.odoo?.quoteAmount != null && (
-  <div>{lead.odoo.quoteAmount.toLocaleString()}</div>
-)}
-
-// Or use a helper component
-<SafeRender value={lead?.odoo?.quoteAmount}>
-  {(amount) => <div>{amount.toLocaleString()}</div>}
-</SafeRender>
+❌ Wrong:   {lead && (<div>{lead.odoo.quoteAmount.toLocaleString()}</div>)}
+✅ Correct: {lead?.odoo?.quoteAmount != null && (<div>{lead.odoo.quoteAmount.toLocaleString()}</div>)}
 ```
 
-**Prevention Pattern:**
+**Solution:**
 
 ```typescript
 // SafeRender component
@@ -293,60 +265,72 @@ function SafeRender<T>({
   if (value == null) return <>{fallback}</>;
   return <>{children(value)}</>;
 }
+
+// Usage
+<SafeRender value={lead?.odoo?.quoteAmount}>
+  {(amount) => <div>{amount.toLocaleString()}</div>}
+</SafeRender>
 ```
 
+**Related Bugs:** BUG-001, BUG-002
 **Related Coding Principle:** [REACT-001](./CODING_PRINCIPLES.md#react-001-safe-conditional-rendering)
 
 ---
 
 ## 5. Database & Data Issues
 
-### BUG-006: Database Returns NULL for Aggregations
+### [2026-01-17] BUG-006: DB - Database Returns NULL for Aggregations
 
-**Date:** January 17, 2026
 **Severity:** Medium
 **Files Affected:** `ProductInterestBreakdown.tsx`
 
-**Root Cause:**
-SQL `AVG()` returns `NULL` when no rows match, but TypeScript interface expects `number`.
+**Context:** Displaying average product quantities in dashboard breakdown.
 
-**Bad Code:**
+**Mistake:** Interface declared `avgQuantity: number` but SQL `AVG()` returns `NULL` when no rows match.
 
-```typescript
-interface Product { avgQuantity: number; } // Interface says number
+**Error Message:**
 
-// But SQL returns:
-SELECT AVG(quantity) as avg_quantity // Returns NULL if no rows
+```
+Cannot read properties of null (reading 'toLocaleString')
 ```
 
-**Good Code:**
+**Root Cause:** SQL aggregation functions (`AVG`, `SUM`, `COUNT`) return `NULL` when no rows match, but TypeScript interface expected `number`.
+
+**Prevention Rule:** Always use COALESCE in SQL aggregations; never assume aggregates return non-null.
+
+**Code Example:**
+
+```typescript
+❌ Wrong:   SELECT AVG(quantity) as avg_quantity  // Returns NULL if no rows
+✅ Correct: SELECT COALESCE(AVG(quantity), 0) as avg_quantity
+```
+
+**Solution:**
 
 ```typescript
 // Option 1: Make interface nullable
 interface Product { avgQuantity: number | null; }
 
-// Option 2: Use COALESCE in SQL
+// Option 2: Use COALESCE in SQL (PREFERRED)
 SELECT COALESCE(AVG(quantity), 0) as avg_quantity
 
 // Option 3: Default in TypeScript
 const avgQuantity = row.avg_quantity ?? 0;
 ```
 
-**Prevention Pattern:**
-
-- Always use `COALESCE` for aggregations in SQL
-- Always handle nullable fields in interfaces
-- Add database constraints where appropriate
-
+**Related Bugs:** BUG-001
 **Related Coding Principle:** [DB-001](./CODING_PRINCIPLES.md#db-001-handle-null-in-aggregations)
 
 ---
 
-### BUG-007: XML-RPC Parser Fails on Nested Tags (Critical)
+### [2026-01-17] BUG-007: DB - XML-RPC Parser Fails on Nested Tags
 
-**Date:** January 17, 2026
 **Severity:** Critical (Data loss - quotes displayed as empty)
 **Files Affected:** `apps/web/src/lib/odoo-service.ts`
+
+**Context:** Parsing Odoo XML-RPC responses to extract quote data.
+
+**Mistake:** Custom regex-based XML parser had incorrect depth tracking, causing nested tags to be skipped.
 
 **Error Message:**
 
@@ -355,47 +339,18 @@ No visible error - data silently lost. Quotes array contained empty objects: [{}
 ```
 
 **Root Cause:**
-Custom XML-RPC parser used regex to find matching close tags, but the `findMatchingClose` function had incorrect depth tracking logic. It started with `depth = 0` and incremented when finding the opening tag, but by that point the function was already AT the opening tag (passed `startPos`), causing it to never find the correct closing tag.
+Custom XML-RPC parser used regex to find matching close tags, but `findMatchingClose` started with `depth = 0` at the opening tag position, causing it to never find the correct closing tag for nested structures.
 
-The Odoo XML-RPC response contains nested structures like:
+**Prevention Rule:** Never parse XML/HTML with regex; always use proper parser libraries like `fast-xml-parser`.
 
-```xml
-<struct>
-  <member>
-    <name>partner_id</name>
-    <value><array><data>
-      <value><int>429</int></value>
-      <value><string>Name</string></value>
-    </data></array></value>
-  </member>
-</struct>
-```
-
-**Bad Code:**
+**Code Example:**
 
 ```typescript
-function findMatchingClose(
-  xml: string,
-  tagName: string,
-  startPos: number,
-): number {
-  const openTag = `<${tagName}>`;
-  const closeTag = `</${tagName}>`;
-
-  let depth = 0; // BUG: Should start at 1 since we're AT the opening tag
-  let pos = startPos; // BUG: Should start AFTER the opening tag
-
-  while (pos < xml.length) {
-    const nextOpen = xml.indexOf(openTag, pos);
-    if (nextOpen !== -1 && nextOpen < nextClose) {
-      depth++; // First iteration finds the tag we're already at!
-      // ...
-    }
-  }
-}
+❌ Wrong:   let depth = 0; let pos = startPos;  // Starting AT the tag with depth 0
+✅ Correct: let depth = 1; let pos = startPos + openTag.length;  // AFTER tag, depth 1
 ```
 
-**Good Code:**
+**Solution:**
 
 ```typescript
 function findMatchingClose(
@@ -429,14 +384,7 @@ function findMatchingClose(
 }
 ```
 
-**Prevention Pattern:**
-
-1. **Don't parse XML with regex** - Use proper XML parser libraries like `fast-xml-parser`
-2. **Test with nested data** - Always test parsers with deeply nested structures
-3. **Add debug logging** - Log intermediate parsing steps to catch silent failures
-4. **Validate output** - Check that parsed data has expected structure before saving
-
-**Test Case to Add:**
+**Test Case:**
 
 ```typescript
 describe("XML-RPC Parser", () => {
@@ -450,20 +398,18 @@ describe("XML-RPC Parser", () => {
     </struct>`;
 
     const result = parseValue(xml);
-    expect(result).toEqual({
-      partner_id: [429, "Test"],
-    });
+    expect(result).toEqual({ partner_id: [429, "Test"] });
   });
 });
 ```
 
+**Related Bugs:** BUG-003
 **Related Coding Principle:** [PARSE-001: Avoid Parsing Complex Formats with Regex]
 
 ---
 
-### BUG-008: Inconsistent Phone Number Normalization for WhatsApp
+### [2026-01-17] BUG-008: DB - Inconsistent Phone Number Normalization for WhatsApp
 
-**Date:** January 17, 2026
 **Severity:** High (User experience - broken WhatsApp links)
 **Files Affected:**
 
@@ -471,6 +417,10 @@ describe("XML-RPC Parser", () => {
 - `apps/web/app/(dashboard)/dashboard/page.tsx`
 - `apps/web/src/components/leads/WhatsAppButton.tsx`
 - `apps/web/app/api/leads/[id]/whatsapp-response/route.ts`
+
+**Context:** Opening WhatsApp chat links from various parts of the application.
+
+**Mistake:** Multiple files had different phone normalization logic—some added country codes, some didn't.
 
 **Error Message:**
 
@@ -480,32 +430,18 @@ Example: wa.me/9876543210 instead of wa.me/919876543210
 ```
 
 **Root Cause:**
-Multiple files had different implementations for normalizing phone numbers for WhatsApp wa.me links:
+Multiple files had different implementations for normalizing phone numbers. Lack of centralized utility led to inconsistent behavior.
 
-1. `WhatsAppButton.tsx` correctly added `91` prefix for 10-digit numbers
-2. `leads/page.tsx` only stripped non-digits, missing country code
-3. `dashboard/page.tsx` only removed `+` prefix, missing country code handling
+**Prevention Rule:** Any function used in 2+ places must be centralized in shared package; search before implementing.
 
-The lack of a centralized utility led to inconsistent behavior where some WhatsApp links worked and others silently failed (WhatsApp requires full country code).
-
-**Bad Code (scattered implementations):**
+**Code Example:**
 
 ```typescript
-// leads/page.tsx - MISSING country code
-window.open(`https://wa.me/${contact.replace(/[^0-9]/g, "")}`, "_blank");
-
-// dashboard/page.tsx - MISSING country code handling
-const whatsappUrl = `https://wa.me/${cleanPhone.replace(/^\+/, "")}`;
-
-// WhatsAppButton.tsx - CORRECT but duplicated
-let phone = contactNumber.replace(/\D/g, "");
-if (phone.length === 10) {
-  phone = "91" + phone;
-}
-window.open(`https://wa.me/${phone}`, "_blank");
+❌ Wrong:   window.open(`https://wa.me/${contact.replace(/[^0-9]/g, "")}`, "_blank");  // Missing country code
+✅ Correct: import { buildWhatsAppUrl } from "@maiyuri/shared"; window.open(buildWhatsAppUrl(contact), "_blank");
 ```
 
-**Good Code (centralized utility):**
+**Solution:**
 
 ```typescript
 // packages/shared/src/utils.ts
@@ -514,15 +450,12 @@ export function normalizePhoneForWhatsApp(
   defaultCountryCode: string = "91",
 ): string {
   let normalized = phone.replace(/\D/g, "");
-
   if (normalized.length === 10) {
     normalized = defaultCountryCode + normalized;
   }
-
   if (normalized.startsWith("0") && normalized.length === 11) {
     normalized = defaultCountryCode + normalized.slice(1);
   }
-
   return normalized;
 }
 
@@ -531,53 +464,41 @@ export function buildWhatsAppUrl(phone: string, message?: string): string {
   const baseUrl = `https://wa.me/${normalizedPhone}`;
   return message ? `${baseUrl}?text=${encodeURIComponent(message)}` : baseUrl;
 }
-
-// Usage in all files:
-import { buildWhatsAppUrl } from "@maiyuri/shared";
-window.open(buildWhatsAppUrl(contact), "_blank");
 ```
 
-**Prevention Pattern:**
-
-1. **Centralize utilities** - Any function used in 2+ places belongs in `packages/shared`
-2. **Export from single source** - All shared utilities export from `@maiyuri/shared`
-3. **Write tests first** - Create comprehensive tests for utilities in `packages/shared/src/*.test.ts`
-4. **Search before implementing** - Use `grep` to find existing implementations before writing new code
-
-**Test Case Added:**
+**Test Case:**
 
 ```typescript
-// packages/shared/src/utils.test.ts
 describe("normalizePhoneForWhatsApp", () => {
   it("should add 91 prefix to 10-digit numbers", () => {
     expect(normalizePhoneForWhatsApp("9876543210")).toBe("919876543210");
   });
-
   it("should handle numbers with +91 prefix", () => {
     expect(normalizePhoneForWhatsApp("+91 98765 43210")).toBe("919876543210");
-  });
-
-  it("should handle numbers starting with 0", () => {
-    expect(normalizePhoneForWhatsApp("09876543210")).toBe("919876543210");
   });
 });
 ```
 
+**Related Bugs:** None
 **Related Coding Principle:** [UTIL-001: Centralize Shared Utilities]
 
 ---
 
 ## 6. CI/Build Configuration Issues
 
-### BUG-009: ESLint 9 Flat Config CLI Flag Incompatibility
+### [2026-01-17] BUG-009: CI - ESLint 9 Flat Config CLI Flag Incompatibility
 
-**Date:** January 17, 2026
 **Severity:** Critical (CI completely blocked)
 **Files Affected:**
+
 - `apps/web/package.json`
 - `apps/api/package.json`
 - `packages/shared/package.json`
 - `packages/ui/package.json`
+
+**Context:** Running lint in CI pipeline after upgrading to ESLint 9.
+
+**Mistake:** Used `--max-warnings -1` CLI flag which is not valid in ESLint 9 flat config.
 
 **Error Message:**
 
@@ -587,45 +508,36 @@ You're using eslint.config.js, some command line flags are no longer available.
 ```
 
 **Root Cause:**
-ESLint 9 with flat config (`eslint.config.js`) does not support the `--max-warnings -1` syntax that was used in legacy `.eslintrc` configurations. The `-NUM` format for max-warnings is no longer valid.
+ESLint 9 with flat config (`eslint.config.js`) does not support the `--max-warnings -1` syntax from legacy `.eslintrc` configurations.
 
-**Bad Code:**
+**Prevention Rule:** Test lint locally before committing; check ESLint version compatibility for CLI flags.
 
-```json
-{
-  "scripts": {
-    "lint": "eslint . --max-warnings -1"
-  }
-}
-```
-
-**Good Code:**
+**Code Example:**
 
 ```json
-{
-  "scripts": {
-    "lint": "eslint ."
-  }
-}
+❌ Wrong:   "lint": "eslint . --max-warnings -1"
+✅ Correct: "lint": "eslint ."
 ```
 
-**Prevention Pattern:**
+**Solution:**
+Move warnings/errors config to `eslint.config.js` rules instead of CLI flags.
 
-1. **Test lint locally before committing**: Run `npm run lint` after any lint config changes
-2. **Check ESLint version**: When using ESLint 9+, refer to flat config documentation
-3. **Use config file for settings**: Move warnings/errors config to `eslint.config.js` rules instead of CLI flags
-
+**Related Bugs:** BUG-012
 **Related Coding Principle:** [CI-001: Test Build Configuration Locally Before Push]
 
 ---
 
-### BUG-010: CI Environment Missing Runtime (bun not installed)
+### [2026-01-17] BUG-010: CI - Environment Missing Runtime (bun not installed)
 
-**Date:** January 17, 2026
 **Severity:** Critical (CI completely blocked)
 **Files Affected:**
+
 - `package.json` (root)
 - `apps/api/package.json`
+
+**Context:** Running tests in GitHub Actions CI pipeline.
+
+**Mistake:** Scripts used `bun test` but CI environment doesn't have bun installed by default.
 
 **Error Message:**
 
@@ -635,54 +547,40 @@ bun: command not found
 ```
 
 **Root Cause:**
-The root `package.json` test script used `bun test` but GitHub Actions CI uses npm and doesn't have bun installed by default.
+Root `package.json` test script used `bun test` but GitHub Actions CI uses npm without bun.
 
-**Bad Code:**
+**Prevention Rule:** Match CI runtime to local; use turbo for orchestration or add runtime setup step.
 
-```json
-{
-  "scripts": {
-    "test": "bun test --test-name-pattern '.*' apps/api",
-    "build": "bun build src/index.ts --outdir dist"
-  }
-}
-```
-
-**Good Code:**
+**Code Example:**
 
 ```json
-{
-  "scripts": {
-    "test": "turbo run test",
-    "build": "turbo run build"
-  }
-}
+❌ Wrong:   "test": "bun test --test-name-pattern '.*' apps/api"
+✅ Correct: "test": "turbo run test"
 ```
 
-Or install bun in CI:
+**Solution:**
+Either use turbo for orchestration, or add bun setup step in CI:
 
 ```yaml
 - name: Setup Bun
   uses: oven-sh/setup-bun@v1
 ```
 
-**Prevention Pattern:**
-
-1. **Match CI runtime to local**: Ensure scripts work with CI's runtime (npm/node)
-2. **Add runtime setup step**: If using bun/pnpm, add setup action to CI workflow
-3. **Test in CI environment**: Before merging, verify CI passes or use act locally
-4. **Use turbo for orchestration**: Turbo abstracts package-specific runners
-
+**Related Bugs:** BUG-011
 **Related Coding Principle:** [CI-002: Match Local and CI Environments]
 
 ---
 
-### BUG-011: Turbo Task Dependencies Triggering Unavailable Commands
+### [2026-01-17] BUG-011: CI - Turbo Task Dependencies Triggering Unavailable Commands
 
-**Date:** January 17, 2026
 **Severity:** High (CI blocked)
 **Files Affected:**
+
 - `turbo.json`
+
+**Context:** Running tests through turbo in CI pipeline.
+
+**Mistake:** Test task had `dependsOn: ["^build"]` which triggered builds using unavailable bun command.
 
 **Error Message:**
 
@@ -691,49 +589,35 @@ Or install bun in CI:
 ```
 
 **Root Cause:**
-The turbo test task had `dependsOn: ["^build"]` which triggered the API build task. The API build uses `bun build` which isn't available in CI.
+Turbo test task had `dependsOn: ["^build"]` which triggered API build using `bun build` (not available in CI).
 
-**Bad Code:**
+**Prevention Rule:** Use `turbo run test --dry-run` to review task graph before committing turbo.json changes.
 
-```json
-{
-  "tasks": {
-    "test": {
-      "dependsOn": ["^build"],
-      "env": ["CI"]
-    }
-  }
-}
-```
-
-**Good Code:**
+**Code Example:**
 
 ```json
-{
-  "tasks": {
-    "test": {
-      "env": ["CI"]
-    }
-  }
-}
+❌ Wrong:   "test": { "dependsOn": ["^build"], "env": ["CI"] }
+✅ Correct: "test": { "env": ["CI"] }
 ```
 
-**Prevention Pattern:**
+**Solution:**
+Remove unnecessary build dependencies for test tasks; Vitest doesn't need build output.
 
-1. **Review turbo task graph**: Use `turbo run test --dry-run` to see what tasks will run
-2. **Avoid build dependencies for tests**: Vitest tests don't need build output
-3. **Test full CI locally**: Run `npm run test` to verify all transitive dependencies work
-
+**Related Bugs:** BUG-010
 **Related Coding Principle:** [CI-003: Verify Turbo Task Dependencies]
 
 ---
 
-### BUG-012: lint-staged with Invalid ESLint Flags
+### [2026-01-17] BUG-012: CI - lint-staged with Invalid ESLint Flags
 
-**Date:** January 17, 2026
 **Severity:** Medium (Pre-commit hooks blocked)
 **Files Affected:**
+
 - `package.json` (root)
+
+**Context:** Running pre-commit hooks with lint-staged.
+
+**Mistake:** lint-staged used `--max-warnings 0` flag incompatible with ESLint 9 flat config.
 
 **Error Message:**
 
@@ -742,41 +626,80 @@ eslint --fix --max-warnings 0 failed
 ```
 
 **Root Cause:**
-The lint-staged configuration used `--max-warnings 0` which also may have issues with ESLint 9 flat config in certain contexts.
+lint-staged configuration used `--max-warnings 0` which has issues with ESLint 9 flat config.
 
-**Bad Code:**
+**Prevention Rule:** Test `npx lint-staged` manually after config changes; align with lint script flags.
 
-```json
-{
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "eslint --fix --max-warnings 0",
-      "prettier --write"
-    ]
-  }
-}
-```
-
-**Good Code:**
+**Code Example:**
 
 ```json
-{
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ]
-  }
-}
+❌ Wrong:   "*.{ts,tsx}": ["eslint --fix --max-warnings 0", "prettier --write"]
+✅ Correct: "*.{ts,tsx}": ["eslint --fix", "prettier --write"]
 ```
 
-**Prevention Pattern:**
+**Solution:**
+Remove incompatible CLI flags; use eslint.config.js for warning configuration.
 
-1. **Test pre-commit hooks**: Run `npx lint-staged` manually after config changes
-2. **Align lint-staged with lint script**: Use same flags as package.json lint script
-3. **Check ESLint version compatibility**: Flat config has different CLI behavior
-
+**Related Bugs:** BUG-009
 **Related Coding Principle:** [CI-004: Keep lint-staged in Sync with lint Script]
+
+---
+
+### [2026-01-17] BUG-013: CI - Database Migration Not Applied Before Code Deployment
+
+**Severity:** Critical (Production runtime errors)
+**Files Affected:**
+
+- `apps/web/app/api/leads/[id]/route.ts`
+- `supabase/migrations/20260117_add_lead_classification_fields.sql`
+
+**Context:** Deploying code that references new database columns.
+
+**Mistake:** Merged PR before applying Supabase migration; code deployed but columns didn't exist.
+
+**Error Message:**
+
+```
+Failed to update lead
+(Database log: column "classification" does not exist)
+```
+
+**Root Cause:**
+Code referencing new columns was deployed to Vercel before Supabase migration was applied. Code and database deployments are decoupled.
+
+**Prevention Rule:** Schema-first deployment: always apply database migrations BEFORE merging code that uses new columns.
+
+**Code Example:**
+
+```
+❌ Wrong:   Merge PR → Vercel auto-deploys → Migration NOT applied → Errors
+✅ Correct: Apply migration → Verify health check → THEN merge PR → Vercel deploys
+```
+
+**Solution:**
+
+1. Apply migration to production Supabase FIRST
+2. Verify: `curl /api/health | jq '.data.services.schema'`
+3. THEN merge PR to trigger Vercel deployment
+
+**Test Case:**
+
+```typescript
+async function checkSchema(): Promise<SchemaHealth> {
+  const { error } = await supabase
+    .from("leads")
+    .select(REQUIRED_LEAD_COLUMNS.join(","))
+    .limit(1);
+
+  if (error?.message.includes("does not exist")) {
+    return { status: "invalid", error: "Missing columns - run migrations" };
+  }
+  return { status: "valid" };
+}
+```
+
+**Related Bugs:** None
+**Related Coding Principle:** [DEPLOY-001: Always Apply Migrations Before Code Deployment]
 
 ---
 
@@ -806,9 +729,12 @@ The lint-staged configuration used `--max-warnings 0` which also may have issues
 
 ### Before Deploying
 
+- [ ] **Apply database migrations to production Supabase FIRST**
+- [ ] Verify schema health: `curl /api/health | jq '.data.services.schema'`
 - [ ] Run E2E tests with error tracking
 - [ ] Test with empty/incomplete data
 - [ ] Verify no console errors
+- [ ] Check health endpoint shows `status: "healthy"`
 
 ### Before Modifying CI/Build Configuration
 
@@ -825,11 +751,14 @@ The lint-staged configuration used `--max-warnings 0` which also may have issues
 When a bug is found, add it using this template:
 
 ```markdown
-### BUG-XXX: [Short Description]
+### [YYYY-MM-DD] BUG-XXX: CATEGORY - Brief Title
 
-**Date:** [Date discovered]
 **Severity:** Critical/High/Medium/Low
 **Files Affected:** [List of files]
+
+**Context:** What were you trying to do?
+
+**Mistake:** What went wrong (in simple terms)?
 
 **Error Message:**
 ```
@@ -838,32 +767,43 @@ When a bug is found, add it using this template:
 
 ````
 
-**Root Cause:**
-[Explanation of why it happened]
+**Root Cause:** Why did this happen?
 
-**Bad Code:**
+**Prevention Rule:** One-line axiom to never repeat this.
+
+**Code Example:**
 ```typescript
-[Code that caused the bug]
+❌ Wrong:   [bad code]
+✅ Correct: [good code]
 ````
 
-**Good Code:**
+**Solution:**
 
 ```typescript
-[Fixed code with explanation]
+[Complete fixed code with explanation]
 ```
 
-**Prevention Pattern:**
-[Generic pattern to prevent similar bugs]
-
-**Test Case to Add:**
+**Test Case:**
 
 ```typescript
 [Test that would catch this bug]
 ```
 
+**Related Bugs:** BUG-XXX, BUG-XXX
 **Related Coding Principle:** [Link to principle]
 
 ```
+
+**Categories:**
+- `NULL` - Null/undefined safety issues
+- `TYPE` - TypeScript type mismatches
+- `API` - API response handling
+- `ASYNC` - Async/promise issues
+- `REACT` - React rendering issues
+- `DB` - Database/data issues
+- `CI` - CI/build configuration
+- `SECURITY` - Security vulnerabilities
+- `PERF` - Performance issues
 
 ---
 
@@ -871,16 +811,16 @@ When a bug is found, add it using this template:
 
 | Month | Bugs Found | Bugs Prevented | Prevention Rate |
 |-------|-----------|----------------|-----------------|
-| Jan 2026 | 12 | 0 | - |
+| Jan 2026 | 13 | 0 | - |
 | Feb 2026 | TBD | TBD | TBD |
 
 ### Bug Categories (Jan 2026)
-- Null Safety: 2
-- TypeScript: 1
-- API Response: 1
-- React Rendering: 1
-- Database: 3
-- CI/Build Configuration: 4
+- NULL (Null Safety): 2 (BUG-001, BUG-002)
+- TYPE (TypeScript): 1 (BUG-003)
+- API (Response Handling): 1 (BUG-004)
+- REACT (Rendering): 1 (BUG-005)
+- DB (Database/Data): 3 (BUG-006, BUG-007, BUG-008)
+- CI (Build Configuration): 5 (BUG-009, BUG-010, BUG-011, BUG-012, BUG-013)
 
 **Goal:** 95%+ bug prevention rate through proactive coding principles and testing.
 
