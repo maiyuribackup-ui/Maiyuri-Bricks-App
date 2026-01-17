@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { createSupabaseRouteClient } from "@/lib/supabase-server";
 import { success, error, notFound, parseBody } from "@/lib/api-utils";
 import { updateLeadSchema, type Lead } from "@maiyuri/shared";
 
@@ -43,12 +44,39 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const parsed = await parseBody(request, updateLeadSchema);
     if (parsed.error) return parsed.error;
 
-    // Issue #2: Auto-archive when status changes to 'lost'
+    // Get the authenticated user (optional - for archived_by tracking)
+    const supabase = createSupabaseRouteClient(request);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    // Get current lead state to detect status transitions
+    const { data: currentLead } = await supabaseAdmin
+      .from("leads")
+      .select("status, is_archived")
+      .eq("id", id)
+      .single();
+
     const updateData = { ...parsed.data };
-    if (updateData.status === "lost") {
-      updateData.is_archived = true;
-      updateData.archived_at = new Date().toISOString();
-      updateData.archive_reason = "Auto-archived: Lead marked as lost";
+
+    // Handle auto-archive/unarchive on status transitions (Issue #12)
+    if (updateData.status && currentLead) {
+      const wasLost = currentLead.status === "lost";
+      const becomingLost = updateData.status === "lost";
+
+      if (!wasLost && becomingLost) {
+        // Transitioning TO lost: auto-archive
+        updateData.is_archived = true;
+        updateData.archived_at = new Date().toISOString();
+        updateData.archived_by = user?.id ?? null;
+        updateData.archive_reason = "Auto-archived: Lead marked as lost";
+      } else if (wasLost && !becomingLost && currentLead.is_archived) {
+        // Transitioning FROM lost: auto-unarchive (restore)
+        updateData.is_archived = false;
+        updateData.archived_at = null;
+        updateData.archived_by = null;
+        updateData.archive_reason = null;
+      }
     }
 
     const { data: lead, error: dbError } = await supabaseAdmin
