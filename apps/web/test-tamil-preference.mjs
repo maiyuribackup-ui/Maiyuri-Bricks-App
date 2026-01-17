@@ -1,9 +1,15 @@
 import { chromium } from 'playwright';
 
-const BASE_URL = 'https://maiyuri-bricks-app.vercel.app';
+const BASE_URL = process.env.TEST_BASE_URL || 'https://maiyuri-bricks-app.vercel.app';
+
+if (!process.env.E2E_TEST_EMAIL || !process.env.E2E_TEST_PASSWORD) {
+  console.error('Error: E2E_TEST_EMAIL and E2E_TEST_PASSWORD environment variables are required');
+  process.exit(1);
+}
+
 const TEST_USER = {
-  email: 'ram@maiyuri.app',
-  password: 'TempPass123!'
+  email: process.env.E2E_TEST_EMAIL,
+  password: process.env.E2E_TEST_PASSWORD
 };
 
 async function testTamilPreference() {

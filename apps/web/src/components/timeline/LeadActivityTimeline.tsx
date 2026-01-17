@@ -16,12 +16,13 @@ interface OdooSyncLog {
   lead_id: string;
   sync_type: 'lead_push' | 'lead_pull' | 'quote_pull';
   status: 'success' | 'error';
-  odoo_response: {
+  odoo_response?: {
     quotes?: Array<{
-      number: string;
-      amount: number;
-      state: string;
-      date: string;
+      number?: string;
+      name?: string; // Legacy field
+      amount?: number;
+      state?: string;
+      date?: string;
     }>;
     latestQuote?: string;
     latestOrder?: string;

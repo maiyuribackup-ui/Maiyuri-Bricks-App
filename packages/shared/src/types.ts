@@ -1,24 +1,50 @@
 // Lead Management Types
 
-export type LeadStatus = 'new' | 'follow_up' | 'hot' | 'cold' | 'converted' | 'lost';
+export type LeadStatus =
+  | "new"
+  | "follow_up"
+  | "hot"
+  | "cold"
+  | "converted"
+  | "lost";
 
-export type UserRole = 'founder' | 'accountant' | 'engineer';
+// Lead Classification Types
+export type LeadClassification =
+  | "direct_customer"
+  | "vendor"
+  | "builder"
+  | "dealer"
+  | "architect";
+
+// Requirement Type for construction projects
+export type RequirementType =
+  | "residential_house"
+  | "commercial_building"
+  | "eco_friendly_building"
+  | "compound_wall";
+
+export type UserRole = "founder" | "accountant" | "engineer";
 
 // Lead Intelligence Types - for decision cockpit
-export type LeadUrgency = 'immediate' | '1-3_months' | '3-6_months' | 'unknown';
-export type ConversionLever = 'proof' | 'price' | 'visit' | 'relationship' | 'timeline';
+export type LeadUrgency = "immediate" | "1-3_months" | "3-6_months" | "unknown";
+export type ConversionLever =
+  | "proof"
+  | "price"
+  | "visit"
+  | "relationship"
+  | "timeline";
 
-export type LanguagePreference = 'en' | 'ta';
+export type LanguagePreference = "en" | "ta";
 
 export interface AIFactor {
   factor: string;
-  impact: 'positive' | 'negative' | 'neutral';
+  impact: "positive" | "negative" | "neutral";
 }
 
 export interface AISuggestionItem {
   type: string;
   content: string;
-  priority: 'high' | 'medium' | 'low';
+  priority: "high" | "medium" | "low";
 }
 
 export interface Lead {
@@ -29,6 +55,11 @@ export interface Lead {
   lead_type: string;
   assigned_staff: string | null;
   status: LeadStatus;
+  // New classification and requirement fields
+  classification?: LeadClassification | null;
+  requirement_type?: RequirementType | null;
+  site_region?: string | null;
+  site_location?: string | null;
   staff_notes?: string | null;
   ai_summary?: string | null;
   ai_score?: number | null;
@@ -51,6 +82,8 @@ export interface Lead {
   // Odoo CRM integration fields
   odoo_lead_id?: number | null;
   odoo_partner_id?: number | null;
+  odoo_quote_id?: number | null;
+  odoo_order_id?: number | null;
   odoo_quote_number?: string | null;
   odoo_order_number?: string | null;
   odoo_quote_amount?: number | null;
@@ -58,7 +91,7 @@ export interface Lead {
   odoo_quote_date?: string | null;
   odoo_order_date?: string | null;
   odoo_synced_at?: string | null;
-  odoo_sync_status?: 'pending' | 'synced' | 'error' | 'not_synced' | null;
+  odoo_sync_status?: "pending" | "synced" | "error" | "not_synced" | null;
 }
 
 // Archive Configuration Types
@@ -73,7 +106,7 @@ export interface ArchiveConfig {
   cold_inactivity_days: ArchiveThreshold;
 }
 
-export type ArchiveSuggestionStatus = 'pending' | 'accepted' | 'dismissed';
+export type ArchiveSuggestionStatus = "pending" | "accepted" | "dismissed";
 
 export interface ArchiveSuggestion {
   id: string;
@@ -87,7 +120,7 @@ export interface ArchiveSuggestion {
   lead?: Lead;
 }
 
-export type ArchiveCriteriaType = 'converted' | 'lost' | 'cold_inactive';
+export type ArchiveCriteriaType = "converted" | "lost" | "cold_inactive";
 
 export interface ArchiveCriteria {
   type: ArchiveCriteriaType;
@@ -154,14 +187,14 @@ export interface AISummary {
 export interface AIScore {
   score: number;
   confidence: number;
-  factors: { factor: string; impact: 'positive' | 'negative' | 'neutral' }[];
+  factors: { factor: string; impact: "positive" | "negative" | "neutral" }[];
 }
 
 export interface AISuggestion {
   id: string;
-  type: 'action' | 'response' | 'insight';
+  type: "action" | "response" | "insight";
   content: string;
-  priority: 'high' | 'medium' | 'low';
+  priority: "high" | "medium" | "low";
 }
 
 export interface ApiResponse<T> {
@@ -174,8 +207,8 @@ export interface ApiResponse<T> {
   };
 }
 
-export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
-export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TaskStatus = "todo" | "in_progress" | "review" | "done";
+export type TaskPriority = "low" | "medium" | "high" | "urgent";
 
 export interface Task {
   id: string;
@@ -193,9 +226,14 @@ export interface Task {
 }
 
 // Price Estimator Types
-export type ProductCategory = 'cement_interlock' | 'mud_interlock' | 'project';
-export type ProductSize = '6_inch' | '8_inch' | null;
-export type EstimateStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired';
+export type ProductCategory = "cement_interlock" | "mud_interlock" | "project";
+export type ProductSize = "6_inch" | "8_inch" | null;
+export type EstimateStatus =
+  | "draft"
+  | "sent"
+  | "accepted"
+  | "rejected"
+  | "expired";
 
 export interface Product {
   id: string;
@@ -264,7 +302,7 @@ export interface Estimate {
 
 export interface DiscountFactor {
   name: string;
-  impact: 'increase' | 'decrease' | 'neutral';
+  impact: "increase" | "decrease" | "neutral";
   weight: number;
   description: string;
 }
@@ -276,7 +314,7 @@ export interface DiscountSuggestion {
   confidence: number;
   reasoning: string;
   factors: DiscountFactor[];
-  urgencyLevel: 'high' | 'medium' | 'low';
+  urgencyLevel: "high" | "medium" | "low";
   competitiveNote?: string;
 }
 
@@ -288,19 +326,35 @@ export interface DistanceCalculation {
 
 // Call Recording Types (Telegram Audio Ingestion)
 export type CallRecordingStatus =
-  | 'pending'
-  | 'downloading'
-  | 'converting'
-  | 'uploading'
-  | 'transcribing'
-  | 'analyzing'
-  | 'completed'
-  | 'failed';
+  | "pending"
+  | "downloading"
+  | "converting"
+  | "uploading"
+  | "transcribing"
+  | "analyzing"
+  | "completed"
+  | "failed";
 
 // Call Recording Structured Types for Decision Cockpit
-export type CallIntent = 'price_enquiry' | 'technical_validation' | 'site_visit' | 'comparison' | 'research' | 'complaint' | 'order_follow_up';
-export type BuyerRole = 'owner' | 'engineer' | 'contractor' | 'influencer' | 'unknown';
-export type UrgencySignal = 'immediate' | '1-3_months' | '3-6_months' | 'unknown';
+export type CallIntent =
+  | "price_enquiry"
+  | "technical_validation"
+  | "site_visit"
+  | "comparison"
+  | "research"
+  | "complaint"
+  | "order_follow_up";
+export type BuyerRole =
+  | "owner"
+  | "engineer"
+  | "contractor"
+  | "influencer"
+  | "unknown";
+export type UrgencySignal =
+  | "immediate"
+  | "1-3_months"
+  | "3-6_months"
+  | "unknown";
 
 export interface CallRecordingInsights {
   complaints?: string[];
@@ -309,7 +363,7 @@ export interface CallRecordingInsights {
   price_expectations?: string[];
   positive_signals?: string[];
   recommended_actions?: string[];
-  sentiment?: 'positive' | 'negative' | 'neutral' | 'mixed';
+  sentiment?: "positive" | "negative" | "neutral" | "mixed";
   // Structured fields for decision cockpit
   primary_intent?: CallIntent;
   buyer_role?: BuyerRole;

@@ -1,6 +1,14 @@
 import { chromium } from 'playwright';
 
-const BASE_URL = 'https://maiyuri-bricks-app.vercel.app';
+const BASE_URL = process.env.TEST_BASE_URL || 'https://maiyuri-bricks-app.vercel.app';
+
+if (!process.env.E2E_TEST_EMAIL || !process.env.E2E_TEST_PASSWORD) {
+  console.error('Error: E2E_TEST_EMAIL and E2E_TEST_PASSWORD environment variables are required');
+  process.exit(1);
+}
+
+const TEST_EMAIL = process.env.E2E_TEST_EMAIL;
+const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD;
 
 async function testLogin() {
   console.log('🚀 Starting login test with new branding...\n');
@@ -31,8 +39,8 @@ async function testLogin() {
 
     // 5. Fill login form
     console.log('\n3️⃣ Filling login form...');
-    await page.getByLabel('Email address').fill('ram@maiyuri.app');
-    await page.getByLabel('Password').fill('TempPass123!');
+    await page.getByLabel('Email address').fill(TEST_EMAIL);
+    await page.getByLabel('Password').fill(TEST_PASSWORD);
 
     // 6. Take screenshot before login
     await page.screenshot({ path: 'test-results/branding-before-login.png' });

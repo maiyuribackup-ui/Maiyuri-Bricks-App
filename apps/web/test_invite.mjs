@@ -1,16 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Require environment variables
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables are required');
+  process.exit(1);
+}
+
+if (!process.env.E2E_TEST_EMAIL || !process.env.E2E_TEST_PASSWORD) {
+  console.error('Error: E2E_TEST_EMAIL and E2E_TEST_PASSWORD environment variables are required');
+  process.exit(1);
+}
+
 // Use service role for testing
 const supabase = createClient(
-  'https://pailepomvvwjkrhkwdqt.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhaWxlcG9tdnZ3amtyaGt3ZHF0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NzUzOTM3OSwiZXhwIjoyMDgzMTE1Mzc5fQ.gne7NmHyPE_mNE5Dps2CsJzxt5qzla19SQVB4FP9UfI'
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // Login as founder
 console.log('Logging in as founder...');
 const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-  email: 'ram@maiyuri.app',
-  password: 'TempPass123!'
+  email: process.env.E2E_TEST_EMAIL,
+  password: process.env.E2E_TEST_PASSWORD
 });
 
 if (authError) {

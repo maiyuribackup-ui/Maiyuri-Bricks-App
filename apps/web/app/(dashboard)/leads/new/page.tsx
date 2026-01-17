@@ -1,47 +1,72 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Card, Button, Spinner } from '@maiyuri/ui';
-import { createLeadSchema, type CreateLeadInput } from '@maiyuri/shared';
-import Link from 'next/link';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Card, Button, Spinner } from "@maiyuri/ui";
+import {
+  createLeadSchema,
+  type CreateLeadInput,
+  type User,
+} from "@maiyuri/shared";
+import Link from "next/link";
 
+// Source options (Issue #6)
 const sourceOptions = [
-  'Website',
-  'Referral',
-  'Walk-in',
-  'Phone',
-  'Social Media',
-  'Advertisement',
-  'Other',
+  "Facebook",
+  "Google",
+  "Customer Reference",
+  "Instagram",
+  "Company Website",
+  "Just Dial",
+  "IndiaMart",
+  "Walk-in",
+  "Phone",
+  "Other",
 ];
 
 const leadTypeOptions = [
-  'Commercial',
-  'Residential',
-  'Industrial',
-  'Government',
-  'Other',
+  "Commercial",
+  "Residential",
+  "Industrial",
+  "Government",
+  "Other",
+];
+
+// Classification options (Issue #3)
+const classificationOptions = [
+  { value: "direct_customer", label: "Direct Customer" },
+  { value: "vendor", label: "Vendor" },
+  { value: "builder", label: "Builder" },
+  { value: "dealer", label: "Dealer" },
+  { value: "architect", label: "Architect" },
+];
+
+// Requirement type options (Issue #4)
+const requirementTypeOptions = [
+  { value: "residential_house", label: "Residential House" },
+  { value: "commercial_building", label: "Commercial Building" },
+  { value: "eco_friendly_building", label: "Eco-Friendly Building" },
+  { value: "compound_wall", label: "Compound Wall" },
 ];
 
 async function fetchUsers() {
-  const res = await fetch('/api/users');
-  if (!res.ok) throw new Error('Failed to fetch users');
+  const res = await fetch("/api/users");
+  if (!res.ok) throw new Error("Failed to fetch users");
   return res.json();
 }
 
 async function createLead(data: CreateLeadInput) {
-  const res = await fetch('/api/leads', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await fetch("/api/leads", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
   if (!res.ok) {
     const error = await res.json();
-    throw new Error(error.error || 'Failed to create lead');
+    throw new Error(error.error || "Failed to create lead");
   }
   return res.json();
 }
@@ -52,7 +77,7 @@ export default function NewLeadPage() {
   const [error, setError] = useState<string | null>(null);
 
   const { data: usersData } = useQuery({
-    queryKey: ['users'],
+    queryKey: ["users"],
     queryFn: fetchUsers,
   });
 
@@ -65,14 +90,14 @@ export default function NewLeadPage() {
   } = useForm<CreateLeadInput>({
     resolver: zodResolver(createLeadSchema),
     defaultValues: {
-      status: 'new',
+      status: "new",
     },
   });
 
   const mutation = useMutation({
     mutationFn: createLead,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
       router.push(`/leads/${data.data.id}`);
     },
     onError: (err: Error) => {
@@ -120,7 +145,7 @@ export default function NewLeadPage() {
               Name <span className="text-red-500">*</span>
             </label>
             <input
-              {...register('name')}
+              {...register("name")}
               type="text"
               placeholder="Enter lead name"
               className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -136,13 +161,15 @@ export default function NewLeadPage() {
               Contact Number <span className="text-red-500">*</span>
             </label>
             <input
-              {...register('contact')}
+              {...register("contact")}
               type="tel"
               placeholder="Enter contact number"
               className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             {errors.contact && (
-              <p className="mt-1 text-sm text-red-500">{errors.contact.message}</p>
+              <p className="mt-1 text-sm text-red-500">
+                {errors.contact.message}
+              </p>
             )}
           </div>
 
@@ -153,7 +180,7 @@ export default function NewLeadPage() {
                 Source <span className="text-red-500">*</span>
               </label>
               <select
-                {...register('source')}
+                {...register("source")}
                 className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select source</option>
@@ -164,7 +191,9 @@ export default function NewLeadPage() {
                 ))}
               </select>
               {errors.source && (
-                <p className="mt-1 text-sm text-red-500">{errors.source.message}</p>
+                <p className="mt-1 text-sm text-red-500">
+                  {errors.source.message}
+                </p>
               )}
             </div>
 
@@ -173,7 +202,7 @@ export default function NewLeadPage() {
                 Lead Type <span className="text-red-500">*</span>
               </label>
               <select
-                {...register('lead_type')}
+                {...register("lead_type")}
                 className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select type</option>
@@ -184,8 +213,74 @@ export default function NewLeadPage() {
                 ))}
               </select>
               {errors.lead_type && (
-                <p className="mt-1 text-sm text-red-500">{errors.lead_type.message}</p>
+                <p className="mt-1 text-sm text-red-500">
+                  {errors.lead_type.message}
+                </p>
               )}
+            </div>
+          </div>
+
+          {/* Classification and Requirement Type */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Classification
+              </label>
+              <select
+                {...register("classification")}
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select classification</option>
+                {classificationOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Requirement Type
+              </label>
+              <select
+                {...register("requirement_type")}
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select requirement type</option>
+                {requirementTypeOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Site Region and Location */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Site Region
+              </label>
+              <input
+                {...register("site_region")}
+                type="text"
+                placeholder="e.g., Chennai, Kanchipuram"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Site Location
+              </label>
+              <input
+                {...register("site_location")}
+                type="text"
+                placeholder="e.g., T Nagar, Anna Nagar"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
           </div>
 
@@ -195,11 +290,11 @@ export default function NewLeadPage() {
               Assign To
             </label>
             <select
-              {...register('assigned_staff')}
+              {...register("assigned_staff")}
               className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Unassigned</option>
-              {users.map((user: any) => (
+              {users.map((user: User) => (
                 <option key={user.id} value={user.id}>
                   {user.name} ({user.role})
                 </option>
@@ -213,7 +308,7 @@ export default function NewLeadPage() {
               Next Action
             </label>
             <input
-              {...register('next_action')}
+              {...register("next_action")}
               type="text"
               placeholder="e.g., Call to discuss requirements"
               className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -226,7 +321,7 @@ export default function NewLeadPage() {
               Follow-up Date
             </label>
             <input
-              {...register('follow_up_date')}
+              {...register("follow_up_date")}
               type="date"
               className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -241,7 +336,7 @@ export default function NewLeadPage() {
                   Creating...
                 </>
               ) : (
-                'Create Lead'
+                "Create Lead"
               )}
             </Button>
             <Link href="/leads">
@@ -258,8 +353,18 @@ export default function NewLeadPage() {
 
 function ArrowLeftIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+      />
     </svg>
   );
 }

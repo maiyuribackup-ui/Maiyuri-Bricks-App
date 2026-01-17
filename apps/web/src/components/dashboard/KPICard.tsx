@@ -81,7 +81,7 @@ export function KPICard({
         ) : (
           <div className={cn('text-3xl font-bold', textClasses[variant])}>
             {prefix}
-            {typeof value === 'number' ? value.toLocaleString() : value}
+            {typeof value === 'number' ? (value || 0).toLocaleString() : value}
             {suffix}
           </div>
         )}

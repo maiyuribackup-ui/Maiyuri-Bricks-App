@@ -3,28 +3,70 @@
 import { CheckCircleIcon, DocumentTextIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { Badge, Card } from '@maiyuri/ui';
 
+interface OdooQuote {
+  // New format (transformed)
+  number?: string;
+  amount?: number;
+  // Old format (raw Odoo fields)
+  name?: string;
+  amount_total?: number;
+  // Common fields
+  id?: number;
+  state?: string;
+  date?: string;
+  date_order?: string;
+}
+
 interface OdooSyncCardProps {
   syncLog: {
     id: string;
     sync_type: string;
     status: string;
     created_at: string;
-    odoo_response: {
-      quotes?: Array<{
-        number: string;
-        amount: number;
-        state: string;
-        date: string;
-      }>;
+    odoo_response?: {
+      quotes?: OdooQuote[];
       latestQuote?: string;
       latestOrder?: string;
     };
   };
 }
 
+// Helper to normalize quote data from various formats
+function normalizeQuote(quote: OdooQuote | number | string | unknown): OdooQuote {
+  // Handle primitive values (old format might just be IDs)
+  if (typeof quote === 'number') {
+    return { id: quote };
+  }
+  if (typeof quote === 'string') {
+    return { name: quote };
+  }
+  if (!quote || typeof quote !== 'object') {
+    return {};
+  }
+  return quote as OdooQuote;
+}
+
+// Helper to get quote number from either format
+function getQuoteNumber(quote: OdooQuote | unknown): string {
+  const q = normalizeQuote(quote);
+  return q.number || q.name || (q.id ? `#${q.id}` : 'N/A');
+}
+
+// Helper to get quote amount from either format
+function getQuoteAmount(quote: OdooQuote | unknown): number {
+  const q = normalizeQuote(quote);
+  return q.amount ?? q.amount_total ?? 0;
+}
+
+// Helper to get quote state
+function getQuoteState(quote: OdooQuote | unknown): string | undefined {
+  const q = normalizeQuote(quote);
+  return q.state;
+}
+
 export function OdooSyncCard({ syncLog }: OdooSyncCardProps) {
   const { odoo_response } = syncLog;
-  const quotes = odoo_response.quotes || [];
+  const quotes = odoo_response?.quotes || [];
 
   return (
     <Card className="p-4 border-l-4 border-l-orange-500 bg-orange-50 dark:bg-orange-900/10">
@@ -40,7 +82,7 @@ export function OdooSyncCard({ syncLog }: OdooSyncCardProps) {
             <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100">
               Quotes Synced from Odoo
             </h4>
-            <Badge variant="outline" className="ml-2 border-green-600 text-green-700 bg-green-50 dark:bg-green-900/20 dark:text-green-300">
+            <Badge variant="success" className="ml-2">
               <CheckCircleIcon className="h-3 w-3 mr-1" />
               Success
             </Badge>
@@ -60,29 +102,34 @@ export function OdooSyncCard({ syncLog }: OdooSyncCardProps) {
               </p>
 
               <div className="space-y-1.5">
-                {quotes.map((quote, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700"
-                  >
-                    <div className="flex items-center gap-2">
-                      <DocumentTextIcon className="h-4 w-4 text-emerald-600" />
-                      <span className="text-sm font-medium">{quote.number}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {quote.state}
-                      </Badge>
+                {quotes.map((quote, idx) => {
+                  const state = getQuoteState(quote);
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700"
+                    >
+                      <div className="flex items-center gap-2">
+                        <DocumentTextIcon className="h-4 w-4 text-emerald-600" />
+                        <span className="text-sm font-medium">{getQuoteNumber(quote)}</span>
+                        {state && (
+                          <Badge variant="default" className="text-xs">
+                            {state}
+                          </Badge>
+                        )}
+                      </div>
+                      <span className="text-sm font-bold text-emerald-600">
+                        ₹{getQuoteAmount(quote).toLocaleString('en-IN')}
+                      </span>
                     </div>
-                    <span className="text-sm font-bold text-emerald-600">
-                      ₹{quote.amount.toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              {odoo_response.latestQuote && (
+              {odoo_response?.latestQuote && (
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                   Latest: {odoo_response.latestQuote}
-                  {odoo_response.latestOrder && ` • Order: ${odoo_response.latestOrder}`}
+                  {odoo_response?.latestOrder && ` • Order: ${odoo_response.latestOrder}`}
                 </p>
               )}
             </div>

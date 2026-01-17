@@ -4,9 +4,15 @@
  */
 import { chromium } from 'playwright';
 
-const BASE_URL = 'http://localhost:3000';
-const EMAIL = 'ram@maiyuri.app';
-const PASSWORD = 'TempPass123!';
+const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
+const EMAIL = process.env.E2E_TEST_EMAIL;
+const PASSWORD = process.env.E2E_TEST_PASSWORD;
+
+if (!EMAIL || !PASSWORD) {
+  console.error('Error: E2E_TEST_EMAIL and E2E_TEST_PASSWORD environment variables are required');
+  console.error('Set them in .env.local or export them before running tests');
+  process.exit(1);
+}
 
 async function testTamilLanguageFix() {
   const browser = await chromium.launch({ headless: false });

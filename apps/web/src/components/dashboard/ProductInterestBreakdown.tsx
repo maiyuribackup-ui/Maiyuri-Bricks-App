@@ -110,7 +110,7 @@ export function ProductInterestBreakdown({
                     <TrendIndicator trend={product.trend} />
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Avg. qty: {product.avgQuantity.toLocaleString()} units
+                    Avg. qty: {(product.avgQuantity || 0).toLocaleString()} units
                   </p>
                 </div>
               </div>

@@ -44,13 +44,18 @@ tests/               # E2E and integration tests (see tests/CLAUDE.md)
 
 ## Code Standards
 
+> **CRITICAL: Read before coding!**
+> - [CODING_PRINCIPLES.md](docs/CODING_PRINCIPLES.md) - Comprehensive coding standards
+> - [LEARNINGS.md](docs/LEARNINGS.md) - Bug prevention registry
+
 ### Required (MUST)
 - TypeScript strict mode
 - Tests for all new features
-- Run pre-commit hooks
+- Run pre-commit hooks (`/pre-commit`)
 - Functional component pattern in React
 - React Hook Form + Zod for forms
 - Tailwind + Design Tokens for styling
+- **NULL SAFETY:** Always use `??` for defaults, `?.` for nested access
 
 ### Prohibited (MUST NOT)
 - `@ts-ignore` or `@ts-expect-error`
@@ -59,11 +64,13 @@ tests/               # E2E and integration tests (see tests/CLAUDE.md)
 - Direct DB queries without transactions
 - Unchecked external API calls
 - Committing secrets or `.env` files
+- **Method calls on nullable values without defaults** (e.g., `value.toLocaleString()`)
 
 ### Best Practices (SHOULD)
 - Descriptive variable names
 - Functions <50 lines
 - Extract complex logic into helpers
+- **Check LEARNINGS.md for similar bugs before fixing**
 
 ## Security
 
@@ -330,6 +337,33 @@ import Anthropic from '@anthropic-ai/sdk';
 const anthropic = new Anthropic();
 ```
 
+## Custom Slash Commands
+
+| Command | Purpose | When to Use |
+|---------|---------|-------------|
+| `/null-check` | Scan for null safety issues | Before commits, after bugs |
+| `/pre-commit` | Run all quality gates | Before every commit |
+| `/code-review` or `/review` | Review code against principles | Before PRs |
+| `/test-all` or `/test` | Run comprehensive tests | Before deploys |
+| `/deploy` | Safe production deployment | When releasing |
+| `/learning` | Document a bug for prevention | After fixing any bug |
+
+### Quick Workflow
+
+```bash
+# Before committing
+/pre-commit
+
+# Before PR
+/code-review
+
+# After fixing a bug
+/learning "Error message here"
+
+# Before deploying
+/deploy
+```
+
 ## Claude Code Subagents
 
 | Agent | Purpose | Tools |
@@ -337,6 +371,7 @@ const anthropic = new Anthropic();
 | **TestingAgent** | Run and debug tests | Read, Bash |
 | **ReviewAgent** | Code review and quality | Read, Grep |
 | **DocsAgent** | Generate documentation | Read, Write |
+| **NullSafetyAgent** | Scan for null vulnerabilities | Grep, Read |
 
 ## AI Agents (Application)
 
