@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { sendWelcomeEmail } from '@/lib/email';
 
-// Use service role client for user creation
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
+// Lazy initialization to avoid build-time errors
+let supabaseAdmin: SupabaseClient | null = null;
+
+function getSupabaseAdmin(): SupabaseClient {
+  if (!supabaseAdmin) {
+    supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
   }
-);
+  return supabaseAdmin;
+}
 
 /**
  * POST /api/users/accept-invite
@@ -39,7 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the invitation
-    const { data: invitation, error: findError } = await supabaseAdmin
+    const { data: invitation, error: findError } = await getSupabaseAdmin()
       .from('users')
       .select('*')
       .eq('invitation_token', token)
@@ -63,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     // The auth user was already created during invitation.
     // Now we just need to update their password and confirm their email.
-    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+    const { error: authError } = await getSupabaseAdmin().auth.admin.updateUserById(
       invitation.id, // The invitation.id IS the auth user's ID
       {
         password,
@@ -86,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the public.users record to mark invitation as accepted
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await getSupabaseAdmin()
       .from('users')
       .update({
         invitation_token: null,
@@ -139,7 +146,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Find the invitation
-    const { data: invitation, error: findError } = await supabaseAdmin
+    const { data: invitation, error: findError } = await getSupabaseAdmin()
       .from('users')
       .select('email, name, role, invitation_expires_at')
       .eq('invitation_token', token)
