@@ -268,25 +268,8 @@ export default function LeadDetailPage() {
             </div>
           </div>
 
-          {/* Key Metrics Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-            {/* AI Score */}
-            <div className="text-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                AI Score
-              </div>
-              <div
-                className={`text-2xl font-bold ${getScoreColor(lead.ai_score)}`}
-              >
-                {lead.ai_score != null ? `${lead.ai_score}%` : "—"}
-              </div>
-              {lead.ai_score != null && (
-                <div className="text-xs text-slate-500 mt-1">
-                  {getScoreLabel(lead.ai_score)}
-                </div>
-              )}
-            </div>
-
+          {/* Key Metrics Row - 3 columns (AI Score removed - shown in Decision Cockpit below) */}
+          <div className="grid grid-cols-3 gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
             {/* Status */}
             <div className="text-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
               <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
