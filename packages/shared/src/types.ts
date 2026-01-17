@@ -107,6 +107,8 @@ export interface Lead {
   odoo_order_date?: string | null;
   odoo_synced_at?: string | null;
   odoo_sync_status?: "pending" | "synced" | "error" | "not_synced" | null;
+  // SmartQuote AI Payload - personalization data for Smart Quote generation
+  smart_quote_payload?: SmartQuotePayload | null;
 }
 
 // Archive Configuration Types
@@ -465,7 +467,8 @@ export type SmartQuoteObjectionType =
   | "water"
   | "approval"
   | "maintenance"
-  | "resale";
+  | "resale"
+  | "contractor_acceptance";
 
 export type SmartQuoteObjectionSeverity = "low" | "medium" | "high";
 
@@ -547,4 +550,54 @@ export interface SmartQuoteCtaSubmission {
   phone: string;
   locality?: string;
   preferred_time?: string;
+}
+
+// ============================================================================
+// SmartQuotePayload Types (AI-Generated for Personalization)
+// ============================================================================
+
+export type SmartQuotePersona =
+  | "homeowner"
+  | "builder"
+  | "architect"
+  | "unknown";
+
+export type SmartQuoteAngle =
+  | "health"
+  | "cooling"
+  | "cost"
+  | "sustainability"
+  | "design";
+
+export type CompetitorTone = "curious" | "comparing" | "doubtful" | "none";
+
+export interface SmartQuotePersonalizationSnippets {
+  en: { p1: string; p2?: string };
+  ta: { p1: string; p2?: string };
+}
+
+export interface SmartQuoteCompetitorContext {
+  mentioned: boolean;
+  tone: CompetitorTone;
+}
+
+/**
+ * SmartQuotePayload - AI-generated payload for Smart Quote personalization.
+ * This is the single source of truth for:
+ * - Copy personalization
+ * - Section selection
+ * - Objection handling
+ * - CTA routing
+ * - Language default
+ */
+export interface SmartQuotePayload {
+  language_default: SmartQuoteLanguage;
+  persona: SmartQuotePersona;
+  stage: SmartQuoteStage;
+  primary_angle: SmartQuoteAngle;
+  secondary_angle: SmartQuoteAngle | null;
+  top_objections: SmartQuoteObjection[];
+  route_decision: SmartQuoteRoute;
+  personalization_snippets: SmartQuotePersonalizationSnippets;
+  competitor_context: SmartQuoteCompetitorContext;
 }

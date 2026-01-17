@@ -2,10 +2,30 @@
  * CloudCore Type Definitions
  */
 
-import type { Lead, Note, User, KnowledgebaseEntry, CallRecording, CallRecordingInsights, LeadUrgency, ConversionLever } from '@maiyuri/shared';
+import type {
+  Lead,
+  Note,
+  User,
+  KnowledgebaseEntry,
+  CallRecording,
+  CallRecordingInsights,
+  LeadUrgency,
+  ConversionLever,
+  SmartQuotePayload,
+} from "@maiyuri/shared";
 
 // Re-export shared types
-export type { Lead, Note, User, KnowledgebaseEntry, CallRecording, CallRecordingInsights, LeadUrgency, ConversionLever };
+export type {
+  Lead,
+  Note,
+  User,
+  KnowledgebaseEntry,
+  CallRecording,
+  CallRecordingInsights,
+  LeadUrgency,
+  ConversionLever,
+  SmartQuotePayload,
+};
 
 // ============================================
 // Core Result Types
@@ -42,7 +62,7 @@ export interface TokenUsage {
 // AI Provider Types
 // ============================================
 
-export type AIProvider = 'claude' | 'gemini';
+export type AIProvider = "claude" | "gemini";
 
 export interface AIProviderConfig {
   provider: AIProvider;
@@ -52,20 +72,20 @@ export interface AIProviderConfig {
 }
 
 export const ClaudeModels = {
-  SONNET: 'claude-sonnet-4-20250514',
-  HAIKU: 'claude-3-5-haiku-20241022',
+  SONNET: "claude-sonnet-4-20250514",
+  HAIKU: "claude-3-5-haiku-20241022",
 } as const;
 
 export const GeminiModels = {
-  FLASH: 'gemini-2.5-flash',
-  PRO: 'gemini-2.5-pro',
+  FLASH: "gemini-2.5-flash",
+  PRO: "gemini-2.5-pro",
 } as const;
 
 export const GeminiImageModels = {
   // Image generation models - native multimodal output
   // Uses generateContent API with responseModalities: ['IMAGE']
-  FLASH_IMAGE: 'gemini-2.5-flash-image',     // Nano Banana: Fast, 1024px images
-  PRO_IMAGE: 'gemini-3-pro-image-preview',   // Nano Banana Pro: 4K, 14 reference images
+  FLASH_IMAGE: "gemini-2.5-flash-image", // Nano Banana: Fast, 1024px images
+  PRO_IMAGE: "gemini-3-pro-image-preview", // Nano Banana Pro: 4K, 14 reference images
 } as const;
 
 // ============================================
@@ -73,18 +93,18 @@ export const GeminiImageModels = {
 // ============================================
 
 export type ImageAspectRatio =
-  | '1:1'
-  | '2:3'
-  | '3:2'
-  | '3:4'
-  | '4:3'
-  | '4:5'
-  | '5:4'
-  | '9:16'
-  | '16:9'
-  | '21:9';
+  | "1:1"
+  | "2:3"
+  | "3:2"
+  | "3:4"
+  | "4:3"
+  | "4:5"
+  | "5:4"
+  | "9:16"
+  | "16:9"
+  | "21:9";
 
-export type ImageSize = '1K' | '2K' | '4K';
+export type ImageSize = "1K" | "2K" | "4K";
 
 export interface ImageGenerationConfig {
   /** Aspect ratio for generated images */
@@ -101,7 +121,7 @@ export interface GeneratedImage {
   /** Base64-encoded image data */
   base64Data: string;
   /** MIME type of the image */
-  mimeType: 'image/png' | 'image/jpeg';
+  mimeType: "image/png" | "image/jpeg";
 }
 
 export interface ImageGenerationResult {
@@ -140,16 +160,16 @@ export interface KernelConfig {
 // ============================================
 
 export type AnalysisType =
-  | 'full_analysis'
-  | 'quick_update'
-  | 'scoring_only'
-  | 'suggestions_only'
-  | 'summary_only';
+  | "full_analysis"
+  | "quick_update"
+  | "scoring_only"
+  | "suggestions_only"
+  | "summary_only";
 
 export interface LeadAnalysisRequest {
   leadId: string;
   analysisType: AnalysisType;
-  language?: 'en' | 'ta';
+  language?: "en" | "ta";
   context?: KernelContext;
   options?: {
     includeSimilarLeads?: boolean;
@@ -164,6 +184,7 @@ export interface LeadAnalysisResponse {
   score?: LeadScore;
   suggestions?: LeadSuggestions;
   updatedFields?: Partial<Lead>;
+  smartQuotePayload?: SmartQuotePayload;
 }
 
 export interface LeadSummary {
@@ -171,7 +192,7 @@ export interface LeadSummary {
   highlights: string[];
   actionItems: string[];
   keyDates?: string[];
-  sentiment?: 'positive' | 'neutral' | 'negative';
+  sentiment?: "positive" | "neutral" | "negative";
 }
 
 export interface LeadScore {
@@ -179,12 +200,12 @@ export interface LeadScore {
   confidence: number; // 0-1 confidence in score
   factors: ScoreFactor[];
   recommendation: string;
-  trend?: 'up' | 'stable' | 'down';
+  trend?: "up" | "stable" | "down";
 }
 
 export interface ScoreFactor {
   name: string;
-  impact: 'positive' | 'negative' | 'neutral';
+  impact: "positive" | "negative" | "neutral";
   weight: number;
   description?: string;
 }
@@ -193,14 +214,14 @@ export interface LeadSuggestions {
   items: Suggestion[];
   nextBestAction?: string;
   suggestedFollowUpDate?: string;
-  priority: 'high' | 'medium' | 'low';
+  priority: "high" | "medium" | "low";
 }
 
 export interface Suggestion {
   id: string;
-  type: 'action' | 'response' | 'insight' | 'warning';
+  type: "action" | "response" | "insight" | "warning";
   content: string;
-  priority: 'high' | 'medium' | 'low';
+  priority: "high" | "medium" | "low";
   reasoning: string;
   dueDate?: string;
 }
@@ -211,7 +232,7 @@ export interface Suggestion {
 
 export interface EmbeddingRequest {
   text: string;
-  sourceType: 'note' | 'lead' | 'knowledge' | 'query';
+  sourceType: "note" | "lead" | "knowledge" | "query";
   sourceId?: string;
   metadata?: Record<string, unknown>;
 }
@@ -230,7 +251,7 @@ export interface SemanticSearchRequest {
     leadId?: string;
     dateFrom?: string;
     dateTo?: string;
-    sourceTypes?: ('note' | 'lead' | 'knowledge')[];
+    sourceTypes?: ("note" | "lead" | "knowledge")[];
     metadata?: Record<string, unknown>;
   };
 }
@@ -240,7 +261,7 @@ export interface SemanticSearchResult {
   content: string;
   score: number;
   relevanceScore?: number; // Added by LLM re-ranking
-  sourceType: 'note' | 'lead' | 'knowledge';
+  sourceType: "note" | "lead" | "knowledge";
   sourceId: string;
   metadata?: Record<string, unknown>;
 }
@@ -251,7 +272,7 @@ export interface KnowledgeIngestionRequest {
   sourceLeadId?: string;
   category?: string;
   tags?: string[];
-  contentType?: 'transcript' | 'objection' | 'faq' | 'manual' | 'document';
+  contentType?: "transcript" | "objection" | "faq" | "manual" | "document";
   metadata?: Record<string, unknown>;
 }
 
@@ -264,7 +285,7 @@ export interface KnowledgeEntry {
   sourceLeadId?: string;
   category?: string;
   tags?: string[];
-  contentType?: 'transcript' | 'objection' | 'faq' | 'manual' | 'document';
+  contentType?: "transcript" | "objection" | "faq" | "manual" | "document";
   metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -294,7 +315,7 @@ export interface ConversionPrediction {
 export interface PredictionFactor {
   name: string;
   value: number;
-  impact: 'positive' | 'negative' | 'neutral';
+  impact: "positive" | "negative" | "neutral";
   weight: number;
 }
 
@@ -311,9 +332,9 @@ export interface HistoricalComparison {
 
 export interface CoachingRequest {
   staffId: string;
-  period?: 'week' | 'month' | 'quarter';
-  focusAreas?: ('engagement' | 'conversion' | 'response_time' | 'follow_up')[];
-  language?: 'en' | 'ta';
+  period?: "week" | "month" | "quarter";
+  focusAreas?: ("engagement" | "conversion" | "response_time" | "follow_up")[];
+  language?: "en" | "ta";
 }
 
 export interface CoachingResponse {
@@ -336,7 +357,7 @@ export interface StaffMetrics {
 }
 
 export interface CoachingInsight {
-  type: 'strength' | 'improvement' | 'trend' | 'alert';
+  type: "strength" | "improvement" | "trend" | "alert";
   title: string;
   description: string;
   metric?: string;
@@ -345,7 +366,7 @@ export interface CoachingInsight {
 }
 
 export interface CoachingRecommendation {
-  priority: 'high' | 'medium' | 'low';
+  priority: "high" | "medium" | "low";
   area: string;
   action: string;
   expectedImpact: string;
@@ -359,7 +380,7 @@ export interface TranscriptionRequest {
   audioUrl?: string;
   audioBase64?: string;
   mimeType?: string;
-  language?: 'en' | 'ta' | 'auto';
+  language?: "en" | "ta" | "auto";
   summarize?: boolean;
 }
 
@@ -380,7 +401,7 @@ export interface MemoryEntry {
   id: string;
   key: string;
   value: unknown;
-  type: 'session' | 'conversation' | 'persistent';
+  type: "session" | "conversation" | "persistent";
   expiresAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -397,7 +418,7 @@ export interface ConversationState {
 }
 
 export interface ConversationMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: "user" | "assistant" | "system";
   content: string;
   timestamp: string;
   metadata?: Record<string, unknown>;
@@ -418,8 +439,8 @@ export interface ArchiveConfig {
   cold_inactivity_days: ArchiveThreshold;
 }
 
-export type ArchiveSuggestionStatus = 'pending' | 'accepted' | 'dismissed';
-export type ArchiveCriteriaType = 'converted' | 'lost' | 'cold_inactive';
+export type ArchiveSuggestionStatus = "pending" | "accepted" | "dismissed";
+export type ArchiveCriteriaType = "converted" | "lost" | "cold_inactive";
 
 export interface ArchiveSuggestion {
   id: string;
@@ -473,7 +494,7 @@ export interface BatchRestoreResponse {
 
 export interface ProcessSuggestionsRequest {
   suggestion_ids: string[];
-  action: 'accept' | 'dismiss';
+  action: "accept" | "dismiss";
   user_id?: string;
 }
 
@@ -486,15 +507,15 @@ export interface ProcessSuggestionsResponse {
 // KPI Scorer Kernel Types
 // ============================================
 
-export type KPICategory = 'lead' | 'staff' | 'business';
-export type KPITimeRange = 'day' | 'week' | 'month' | 'quarter';
-export type KPITrend = 'up' | 'stable' | 'down';
-export type KPIAlertSeverity = 'critical' | 'warning' | 'info';
-export type KPIUrgency = 'high' | 'medium' | 'low';
+export type KPICategory = "lead" | "staff" | "business";
+export type KPITimeRange = "day" | "week" | "month" | "quarter";
+export type KPITrend = "up" | "stable" | "down";
+export type KPIAlertSeverity = "critical" | "warning" | "info";
+export type KPIUrgency = "high" | "medium" | "low";
 
 export interface KPIFactor {
   name: string;
-  impact: 'positive' | 'negative' | 'neutral';
+  impact: "positive" | "negative" | "neutral";
   weight: number;
   currentValue: number;
   targetValue?: number;
@@ -517,7 +538,7 @@ export interface LeadKPIRequest {
 }
 
 export interface LeadKPIScore extends KPIScore {
-  category: 'lead';
+  category: "lead";
   leadId: string;
   leadName: string;
   status: string;
@@ -540,7 +561,7 @@ export interface StaffKPIRequest {
 }
 
 export interface StaffKPIScore extends KPIScore {
-  category: 'staff';
+  category: "staff";
   staffId: string;
   staffName: string;
   leadsHandled: number;
@@ -564,7 +585,7 @@ export interface BusinessKPIRequest {
 }
 
 export interface BusinessKPIScore extends KPIScore {
-  category: 'business';
+  category: "business";
   pipelineValue: number;
   conversionVelocity: number; // avg days to convert
   leadFlow: {
@@ -614,7 +635,7 @@ export interface KPIDashboardResponse {
 
 export interface DiscountFactor {
   name: string;
-  impact: 'increase' | 'decrease' | 'neutral';
+  impact: "increase" | "decrease" | "neutral";
   weight: number;
   description: string;
 }
@@ -626,7 +647,7 @@ export interface DiscountSuggestion {
   confidence: number;
   reasoning: string;
   factors: DiscountFactor[];
-  urgencyLevel: 'high' | 'medium' | 'low';
+  urgencyLevel: "high" | "medium" | "low";
   competitiveNote?: string;
 }
 
@@ -636,5 +657,5 @@ export interface DiscountSuggestionRequest {
   itemsCount: number;
   distanceKm?: number;
   productCategories?: string[];
-  language?: 'en' | 'ta';
+  language?: "en" | "ta";
 }

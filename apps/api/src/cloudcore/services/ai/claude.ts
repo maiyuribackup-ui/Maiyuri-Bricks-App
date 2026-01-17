@@ -4,13 +4,20 @@
  * Model: claude-sonnet-4-20250514
  */
 
-import Anthropic from '@anthropic-ai/sdk';
-import { ClaudeModels, type TokenUsage, type CloudCoreResult } from '../../types';
-import { getLanguageInstruction, type LanguageCode } from '../../utils/language';
+import Anthropic from "@anthropic-ai/sdk";
+import {
+  ClaudeModels,
+  type TokenUsage,
+  type CloudCoreResult,
+} from "../../types";
+import {
+  getLanguageInstruction,
+  type LanguageCode,
+} from "../../utils/language";
 
 // Initialize Claude client
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || '',
+  apiKey: process.env.ANTHROPIC_API_KEY || "",
 });
 
 // Default configuration
@@ -37,7 +44,7 @@ export interface ClaudeCompletionResponse {
  * Generate a completion using Claude
  */
 export async function complete(
-  request: ClaudeCompletionRequest
+  request: ClaudeCompletionRequest,
 ): Promise<CloudCoreResult<ClaudeCompletionResponse>> {
   const startTime = Date.now();
 
@@ -49,7 +56,8 @@ export async function complete(
     // Add JSON instruction if jsonMode is enabled
     let systemPrompt = request.systemPrompt;
     if (request.jsonMode) {
-      systemPrompt += '\n\nIMPORTANT: Respond ONLY with valid JSON. No other text or explanation.';
+      systemPrompt +=
+        "\n\nIMPORTANT: Respond ONLY with valid JSON. No other text or explanation.";
     }
 
     const response = await anthropic.messages.create({
@@ -57,12 +65,12 @@ export async function complete(
       max_tokens: maxTokens,
       temperature,
       system: systemPrompt,
-      messages: [{ role: 'user', content: request.userPrompt }],
+      messages: [{ role: "user", content: request.userPrompt }],
     });
 
     // Extract text content
-    const textContent = response.content.find((c) => c.type === 'text');
-    const content = textContent?.type === 'text' ? textContent.text : '';
+    const textContent = response.content.find((c) => c.type === "text");
+    const content = textContent?.type === "text" ? textContent.text : "";
 
     const usage: TokenUsage = {
       inputTokens: response.usage.input_tokens,
@@ -76,7 +84,7 @@ export async function complete(
       data: {
         content,
         usage,
-        stopReason: response.stop_reason || 'unknown',
+        stopReason: response.stop_reason || "unknown",
       },
       meta: {
         processingTime: Date.now() - startTime,
@@ -84,11 +92,14 @@ export async function complete(
       },
     };
   } catch (error) {
-    console.error('Claude completion error:', error);
-    console.warn('Claude API failed, attempting fallback...', error instanceof Error ? error.message : error);
+    console.error("Claude completion error:", error);
+    console.warn(
+      "Claude API failed, attempting fallback...",
+      error instanceof Error ? error.message : error,
+    );
 
     // Fallback to Gemini
-    console.log('🔄 Swapping to Fallback: Gemini');
+    console.log("🔄 Swapping to Fallback: Gemini");
     try {
       const geminiResult = await gemini.complete({
         prompt: `${request.systemPrompt}\n\n${request.userPrompt}`,
@@ -105,19 +116,19 @@ export async function complete(
               inputTokens: 0,
               outputTokens: 0,
               totalTokens: 0,
-              model: 'gemini-fallback',
+              model: "gemini-fallback",
             },
-            stopReason: 'stop',
+            stopReason: "stop",
           },
           meta: {
             processingTime: Date.now() - startTime,
-            provider: 'gemini(fallback)',
+            provider: "gemini(fallback)",
           },
         };
       }
-      console.warn('Gemini fallback also failed:', geminiResult.error);
+      console.warn("Gemini fallback also failed:", geminiResult.error);
     } catch (geminiError) {
-      console.error('Gemini fallback error:', geminiError);
+      console.error("Gemini fallback error:", geminiError);
     }
 
     // Return original error if Gemini also fails
@@ -125,8 +136,9 @@ export async function complete(
       success: false,
       data: null,
       error: {
-        code: 'CLAUDE_COMPLETION_ERROR',
-        message: error instanceof Error ? error.message : 'Claude completion failed',
+        code: "CLAUDE_COMPLETION_ERROR",
+        message:
+          error instanceof Error ? error.message : "Claude completion failed",
       },
       meta: {
         processingTime: Date.now() - startTime,
@@ -136,15 +148,15 @@ export async function complete(
 }
 
 // Import fallback providers
-import * as gemini from './gemini';
-import * as openai from './openai';
+import * as gemini from "./gemini";
+import * as openai from "./openai";
 
 /**
  * Generate a JSON completion using Claude with Fallback Support
  * Chain: Claude -> Gemini -> OpenAI
  */
 export async function completeJson<T>(
-  request: Omit<ClaudeCompletionRequest, 'jsonMode'>
+  request: Omit<ClaudeCompletionRequest, "jsonMode">,
 ): Promise<CloudCoreResult<T>> {
   // 1. Try Claude (Primary)
   const result = await complete({ ...request, jsonMode: true });
@@ -155,24 +167,27 @@ export async function completeJson<T>(
       const content = result.data.content.trim();
       let jsonStr = content;
 
-      if (content.startsWith('```json')) {
-        jsonStr = content.slice(7, content.lastIndexOf('```')).trim();
-      } else if (content.startsWith('```')) {
-        jsonStr = content.slice(3, content.lastIndexOf('```')).trim();
+      if (content.startsWith("```json")) {
+        jsonStr = content.slice(7, content.lastIndexOf("```")).trim();
+      } else if (content.startsWith("```")) {
+        jsonStr = content.slice(3, content.lastIndexOf("```")).trim();
       }
 
       const parsed = JSON.parse(jsonStr) as T;
       return { success: true, data: parsed, meta: result.meta };
     } catch (parseError) {
-      console.warn('Claude JSON parse error, attempting fallback...', parseError);
+      console.warn(
+        "Claude JSON parse error, attempting fallback...",
+        parseError,
+      );
       // Proceed to fallback if parsing fails
     }
   } else {
-    console.warn('Claude API failed, attempting fallback...', result.error);
+    console.warn("Claude API failed, attempting fallback...", result.error);
   }
 
   // 2. Try Gemini (Fallback 1)
-  console.log('🔄 Swapping to Fallback: Gemini');
+  console.log("🔄 Swapping to Fallback: Gemini");
   const geminiResult = await gemini.completeJson<T>({
     systemPrompt: request.systemPrompt,
     userPrompt: request.userPrompt,
@@ -184,17 +199,20 @@ export async function completeJson<T>(
     return {
       success: true,
       data: geminiResult.data,
-      meta: { 
+      meta: {
         processingTime: geminiResult.meta?.processingTime || 0,
-        provider: 'gemini(fallback)',
-        usage: geminiResult.meta?.usage
+        provider: "gemini(fallback)",
+        usage: geminiResult.meta?.usage,
       },
     };
   }
-  console.warn('Gemini fallback failed, attempting secondary fallback...', geminiResult.error);
+  console.warn(
+    "Gemini fallback failed, attempting secondary fallback...",
+    geminiResult.error,
+  );
 
   // 3. Try OpenAI (Fallback 2)
-  console.log('🔄 Swapping to Secondary Fallback: OpenAI');
+  console.log("🔄 Swapping to Secondary Fallback: OpenAI");
   const openaiResult = await openai.completeJson<T>({
     systemPrompt: request.systemPrompt,
     userPrompt: request.userPrompt,
@@ -206,10 +224,10 @@ export async function completeJson<T>(
     return {
       success: true,
       data: openaiResult.data,
-      meta: { 
+      meta: {
         processingTime: openaiResult.meta?.processingTime || 0,
-        provider: 'openai(fallback)',
-        usage: openaiResult.meta?.usage
+        provider: "openai(fallback)",
+        usage: openaiResult.meta?.usage,
       },
     };
   }
@@ -219,8 +237,8 @@ export async function completeJson<T>(
     success: false,
     data: null,
     error: {
-      code: 'ALL_PROVIDERS_FAILED',
-      message: 'Claude, Gemini, and OpenAI all failed to complete the request.',
+      code: "ALL_PROVIDERS_FAILED",
+      message: "Claude, Gemini, and OpenAI all failed to complete the request.",
       details: {
         claudeError: result.error,
         geminiError: geminiResult.error,
@@ -236,7 +254,7 @@ export async function completeJson<T>(
 export async function analyzeLead(
   leadContext: string,
   notesContext: string,
-  analysisType: string
+  analysisType: string,
 ): Promise<CloudCoreResult<Record<string, unknown>>> {
   const systemPrompt = `You are an expert sales analyst for a brick manufacturing business.
 Your role is to analyze lead information and provide actionable insights.
@@ -280,13 +298,15 @@ Provide your analysis in the following JSON format:
 export async function generateScore(
   leadContext: string,
   notesContext: string,
-  metrics: Record<string, number>
-): Promise<CloudCoreResult<{
-  score: number;
-  confidence: number;
-  factors: Array<{ factor: string; impact: string; weight: number }>;
-  recommendation: string;
-}>> {
+  metrics: Record<string, number>,
+): Promise<
+  CloudCoreResult<{
+    score: number;
+    confidence: number;
+    factors: Array<{ factor: string; impact: string; weight: number }>;
+    recommendation: string;
+  }>
+> {
   const systemPrompt = `You are a lead scoring expert for a brick manufacturing business.
 Calculate conversion probability based on lead data and interaction history.
 
@@ -307,7 +327,7 @@ ${leadContext}
 METRICS:
 ${Object.entries(metrics)
   .map(([k, v]) => `- ${k}: ${v}`)
-  .join('\n')}
+  .join("\n")}
 
 INTERACTION HISTORY:
 ${notesContext}
@@ -336,21 +356,24 @@ Respond with JSON:
 export async function generateSuggestions(
   leadContext: string,
   notesContext: string,
-  language: LanguageCode = 'en'
-): Promise<CloudCoreResult<{
-  suggestions: Array<{
-    id: string;
-    type: string;
-    content: string;
-    priority: string;
-    reasoning: string;
-  }>;
-  nextBestAction: string;
-  suggestedFollowUpDate: string;
-}>> {
-  const languageInstruction = language === 'ta'
-    ? '\n\nIMPORTANT: Respond entirely in Tamil (தமிழ்). All text must be in Tamil script.'
-    : '';
+  language: LanguageCode = "en",
+): Promise<
+  CloudCoreResult<{
+    suggestions: Array<{
+      id: string;
+      type: string;
+      content: string;
+      priority: string;
+      reasoning: string;
+    }>;
+    nextBestAction: string;
+    suggestedFollowUpDate: string;
+  }>
+> {
+  const languageInstruction =
+    language === "ta"
+      ? "\n\nIMPORTANT: Respond entirely in Tamil (தமிழ்). All text must be in Tamil script."
+      : "";
 
   const systemPrompt = `You are a sales advisor for a brick manufacturing business.
 Generate actionable suggestions to help close leads.
@@ -399,23 +422,25 @@ export async function generateCoachingInsights(
   staffContext: string,
   metricsContext: string,
   period: string,
-  language: LanguageCode = 'en'
-): Promise<CloudCoreResult<{
-  insights: Array<{
-    type: string;
-    title: string;
-    description: string;
-    metric?: string;
-    value?: number;
-  }>;
-  recommendations: Array<{
-    priority: string;
-    area: string;
-    action: string;
-    expectedImpact: string;
-  }>;
-  overallScore: number;
-}>> {
+  language: LanguageCode = "en",
+): Promise<
+  CloudCoreResult<{
+    insights: Array<{
+      type: string;
+      title: string;
+      description: string;
+      metric?: string;
+      value?: number;
+    }>;
+    recommendations: Array<{
+      priority: string;
+      area: string;
+      action: string;
+      expectedImpact: string;
+    }>;
+    overallScore: number;
+  }>
+> {
   const languageInstruction = getLanguageInstruction(language);
 
   const systemPrompt = `You are a sales performance coach for a brick manufacturing business.
@@ -468,6 +493,134 @@ Respond with JSON:
   });
 }
 
+/**
+ * Generate SmartQuotePayload for personalized quotation experience
+ */
+export async function generateSmartQuotePayload(
+  leadContext: string,
+  notesContext: string,
+  callRecordingsContext: string,
+): Promise<
+  CloudCoreResult<{
+    language_default: "en" | "ta";
+    persona: "homeowner" | "builder" | "architect" | "unknown";
+    stage: "cold" | "warm" | "hot";
+    primary_angle: "health" | "cooling" | "cost" | "sustainability" | "design";
+    secondary_angle:
+      | "health"
+      | "cooling"
+      | "cost"
+      | "sustainability"
+      | "design"
+      | null;
+    top_objections: Array<{
+      type:
+        | "price"
+        | "strength"
+        | "water"
+        | "approval"
+        | "maintenance"
+        | "resale"
+        | "contractor_acceptance";
+      severity: "low" | "medium" | "high";
+    }>;
+    route_decision:
+      | "site_visit"
+      | "technical_call"
+      | "cost_estimate"
+      | "nurture";
+    personalization_snippets: {
+      en: { p1: string; p2?: string };
+      ta: { p1: string; p2?: string };
+    };
+    competitor_context: {
+      mentioned: boolean;
+      tone: "curious" | "comparing" | "doubtful" | "none";
+    };
+  }>
+> {
+  const systemPrompt = `You are a sales intelligence analyst for Maiyuri Bricks, a brick manufacturing company in Chennai.
+
+Analyze the lead's interactions to generate a SmartQuotePayload for a personalized quotation presentation.
+
+## CONTEXT ABOUT MAIYURI BRICKS
+- Products: Interlocking bricks (eco-friendly, no cement mortar needed)
+- USPs: 30% cost savings, faster construction, thermal insulation, earthquake resistant
+- Location: Chennai, Tamil Nadu
+- Target: Homeowners, builders, architects in Tamil Nadu
+
+## OUTPUT REQUIREMENTS
+
+### language_default
+- "ta" if the lead speaks Tamil primarily or is from rural Tamil Nadu
+- "en" for English speakers or urban professionals
+
+### persona
+- "homeowner": Building their own house
+- "builder": Construction contractor doing multiple projects
+- "architect": Design professional recommending materials
+- "unknown": Cannot determine from context
+
+### stage
+- "cold": Initial inquiry, just exploring, no urgency
+- "warm": Interested, has timeline, asking specific questions
+- "hot": Ready to buy, comparing quotes, urgent timeline
+
+### primary_angle & secondary_angle
+Choose the TOP 2 benefits that resonate most with this lead:
+- "health": Eco-friendly, no dust, better air quality
+- "cooling": Natural insulation, reduces AC costs in Chennai heat
+- "cost": 30% savings, faster construction, less labor
+- "sustainability": Green building, water harvesting compatible
+- "design": Aesthetic finish, modern look, design flexibility
+
+### top_objections (max 3)
+Identify concerns mentioned or implied:
+- "price": Thinks it's expensive
+- "strength": Doubts structural integrity
+- "water": Worried about water absorption/seepage
+- "approval": Needs family/contractor approval
+- "maintenance": Worried about long-term care
+- "resale": Concerned about property value
+- "contractor_acceptance": Contractor unfamiliar with product
+
+### route_decision
+- "site_visit": Lead wants to see factory, needs proof
+- "technical_call": Has specific technical questions
+- "cost_estimate": Ready for detailed pricing
+- "nurture": Not ready, needs more education
+
+### personalization_snippets
+Write 1-2 SHORT sentences (max 15 words each) that:
+- Reference something specific from their conversation
+- Feel personal, not generic
+- Work as an opening hook in the quote
+
+### competitor_context
+- mentioned: true if any competitor brand mentioned
+- tone: How they talked about competitors`;
+
+  const userPrompt = `Analyze this lead and generate a SmartQuotePayload:
+
+## LEAD INFORMATION
+${leadContext}
+
+## NOTES & INTERACTIONS
+${notesContext}
+
+## CALL RECORDINGS INSIGHTS
+${callRecordingsContext}
+
+Generate the SmartQuotePayload JSON with all required fields.`;
+
+  return completeJson({
+    systemPrompt,
+    userPrompt,
+    maxTokens: 1024,
+    temperature: 0.5, // Lower temperature for more consistent structured output
+  });
+}
+
 export default {
   complete,
   completeJson,
@@ -475,4 +628,5 @@ export default {
   generateScore,
   generateSuggestions,
   generateCoachingInsights,
+  generateSmartQuotePayload,
 };

@@ -3,19 +3,34 @@
  * Database operations and data access layer
  */
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { Lead, Note, User, KnowledgebaseEntry, CloudCoreResult, CallRecording, CallRecordingInsights, LeadUrgency, ConversionLever } from '../../types';
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import type {
+  Lead,
+  Note,
+  User,
+  KnowledgebaseEntry,
+  CloudCoreResult,
+  CallRecording,
+  CallRecordingInsights,
+  LeadUrgency,
+  ConversionLever,
+  SmartQuotePayload,
+} from "../../types";
 
 // Lazy initialization to avoid build-time errors
 let _supabase: SupabaseClient | null = null;
 
 function getSupabase(): SupabaseClient {
   if (!_supabase) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
+    const supabaseKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      "";
 
     if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Missing Supabase environment variables');
+      throw new Error("Missing Supabase environment variables");
     }
 
     _supabase = createClient(supabaseUrl, supabaseKey);
@@ -34,19 +49,25 @@ export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
 // Lead Operations
 // ============================================
 
-export async function getLead(id: string): Promise<CloudCoreResult<Lead | null>> {
+export async function getLead(
+  id: string,
+): Promise<CloudCoreResult<Lead | null>> {
   const startTime = Date.now();
 
   try {
     const { data, error } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('id', id)
+      .from("leads")
+      .select("*")
+      .eq("id", id)
       .single();
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: true, data: null, meta: { processingTime: Date.now() - startTime } };
+      if (error.code === "PGRST116") {
+        return {
+          success: true,
+          data: null,
+          meta: { processingTime: Date.now() - startTime },
+        };
       }
       throw error;
     }
@@ -57,13 +78,13 @@ export async function getLead(id: string): Promise<CloudCoreResult<Lead | null>>
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error getting lead:', error);
+    console.error("Error getting lead:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'GET_LEAD_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to get lead',
+        code: "GET_LEAD_ERROR",
+        message: error instanceof Error ? error.message : "Failed to get lead",
       },
     };
   }
@@ -78,22 +99,25 @@ export async function getLeads(options?: {
   const startTime = Date.now();
 
   try {
-    let query = supabase.from('leads').select('*');
+    let query = supabase.from("leads").select("*");
 
     if (options?.status) {
-      query = query.eq('status', options.status);
+      query = query.eq("status", options.status);
     }
     if (options?.assignedStaff) {
-      query = query.eq('assigned_staff', options.assignedStaff);
+      query = query.eq("assigned_staff", options.assignedStaff);
     }
     if (options?.limit) {
       query = query.limit(options.limit);
     }
     if (options?.offset) {
-      query = query.range(options.offset, options.offset + (options.limit || 10) - 1);
+      query = query.range(
+        options.offset,
+        options.offset + (options.limit || 10) - 1,
+      );
     }
 
-    query = query.order('updated_at', { ascending: false });
+    query = query.order("updated_at", { ascending: false });
 
     const { data, error } = await query;
 
@@ -107,24 +131,26 @@ export async function getLeads(options?: {
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error getting leads:', error);
+    console.error("Error getting leads:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'GET_LEADS_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to get leads',
+        code: "GET_LEADS_ERROR",
+        message: error instanceof Error ? error.message : "Failed to get leads",
       },
     };
   }
 }
 
-export async function createLead(lead: Omit<Lead, 'id' | 'created_at' | 'updated_at'>): Promise<CloudCoreResult<Lead>> {
+export async function createLead(
+  lead: Omit<Lead, "id" | "created_at" | "updated_at">,
+): Promise<CloudCoreResult<Lead>> {
   const startTime = Date.now();
 
   try {
     const { data, error } = await supabase
-      .from('leads')
+      .from("leads")
       .insert(lead)
       .select()
       .single();
@@ -139,26 +165,30 @@ export async function createLead(lead: Omit<Lead, 'id' | 'created_at' | 'updated
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error creating lead:', error);
+    console.error("Error creating lead:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'CREATE_LEAD_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to create lead',
+        code: "CREATE_LEAD_ERROR",
+        message:
+          error instanceof Error ? error.message : "Failed to create lead",
       },
     };
   }
 }
 
-export async function updateLead(id: string, updates: Partial<Lead>): Promise<CloudCoreResult<Lead>> {
+export async function updateLead(
+  id: string,
+  updates: Partial<Lead>,
+): Promise<CloudCoreResult<Lead>> {
   const startTime = Date.now();
 
   try {
     const { data, error } = await supabase
-      .from('leads')
+      .from("leads")
       .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
 
@@ -172,13 +202,14 @@ export async function updateLead(id: string, updates: Partial<Lead>): Promise<Cl
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error updating lead:', error);
+    console.error("Error updating lead:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'UPDATE_LEAD_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to update lead',
+        code: "UPDATE_LEAD_ERROR",
+        message:
+          error instanceof Error ? error.message : "Failed to update lead",
       },
     };
   }
@@ -189,19 +220,27 @@ export async function updateLeadAI(
   aiFields: {
     ai_summary?: string;
     ai_score?: number;
-    ai_factors?: { factor: string; impact: 'positive' | 'negative' | 'neutral' }[];
-    ai_suggestions?: { type: string; content: string; priority: 'high' | 'medium' | 'low' }[];
+    ai_factors?: {
+      factor: string;
+      impact: "positive" | "negative" | "neutral";
+    }[];
+    ai_suggestions?: {
+      type: string;
+      content: string;
+      priority: "high" | "medium" | "low";
+    }[];
     next_action?: string;
     follow_up_date?: string;
-  }
+    smart_quote_payload?: SmartQuotePayload;
+  },
 ): Promise<CloudCoreResult<void>> {
   const startTime = Date.now();
 
   try {
     const { error } = await supabase
-      .from('leads')
+      .from("leads")
       .update({ ...aiFields, updated_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq("id", id);
 
     if (error) {
       throw error;
@@ -213,13 +252,16 @@ export async function updateLeadAI(
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error updating lead AI fields:', error);
+    console.error("Error updating lead AI fields:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'UPDATE_LEAD_AI_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to update lead AI fields',
+        code: "UPDATE_LEAD_AI_ERROR",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to update lead AI fields",
       },
     };
   }
@@ -229,15 +271,17 @@ export async function updateLeadAI(
 // Note Operations
 // ============================================
 
-export async function getNotes(leadId: string): Promise<CloudCoreResult<Note[]>> {
+export async function getNotes(
+  leadId: string,
+): Promise<CloudCoreResult<Note[]>> {
   const startTime = Date.now();
 
   try {
     const { data, error } = await supabase
-      .from('notes')
-      .select('*')
-      .eq('lead_id', leadId)
-      .order('created_at', { ascending: false });
+      .from("notes")
+      .select("*")
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false });
 
     if (error) {
       throw error;
@@ -249,31 +293,37 @@ export async function getNotes(leadId: string): Promise<CloudCoreResult<Note[]>>
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error getting notes:', error);
+    console.error("Error getting notes:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'GET_NOTES_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to get notes',
+        code: "GET_NOTES_ERROR",
+        message: error instanceof Error ? error.message : "Failed to get notes",
       },
     };
   }
 }
 
-export async function getNote(id: string): Promise<CloudCoreResult<Note | null>> {
+export async function getNote(
+  id: string,
+): Promise<CloudCoreResult<Note | null>> {
   const startTime = Date.now();
 
   try {
     const { data, error } = await supabase
-      .from('notes')
-      .select('*')
-      .eq('id', id)
+      .from("notes")
+      .select("*")
+      .eq("id", id)
       .single();
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: true, data: null, meta: { processingTime: Date.now() - startTime } };
+      if (error.code === "PGRST116") {
+        return {
+          success: true,
+          data: null,
+          meta: { processingTime: Date.now() - startTime },
+        };
       }
       throw error;
     }
@@ -284,24 +334,26 @@ export async function getNote(id: string): Promise<CloudCoreResult<Note | null>>
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error getting note:', error);
+    console.error("Error getting note:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'GET_NOTE_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to get note',
+        code: "GET_NOTE_ERROR",
+        message: error instanceof Error ? error.message : "Failed to get note",
       },
     };
   }
 }
 
-export async function createNote(note: Omit<Note, 'id' | 'created_at'>): Promise<CloudCoreResult<Note>> {
+export async function createNote(
+  note: Omit<Note, "id" | "created_at">,
+): Promise<CloudCoreResult<Note>> {
   const startTime = Date.now();
 
   try {
     const { data, error } = await supabase
-      .from('notes')
+      .from("notes")
       .insert(note)
       .select()
       .single();
@@ -316,26 +368,30 @@ export async function createNote(note: Omit<Note, 'id' | 'created_at'>): Promise
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error creating note:', error);
+    console.error("Error creating note:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'CREATE_NOTE_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to create note',
+        code: "CREATE_NOTE_ERROR",
+        message:
+          error instanceof Error ? error.message : "Failed to create note",
       },
     };
   }
 }
 
-export async function updateNote(id: string, updates: Partial<Note>): Promise<CloudCoreResult<Note>> {
+export async function updateNote(
+  id: string,
+  updates: Partial<Note>,
+): Promise<CloudCoreResult<Note>> {
   const startTime = Date.now();
 
   try {
     const { data, error } = await supabase
-      .from('notes')
+      .from("notes")
       .update(updates)
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
 
@@ -349,13 +405,14 @@ export async function updateNote(id: string, updates: Partial<Note>): Promise<Cl
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error updating note:', error);
+    console.error("Error updating note:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'UPDATE_NOTE_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to update note',
+        code: "UPDATE_NOTE_ERROR",
+        message:
+          error instanceof Error ? error.message : "Failed to update note",
       },
     };
   }
@@ -365,10 +422,7 @@ export async function deleteNote(id: string): Promise<CloudCoreResult<void>> {
   const startTime = Date.now();
 
   try {
-    const { error } = await supabase
-      .from('notes')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from("notes").delete().eq("id", id);
 
     if (error) {
       throw error;
@@ -380,13 +434,14 @@ export async function deleteNote(id: string): Promise<CloudCoreResult<void>> {
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error deleting note:', error);
+    console.error("Error deleting note:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'DELETE_NOTE_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to delete note',
+        code: "DELETE_NOTE_ERROR",
+        message:
+          error instanceof Error ? error.message : "Failed to delete note",
       },
     };
   }
@@ -396,16 +451,18 @@ export async function deleteNote(id: string): Promise<CloudCoreResult<void>> {
 // Call Recording Operations
 // ============================================
 
-export async function getCallRecordings(leadId: string): Promise<CloudCoreResult<CallRecording[]>> {
+export async function getCallRecordings(
+  leadId: string,
+): Promise<CloudCoreResult<CallRecording[]>> {
   const startTime = Date.now();
 
   try {
     const { data, error } = await supabase
-      .from('call_recordings')
-      .select('*')
-      .eq('lead_id', leadId)
-      .eq('processing_status', 'completed')
-      .order('created_at', { ascending: false });
+      .from("call_recordings")
+      .select("*")
+      .eq("lead_id", leadId)
+      .eq("processing_status", "completed")
+      .order("created_at", { ascending: false });
 
     if (error) {
       throw error;
@@ -417,13 +474,16 @@ export async function getCallRecordings(leadId: string): Promise<CloudCoreResult
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error getting call recordings:', error);
+    console.error("Error getting call recordings:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'GET_CALL_RECORDINGS_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to get call recordings',
+        code: "GET_CALL_RECORDINGS_ERROR",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to get call recordings",
       },
     };
   }
@@ -439,7 +499,7 @@ export async function updateLeadFromCallInsights(
   options?: {
     scoreImpact?: number;
     updateAIScore?: boolean;
-  }
+  },
 ): Promise<CloudCoreResult<Lead>> {
   const startTime = Date.now();
 
@@ -460,13 +520,13 @@ export async function updateLeadFromCallInsights(
     // Determine best conversion lever based on primary intent
     if (insights.primary_intent) {
       const intentToLever: Record<string, ConversionLever> = {
-        price_enquiry: 'price',
-        technical_validation: 'proof',
-        site_visit: 'visit',
-        comparison: 'price',
-        research: 'proof',
-        complaint: 'relationship',
-        order_follow_up: 'timeline',
+        price_enquiry: "price",
+        technical_validation: "proof",
+        site_visit: "visit",
+        comparison: "price",
+        research: "proof",
+        complaint: "relationship",
+        order_follow_up: "timeline",
       };
       const lever = intentToLever[insights.primary_intent];
       if (lever) {
@@ -479,15 +539,18 @@ export async function updateLeadFromCallInsights(
     if (options?.updateAIScore && options.scoreImpact !== undefined) {
       // Get current lead to adjust score
       const { data: currentLead, error: getError } = await supabase
-        .from('leads')
-        .select('ai_score')
-        .eq('id', leadId)
+        .from("leads")
+        .select("ai_score")
+        .eq("id", leadId)
         .single();
 
       if (!getError && currentLead) {
         const currentScore = currentLead.ai_score || 0.5;
         // Apply score impact (capped between 0-1)
-        const newScore = Math.max(0, Math.min(1, currentScore + options.scoreImpact));
+        const newScore = Math.max(
+          0,
+          Math.min(1, currentScore + options.scoreImpact),
+        );
         // Round to 2 decimal places to match NUMERIC(3,2) constraint
         updates.ai_score = Math.round(newScore * 100) / 100;
       }
@@ -497,9 +560,9 @@ export async function updateLeadFromCallInsights(
     if (Object.keys(updates).length === 0) {
       // Return current lead if no updates
       const { data, error } = await supabase
-        .from('leads')
-        .select('*')
-        .eq('id', leadId)
+        .from("leads")
+        .select("*")
+        .eq("id", leadId)
         .single();
 
       if (error) throw error;
@@ -513,9 +576,9 @@ export async function updateLeadFromCallInsights(
 
     // Apply updates
     const { data, error } = await supabase
-      .from('leads')
+      .from("leads")
       .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', leadId)
+      .eq("id", leadId)
       .select()
       .single();
 
@@ -529,13 +592,16 @@ export async function updateLeadFromCallInsights(
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error updating lead from call insights:', error);
+    console.error("Error updating lead from call insights:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'UPDATE_LEAD_FROM_CALL_INSIGHTS_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to update lead from call insights',
+        code: "UPDATE_LEAD_FROM_CALL_INSIGHTS_ERROR",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to update lead from call insights",
       },
     };
   }
@@ -545,19 +611,25 @@ export async function updateLeadFromCallInsights(
 // User Operations
 // ============================================
 
-export async function getUser(id: string): Promise<CloudCoreResult<User | null>> {
+export async function getUser(
+  id: string,
+): Promise<CloudCoreResult<User | null>> {
   const startTime = Date.now();
 
   try {
     const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', id)
+      .from("users")
+      .select("*")
+      .eq("id", id)
       .single();
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: true, data: null, meta: { processingTime: Date.now() - startTime } };
+      if (error.code === "PGRST116") {
+        return {
+          success: true,
+          data: null,
+          meta: { processingTime: Date.now() - startTime },
+        };
       }
       throw error;
     }
@@ -568,13 +640,13 @@ export async function getUser(id: string): Promise<CloudCoreResult<User | null>>
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error getting user:', error);
+    console.error("Error getting user:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'GET_USER_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to get user',
+        code: "GET_USER_ERROR",
+        message: error instanceof Error ? error.message : "Failed to get user",
       },
     };
   }
@@ -585,9 +657,9 @@ export async function getUsers(): Promise<CloudCoreResult<User[]>> {
 
   try {
     const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .order('name');
+      .from("users")
+      .select("*")
+      .order("name");
 
     if (error) {
       throw error;
@@ -599,13 +671,13 @@ export async function getUsers(): Promise<CloudCoreResult<User[]>> {
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error getting users:', error);
+    console.error("Error getting users:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'GET_USERS_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to get users',
+        code: "GET_USERS_ERROR",
+        message: error instanceof Error ? error.message : "Failed to get users",
       },
     };
   }
@@ -618,17 +690,17 @@ export async function getUsers(): Promise<CloudCoreResult<User[]>> {
 export async function getSimilarLeads(
   leadType: string,
   source: string,
-  limit: number = 10
+  limit: number = 10,
 ): Promise<CloudCoreResult<Lead[]>> {
   const startTime = Date.now();
 
   try {
     const { data, error } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('lead_type', leadType)
-      .eq('source', source)
-      .in('status', ['converted', 'lost'])
+      .from("leads")
+      .select("*")
+      .eq("lead_type", leadType)
+      .eq("source", source)
+      .in("status", ["converted", "lost"])
       .limit(limit);
 
     if (error) {
@@ -641,37 +713,42 @@ export async function getSimilarLeads(
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error getting similar leads:', error);
+    console.error("Error getting similar leads:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'GET_SIMILAR_LEADS_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to get similar leads',
+        code: "GET_SIMILAR_LEADS_ERROR",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to get similar leads",
       },
     };
   }
 }
 
-export async function getConversionRate(leadType: string): Promise<CloudCoreResult<number>> {
+export async function getConversionRate(
+  leadType: string,
+): Promise<CloudCoreResult<number>> {
   const startTime = Date.now();
 
   try {
     const { data: total, error: totalError } = await supabase
-      .from('leads')
-      .select('id', { count: 'exact' })
-      .eq('lead_type', leadType)
-      .in('status', ['converted', 'lost']);
+      .from("leads")
+      .select("id", { count: "exact" })
+      .eq("lead_type", leadType)
+      .in("status", ["converted", "lost"]);
 
     if (totalError) {
       throw totalError;
     }
 
     const { data: converted, error: convertedError } = await supabase
-      .from('leads')
-      .select('id', { count: 'exact' })
-      .eq('lead_type', leadType)
-      .eq('status', 'converted');
+      .from("leads")
+      .select("id", { count: "exact" })
+      .eq("lead_type", leadType)
+      .eq("status", "converted");
 
     if (convertedError) {
       throw convertedError;
@@ -687,30 +764,37 @@ export async function getConversionRate(leadType: string): Promise<CloudCoreResu
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error getting conversion rate:', error);
+    console.error("Error getting conversion rate:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'GET_CONVERSION_RATE_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to get conversion rate',
+        code: "GET_CONVERSION_RATE_ERROR",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to get conversion rate",
       },
     };
   }
 }
 
-export async function getLeadStats(): Promise<CloudCoreResult<{
-  total: number;
-  byStatus: Record<string, number>;
-  dueToday: number;
-  overdue: number;
-}>> {
+export async function getLeadStats(): Promise<
+  CloudCoreResult<{
+    total: number;
+    byStatus: Record<string, number>;
+    dueToday: number;
+    overdue: number;
+  }>
+> {
   const startTime = Date.now();
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split("T")[0];
 
   try {
     // Get all leads
-    const { data: leads, error } = await supabase.from('leads').select('status, follow_up_date');
+    const { data: leads, error } = await supabase
+      .from("leads")
+      .select("status, follow_up_date");
 
     if (error) {
       throw error;
@@ -729,7 +813,7 @@ export async function getLeadStats(): Promise<CloudCoreResult<{
 
       // Check follow-up dates
       if (lead.follow_up_date) {
-        const followUpDate = lead.follow_up_date.split('T')[0];
+        const followUpDate = lead.follow_up_date.split("T")[0];
         if (followUpDate === today) {
           stats.dueToday++;
         } else if (followUpDate < today) {
@@ -744,13 +828,14 @@ export async function getLeadStats(): Promise<CloudCoreResult<{
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error getting lead stats:', error);
+    console.error("Error getting lead stats:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'GET_LEAD_STATS_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to get lead stats',
+        code: "GET_LEAD_STATS_ERROR",
+        message:
+          error instanceof Error ? error.message : "Failed to get lead stats",
       },
     };
   }
@@ -762,26 +847,28 @@ export async function getLeadStats(): Promise<CloudCoreResult<{
 
 export async function getStaffMetrics(
   staffId: string,
-  period: 'week' | 'month' | 'quarter'
-): Promise<CloudCoreResult<{
-  leadsHandled: number;
-  conversionRate: number;
-  notesCount: number;
-  activeLeads: number;
-}>> {
+  period: "week" | "month" | "quarter",
+): Promise<
+  CloudCoreResult<{
+    leadsHandled: number;
+    conversionRate: number;
+    notesCount: number;
+    activeLeads: number;
+  }>
+> {
   const startTime = Date.now();
 
   // Calculate date range
   const now = new Date();
   let startDate: Date;
   switch (period) {
-    case 'week':
+    case "week":
       startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       break;
-    case 'month':
+    case "month":
       startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       break;
-    case 'quarter':
+    case "quarter":
       startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
       break;
   }
@@ -789,9 +876,9 @@ export async function getStaffMetrics(
   try {
     // Get leads for staff
     const { data: leads, error: leadsError } = await supabase
-      .from('leads')
-      .select('status')
-      .eq('assigned_staff', staffId);
+      .from("leads")
+      .select("status")
+      .eq("assigned_staff", staffId);
 
     if (leadsError) {
       throw leadsError;
@@ -799,18 +886,21 @@ export async function getStaffMetrics(
 
     // Get notes count
     const { data: notes, error: notesError } = await supabase
-      .from('notes')
-      .select('id')
-      .eq('staff_id', staffId)
-      .gte('created_at', startDate.toISOString());
+      .from("notes")
+      .select("id")
+      .eq("staff_id", staffId)
+      .gte("created_at", startDate.toISOString());
 
     if (notesError) {
       throw notesError;
     }
 
     const totalLeads = leads?.length || 0;
-    const convertedLeads = leads?.filter((l) => l.status === 'converted').length || 0;
-    const activeLeads = leads?.filter((l) => !['converted', 'lost'].includes(l.status)).length || 0;
+    const convertedLeads =
+      leads?.filter((l) => l.status === "converted").length || 0;
+    const activeLeads =
+      leads?.filter((l) => !["converted", "lost"].includes(l.status)).length ||
+      0;
 
     return {
       success: true,
@@ -823,13 +913,16 @@ export async function getStaffMetrics(
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error getting staff metrics:', error);
+    console.error("Error getting staff metrics:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'GET_STAFF_METRICS_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to get staff metrics',
+        code: "GET_STAFF_METRICS_ERROR",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to get staff metrics",
       },
     };
   }
