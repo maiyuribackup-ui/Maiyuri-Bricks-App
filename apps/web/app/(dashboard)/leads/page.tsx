@@ -30,43 +30,49 @@ async function syncAllWithOdoo(type: "full" | "push" | "pull" = "full") {
 
 const statusConfig: Record<
   LeadStatus,
-  { label: string; color: string; bg: string; border: string }
+  { label: string; color: string; bg: string; border: string; rowBg: string }
 > = {
   new: {
     label: "New",
     color: "text-blue-700 dark:text-blue-300",
     bg: "bg-blue-50 dark:bg-blue-900/30",
     border: "border-blue-200 dark:border-blue-800",
+    rowBg: "bg-blue-50/30 dark:bg-blue-950/20",
   },
   follow_up: {
     label: "Follow Up",
     color: "text-amber-700 dark:text-amber-300",
     bg: "bg-amber-50 dark:bg-amber-900/30",
     border: "border-amber-200 dark:border-amber-800",
+    rowBg: "bg-amber-50/40 dark:bg-amber-950/20",
   },
   hot: {
     label: "Hot",
     color: "text-red-700 dark:text-red-300",
     bg: "bg-red-50 dark:bg-red-900/30",
     border: "border-red-200 dark:border-red-800",
+    rowBg: "bg-red-50/50 dark:bg-red-950/30",
   },
   cold: {
     label: "Cold",
     color: "text-slate-600 dark:text-slate-400",
     bg: "bg-slate-100 dark:bg-slate-800",
     border: "border-slate-300 dark:border-slate-700",
+    rowBg: "bg-slate-100/50 dark:bg-slate-900/30",
   },
   converted: {
     label: "Converted",
     color: "text-emerald-700 dark:text-emerald-300",
     bg: "bg-emerald-50 dark:bg-emerald-900/30",
     border: "border-emerald-200 dark:border-emerald-800",
+    rowBg: "bg-emerald-50/40 dark:bg-emerald-950/20",
   },
   lost: {
     label: "Lost",
     color: "text-rose-700 dark:text-rose-400",
     bg: "bg-rose-50 dark:bg-rose-900/30",
     border: "border-rose-200 dark:border-rose-800",
+    rowBg: "bg-rose-50/30 dark:bg-rose-950/20",
   },
 };
 
@@ -713,7 +719,8 @@ function LeadRow({
   return (
     <Link
       href={`/leads/${lead.id}`}
-      className={`block lg:grid lg:grid-cols-12 gap-4 px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors relative group
+      className={`block lg:grid lg:grid-cols-12 gap-4 px-6 py-4 hover:brightness-95 dark:hover:brightness-110 transition-all relative group
+        ${status.rowBg}
         ${isCreatedToday ? "border-l-4 border-l-green-500" : ""} ${isUpdatedToday ? "border-l-4 border-l-blue-500" : ""}`}
       onMouseEnter={() => onHover(lead)}
       onMouseLeave={() => onHover(null)}
