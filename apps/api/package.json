@@ -15,7 +15,7 @@
     "start": "bun dist/index.js",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings -1",
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
