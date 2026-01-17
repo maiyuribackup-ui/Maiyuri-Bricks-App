@@ -380,7 +380,7 @@ export default function LeadDetailPage() {
                         Quotation
                       </span>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-emerald-700 border-emerald-300 dark:text-emerald-300 dark:border-emerald-700">
+                        <Badge variant="success" className="text-emerald-700 dark:text-emerald-300">
                           {lead.odoo_quote_number}
                         </Badge>
                         {lead.odoo_quote_id && (
@@ -428,7 +428,7 @@ export default function LeadDetailPage() {
                         Confirmed Order
                       </span>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-blue-700 border-blue-300 dark:text-blue-300 dark:border-blue-700">
+                        <Badge variant="default" className="text-blue-700 dark:text-blue-300">
                           {lead.odoo_order_number}
                         </Badge>
                         {lead.odoo_order_id && (

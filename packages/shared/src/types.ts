@@ -51,6 +51,8 @@ export interface Lead {
   // Odoo CRM integration fields
   odoo_lead_id?: number | null;
   odoo_partner_id?: number | null;
+  odoo_quote_id?: number | null;
+  odoo_order_id?: number | null;
   odoo_quote_number?: string | null;
   odoo_order_number?: string | null;
   odoo_quote_amount?: number | null;

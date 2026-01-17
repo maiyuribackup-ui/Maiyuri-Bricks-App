@@ -313,6 +313,111 @@ const avgQuantity = row.avg_quantity ?? 0;
 
 ---
 
+### BUG-007: XML-RPC Parser Fails on Nested Tags (Critical)
+
+**Date:** January 17, 2026
+**Severity:** Critical (Data loss - quotes displayed as empty)
+**Files Affected:** `apps/web/src/lib/odoo-service.ts`
+
+**Error Message:**
+```
+No visible error - data silently lost. Quotes array contained empty objects: [{}]
+```
+
+**Root Cause:**
+Custom XML-RPC parser used regex to find matching close tags, but the `findMatchingClose` function had incorrect depth tracking logic. It started with `depth = 0` and incremented when finding the opening tag, but by that point the function was already AT the opening tag (passed `startPos`), causing it to never find the correct closing tag.
+
+The Odoo XML-RPC response contains nested structures like:
+```xml
+<struct>
+  <member>
+    <name>partner_id</name>
+    <value><array><data>
+      <value><int>429</int></value>
+      <value><string>Name</string></value>
+    </data></array></value>
+  </member>
+</struct>
+```
+
+**Bad Code:**
+```typescript
+function findMatchingClose(xml: string, tagName: string, startPos: number): number {
+  const openTag = `<${tagName}>`;
+  const closeTag = `</${tagName}>`;
+
+  let depth = 0;  // BUG: Should start at 1 since we're AT the opening tag
+  let pos = startPos;  // BUG: Should start AFTER the opening tag
+
+  while (pos < xml.length) {
+    const nextOpen = xml.indexOf(openTag, pos);
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      depth++;  // First iteration finds the tag we're already at!
+      // ...
+    }
+  }
+}
+```
+
+**Good Code:**
+```typescript
+function findMatchingClose(xml: string, tagName: string, startPos: number): number {
+  const openTag = `<${tagName}>`;
+  const closeTag = `</${tagName}>`;
+
+  // Start AFTER the opening tag, with depth already at 1
+  let depth = 1;
+  let pos = startPos + openTag.length;
+
+  while (pos < xml.length) {
+    const nextOpen = xml.indexOf(openTag, pos);
+    const nextClose = xml.indexOf(closeTag, pos);
+
+    if (nextClose === -1) return -1;
+
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      depth++;
+      pos = nextOpen + openTag.length;
+    } else {
+      depth--;
+      if (depth === 0) return nextClose;
+      pos = nextClose + closeTag.length;
+    }
+  }
+  return -1;
+}
+```
+
+**Prevention Pattern:**
+1. **Don't parse XML with regex** - Use proper XML parser libraries like `fast-xml-parser`
+2. **Test with nested data** - Always test parsers with deeply nested structures
+3. **Add debug logging** - Log intermediate parsing steps to catch silent failures
+4. **Validate output** - Check that parsed data has expected structure before saving
+
+**Test Case to Add:**
+```typescript
+describe('XML-RPC Parser', () => {
+  it('should handle nested structs with arrays', () => {
+    const xml = `<struct>
+      <member><name>partner_id</name>
+      <value><array><data>
+        <value><int>429</int></value>
+        <value><string>Test</string></value>
+      </data></array></value></member>
+    </struct>`;
+
+    const result = parseValue(xml);
+    expect(result).toEqual({
+      partner_id: [429, "Test"]
+    });
+  });
+});
+```
+
+**Related Coding Principle:** [PARSE-001: Avoid Parsing Complex Formats with Regex]
+
+---
+
 ## Prevention Checklist
 
 ### Before Writing Code
@@ -385,7 +490,7 @@ When a bug is found, add it using this template:
 
 | Month | Bugs Found | Bugs Prevented | Prevention Rate |
 |-------|-----------|----------------|-----------------|
-| Jan 2026 | 6 | 0 | - |
+| Jan 2026 | 7 | 0 | - |
 | Feb 2026 | TBD | TBD | TBD |
 
 **Goal:** 95%+ bug prevention rate through proactive coding principles and testing.

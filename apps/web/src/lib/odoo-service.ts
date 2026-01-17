@@ -119,6 +119,61 @@ function parseXmlResponse(xml: string): unknown {
   return parseValue(xml);
 }
 
+/**
+ * Extract content between matching XML tags, handling nested tags properly
+ */
+function extractTagContent(xml: string, tagName: string, startPos: number = 0): { content: string; endPos: number } | null {
+  const openTag = `<${tagName}>`;
+  const closeTag = `</${tagName}>`;
+
+  const openPos = xml.indexOf(openTag, startPos);
+  if (openPos === -1) return null;
+
+  const contentStart = openPos + openTag.length;
+  let depth = 1;
+  let pos = contentStart;
+
+  while (depth > 0 && pos < xml.length) {
+    const nextOpen = xml.indexOf(openTag, pos);
+    const nextClose = xml.indexOf(closeTag, pos);
+
+    if (nextClose === -1) break;
+
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      depth++;
+      pos = nextOpen + openTag.length;
+    } else {
+      depth--;
+      if (depth === 0) {
+        return {
+          content: xml.substring(contentStart, nextClose),
+          endPos: nextClose + closeTag.length
+        };
+      }
+      pos = nextClose + closeTag.length;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extract all value elements from XML, handling nested structures
+ */
+function extractValues(xml: string): string[] {
+  const values: string[] = [];
+  let pos = 0;
+
+  while (pos < xml.length) {
+    const result = extractTagContent(xml, 'value', pos);
+    if (!result) break;
+    values.push(result.content);
+    pos = result.endPos;
+  }
+
+  return values;
+}
+
 function parseValue(xml: string): unknown {
   xml = xml.trim();
 
@@ -141,26 +196,41 @@ function parseValue(xml: string): unknown {
   // Check for nil/None
   if (xml.match(/^<nil\s*\/>$/) || xml === 'False' || xml === '') return null;
 
-  // Check for array
-  const arrayMatch = xml.match(/^<array>\s*<data>([\s\S]*?)<\/data>\s*<\/array>$/);
+  // Check for array - use proper nested tag extraction
+  const arrayMatch = xml.match(/^<array>\s*<data>([\s\S]*)<\/data>\s*<\/array>$/);
   if (arrayMatch) {
-    const values: unknown[] = [];
-    const valueRegex = /<value>([\s\S]*?)<\/value>/g;
-    let match;
-    while ((match = valueRegex.exec(arrayMatch[1])) !== null) {
-      values.push(parseValue(match[1]));
-    }
-    return values;
+    const values = extractValues(arrayMatch[1]);
+    return values.map(v => parseValue(v));
   }
 
-  // Check for struct
-  const structMatch = xml.match(/^<struct>([\s\S]*?)<\/struct>$/);
+  // Check for struct - use proper nested tag extraction
+  const structMatch = xml.match(/^<struct>([\s\S]*)<\/struct>$/);
   if (structMatch) {
     const obj: Record<string, unknown> = {};
-    const memberRegex = /<member>\s*<name>([^<]+)<\/name>\s*<value>([\s\S]*?)<\/value>\s*<\/member>/g;
-    let match;
-    while ((match = memberRegex.exec(structMatch[1])) !== null) {
-      obj[match[1]] = parseValue(match[2]);
+    const memberContent = structMatch[1];
+
+    // Find all member elements
+    let pos = 0;
+    while (pos < memberContent.length) {
+      const memberStart = memberContent.indexOf('<member>', pos);
+      if (memberStart === -1) break;
+
+      const memberEnd = findMatchingClose(memberContent, 'member', memberStart);
+      if (memberEnd === -1) break;
+
+      const member = memberContent.substring(memberStart + 8, memberEnd);
+
+      // Extract name
+      const nameMatch = member.match(/<name>([^<]+)<\/name>/);
+      if (nameMatch) {
+        // Extract value using proper nested extraction
+        const valueResult = extractTagContent(member, 'value', 0);
+        if (valueResult) {
+          obj[nameMatch[1]] = parseValue(valueResult.content);
+        }
+      }
+
+      pos = memberEnd + 9; // '</member>'.length
     }
     return obj;
   }
@@ -172,6 +242,42 @@ function parseValue(xml: string): unknown {
 
   // Return as string if no type tag
   return xml;
+}
+
+/**
+ * Find matching close tag position for a tag that starts at startPos
+ * startPos should point to the position of the opening '<' of the tag
+ */
+function findMatchingClose(xml: string, tagName: string, startPos: number): number {
+  const openTag = `<${tagName}>`;
+  const closeTag = `</${tagName}>`;
+
+  // Start after the opening tag
+  let depth = 1;
+  let pos = startPos + openTag.length;
+
+  while (pos < xml.length) {
+    const nextOpen = xml.indexOf(openTag, pos);
+    const nextClose = xml.indexOf(closeTag, pos);
+
+    if (nextClose === -1) return -1;
+
+    // Check which comes first
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      // Found another opening tag before the close tag
+      depth++;
+      pos = nextOpen + openTag.length;
+    } else {
+      // Found a closing tag
+      depth--;
+      if (depth === 0) {
+        return nextClose;
+      }
+      pos = nextClose + closeTag.length;
+    }
+  }
+
+  return -1;
 }
 
 function unescapeXml(str: string): string {
