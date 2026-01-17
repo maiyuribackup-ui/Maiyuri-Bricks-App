@@ -39,7 +39,7 @@ import type {
 } from '../types/contracts';
 import { retryWithBackoff, type RetryConfig } from '../utils/retry';
 import { logger } from '../utils/logger';
-import { generateImage } from '../../../cloudcore/services/ai/gemini';
+import { generateProImage } from '../../../cloudcore/services/ai/gemini';
 import { getCadService, type CadRenderResult } from '../../../services/cad-service';
 
 /**
@@ -108,7 +108,7 @@ export class FloorPlanImageAgent {
       // Step 2: Generate images
       const output: FloorPlanImageOutput = {
         metadata: {
-          model: this.config.useCadService ? 'cad-service + gemini' : 'gemini-2.0-flash-exp',
+          model: this.config.useCadService ? 'cad-service + gemini-3-pro-image-preview' : 'gemini-3-pro-image-preview',
           totalImagesGenerated: 0,
           generationTime: 0,
         },
@@ -217,7 +217,7 @@ export class FloorPlanImageAgent {
         openQuestions: [],
         assumptions: [],
         meta: {
-          model: 'gemini-2.0-flash-exp',
+          model: 'gemini-3-pro-image-preview',
           imagesGenerated: output.metadata.totalImagesGenerated,
           generationTimeMs: output.metadata.generationTime,
         },
@@ -289,7 +289,7 @@ export class FloorPlanImageAgent {
 
     try {
       const result = await retryWithBackoff(
-        () => generateImage(enhancedPrompt),
+        () => generateProImage(enhancedPrompt, { imageSize: '4K' }),
         retryConfig
       );
 

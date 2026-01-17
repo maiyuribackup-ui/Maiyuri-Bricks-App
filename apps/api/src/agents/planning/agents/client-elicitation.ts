@@ -47,7 +47,7 @@ interface ClientElicitationConfig {
 }
 
 const DEFAULT_CONFIG: ClientElicitationConfig = {
-  model: 'gemini-2.5-flash',
+  model: 'gemini-3-pro-preview',
   maxTokens: 4096,
   temperature: 0.3, // Slightly higher for creative question generation
   retryConfig: {
@@ -483,6 +483,7 @@ Respond with ONLY valid JSON.`;
       generationConfig: {
         maxOutputTokens: this.config.maxTokens,
         temperature: this.config.temperature,
+        responseMimeType: 'application/json',
       },
     });
 

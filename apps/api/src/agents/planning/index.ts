@@ -183,7 +183,7 @@ export function createPlanningPipeline(
 
   // Agent 13: Floor Plan Image (AI image generation from render prompts)
   orchestrator.registerAgent(createFloorPlanImage({
-    imagesToGenerate: ['floorPlan'],
+    imagesToGenerate: ['floorPlan', 'courtyard', 'exterior'],
     parallel: false,
   }));
 

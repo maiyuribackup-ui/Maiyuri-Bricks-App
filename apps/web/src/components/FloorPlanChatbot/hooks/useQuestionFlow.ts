@@ -89,18 +89,13 @@ const QUESTION_FLOW: QuestionConfig[] = [
     ],
   },
 
-  // Road width
+  // Setbacks - required distances from plot boundaries
   {
-    id: 'roadWidth',
-    question: "What is the width of the road facing your plot?",
-    description: "Road width affects setback requirements.",
-    type: 'single-select',
-    options: [
-      { label: '12 feet', value: '12', description: 'Narrow lane' },
-      { label: '20 feet', value: '20', recommended: true, description: 'Standard road' },
-      { label: '30 feet', value: '30', description: 'Main road' },
-      { label: '40+ feet', value: '40+', description: 'Highway/wide road' },
-    ],
+    id: 'setbacks',
+    question: "What are the required setback distances from plot boundaries? (in feet)",
+    description: "Setbacks are minimum distances from plot boundaries. Common values: 3-10 feet depending on local regulations.",
+    type: 'form',
+    fields: ['north', 'south', 'east', 'west'],
   },
 
   // ============================================
@@ -417,7 +412,7 @@ export function useQuestionFlow(): UseQuestionFlowReturn {
       if (inputs.plotInput) answeredIds.add('plotInput');
       if (inputs.plotDimensions) answeredIds.add('plotDimensions');
       if (inputs.roadSide) answeredIds.add('roadSide');
-      if (inputs.roadWidth) answeredIds.add('roadWidth');
+      if (inputs.setbacks) answeredIds.add('setbacks');
       if (inputs.bedrooms) answeredIds.add('bedrooms');
       if (inputs.bathrooms) answeredIds.add('bathrooms');
       if (inputs.kitchenType) answeredIds.add('kitchenType');

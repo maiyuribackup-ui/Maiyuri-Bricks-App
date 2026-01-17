@@ -566,7 +566,7 @@ export async function POST(request: NextRequest) {
     const { sessionId, questionId, answer } = parsed.data;
 
     // Get session from planning service (load from DB if not in memory)
-    let session = await planningService.getSessionAsync(sessionId);
+    const session = await planningService.getSessionAsync(sessionId);
     if (!session) {
       return error('Session not found. Please start a new session.', 404);
     }

@@ -26,7 +26,6 @@
  */
 
 import * as makerjs from 'makerjs';
-import { GoogleGenAI } from '@anthropic-ai/sdk';
 
 // ============================================================================
 // TYPES
@@ -248,7 +247,7 @@ Generate a ${style === 'isometric' ? '1024x1024' : '1200x900'} image.`;
       return null;
     }
 
-    const data = await response.json();
+    const data = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { mimeType?: string; data?: string } }> } }> };
 
     // Extract image from response
     const parts = data.candidates?.[0]?.content?.parts;

@@ -77,7 +77,7 @@ export async function uploadFloorPlanFile(
 ): Promise<StorageUploadResult> {
   try {
     // Generate organized filename with client name + date
-    const organizedFileName = generateFileName(clientName, fileName);
+    const organizedFileName = generateFileName(clientName ?? null, fileName);
 
     // Create path: session-id/clientname_date_filename
     const filePath = `${sessionId}/${organizedFileName}`;

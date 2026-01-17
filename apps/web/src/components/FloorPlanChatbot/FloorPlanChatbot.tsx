@@ -14,17 +14,12 @@ import { useFloorPlanGeneration } from './hooks/useFloorPlanGeneration';
 import { ChatMessage } from './ChatMessage';
 import { QuickOptions } from './QuickOptions';
 import { ImageUploader } from './ImageUploader';
-import { FloorPlanPreview } from './FloorPlanPreview';
 import { ProgressIndicator } from './ProgressIndicator';
-import { BlueprintConfirmation } from './BlueprintConfirmation';
 import type {
   FloorPlanChatbotProps,
-  ChatMessage as ChatMessageType,
   ProjectType,
   FloorPlanInputs,
-  GENERATION_STAGES,
   ProgressData,
-  BlueprintDesignSummary,
 } from './types';
 
 // Welcome message
@@ -43,7 +38,7 @@ const BLUEPRINT_STAGES: ProgressData['stages'] = [
   { id: 'blueprint', label: 'Generating blueprint', icon: '📋', status: 'pending' },
 ];
 
-// Isometric stages - shown after blueprint confirmation
+// Isometric stages - shown after blueprint generation
 const ISOMETRIC_STAGES: ProgressData['stages'] = [
   { id: 'visualization', label: 'Preparing 3D visualization', icon: '🎨', status: 'pending' },
   { id: 'isometric', label: 'Rendering isometric view', icon: '🏠', status: 'pending' },
@@ -52,7 +47,6 @@ const ISOMETRIC_STAGES: ProgressData['stages'] = [
 // All stages combined
 const ALL_STAGES: ProgressData['stages'] = [
   ...BLUEPRINT_STAGES,
-  { id: 'confirmation', label: 'Awaiting blueprint confirmation', icon: '✋', status: 'pending' },
   ...ISOMETRIC_STAGES,
 ];
 
@@ -67,16 +61,11 @@ export function FloorPlanChatbot({
   const [showUploader, setShowUploader] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState<ProgressData | null>(null);
-  const [blueprintData, setBlueprintData] = useState<{
-    image: string;
-    mimeType: string;
-    designSummary: BlueprintDesignSummary;
-  } | null>(null);
-  const [isConfirmingBlueprint, setIsConfirmingBlueprint] = useState(false);
 
   // Backend session tracking
   const backendSessionIdRef = useRef<string | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const autoConfirmRef = useRef(false);
 
   // Open questions state for halted generation
   const [pendingQuestions, setPendingQuestions] = useState<string[]>([]);
@@ -91,6 +80,40 @@ export function FloorPlanChatbot({
     clearSession,
     setStatus,
   } = useChatSession();
+  const hasDownloads = Boolean(
+    session.generatedImages?.floorPlan ||
+    session.generatedImages?.courtyard ||
+    session.generatedImages?.exterior ||
+    session.generatedImages?.interior
+  );
+
+  const downloadPng = useCallback((imageData: unknown, filenamePrefix: string) => {
+    const raw = typeof imageData === 'object' && imageData && 'base64Data' in imageData
+      ? String((imageData as { base64Data: unknown }).base64Data ?? '')
+      : (typeof imageData === 'string' ? imageData : '');
+
+    const base64 = raw.includes(',') ? raw.split(',').pop()!.trim() : raw.trim();
+    if (!base64) {
+      console.error(`No ${filenamePrefix} image data available for download`);
+      return;
+    }
+
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'image/png' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filenamePrefix}-${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, []);
 
   const { getNextQuestion, isLastQuestion, getSmartDefault } = useQuestionFlow();
 
@@ -136,31 +159,20 @@ export function FloorPlanChatbot({
             stages: statusData.stages || BLUEPRINT_STAGES,
           });
         } else if (statusData.status === 'awaiting_blueprint_confirmation') {
-          // Generation complete - stop polling
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-          }
-
-          setIsGenerating(false);
-          setGenerationProgress(null);
-          setStatus('awaiting_blueprint_confirmation');
-
-          // Fetch blueprint data
-          if (statusData.blueprint) {
-            setBlueprintData({
-              image: statusData.blueprint.base64Data || '',
-              mimeType: statusData.blueprint.mimeType || 'image/png',
-              designSummary: statusData.designSummary || {},
-            });
-
-            addMessage({
-              role: 'assistant',
-              content: `Your blueprint is ready! Please review the floor plan design before I generate the 3D isometric view.
-
-${statusData.message || 'Please confirm the blueprint to proceed with the 3D view.'}`,
-              type: 'text',
-            });
+          // Auto-confirm legacy sessions to keep the flow single-step
+          if (!autoConfirmRef.current) {
+            autoConfirmRef.current = true;
+            try {
+              await confirmBlueprintAPI(true);
+            } catch (err) {
+              autoConfirmRef.current = false;
+              console.error('Auto-confirm blueprint failed:', err);
+              addMessage({
+                role: 'assistant',
+                content: 'I hit an issue finalizing your blueprint. Please try again.',
+                type: 'error',
+              });
+            }
           }
         } else if (statusData.status === 'halted') {
           // Pipeline halted - needs human input
@@ -256,7 +268,7 @@ Click the download buttons below to save your images as PNG files.`,
         clearInterval(pollingIntervalRef.current);
       }
     };
-  }, [isGenerating, getStatus, addMessage, setStatus]);
+  }, [isGenerating, getStatus, addMessage, setStatus, setGeneratedImages, confirmBlueprintAPI, onDesignComplete]);
 
   // Initialize chat with welcome message
   useEffect(() => {
@@ -625,6 +637,31 @@ Click the download buttons below to save your images as PNG files.`,
     },
     [session.collectedInputs, getNextQuestion, isLastQuestion, addMessage, updateInputs, submitAnswer, startBackendSession, setStatus]
   );
+
+  const handleRefreshDownloads = useCallback(async () => {
+    if (!backendSessionIdRef.current) {
+      addMessage({
+        role: 'assistant',
+        content: 'Unable to refresh downloads without an active session. Please start a new design.',
+        type: 'error',
+      });
+      return;
+    }
+
+    try {
+      const statusData = await getStatus();
+      if (statusData.result?.images) {
+        setGeneratedImages(statusData.result.images);
+      }
+    } catch (err) {
+      console.error('Failed to refresh downloads:', err);
+      addMessage({
+        role: 'assistant',
+        content: 'Failed to refresh downloads. Please try again in a moment.',
+        type: 'error',
+      });
+    }
+  }, [addMessage, getStatus, setGeneratedImages]);
 
   /**
    * Handle form submission (for dimensions and client name)
@@ -1068,226 +1105,49 @@ Click the download buttons below to save your images as PNG files.`,
       type: 'text',
     });
 
-    // Initialize progress with blueprint stages
-    const progress: ProgressData = {
-      stage: 'Starting design process...',
-      percent: 0,
-      stages: [...BLUEPRINT_STAGES],
-    };
-    setGenerationProgress(progress);
+    try {
+      const projectType = (inputs.projectType || session.collectedInputs.projectType) as ProjectType | undefined;
+      if (!projectType) {
+        throw new Error('Project type is required to start generation.');
+      }
 
-    // Simulate blueprint generation stages
-    const stages = ['vastu', 'eco', 'zoning', 'dimensioning', 'engineering', 'validation', 'blueprint'];
-    const stageLabels = [
-      'Applying Vastu principles...',
-      'Adding eco-friendly elements...',
-      'Organizing room zones...',
-      'Calculating dimensions...',
-      'Engineering specifications...',
-      'Validating design...',
-      'Generating blueprint...',
-    ];
-
-    for (let i = 0; i < stages.length; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 1500 + Math.random() * 1000));
-
-      setGenerationProgress((prev) => {
-        if (!prev) return prev;
-        const newStages = [...prev.stages];
-        // Mark previous as complete
-        if (i > 0) {
-          const prevIndex = newStages.findIndex((s) => s.id === stages[i - 1]);
-          if (prevIndex >= 0) newStages[prevIndex].status = 'completed';
-        }
-        // Mark current as in progress
-        const currentIndex = newStages.findIndex((s) => s.id === stages[i]);
-        if (currentIndex >= 0) newStages[currentIndex].status = 'in_progress';
-
-        return {
-          stage: stageLabels[i],
-          percent: Math.round(((i + 1) / stages.length) * 70), // Max 70% for blueprint phase
-          stages: newStages,
-        };
+      const response = await fetch('/api/planning/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: backendSessionIdRef.current || undefined,
+          projectType,
+          inputs,
+        }),
       });
-    }
 
-    // Mark blueprint stage as complete
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setGenerationProgress((prev) => {
-      if (!prev) return prev;
-      const newStages = prev.stages.map((s) => ({ ...s, status: 'completed' as const }));
-      return { ...prev, percent: 70, stages: newStages, stage: 'Blueprint ready!' };
-    });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to start generation');
+      }
 
-    // Show blueprint confirmation
-    setTimeout(() => {
+      const payload = await response.json();
+      const data = payload.data || payload;
+
+      if (data.sessionId) {
+        backendSessionIdRef.current = data.sessionId;
+      }
+
+      setGenerationProgress({
+        stage: data.progress?.stage || 'Starting design process...',
+        percent: data.progress?.percent || 0,
+        stages: data.progress?.stages || ALL_STAGES,
+      });
+    } catch (err) {
+      console.error('Failed to start backend generation:', err);
       setIsGenerating(false);
       setGenerationProgress(null);
-      setStatus('awaiting_blueprint_confirmation');
-
-      // Mock blueprint data (in production, this comes from the API)
-      const mockDesignSummary: BlueprintDesignSummary = {
-        plotSize: inputs.plotDimensions &&
-                  !isNaN(inputs.plotDimensions.east) &&
-                  !isNaN(inputs.plotDimensions.north)
-          ? `${inputs.plotDimensions.east}'×${inputs.plotDimensions.north}'`
-          : "40'×60'",
-        roomCount: (parseInt(inputs.bedrooms as string) || 2) + 3, // bedrooms + living + kitchen + bathroom
-        rooms: [
-          { name: 'Master Bedroom', type: 'bedroom', areaSqft: 180 },
-          { name: 'Bedroom 2', type: 'bedroom', areaSqft: 150 },
-          { name: 'Living Room', type: 'living', areaSqft: 250 },
-          { name: 'Kitchen', type: 'kitchen', areaSqft: 120 },
-          { name: 'Bathroom', type: 'bathroom', areaSqft: 45 },
-          ...(inputs.hasMutram ? [{ name: 'Courtyard (Mutram)', type: 'courtyard', areaSqft: 100 }] : []),
-        ],
-        hasCourtyard: !!inputs.hasMutram,
-        hasVerandah: !!inputs.hasVerandah,
-        vastuCompliant: true,
-      };
-
-      // In production, this would be real base64 from API
-      // For demo, we'll use a placeholder
-      setBlueprintData({
-        image: '', // Would be actual base64 from API
-        mimeType: 'image/png',
-        designSummary: mockDesignSummary,
-      });
-
+      setStatus('failed');
       addMessage({
         role: 'assistant',
-        content: `Your blueprint is ready! Please review the floor plan design before I generate the 3D isometric view.
-
-Key Features:
-• ${inputs.bedrooms} Bedroom(s) with attached bathroom
-• ${inputs.hasMutram ? 'Traditional mutram (courtyard) for natural ventilation' : 'Spacious living area'}
-• Kitchen in SE corner (Vastu compliant)
-• ${inputs.hasVerandah ? 'Front verandah (thinnai)' : 'Direct entrance'}
-• ${inputs.wallMaterial === 'mud-interlock' ? 'Eco-friendly mud interlock brick walls' : 'Standard brick construction'}
-
-Please confirm the blueprint to proceed with the 3D view, or let me know if you'd like any changes.`,
-        type: 'text',
-      });
-    }, 500);
-  };
-
-  /**
-   * Handle blueprint confirmation
-   */
-  const handleBlueprintConfirm = async () => {
-    if (!backendSessionIdRef.current) {
-      console.error('No backend session ID');
-      return;
-    }
-
-    setIsConfirmingBlueprint(true);
-
-    try {
-      // Call backend API to confirm blueprint
-      const result = await confirmBlueprintAPI(true);
-
-      setBlueprintData(null);
-
-      if (result.status === 'complete') {
-        // Backend has all images ready - show them
-        addMessage({
-          role: 'assistant',
-          content: result.message || `Your design is complete! Here's your ECO-FRIENDLY ${session.collectedInputs.hasMutram ? 'COURTYARD ' : ''}HOUSE with:
-
-• 3D Isometric View
-• Detailed Floor Plan
-• Vastu-compliant layout
-• Eco-friendly design elements
-
-Would you like to make any changes to this design?`,
-          type: 'text',
-        });
-
-        setStatus('iterating');
-      } else if (result.status === 'generating_isometric') {
-        // Backend is generating isometric views
-        addMessage({
-          role: 'assistant',
-          content: result.message || "Great! You've approved the blueprint. Now generating your 3D isometric view...",
-          type: 'text',
-        });
-
-        setStatus('generating_isometric');
-        setIsGenerating(true);
-
-        // Initialize progress if provided
-        if (result.progress) {
-          setGenerationProgress({
-            stage: result.progress.stage || 'Preparing 3D visualization...',
-            percent: result.progress.percent || 75,
-            stages: result.stages || ISOMETRIC_STAGES,
-          });
-        }
-
-        // Polling will handle the rest
-      }
-    } catch (err) {
-      console.error('Blueprint confirmation error:', err);
-      addMessage({
-        role: 'assistant',
-        content: 'Sorry, there was an error processing your confirmation. Please try again.',
+        content: 'Sorry, I could not start the generation process. Please refresh the page and try again.',
         type: 'error',
       });
-    } finally {
-      setIsConfirmingBlueprint(false);
-    }
-  };
-
-  /**
-   * Handle blueprint rejection
-   */
-  const handleBlueprintReject = async (feedback?: string) => {
-    if (!backendSessionIdRef.current) {
-      console.error('No backend session ID');
-      return;
-    }
-
-    setIsConfirmingBlueprint(true);
-
-    try {
-      // Call backend API to reject blueprint
-      const result = await confirmBlueprintAPI(false, feedback);
-
-      setBlueprintData(null);
-
-      if (feedback) {
-        addMessage({
-          role: 'user',
-          content: `I'd like to make changes: ${feedback}`,
-          type: 'text',
-        });
-
-        addMessage({
-          role: 'assistant',
-          content: result.message || `I understand you want to make changes. Let me redesign with those modifications in mind.
-
-What specific aspect would you like me to modify?`,
-          type: 'text',
-        });
-      } else {
-        addMessage({
-          role: 'assistant',
-          content: result.message || `No problem! Let's modify the design. What changes would you like to make to the floor plan?`,
-          type: 'text',
-        });
-      }
-
-      // Update status based on result
-      setStatus(result.status === 'collecting' ? 'collecting' : 'iterating');
-    } catch (err) {
-      console.error('Blueprint rejection error:', err);
-      addMessage({
-        role: 'assistant',
-        content: 'Sorry, there was an error processing your request. Please try again.',
-        type: 'error',
-      });
-    } finally {
-      setIsConfirmingBlueprint(false);
     }
   };
 
@@ -1338,8 +1198,6 @@ Would you like to make any other changes?`,
     setShowUploader(false);
     setIsGenerating(false);
     setGenerationProgress(null);
-    setBlueprintData(null);
-    setIsConfirmingBlueprint(false);
   };
 
   return (
@@ -1424,20 +1282,6 @@ Would you like to make any other changes?`,
         {isGenerating && generationProgress && (
           <div className="mt-4">
             <ProgressIndicator progress={generationProgress} />
-          </div>
-        )}
-
-        {/* Blueprint confirmation */}
-        {session.status === 'awaiting_blueprint_confirmation' && blueprintData && (
-          <div className="mt-4">
-            <BlueprintConfirmation
-              blueprintImage={blueprintData.image}
-              mimeType={blueprintData.mimeType}
-              designSummary={blueprintData.designSummary}
-              onConfirm={handleBlueprintConfirm}
-              onReject={handleBlueprintReject}
-              isLoading={isConfirmingBlueprint}
-            />
           </div>
         )}
 
@@ -1527,7 +1371,7 @@ Would you like to make any other changes?`,
         )}
 
         {/* Final generated images with download buttons */}
-        {session.status === 'complete' && session.generatedImages && (
+        {session.status === 'complete' && hasDownloads && (
           <div className="mt-4 bg-slate-800/90 rounded-2xl border border-slate-700/50 overflow-hidden">
             <div className="px-5 py-4 bg-gradient-to-r from-emerald-600/20 to-teal-500/20 border-b border-slate-700/50">
               <div className="flex items-center gap-3">
@@ -1554,29 +1398,7 @@ Would you like to make any other changes?`,
                     </div>
                     <button
                       onClick={() => {
-                        const imageData = session.generatedImages.floorPlan;
-                        const base64 = typeof imageData === 'object' && imageData && 'base64Data' in imageData
-                          ? (imageData as { base64Data: string }).base64Data
-                          : (typeof imageData === 'string' ? imageData : '');
-                        if (!base64) {
-                          console.error('No floor plan image data available for download');
-                          return;
-                        }
-                        const byteCharacters = atob(base64);
-                        const byteNumbers = new Array(byteCharacters.length);
-                        for (let i = 0; i < byteCharacters.length; i++) {
-                          byteNumbers[i] = byteCharacters.charCodeAt(i);
-                        }
-                        const byteArray = new Uint8Array(byteNumbers);
-                        const blob = new Blob([byteArray], { type: 'image/png' });
-                        const url = URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = `floor-plan-${Date.now()}.png`;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        URL.revokeObjectURL(url);
+                        downloadPng(session.generatedImages.floorPlan, 'floor-plan');
                       }}
                       className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
                     >
@@ -1601,29 +1423,7 @@ Would you like to make any other changes?`,
                     </div>
                     <button
                       onClick={() => {
-                        const imageData = session.generatedImages.exterior;
-                        const base64 = typeof imageData === 'object' && imageData && 'base64Data' in imageData
-                          ? (imageData as { base64Data: string }).base64Data
-                          : (typeof imageData === 'string' ? imageData : '');
-                        if (!base64) {
-                          console.error('No exterior image data available for download');
-                          return;
-                        }
-                        const byteCharacters = atob(base64);
-                        const byteNumbers = new Array(byteCharacters.length);
-                        for (let i = 0; i < byteCharacters.length; i++) {
-                          byteNumbers[i] = byteCharacters.charCodeAt(i);
-                        }
-                        const byteArray = new Uint8Array(byteNumbers);
-                        const blob = new Blob([byteArray], { type: 'image/png' });
-                        const url = URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = `exterior-3d-${Date.now()}.png`;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        URL.revokeObjectURL(url);
+                        downloadPng(session.generatedImages.exterior, 'exterior-3d');
                       }}
                       className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
                     >
@@ -1648,29 +1448,7 @@ Would you like to make any other changes?`,
                     </div>
                     <button
                       onClick={() => {
-                        const imageData = session.generatedImages.courtyard;
-                        const base64 = typeof imageData === 'object' && imageData && 'base64Data' in imageData
-                          ? (imageData as { base64Data: string }).base64Data
-                          : (typeof imageData === 'string' ? imageData : '');
-                        if (!base64) {
-                          console.error('No courtyard image data available for download');
-                          return;
-                        }
-                        const byteCharacters = atob(base64);
-                        const byteNumbers = new Array(byteCharacters.length);
-                        for (let i = 0; i < byteCharacters.length; i++) {
-                          byteNumbers[i] = byteCharacters.charCodeAt(i);
-                        }
-                        const byteArray = new Uint8Array(byteNumbers);
-                        const blob = new Blob([byteArray], { type: 'image/png' });
-                        const url = URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = `courtyard-${Date.now()}.png`;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        URL.revokeObjectURL(url);
+                        downloadPng(session.generatedImages.courtyard, 'courtyard');
                       }}
                       className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
                     >
@@ -1682,6 +1460,25 @@ Would you like to make any other changes?`,
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {session.status === 'complete' && !hasDownloads && (
+          <div className="mt-4 bg-slate-800/90 rounded-2xl border border-slate-700/50 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-700/50">
+              <h3 className="font-semibold text-white">Finalizing Downloads</h3>
+              <p className="text-slate-400 text-sm">
+                Your images are finishing up. Click refresh to load the download buttons.
+              </p>
+            </div>
+            <div className="p-5">
+              <button
+                onClick={handleRefreshDownloads}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Refresh Downloads
+              </button>
             </div>
           </div>
         )}

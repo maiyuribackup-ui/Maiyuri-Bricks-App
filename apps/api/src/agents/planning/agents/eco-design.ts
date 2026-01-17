@@ -48,7 +48,7 @@ interface EcoDesignConfig {
 }
 
 const DEFAULT_CONFIG: EcoDesignConfig = {
-  model: 'gemini-2.5-flash',
+  model: 'gemini-3-pro-preview',
   maxTokens: 4096,
   temperature: 0.1, // Very low temperature for consistent eco constraints
   retryConfig: {
@@ -659,6 +659,7 @@ Return your analysis as valid JSON.`;
       generationConfig: {
         maxOutputTokens: this.config.maxTokens,
         temperature: this.config.temperature,
+        responseMimeType: 'application/json',
       },
     });
 
@@ -806,15 +807,16 @@ Return your analysis as valid JSON.`;
       options: ['Yes, plan for solar', 'No, not needed now'],
     });
 
-    // Ask about material preferences if not specified
+    // Ask about climate zone if not specified
     if (!input.climateZone) {
       questions.push({
         agentSource: this.agentName,
         questionId: 'climate_zone',
         question: 'Which climate zone is your plot located in?',
-        type: 'mandatory',
+        type: 'optional',
         reason: 'Climate zone affects material selection and water storage capacity',
         options: ['Chennai coastal', 'Interior dry belt', 'Hill station area', 'Other Tamil Nadu'],
+        defaultValue: 'Interior dry belt',
       });
     }
 

@@ -53,7 +53,7 @@ interface DimensioningConfig {
 }
 
 const DEFAULT_CONFIG: DimensioningConfig = {
-  model: 'gemini-2.5-flash',
+  model: 'gemini-3-pro-preview',
   maxTokens: 4096,
   temperature: 0.15,
   retryConfig: {
@@ -800,6 +800,7 @@ Return your optimized dimensioning as valid JSON.`;
       generationConfig: {
         maxOutputTokens: this.config.maxTokens,
         temperature: this.config.temperature,
+        responseMimeType: 'application/json',
       },
     });
 

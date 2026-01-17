@@ -46,7 +46,7 @@ interface RegulationComplianceConfig {
 }
 
 const DEFAULT_CONFIG: RegulationComplianceConfig = {
-  model: 'gemini-2.5-flash',
+  model: 'gemini-3-pro-preview',
   maxTokens: 4096,
   temperature: 0.1, // Very low temperature for precise regulation calculations
   retryConfig: {
@@ -447,6 +447,7 @@ Respond with ONLY valid JSON.`;
       generationConfig: {
         maxOutputTokens: this.config.maxTokens,
         temperature: this.config.temperature,
+        responseMimeType: 'application/json',
       },
     });
 

@@ -47,7 +47,7 @@ interface VisualizationConfig {
 }
 
 const DEFAULT_CONFIG: VisualizationConfig = {
-  model: 'gemini-2.5-flash',
+  model: 'gemini-3-pro-preview',
   maxTokens: 4096,
   temperature: 0.7, // Higher temperature for creative prompts
   retryConfig: {
@@ -310,6 +310,7 @@ Return your prompts as valid JSON.`;
       generationConfig: {
         maxOutputTokens: this.config.maxTokens,
         temperature: this.config.temperature,
+        responseMimeType: 'application/json',
       },
     });
 

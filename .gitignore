@@ -51,3 +51,7 @@ bun.lockb
 .supabase/
 .vercel
 .env*.local
+
+# OpenMemory - IDE/Assistant specific rules
+.cursor/rules/openmemory.mdc
+CLAUDE.md

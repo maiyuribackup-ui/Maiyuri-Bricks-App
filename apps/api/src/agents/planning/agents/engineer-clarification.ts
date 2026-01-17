@@ -46,7 +46,7 @@ interface EngineerClarificationConfig {
 }
 
 const DEFAULT_CONFIG: EngineerClarificationConfig = {
-  model: 'gemini-2.5-flash',
+  model: 'gemini-3-pro-preview',
   maxTokens: 4096,
   temperature: 0.1, // Very low temperature for technical precision
   retryConfig: {
@@ -491,6 +491,7 @@ Respond with ONLY valid JSON.`;
       generationConfig: {
         maxOutputTokens: this.config.maxTokens,
         temperature: this.config.temperature,
+        responseMimeType: 'application/json',
       },
     });
 
@@ -598,19 +599,21 @@ Respond with ONLY valid JSON.`;
           agentSource: this.agentName,
           questionId: 'soil_test',
           question: 'Has a soil test been conducted? If yes, what is the soil bearing capacity?',
-          type: 'mandatory',
+          type: 'optional',
           reason: 'Soil bearing capacity is critical for foundation design',
+          defaultValue: 'No soil test conducted - assuming standard bearing capacity of 10 tonnes/sqm',
         });
       }
     }
 
-    // Add question about building height if not clear
+    // Add question about building height (optional with default)
     questions.push({
       agentSource: this.agentName,
       questionId: 'building_height',
       question: 'How many floors are you planning? (Ground + Upper floors)',
-      type: 'mandatory',
+      type: 'optional',
       reason: 'Number of floors affects structural system and foundation design',
+      defaultValue: 'Ground + 1 floor (G+1)',
     });
 
     return questions;

@@ -54,7 +54,7 @@ interface EngineeringPlanConfig {
 }
 
 const DEFAULT_CONFIG: EngineeringPlanConfig = {
-  model: 'gemini-2.5-flash',
+  model: 'gemini-3-pro-preview',
   maxTokens: 4096,
   temperature: 0.15,
   retryConfig: {
@@ -575,6 +575,7 @@ Respond with ONLY valid JSON:
       generationConfig: {
         maxOutputTokens: this.config.maxTokens,
         temperature: this.config.temperature,
+        responseMimeType: 'application/json',
       },
     });
 

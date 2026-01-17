@@ -545,8 +545,8 @@ Return a JSON object:
 }
 
 /**
- * Generate images using Gemini's image generation capability
- * Uses the native image generation with responseModalities
+ * Generate images using Gemini Pro Image generation capability
+ * Uses gemini-3-pro-image-preview with responseModalities
  *
  * @param prompt - Text description of the image to generate
  * @param options - Image generation configuration options
@@ -586,7 +586,7 @@ export async function generateImage(
     }
 
     const result = await geminiClient.models.generateContent({
-      model: GeminiImageModels.FLASH_IMAGE,
+      model: GeminiImageModels.PRO_IMAGE,
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: generationConfig,
     });
@@ -640,7 +640,7 @@ export async function generateImage(
       data: {
         images,
         text: textResponse,
-        model: GeminiImageModels.FLASH_IMAGE,
+        model: GeminiImageModels.PRO_IMAGE,
       },
       meta: {
         processingTime: Date.now() - startTime,
@@ -710,7 +710,7 @@ export async function editImage(
     }
 
     const result = await geminiClient.models.generateContent({
-      model: GeminiImageModels.FLASH_IMAGE,
+      model: GeminiImageModels.PRO_IMAGE,
       contents: [
         {
           role: 'user',
@@ -768,7 +768,7 @@ export async function editImage(
       data: {
         images,
         text: textResponse,
-        model: GeminiImageModels.FLASH_IMAGE,
+        model: GeminiImageModels.PRO_IMAGE,
       },
       meta: {
         processingTime: Date.now() - startTime,
@@ -828,10 +828,10 @@ export async function generateImageWithReferences(
       };
     }
 
-    // Gemini Flash supports up to 3 reference images
-    if (referenceImages.length > 3) {
-      console.warn('Gemini Flash supports up to 3 reference images. Using first 3.');
-      referenceImages = referenceImages.slice(0, 3);
+    // Gemini Pro Image supports up to 14 reference images
+    if (referenceImages.length > 14) {
+      console.warn('Gemini Pro Image supports up to 14 reference images. Using first 14.');
+      referenceImages = referenceImages.slice(0, 14);
     }
 
     const geminiClient = new GeminiClient({ apiKey: process.env.GOOGLE_AI_API_KEY });
@@ -867,7 +867,7 @@ export async function generateImageWithReferences(
     }
 
     const result = await geminiClient.models.generateContent({
-      model: GeminiImageModels.FLASH_IMAGE,
+      model: GeminiImageModels.PRO_IMAGE,
       contents: [{ role: 'user', parts }],
       config: generationConfig,
     });
@@ -912,7 +912,7 @@ export async function generateImageWithReferences(
       data: {
         images,
         text: textResponse,
-        model: GeminiImageModels.FLASH_IMAGE,
+        model: GeminiImageModels.PRO_IMAGE,
       },
       meta: {
         processingTime: Date.now() - startTime,

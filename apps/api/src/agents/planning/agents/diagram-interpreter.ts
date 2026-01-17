@@ -46,7 +46,7 @@ interface DiagramInterpreterConfig {
 }
 
 const DEFAULT_CONFIG: DiagramInterpreterConfig = {
-  model: 'gemini-2.5-flash',
+  model: 'gemini-3-pro-preview',
   maxTokens: 4096,
   temperature: 0.2, // Low temperature for precise extraction
   retryConfig: {
@@ -351,6 +351,7 @@ Respond with ONLY valid JSON.`,
       generationConfig: {
         maxOutputTokens: this.config.maxTokens,
         temperature: this.config.temperature,
+        responseMimeType: 'application/json',
       },
     });
 

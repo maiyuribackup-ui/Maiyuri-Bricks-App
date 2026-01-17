@@ -47,7 +47,7 @@ interface ArchitecturalZoningConfig {
 }
 
 const DEFAULT_CONFIG: ArchitecturalZoningConfig = {
-  model: 'gemini-2.5-flash',
+  model: 'gemini-3-pro-preview',
   maxTokens: 4096,
   temperature: 0.2,
   retryConfig: {
@@ -645,6 +645,7 @@ Return your analysis as valid JSON.`;
       generationConfig: {
         maxOutputTokens: this.config.maxTokens,
         temperature: this.config.temperature,
+        responseMimeType: 'application/json',
       },
     });
 

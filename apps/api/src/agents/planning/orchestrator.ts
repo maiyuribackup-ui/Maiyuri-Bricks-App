@@ -340,8 +340,9 @@ export class PlanningOrchestrator {
    * Check if pipeline should halt for human input
    */
   private shouldHalt(context: DesignContext): boolean {
-    // Halt if any open questions are unanswered
-    return context.openQuestions.some(q => !q.answer);
+    // Only halt if mandatory questions are unanswered
+    // Optional questions can proceed with default values
+    return context.openQuestions.some(q => q.type === 'mandatory' && !q.answer);
   }
 
   /**

@@ -13,7 +13,7 @@
  * 6. Return structured result
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { DesignContext } from '../types/design-context';
 import type {
   AgentName,
@@ -43,7 +43,7 @@ export interface BaseAgentConfig {
  * Default agent configuration
  */
 export const DEFAULT_AGENT_CONFIG: BaseAgentConfig = {
-  model: 'claude-sonnet-4-20250514',
+  model: 'gemini-3-pro-preview',
   maxTokens: 4096,
   temperature: 0.3, // Low temperature for deterministic output
   retryConfig: {
@@ -59,7 +59,7 @@ export const DEFAULT_AGENT_CONFIG: BaseAgentConfig = {
  * @template TOutput - Agent-specific output type
  */
 export abstract class BaseAgent<TInput, TOutput> {
-  protected anthropic: Anthropic;
+  protected genAI: GoogleGenerativeAI;
   protected config: BaseAgentConfig;
 
   /** Unique agent identifier */
@@ -71,10 +71,10 @@ export abstract class BaseAgent<TInput, TOutput> {
   constructor(config: Partial<BaseAgentConfig> = {}) {
     this.config = { ...DEFAULT_AGENT_CONFIG, ...config };
 
-    // Initialize Anthropic client
-    this.anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY || '',
-    });
+    // Initialize Gemini client
+    this.genAI = new GoogleGenerativeAI(
+      process.env.GOOGLE_AI_API_KEY || ''
+    );
   }
 
   /**
@@ -108,9 +108,9 @@ export abstract class BaseAgent<TInput, TOutput> {
       // Step 3: Build prompt
       const prompt = this.buildPrompt(input, context);
 
-      // Step 4: Call Claude with retry
+      // Step 4: Call Gemini with retry
       const response = await retryWithBackoff(
-        () => this.callClaude(prompt),
+        () => this.callGemini(prompt),
         this.config.retryConfig
       );
 
@@ -131,11 +131,11 @@ export abstract class BaseAgent<TInput, TOutput> {
 
       // Step 8: Track token usage
       const tokensUsed: TokenUsage = {
-        input: response.usage?.input_tokens || 0,
-        output: response.usage?.output_tokens || 0,
-        total:
-          (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0),
+        input: Math.round(prompt.length / 4),
+        output: Math.round(response.length / 4),
+        total: 0,
       };
+      tokensUsed.total = tokensUsed.input + tokensUsed.output;
       tokenBudget.track(this.agentName, tokensUsed);
 
       const executionTimeMs = Date.now() - startTime;
@@ -183,30 +183,30 @@ export abstract class BaseAgent<TInput, TOutput> {
   }
 
   /**
-   * Call Claude API
+   * Call Gemini API
    */
-  protected async callClaude(prompt: string): Promise<Anthropic.Message> {
+  protected async callGemini(prompt: string): Promise<string> {
     const fullSystemPrompt = `${SYSTEM_RULES}\n\n${this.systemPrompt}`;
 
-    return this.anthropic.messages.create({
+    const model = this.genAI.getGenerativeModel({
       model: this.config.model,
-      max_tokens: this.config.maxTokens,
-      temperature: this.config.temperature,
-      system: fullSystemPrompt,
-      messages: [{ role: 'user', content: prompt }],
+      systemInstruction: fullSystemPrompt,
+      generationConfig: {
+        maxOutputTokens: this.config.maxTokens,
+        temperature: this.config.temperature,
+        responseMimeType: 'application/json',
+      },
     });
+
+    const result = await model.generateContent(prompt);
+    return result.response.text();
   }
 
   /**
-   * Parse Claude response to extract JSON
+   * Parse Gemini response to extract JSON
    */
-  protected parseResponse(response: Anthropic.Message): unknown {
-    const textContent = response.content.find(c => c.type === 'text');
-    if (!textContent || textContent.type !== 'text') {
-      throw new Error('No text content in response');
-    }
-
-    let content = textContent.text.trim();
+  protected parseResponse(response: string): unknown {
+    let content = response.trim();
 
     // Remove markdown code blocks if present
     if (content.startsWith('```json')) {
@@ -251,7 +251,7 @@ export abstract class BaseAgent<TInput, TOutput> {
       agentSource: this.agentName,
       questionId: q.id || `${this.agentName}-Q${index + 1}`,
       question: q.question || String(q),
-      type: q.type || 'mandatory',
+      type: q.type || 'optional', // Default to optional so pipeline continues with assumptions
       reason: q.reason || 'Clarification needed for design decisions',
     }));
   }

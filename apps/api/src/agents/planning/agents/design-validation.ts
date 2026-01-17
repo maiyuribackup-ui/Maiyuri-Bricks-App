@@ -46,7 +46,7 @@ interface DesignValidationConfig {
 }
 
 const DEFAULT_CONFIG: DesignValidationConfig = {
-  model: 'gemini-2.5-flash',
+  model: 'gemini-3-pro-preview',
   maxTokens: 4096,
   temperature: 0.1, // Very low for consistent validation
   retryConfig: {
@@ -790,6 +790,7 @@ Respond with ONLY valid JSON:
       generationConfig: {
         maxOutputTokens: this.config.maxTokens,
         temperature: this.config.temperature,
+        responseMimeType: 'application/json',
       },
     });
 
