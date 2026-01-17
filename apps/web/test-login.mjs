@@ -22,11 +22,20 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 async function testLogin() {
-  console.log('Testing login for ram@maiyuri.app...');
+  const testEmail = process.env.E2E_TEST_EMAIL || envVars.E2E_TEST_EMAIL;
+  const testPassword = process.env.E2E_TEST_PASSWORD || envVars.E2E_TEST_PASSWORD;
+
+  if (!testEmail || !testPassword) {
+    console.error('Error: E2E_TEST_EMAIL and E2E_TEST_PASSWORD are required');
+    console.error('Set them in .env.local or export them before running tests');
+    process.exit(1);
+  }
+
+  console.log(`Testing login for ${testEmail}...`);
 
   const { data, error } = await supabase.auth.signInWithPassword({
-    email: 'ram@maiyuri.app',
-    password: 'TempPass123!',
+    email: testEmail,
+    password: testPassword,
   });
 
   if (error) {
