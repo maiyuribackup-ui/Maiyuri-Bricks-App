@@ -234,6 +234,14 @@ async function runFullAnalysis(
   // Add SmartQuotePayload if generation was successful
   if (smartQuotePayloadResult.success && smartQuotePayloadResult.data) {
     response.smartQuotePayload = smartQuotePayloadResult.data;
+  } else {
+    // Log error for debugging SmartQuotePayload generation failures
+    console.error(
+      "[SmartQuotePayload] Generation failed for lead:",
+      response.leadId,
+      "Error:",
+      smartQuotePayloadResult.error,
+    );
   }
 }
 
