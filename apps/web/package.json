@@ -20,6 +20,7 @@
     "@ducanh2912/next-pwa": "^10.2.9",
     "@google/genai": "^1.34.0",
     "@google/generative-ai": "^0.24.1",
+    "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^3.9.1",
     "@maiyuri/api": "*",
     "@maiyuri/shared": "*",
