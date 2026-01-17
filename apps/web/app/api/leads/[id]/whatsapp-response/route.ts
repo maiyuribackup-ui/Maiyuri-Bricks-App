@@ -2,7 +2,12 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import type { Lead, Note } from "@maiyuri/shared";
+import {
+  normalizePhoneForWhatsApp,
+  buildWhatsAppUrl,
+  type Lead,
+  type Note,
+} from "@maiyuri/shared";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -41,7 +46,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({
       data: {
         message: response.message,
-        phoneNumber: formatPhoneForWhatsApp(lead.contact),
+        phoneNumber: normalizePhoneForWhatsApp(lead.contact),
         whatsappUrl: response.whatsappUrl,
       },
     });
@@ -52,20 +57,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { status: 500 },
     );
   }
-}
-
-function formatPhoneForWhatsApp(contact: string): string {
-  // Remove all non-digit characters
-  let phone = contact.replace(/\D/g, "");
-
-  // Add India country code if not present
-  if (phone.length === 10) {
-    phone = "91" + phone;
-  } else if (phone.startsWith("0")) {
-    phone = "91" + phone.substring(1);
-  }
-
-  return phone;
 }
 
 function generateWhatsAppResponse(
@@ -87,9 +78,8 @@ function generateWhatsAppResponse(
   message += statusMessages.callToAction;
   message += `\n\nBest regards,\nMaiyuri Bricks Team\n📞 For immediate assistance, call us anytime.`;
 
-  const phoneNumber = formatPhoneForWhatsApp(lead.contact);
-  const encodedMessage = encodeURIComponent(message);
-  const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
+  // Use centralized phone normalization and URL building
+  const whatsappUrl = buildWhatsAppUrl(lead.contact, message);
 
   return { message, whatsappUrl };
 }

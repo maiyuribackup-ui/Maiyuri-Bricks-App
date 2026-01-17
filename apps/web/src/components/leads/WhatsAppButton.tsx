@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button, Modal, Spinner } from "@maiyuri/ui";
 import { toast } from "sonner";
+import { buildWhatsAppUrl } from "@maiyuri/shared";
 
 interface WhatsAppButtonProps {
   leadId: string;
@@ -59,12 +60,8 @@ export function WhatsAppButton({
   };
 
   const handleDirectWhatsApp = () => {
-    // Format phone number for WhatsApp
-    let phone = contactNumber.replace(/\D/g, "");
-    if (phone.length === 10) {
-      phone = "91" + phone;
-    }
-    window.open(`https://wa.me/${phone}`, "_blank");
+    // Use centralized phone normalization (adds country code if needed)
+    window.open(buildWhatsAppUrl(contactNumber), "_blank");
   };
 
   return (

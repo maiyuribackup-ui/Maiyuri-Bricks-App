@@ -1,10 +1,11 @@
-'use client';
+"use client";
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Select } from '@maiyuri/ui';
-import Link from 'next/link';
-import { useState, useCallback } from 'react';
-import { toast } from 'sonner';
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Select } from "@maiyuri/ui";
+import Link from "next/link";
+import { useState, useCallback } from "react";
+import { toast } from "sonner";
+import { buildWhatsAppUrl } from "@maiyuri/shared";
 import {
   KPICard,
   ConversionChart,
@@ -20,7 +21,7 @@ import {
   LeadAgingReport,
   GeographicHeatMap,
   ProductInterestBreakdown,
-} from '@/components/dashboard';
+} from "@/components/dashboard";
 
 interface StatusCounts {
   new: number;
@@ -52,7 +53,7 @@ interface DashboardAnalytics {
     aiScore: number;
     reason: string;
     suggestedAction: string;
-    priority: 'critical' | 'high' | 'medium';
+    priority: "critical" | "high" | "medium";
   }>;
   funnel: Array<{
     name: string;
@@ -73,7 +74,13 @@ interface DashboardAnalytics {
   }>;
   recentActivity: Array<{
     id: string;
-    type: 'lead_created' | 'lead_converted' | 'note_added' | 'status_changed' | 'estimate_created' | 'follow_up_scheduled';
+    type:
+      | "lead_created"
+      | "lead_converted"
+      | "note_added"
+      | "status_changed"
+      | "estimate_created"
+      | "follow_up_scheduled";
     leadId?: string;
     leadName: string;
     description: string;
@@ -86,8 +93,8 @@ interface DashboardAnalytics {
     title: string;
     description?: string;
     dueDate: string;
-    priority: 'low' | 'medium' | 'high' | 'urgent';
-    status: 'todo' | 'in_progress' | 'review' | 'done';
+    priority: "low" | "medium" | "high" | "urgent";
+    status: "todo" | "in_progress" | "review" | "done";
     leadId?: string;
     leadName?: string;
   }>;
@@ -118,7 +125,7 @@ interface DashboardAnalytics {
       daysInStatus: number;
     }>;
     color: string;
-    urgency: 'normal' | 'warning' | 'critical';
+    urgency: "normal" | "warning" | "critical";
   }>;
   locationData: Array<{
     area: string;
@@ -133,29 +140,29 @@ interface DashboardAnalytics {
     inquiries: number;
     converted: number;
     avgQuantity: number;
-    trend: 'up' | 'down' | 'stable';
+    trend: "up" | "down" | "stable";
   }>;
 }
 
 async function fetchAnalytics(period: string): Promise<DashboardAnalytics> {
   const res = await fetch(`/api/dashboard/analytics?period=${period}`);
-  if (!res.ok) throw new Error('Failed to fetch analytics');
+  if (!res.ok) throw new Error("Failed to fetch analytics");
   const json = await res.json();
   return json.data;
 }
 
 const periodOptions = [
-  { value: '7', label: 'Last 7 days' },
-  { value: '30', label: 'Last 30 days' },
-  { value: '90', label: 'Last 90 days' },
+  { value: "7", label: "Last 7 days" },
+  { value: "30", label: "Last 30 days" },
+  { value: "90", label: "Last 90 days" },
 ];
 
 export default function DashboardPage() {
-  const [period, setPeriod] = useState('30');
+  const [period, setPeriod] = useState("30");
   const queryClient = useQueryClient();
 
   const { data: analytics, isLoading } = useQuery({
-    queryKey: ['dashboard-analytics', period],
+    queryKey: ["dashboard-analytics", period],
     queryFn: () => fetchAnalytics(period),
   });
 
@@ -164,47 +171,51 @@ export default function DashboardPage() {
     : [];
 
   // Handle call/message actions for priority leads
-  const handleLeadAction = useCallback((leadId: string, action: string) => {
-    const lead = analytics?.priorityLeads?.find(l => l.id === leadId);
-    if (!lead?.contact) {
-      toast.error('No contact information available');
-      return;
-    }
+  const handleLeadAction = useCallback(
+    (leadId: string, action: string) => {
+      const lead = analytics?.priorityLeads?.find((l) => l.id === leadId);
+      if (!lead?.contact) {
+        toast.error("No contact information available");
+        return;
+      }
 
-    // Clean phone number (remove spaces, dashes)
-    const cleanPhone = lead.contact.replace(/[\s-]/g, '');
-
-    if (action === 'call') {
-      // Open phone dialer
-      window.location.href = `tel:${cleanPhone}`;
-      toast.success(`Calling ${lead.name}...`);
-    } else if (action === 'message') {
-      // Open WhatsApp (common in India) or SMS
-      const whatsappUrl = `https://wa.me/${cleanPhone.replace(/^\+/, '')}`;
-      window.open(whatsappUrl, '_blank');
-      toast.success(`Opening WhatsApp for ${lead.name}...`);
-    }
-  }, [analytics?.priorityLeads]);
+      // Clean phone number (remove spaces, dashes)
+      if (action === "call") {
+        // Open phone dialer
+        const cleanPhone = lead.contact.replace(/[\s-]/g, "");
+        window.location.href = `tel:${cleanPhone}`;
+        toast.success(`Calling ${lead.name}...`);
+      } else if (action === "message") {
+        // Open WhatsApp with normalized phone number (adds country code if needed)
+        window.open(buildWhatsAppUrl(lead.contact), "_blank");
+        toast.success(`Opening WhatsApp for ${lead.name}...`);
+      }
+    },
+    [analytics?.priorityLeads],
+  );
 
   // Handle task completion
-  const handleTaskComplete = useCallback(async (taskId: string) => {
-    try {
-      const res = await fetch(`/api/tasks/${taskId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'done' }),
-      });
+  const handleTaskComplete = useCallback(
+    async (taskId: string) => {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "done" }),
+        });
 
-      if (!res.ok) throw new Error('Failed to complete task');
+        if (!res.ok) throw new Error("Failed to complete task");
 
-      toast.success('Task marked as complete');
-      // Refresh dashboard data
-      queryClient.invalidateQueries({ queryKey: ['dashboard-analytics'] });
-    } catch (error) {
-      console.error('Task completion error:', error);
-      toast.error('Failed to complete task');
-    }
-  }, [queryClient]);
+        toast.success("Task marked as complete");
+        // Refresh dashboard data
+        queryClient.invalidateQueries({ queryKey: ["dashboard-analytics"] });
+      } catch (error) {
+        console.error("Task completion error:", error);
+        toast.error("Failed to complete task");
+      }
+    },
+    [queryClient],
+  );
 
   return (
     <div className="space-y-6">
@@ -274,7 +285,11 @@ export default function DashboardPage() {
           value={analytics?.kpis.followUpsDue ?? 0}
           icon={<ClockIcon className="h-4 w-4" />}
           loading={isLoading}
-          variant={analytics?.kpis.followUpsDue && analytics.kpis.followUpsDue > 5 ? 'warning' : 'default'}
+          variant={
+            analytics?.kpis.followUpsDue && analytics.kpis.followUpsDue > 5
+              ? "warning"
+              : "default"
+          }
         />
       </div>
 
@@ -302,13 +317,15 @@ export default function DashboardPage() {
       {/* High Value Analytics - Response Time & Aging */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ResponseTimeMetrics
-          metrics={analytics?.responseMetrics || {
-            avgFirstContactHours: 0,
-            avgTimeToQualify: 0,
-            avgTimeToConvert: 0,
-            leadsWaitingContact: 0,
-            leadsOverdue: 0,
-          }}
+          metrics={
+            analytics?.responseMetrics || {
+              avgFirstContactHours: 0,
+              avgTimeToQualify: 0,
+              avgTimeToConvert: 0,
+              leadsWaitingContact: 0,
+              leadsOverdue: 0,
+            }
+          }
           loading={isLoading}
         />
         <LeadAgingReport
@@ -360,41 +377,95 @@ export default function DashboardPage() {
 // Icons
 function PlusIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 4.5v15m7.5-7.5h-15"
+      />
     </svg>
   );
 }
 
 function ChartIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941"
+      />
     </svg>
   );
 }
 
 function UsersIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
+      />
     </svg>
   );
 }
 
 function FireIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18a3.75 3.75 0 00.495-7.467 5.99 5.99 0 00-1.925 3.546 5.974 5.974 0 01-2.133-1A3.75 3.75 0 0012 18z" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 18a3.75 3.75 0 00.495-7.467 5.99 5.99 0 00-1.925 3.546 5.974 5.974 0 01-2.133-1A3.75 3.75 0 0012 18z"
+      />
     </svg>
   );
 }
 
 function ClockIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"
+      />
     </svg>
   );
 }

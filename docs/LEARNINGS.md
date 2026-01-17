@@ -24,11 +24,13 @@
 **Date:** January 17, 2026
 **Severity:** Critical (Production crash)
 **Files Affected:**
+
 - `OdooSyncCard.tsx`
 - `KPICard.tsx`
 - `ProductInterestBreakdown.tsx`
 
 **Error Message:**
+
 ```
 Cannot read properties of undefined (reading 'toLocaleString')
 ```
@@ -37,6 +39,7 @@ Cannot read properties of undefined (reading 'toLocaleString')
 Calling `.toLocaleString()` on values that could be `undefined` or `null` when database queries return incomplete data.
 
 **Bad Code:**
+
 ```typescript
 // CRASHED when value was null/undefined
 <span>₹{quote.amount.toLocaleString('en-IN')}</span>
@@ -45,6 +48,7 @@ Calling `.toLocaleString()` on values that could be `undefined` or `null` when d
 ```
 
 **Good Code:**
+
 ```typescript
 // SAFE with default value
 <span>₹{(quote.amount || 0).toLocaleString('en-IN')}</span>
@@ -56,6 +60,7 @@ Calling `.toLocaleString()` on values that could be `undefined` or `null` when d
 ```
 
 **Prevention Pattern:**
+
 ```typescript
 // RULE: Always wrap potentially nullable values before method calls
 const safeFormat = (value: number | null | undefined) =>
@@ -66,6 +71,7 @@ const safeFormat = (value: number | null | undefined) =>
 ```
 
 **Test Case to Add:**
+
 ```typescript
 it('should handle undefined values gracefully', () => {
   const props = { value: undefined };
@@ -84,6 +90,7 @@ it('should handle undefined values gracefully', () => {
 **Files Affected:** `OdooSyncCard.tsx`, `LeadActivityTimeline.tsx`
 
 **Error Message:**
+
 ```
 Cannot read properties of undefined (reading 'quotes')
 ```
@@ -92,27 +99,30 @@ Cannot read properties of undefined (reading 'quotes')
 Accessing nested object properties without optional chaining when parent objects can be undefined.
 
 **Bad Code:**
+
 ```typescript
 // CRASHED when odoo_response was undefined
 const quotes = syncLog.odoo_response.quotes;
 ```
 
 **Good Code:**
+
 ```typescript
 // SAFE with optional chaining and default
 const quotes = syncLog.odoo_response?.quotes ?? [];
 ```
 
 **Prevention Pattern:**
+
 ```typescript
 // RULE: For nested access, always use optional chaining
-const safeNestedAccess = <T,>(obj: any, path: string, defaultValue: T): T => {
-  return path.split('.').reduce((o, k) => o?.[k], obj) ?? defaultValue;
+const safeNestedAccess = <T>(obj: any, path: string, defaultValue: T): T => {
+  return path.split(".").reduce((o, k) => o?.[k], obj) ?? defaultValue;
 };
 
 // Or use lodash/get
-import { get } from 'lodash';
-const quotes = get(syncLog, 'odoo_response.quotes', []);
+import { get } from "lodash";
+const quotes = get(syncLog, "odoo_response.quotes", []);
 ```
 
 **Related Coding Principle:** [NULL-002](./CODING_PRINCIPLES.md#null-002-optional-chaining-for-nested-access)
@@ -134,6 +144,7 @@ Component expected `number` field but service saved as `name`
 TypeScript interface defined field as `number: string` but service saved it as `name: string`, causing mismatch.
 
 **Bad Code:**
+
 ```typescript
 // Service saved:
 { name: q.name, amount: q.amount_total }
@@ -143,6 +154,7 @@ interface Quote { number: string; amount: number; }
 ```
 
 **Good Code:**
+
 ```typescript
 // Create shared type used by both service and component
 // types/odoo.ts
@@ -161,6 +173,7 @@ interface Props { quotes: OdooQuote[]; }
 ```
 
 **Prevention Pattern:**
+
 1. Define types in `packages/shared/src/types/`
 2. Import from shared package in both frontend and backend
 3. Use Zod schemas to validate at boundaries
@@ -177,17 +190,20 @@ interface Props { quotes: OdooQuote[]; }
 **Severity:** Medium
 
 **Common Error:**
+
 ```
 Cannot read properties of undefined (reading 'map')
 ```
 
 **Bad Code:**
+
 ```typescript
 const data = await fetchLeads();
 return data.leads.map(l => ...); // CRASHES if data.leads is undefined
 ```
 
 **Good Code:**
+
 ```typescript
 const data = await fetchLeads();
 const leads = data?.leads ?? [];
@@ -203,17 +219,23 @@ return result.data.leads.map(l => ...);
 ```
 
 **Prevention Pattern:**
+
 ```typescript
 // Always validate API responses with Zod
 const ApiResponseSchema = z.object({
   data: z.array(LeadSchema).default([]),
-  meta: z.object({
-    total: z.number().default(0),
-    page: z.number().default(1),
-  }).optional(),
+  meta: z
+    .object({
+      total: z.number().default(0),
+      page: z.number().default(1),
+    })
+    .optional(),
 });
 
-async function fetchWithValidation<T>(url: string, schema: z.ZodSchema<T>): Promise<T> {
+async function fetchWithValidation<T>(
+  url: string,
+  schema: z.ZodSchema<T>,
+): Promise<T> {
   const response = await fetch(url);
   const json = await response.json();
   return schema.parse(json);
@@ -232,6 +254,7 @@ async function fetchWithValidation<T>(url: string, schema: z.ZodSchema<T>): Prom
 **Severity:** Medium
 
 **Bad Code:**
+
 ```typescript
 // Only checks lead, not nested properties
 {lead && (
@@ -240,6 +263,7 @@ async function fetchWithValidation<T>(url: string, schema: z.ZodSchema<T>): Prom
 ```
 
 **Good Code:**
+
 ```typescript
 // Check the exact property being accessed
 {lead?.odoo?.quoteAmount != null && (
@@ -253,6 +277,7 @@ async function fetchWithValidation<T>(url: string, schema: z.ZodSchema<T>): Prom
 ```
 
 **Prevention Pattern:**
+
 ```typescript
 // SafeRender component
 function SafeRender<T>({
@@ -285,6 +310,7 @@ function SafeRender<T>({
 SQL `AVG()` returns `NULL` when no rows match, but TypeScript interface expects `number`.
 
 **Bad Code:**
+
 ```typescript
 interface Product { avgQuantity: number; } // Interface says number
 
@@ -293,6 +319,7 @@ SELECT AVG(quantity) as avg_quantity // Returns NULL if no rows
 ```
 
 **Good Code:**
+
 ```typescript
 // Option 1: Make interface nullable
 interface Product { avgQuantity: number | null; }
@@ -305,6 +332,7 @@ const avgQuantity = row.avg_quantity ?? 0;
 ```
 
 **Prevention Pattern:**
+
 - Always use `COALESCE` for aggregations in SQL
 - Always handle nullable fields in interfaces
 - Add database constraints where appropriate
@@ -320,6 +348,7 @@ const avgQuantity = row.avg_quantity ?? 0;
 **Files Affected:** `apps/web/src/lib/odoo-service.ts`
 
 **Error Message:**
+
 ```
 No visible error - data silently lost. Quotes array contained empty objects: [{}]
 ```
@@ -328,6 +357,7 @@ No visible error - data silently lost. Quotes array contained empty objects: [{}
 Custom XML-RPC parser used regex to find matching close tags, but the `findMatchingClose` function had incorrect depth tracking logic. It started with `depth = 0` and incremented when finding the opening tag, but by that point the function was already AT the opening tag (passed `startPos`), causing it to never find the correct closing tag.
 
 The Odoo XML-RPC response contains nested structures like:
+
 ```xml
 <struct>
   <member>
@@ -341,18 +371,23 @@ The Odoo XML-RPC response contains nested structures like:
 ```
 
 **Bad Code:**
+
 ```typescript
-function findMatchingClose(xml: string, tagName: string, startPos: number): number {
+function findMatchingClose(
+  xml: string,
+  tagName: string,
+  startPos: number,
+): number {
   const openTag = `<${tagName}>`;
   const closeTag = `</${tagName}>`;
 
-  let depth = 0;  // BUG: Should start at 1 since we're AT the opening tag
-  let pos = startPos;  // BUG: Should start AFTER the opening tag
+  let depth = 0; // BUG: Should start at 1 since we're AT the opening tag
+  let pos = startPos; // BUG: Should start AFTER the opening tag
 
   while (pos < xml.length) {
     const nextOpen = xml.indexOf(openTag, pos);
     if (nextOpen !== -1 && nextOpen < nextClose) {
-      depth++;  // First iteration finds the tag we're already at!
+      depth++; // First iteration finds the tag we're already at!
       // ...
     }
   }
@@ -360,8 +395,13 @@ function findMatchingClose(xml: string, tagName: string, startPos: number): numb
 ```
 
 **Good Code:**
+
 ```typescript
-function findMatchingClose(xml: string, tagName: string, startPos: number): number {
+function findMatchingClose(
+  xml: string,
+  tagName: string,
+  startPos: number,
+): number {
   const openTag = `<${tagName}>`;
   const closeTag = `</${tagName}>`;
 
@@ -389,15 +429,17 @@ function findMatchingClose(xml: string, tagName: string, startPos: number): numb
 ```
 
 **Prevention Pattern:**
+
 1. **Don't parse XML with regex** - Use proper XML parser libraries like `fast-xml-parser`
 2. **Test with nested data** - Always test parsers with deeply nested structures
 3. **Add debug logging** - Log intermediate parsing steps to catch silent failures
 4. **Validate output** - Check that parsed data has expected structure before saving
 
 **Test Case to Add:**
+
 ```typescript
-describe('XML-RPC Parser', () => {
-  it('should handle nested structs with arrays', () => {
+describe("XML-RPC Parser", () => {
+  it("should handle nested structs with arrays", () => {
     const xml = `<struct>
       <member><name>partner_id</name>
       <value><array><data>
@@ -408,7 +450,7 @@ describe('XML-RPC Parser', () => {
 
     const result = parseValue(xml);
     expect(result).toEqual({
-      partner_id: [429, "Test"]
+      partner_id: [429, "Test"],
     });
   });
 });
@@ -418,26 +460,136 @@ describe('XML-RPC Parser', () => {
 
 ---
 
+### BUG-008: Inconsistent Phone Number Normalization for WhatsApp
+
+**Date:** January 17, 2026
+**Severity:** High (User experience - broken WhatsApp links)
+**Files Affected:**
+
+- `apps/web/app/(dashboard)/leads/page.tsx`
+- `apps/web/app/(dashboard)/dashboard/page.tsx`
+- `apps/web/src/components/leads/WhatsAppButton.tsx`
+- `apps/web/app/api/leads/[id]/whatsapp-response/route.ts`
+
+**Error Message:**
+
+```
+No visible error - WhatsApp links opened wrong numbers or failed silently.
+Example: wa.me/9876543210 instead of wa.me/919876543210
+```
+
+**Root Cause:**
+Multiple files had different implementations for normalizing phone numbers for WhatsApp wa.me links:
+
+1. `WhatsAppButton.tsx` correctly added `91` prefix for 10-digit numbers
+2. `leads/page.tsx` only stripped non-digits, missing country code
+3. `dashboard/page.tsx` only removed `+` prefix, missing country code handling
+
+The lack of a centralized utility led to inconsistent behavior where some WhatsApp links worked and others silently failed (WhatsApp requires full country code).
+
+**Bad Code (scattered implementations):**
+
+```typescript
+// leads/page.tsx - MISSING country code
+window.open(`https://wa.me/${contact.replace(/[^0-9]/g, "")}`, "_blank");
+
+// dashboard/page.tsx - MISSING country code handling
+const whatsappUrl = `https://wa.me/${cleanPhone.replace(/^\+/, "")}`;
+
+// WhatsAppButton.tsx - CORRECT but duplicated
+let phone = contactNumber.replace(/\D/g, "");
+if (phone.length === 10) {
+  phone = "91" + phone;
+}
+window.open(`https://wa.me/${phone}`, "_blank");
+```
+
+**Good Code (centralized utility):**
+
+```typescript
+// packages/shared/src/utils.ts
+export function normalizePhoneForWhatsApp(
+  phone: string,
+  defaultCountryCode: string = "91",
+): string {
+  let normalized = phone.replace(/\D/g, "");
+
+  if (normalized.length === 10) {
+    normalized = defaultCountryCode + normalized;
+  }
+
+  if (normalized.startsWith("0") && normalized.length === 11) {
+    normalized = defaultCountryCode + normalized.slice(1);
+  }
+
+  return normalized;
+}
+
+export function buildWhatsAppUrl(phone: string, message?: string): string {
+  const normalizedPhone = normalizePhoneForWhatsApp(phone);
+  const baseUrl = `https://wa.me/${normalizedPhone}`;
+  return message ? `${baseUrl}?text=${encodeURIComponent(message)}` : baseUrl;
+}
+
+// Usage in all files:
+import { buildWhatsAppUrl } from "@maiyuri/shared";
+window.open(buildWhatsAppUrl(contact), "_blank");
+```
+
+**Prevention Pattern:**
+
+1. **Centralize utilities** - Any function used in 2+ places belongs in `packages/shared`
+2. **Export from single source** - All shared utilities export from `@maiyuri/shared`
+3. **Write tests first** - Create comprehensive tests for utilities in `packages/shared/src/*.test.ts`
+4. **Search before implementing** - Use `grep` to find existing implementations before writing new code
+
+**Test Case Added:**
+
+```typescript
+// packages/shared/src/utils.test.ts
+describe("normalizePhoneForWhatsApp", () => {
+  it("should add 91 prefix to 10-digit numbers", () => {
+    expect(normalizePhoneForWhatsApp("9876543210")).toBe("919876543210");
+  });
+
+  it("should handle numbers with +91 prefix", () => {
+    expect(normalizePhoneForWhatsApp("+91 98765 43210")).toBe("919876543210");
+  });
+
+  it("should handle numbers starting with 0", () => {
+    expect(normalizePhoneForWhatsApp("09876543210")).toBe("919876543210");
+  });
+});
+```
+
+**Related Coding Principle:** [UTIL-001: Centralize Shared Utilities]
+
+---
+
 ## Prevention Checklist
 
 ### Before Writing Code
+
 - [ ] Read `CODING_PRINCIPLES.md` null safety section
 - [ ] Check if similar bugs exist in this file
 - [ ] Understand data sources and what can be null/undefined
 
 ### While Writing Code
+
 - [ ] Use optional chaining (`?.`) for all nested access
 - [ ] Use nullish coalescing (`??`) for defaults
 - [ ] Never call methods on potentially undefined values
 - [ ] Validate API responses with Zod
 
 ### Before Committing
+
 - [ ] Run `/null-check` command to scan for vulnerabilities
 - [ ] Add tests for null/undefined edge cases
 - [ ] Run `bun typecheck` with strict mode
 - [ ] Check this file for similar bugs
 
 ### Before Deploying
+
 - [ ] Run E2E tests with error tracking
 - [ ] Test with empty/incomplete data
 - [ ] Verify no console errors
@@ -457,8 +609,10 @@ When a bug is found, add it using this template:
 
 **Error Message:**
 ```
+
 [Exact error message]
-```
+
+````
 
 **Root Cause:**
 [Explanation of why it happened]
@@ -466,9 +620,10 @@ When a bug is found, add it using this template:
 **Bad Code:**
 ```typescript
 [Code that caused the bug]
-```
+````
 
 **Good Code:**
+
 ```typescript
 [Fixed code with explanation]
 ```
@@ -477,11 +632,13 @@ When a bug is found, add it using this template:
 [Generic pattern to prevent similar bugs]
 
 **Test Case to Add:**
+
 ```typescript
 [Test that would catch this bug]
 ```
 
 **Related Coding Principle:** [Link to principle]
+
 ```
 
 ---
@@ -490,7 +647,7 @@ When a bug is found, add it using this template:
 
 | Month | Bugs Found | Bugs Prevented | Prevention Rate |
 |-------|-----------|----------------|-----------------|
-| Jan 2026 | 7 | 0 | - |
+| Jan 2026 | 8 | 0 | - |
 | Feb 2026 | TBD | TBD | TBD |
 
 **Goal:** 95%+ bug prevention rate through proactive coding principles and testing.
@@ -499,3 +656,4 @@ When a bug is found, add it using this template:
 
 *Last Updated: January 17, 2026*
 *Maintainers: Development Team*
+```

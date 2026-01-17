@@ -1,43 +1,37 @@
 /**
  * Tests for Issue #7: WhatsApp Business Auto-Response
+ *
+ * Note: Phone number formatting is now centralized in @maiyuri/shared/utils
+ * See packages/shared/src/utils.test.ts for comprehensive phone formatting tests
  */
 
 import { describe, it, expect } from "vitest";
+import { normalizePhoneForWhatsApp, buildWhatsAppUrl } from "@maiyuri/shared";
 
-// Test the phone number formatting logic
-describe("WhatsApp Phone Number Formatting", () => {
-  function formatPhoneForWhatsApp(contact: string): string {
-    let phone = contact.replace(/\D/g, "");
-    if (phone.length === 10) {
-      phone = "91" + phone;
-    } else if (phone.startsWith("0")) {
-      phone = "91" + phone.substring(1);
-    }
-    return phone;
-  }
-
+// Test the phone number formatting using centralized utility
+describe("WhatsApp Phone Number Formatting (via @maiyuri/shared)", () => {
   it("should add 91 prefix to 10-digit Indian numbers", () => {
-    expect(formatPhoneForWhatsApp("9876543210")).toBe("919876543210");
+    expect(normalizePhoneForWhatsApp("9876543210")).toBe("919876543210");
   });
 
   it("should handle numbers with spaces", () => {
-    expect(formatPhoneForWhatsApp("98765 43210")).toBe("919876543210");
+    expect(normalizePhoneForWhatsApp("98765 43210")).toBe("919876543210");
   });
 
   it("should handle numbers with dashes", () => {
-    expect(formatPhoneForWhatsApp("987-654-3210")).toBe("919876543210");
+    expect(normalizePhoneForWhatsApp("987-654-3210")).toBe("919876543210");
   });
 
   it("should handle numbers starting with 0", () => {
-    expect(formatPhoneForWhatsApp("09876543210")).toBe("919876543210");
+    expect(normalizePhoneForWhatsApp("09876543210")).toBe("919876543210");
   });
 
   it("should preserve numbers already with country code", () => {
-    expect(formatPhoneForWhatsApp("919876543210")).toBe("919876543210");
+    expect(normalizePhoneForWhatsApp("919876543210")).toBe("919876543210");
   });
 
   it("should handle +91 prefix", () => {
-    expect(formatPhoneForWhatsApp("+919876543210")).toBe("919876543210");
+    expect(normalizePhoneForWhatsApp("+919876543210")).toBe("919876543210");
   });
 });
 
@@ -135,25 +129,26 @@ describe("Status-Based Message Generation", () => {
   });
 });
 
-// Test WhatsApp URL generation
-describe("WhatsApp URL Generation", () => {
-  function generateWhatsAppUrl(phone: string, message: string): string {
-    const encodedMessage = encodeURIComponent(message);
-    return `https://wa.me/${phone}?text=${encodedMessage}`;
-  }
-
-  it("should generate valid WhatsApp URL", () => {
-    const url = generateWhatsAppUrl("919876543210", "Hello");
+// Test WhatsApp URL generation using centralized utility
+describe("WhatsApp URL Generation (via @maiyuri/shared)", () => {
+  it("should generate valid WhatsApp URL with phone normalization", () => {
+    // Note: buildWhatsAppUrl normalizes the phone number AND builds the URL
+    const url = buildWhatsAppUrl("9876543210", "Hello");
     expect(url).toBe("https://wa.me/919876543210?text=Hello");
   });
 
   it("should encode special characters in message", () => {
-    const url = generateWhatsAppUrl("919876543210", "Hello World!");
+    const url = buildWhatsAppUrl("9876543210", "Hello World!");
     expect(url).toContain("Hello%20World!");
   });
 
   it("should encode newlines in message", () => {
-    const url = generateWhatsAppUrl("919876543210", "Line1\nLine2");
+    const url = buildWhatsAppUrl("9876543210", "Line1\nLine2");
     expect(url).toContain("%0A");
+  });
+
+  it("should generate URL without message", () => {
+    const url = buildWhatsAppUrl("9876543210");
+    expect(url).toBe("https://wa.me/919876543210");
   });
 });
