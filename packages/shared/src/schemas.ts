@@ -28,6 +28,20 @@ export const requirementTypeSchema = z.enum([
   "compound_wall",
 ]);
 
+// Helper to coerce empty strings to null (for optional select fields)
+const emptyStringToNull = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((val) => (val === "" ? null : val), schema);
+
+// Optional classification that accepts empty string from form selects
+export const optionalClassificationSchema = emptyStringToNull(
+  leadClassificationSchema.nullable().optional(),
+);
+
+// Optional requirement type that accepts empty string from form selects
+export const optionalRequirementTypeSchema = emptyStringToNull(
+  requirementTypeSchema.nullable().optional(),
+);
+
 export const userRoleSchema = z.enum(["founder", "accountant", "engineer"]);
 
 export const createLeadSchema = z.object({
@@ -37,13 +51,13 @@ export const createLeadSchema = z.object({
   lead_type: z.string().min(1, "Lead type is required"),
   assigned_staff: z.string().uuid("Invalid staff ID").nullable().optional(),
   status: leadStatusSchema.default("new"),
-  // New classification and location fields
-  classification: leadClassificationSchema.nullable().optional(),
-  requirement_type: requirementTypeSchema.nullable().optional(),
-  site_region: z.string().nullable().optional(),
-  site_location: z.string().nullable().optional(),
-  next_action: z.string().nullable().optional(),
-  follow_up_date: z.string().nullable().optional(),
+  // New classification and location fields (coerce empty string to null)
+  classification: optionalClassificationSchema,
+  requirement_type: optionalRequirementTypeSchema,
+  site_region: emptyStringToNull(z.string().nullable().optional()),
+  site_location: emptyStringToNull(z.string().nullable().optional()),
+  next_action: emptyStringToNull(z.string().nullable().optional()),
+  follow_up_date: emptyStringToNull(z.string().nullable().optional()),
   is_archived: z.boolean().default(false).optional(),
 });
 
@@ -52,19 +66,19 @@ export const updateLeadSchema = z.object({
   contact: z.string().min(10).optional(),
   source: z.string().min(1).optional(),
   lead_type: z.string().min(1).optional(),
-  assigned_staff: z.string().uuid().nullable().optional(),
+  assigned_staff: emptyStringToNull(z.string().uuid().nullable().optional()),
   status: leadStatusSchema.optional(),
-  // New classification and location fields
-  classification: leadClassificationSchema.nullable().optional(),
-  requirement_type: requirementTypeSchema.nullable().optional(),
-  site_region: z.string().nullable().optional(),
-  site_location: z.string().nullable().optional(),
-  next_action: z.string().nullable().optional(),
-  follow_up_date: z.string().nullable().optional(),
+  // New classification and location fields (coerce empty string to null)
+  classification: optionalClassificationSchema,
+  requirement_type: optionalRequirementTypeSchema,
+  site_region: emptyStringToNull(z.string().nullable().optional()),
+  site_location: emptyStringToNull(z.string().nullable().optional()),
+  next_action: emptyStringToNull(z.string().nullable().optional()),
+  follow_up_date: emptyStringToNull(z.string().nullable().optional()),
   is_archived: z.boolean().optional(),
-  archived_at: z.string().nullable().optional(),
-  archived_by: z.string().uuid().nullable().optional(),
-  archive_reason: z.string().nullable().optional(),
+  archived_at: emptyStringToNull(z.string().nullable().optional()),
+  archived_by: emptyStringToNull(z.string().uuid().nullable().optional()),
+  archive_reason: emptyStringToNull(z.string().nullable().optional()),
 });
 
 export const createNoteSchema = z.object({
