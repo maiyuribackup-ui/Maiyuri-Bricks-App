@@ -4,8 +4,8 @@
  * Utility functions for processing Telegram call recording uploads.
  */
 
-import { supabaseAdmin } from '@/lib/supabase';
-import type { Lead } from '@maiyuri/shared';
+import { supabaseAdmin } from "@/lib/supabase";
+import type { Lead } from "@maiyuri/shared";
 
 // ============================================================================
 // Telegram Types
@@ -21,7 +21,7 @@ export interface TelegramUser {
 
 export interface TelegramChat {
   id: number;
-  type: 'private' | 'group' | 'supergroup' | 'channel';
+  type: "private" | "group" | "supergroup" | "channel";
   title?: string;
 }
 
@@ -69,8 +69,95 @@ export interface TelegramUpdate {
 }
 
 // ============================================================================
-// Phone Number Extraction
+// Filename Extraction (Phone & Name)
 // ============================================================================
+
+/**
+ * Result of extracting info from filename
+ */
+export interface FilenameExtraction {
+  phone: string | null;
+  name: string | null;
+}
+
+/**
+ * Extract both phone number AND customer name from filename
+ *
+ * Supports formats:
+ * - Robin_Avadi_9876543210.wav → { name: "Robin Avadi", phone: "9876543210" }
+ * - Superfone_John_Doe_9876543210_20260115.wav → { name: "John Doe", phone: "9876543210" }
+ * - Call_CustomerName_+919876543210.wav → { name: "CustomerName", phone: "9876543210" }
+ * - 9876543210_Ravi_Kumar.wav → { name: "Ravi Kumar", phone: "9876543210" }
+ */
+export function extractFromFilename(filename: string): FilenameExtraction {
+  const phone = extractPhoneFromFilename(filename);
+  const name = extractNameFromFilename(filename);
+  return { phone, name };
+}
+
+/**
+ * Extract customer name from filename
+ *
+ * Strategy:
+ * 1. Remove file extension
+ * 2. Remove phone numbers, dates, common prefixes
+ * 3. Convert underscores/hyphens to spaces
+ * 4. Clean up and title case the remaining text
+ */
+export function extractNameFromFilename(filename: string): string | null {
+  // Remove file extension
+  let name = filename.replace(/\.[^.]+$/, "");
+
+  // Remove common prefixes (case-insensitive)
+  const prefixes = [
+    "superfone",
+    "call",
+    "recording",
+    "audio",
+    "voice",
+    "rec",
+    "whatsapp",
+    "wa",
+  ];
+  for (const prefix of prefixes) {
+    name = name.replace(new RegExp(`^${prefix}[_\\-\\s]*`, "i"), "");
+  }
+
+  // Remove phone numbers (10-12 digits with optional +91 prefix)
+  name = name.replace(/\+?91?[_\-\s]?[6-9]\d{9}/g, "");
+  name = name.replace(/[6-9]\d{9}/g, "");
+
+  // Remove date patterns (YYYYMMDD, YYYY-MM-DD, DD-MM-YYYY, etc.)
+  name = name.replace(/\d{4}[-_]?\d{2}[-_]?\d{2}/g, "");
+  name = name.replace(/\d{2}[-_]\d{2}[-_]\d{4}/g, "");
+
+  // Remove time patterns (HHMMSS, HH-MM-SS)
+  name = name.replace(/\d{2}[-_]?\d{2}[-_]?\d{2}/g, "");
+
+  // Remove standalone numbers
+  name = name.replace(/\b\d+\b/g, "");
+
+  // Replace underscores and hyphens with spaces
+  name = name.replace(/[_-]+/g, " ");
+
+  // Remove multiple spaces and trim
+  name = name.replace(/\s+/g, " ").trim();
+
+  // Skip if too short or looks like garbage
+  if (name.length < 2) return null;
+
+  // Skip if it's just common words
+  const skipWords = ["new", "old", "test", "temp", "file", "audio", "unknown"];
+  if (skipWords.includes(name.toLowerCase())) return null;
+
+  // Title case the name
+  name = name
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+
+  return name;
+}
 
 /**
  * Extract phone number from filename
@@ -83,7 +170,7 @@ export interface TelegramUpdate {
  */
 export function extractPhoneFromFilename(filename: string): string | null {
   // Remove file extension
-  const nameWithoutExt = filename.replace(/\.[^.]+$/, '');
+  const nameWithoutExt = filename.replace(/\.[^.]+$/, "");
 
   // Pattern 1: 10-digit Indian mobile number (starting with 6-9)
   const pattern10Digit = /(?:^|[^0-9])([6-9]\d{9})(?:[^0-9]|$)/;
@@ -105,7 +192,7 @@ export function extractPhoneFromFilename(filename: string): string | null {
   if (match) return match[1];
 
   match = nameWithoutExt.match(patternWithPlus);
-  if (match) return (match[1] || '') + match[2];
+  if (match) return (match[1] || "") + match[2];
 
   match = nameWithoutExt.match(patternHyphenated);
   if (match) return match[1] + match[2];
@@ -122,10 +209,10 @@ export function extractPhoneFromFilename(filename: string): string | null {
  */
 export function normalizePhoneNumber(phone: string): string {
   // Remove all non-digits
-  let digits = phone.replace(/\D/g, '');
+  let digits = phone.replace(/\D/g, "");
 
   // Remove country code if present
-  if (digits.startsWith('91') && digits.length === 12) {
+  if (digits.startsWith("91") && digits.length === 12) {
     digits = digits.slice(2);
   }
 
@@ -148,11 +235,11 @@ export function normalizePhoneNumber(phone: string): string {
  */
 export async function findMostRecentLead(phone: string): Promise<Lead | null> {
   // Try exact match first
-  let { data: leads, error } = await supabaseAdmin
-    .from('leads')
-    .select('*')
-    .eq('contact', phone)
-    .order('updated_at', { ascending: false })
+  let { data: leads } = await supabaseAdmin
+    .from("leads")
+    .select("*")
+    .eq("contact", phone)
+    .order("updated_at", { ascending: false })
     .limit(1);
 
   if (leads && leads.length > 0) {
@@ -161,11 +248,11 @@ export async function findMostRecentLead(phone: string): Promise<Lead | null> {
 
   // Try with country code prefix
   const phoneWith91 = `91${phone}`;
-  ({ data: leads, error } = await supabaseAdmin
-    .from('leads')
-    .select('*')
-    .eq('contact', phoneWith91)
-    .order('updated_at', { ascending: false })
+  ({ data: leads } = await supabaseAdmin
+    .from("leads")
+    .select("*")
+    .eq("contact", phoneWith91)
+    .order("updated_at", { ascending: false })
     .limit(1));
 
   if (leads && leads.length > 0) {
@@ -174,11 +261,11 @@ export async function findMostRecentLead(phone: string): Promise<Lead | null> {
 
   // Try with +91 prefix
   const phoneWithPlus = `+91${phone}`;
-  ({ data: leads, error } = await supabaseAdmin
-    .from('leads')
-    .select('*')
-    .eq('contact', phoneWithPlus)
-    .order('updated_at', { ascending: false })
+  ({ data: leads } = await supabaseAdmin
+    .from("leads")
+    .select("*")
+    .eq("contact", phoneWithPlus)
+    .order("updated_at", { ascending: false })
     .limit(1));
 
   if (leads && leads.length > 0) {
@@ -187,11 +274,11 @@ export async function findMostRecentLead(phone: string): Promise<Lead | null> {
 
   // Try partial match (last 10 digits)
   const last10 = phone.slice(-10);
-  ({ data: leads, error } = await supabaseAdmin
-    .from('leads')
-    .select('*')
-    .ilike('contact', `%${last10}`)
-    .order('updated_at', { ascending: false })
+  ({ data: leads } = await supabaseAdmin
+    .from("leads")
+    .select("*")
+    .ilike("contact", `%${last10}`)
+    .order("updated_at", { ascending: false })
     .limit(1));
 
   if (leads && leads.length > 0) {
@@ -212,7 +299,7 @@ export async function findMostRecentLead(phone: string): Promise<Lead | null> {
  */
 export function verifyTelegramWebhook(
   secretHeader: string | null,
-  expectedSecret: string | undefined
+  expectedSecret: string | undefined,
 ): boolean {
   if (!expectedSecret) {
     // No secret configured, allow all
@@ -225,7 +312,7 @@ export function verifyTelegramWebhook(
 // Telegram API Helpers
 // ============================================================================
 
-const TELEGRAM_API_BASE = 'https://api.telegram.org/bot';
+const TELEGRAM_API_BASE = "https://api.telegram.org/bot";
 
 /**
  * Set the Telegram webhook URL
@@ -234,12 +321,12 @@ const TELEGRAM_API_BASE = 'https://api.telegram.org/bot';
 export async function setTelegramWebhook(
   botToken: string,
   webhookUrl: string,
-  secretToken?: string
+  secretToken?: string,
 ): Promise<{ ok: boolean; description?: string }> {
   const params: Record<string, string> = {
     url: webhookUrl,
-    allowed_updates: JSON.stringify(['message']),
-    drop_pending_updates: 'true',
+    allowed_updates: JSON.stringify(["message"]),
+    drop_pending_updates: "true",
   };
 
   if (secretToken) {
@@ -248,17 +335,17 @@ export async function setTelegramWebhook(
 
   try {
     const response = await fetch(`${TELEGRAM_API_BASE}${botToken}/setWebhook`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     });
 
     return await response.json();
   } catch (error) {
-    console.error('[Telegram] setWebhook error:', error);
+    console.error("[Telegram] setWebhook error:", error);
     return {
       ok: false,
-      description: error instanceof Error ? error.message : 'Network error',
+      description: error instanceof Error ? error.message : "Network error",
     };
   }
 }
@@ -267,13 +354,15 @@ export async function setTelegramWebhook(
  * Get current webhook info
  */
 export async function getTelegramWebhookInfo(
-  botToken: string
+  botToken: string,
 ): Promise<{ ok: boolean; result?: Record<string, unknown> }> {
   try {
-    const response = await fetch(`${TELEGRAM_API_BASE}${botToken}/getWebhookInfo`);
+    const response = await fetch(
+      `${TELEGRAM_API_BASE}${botToken}/getWebhookInfo`,
+    );
     return await response.json();
   } catch (error) {
-    console.error('[Telegram] getWebhookInfo error:', error);
+    console.error("[Telegram] getWebhookInfo error:", error);
     return { ok: false };
   }
 }
@@ -283,25 +372,25 @@ export async function getTelegramWebhookInfo(
  */
 export async function getTelegramFileUrl(
   botToken: string,
-  fileId: string
+  fileId: string,
 ): Promise<string | null> {
   try {
     const response = await fetch(`${TELEGRAM_API_BASE}${botToken}/getFile`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ file_id: fileId }),
     });
 
     const data = await response.json();
 
     if (!data.ok || !data.result?.file_path) {
-      console.error('[Telegram] getFile failed:', data);
+      console.error("[Telegram] getFile failed:", data);
       return null;
     }
 
     return `https://api.telegram.org/file/bot${botToken}/${data.result.file_path}`;
   } catch (error) {
-    console.error('[Telegram] getFile error:', error);
+    console.error("[Telegram] getFile error:", error);
     return null;
   }
 }
@@ -324,22 +413,22 @@ export async function setupCallRecordingWebhook(): Promise<void> {
   const secretToken = process.env.TELEGRAM_WEBHOOK_SECRET;
 
   if (!botToken) {
-    console.error('[Setup] Missing TELEGRAM_BOT_TOKEN');
+    console.error("[Setup] Missing TELEGRAM_BOT_TOKEN");
     return;
   }
 
   if (!webhookUrl) {
-    console.error('[Setup] Missing NEXT_PUBLIC_APP_URL');
+    console.error("[Setup] Missing NEXT_PUBLIC_APP_URL");
     return;
   }
 
-  console.log(`[Setup] Setting webhook to: ${webhookUrl}`);
+  console.warn(`[Setup] Setting webhook to: ${webhookUrl}`);
 
   const result = await setTelegramWebhook(botToken, webhookUrl, secretToken);
 
   if (result.ok) {
-    console.log('[Setup] Webhook configured successfully!');
+    console.warn("[Setup] Webhook configured successfully!");
   } else {
-    console.error('[Setup] Failed to set webhook:', result.description);
+    console.error("[Setup] Failed to set webhook:", result.description);
   }
 }

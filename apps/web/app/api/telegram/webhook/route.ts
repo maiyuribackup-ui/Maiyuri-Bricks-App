@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { sendTelegramMessage } from "@/lib/telegram";
 import {
-  extractPhoneFromFilename,
+  extractFromFilename,
   normalizePhoneNumber,
   findMostRecentLead,
   type TelegramUpdate,
@@ -72,20 +72,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // Get filename for phone number extraction
+    // Get filename for phone number and name extraction
     const filename =
       message.document?.file_name ||
       message.audio?.file_name ||
       `voice_${message.message_id}.ogg`;
 
-    // Extract phone number from filename
-    const extractedPhone = extractPhoneFromFilename(filename);
+    // Extract phone number AND name from filename
+    const { phone: extractedPhone, name: extractedName } =
+      extractFromFilename(filename);
 
     if (!extractedPhone) {
       // Notify user about filename requirement
       await sendTelegramMessage(
         `❌ *Phone Number Not Found*\n\nCould not extract phone number from filename:\n\`${filename}\`\n\n` +
           `Please rename the file to include the phone number, e.g.:\n` +
+          `• \`Robin_Avadi_9876543210.wav\`\n` +
           `• \`Superfone_9876543210_20260115.wav\`\n` +
           `• \`Call_+919876543210.wav\``,
         chatId.toString(),
@@ -112,7 +114,39 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the most recent lead matching this phone number
-    const lead = await findMostRecentLead(normalizedPhone);
+    let lead = await findMostRecentLead(normalizedPhone);
+    let isNewLead = false;
+
+    // AUTO-CREATE LEAD if no match found and we have a name
+    if (!lead && extractedName) {
+      const { data: newLead, error: createError } = await supabaseAdmin
+        .from("leads")
+        .insert({
+          name: extractedName,
+          contact: normalizedPhone,
+          source: "Telegram",
+          status: "new",
+          // These will be updated after transcription analysis
+          lead_type: "Other",
+          classification: "direct_customer",
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error(
+          "[Telegram Webhook] Failed to auto-create lead:",
+          createError,
+        );
+        // Continue without lead - will be created manually later
+      } else {
+        lead = newLead;
+        isNewLead = true;
+        console.warn(
+          `[Telegram Webhook] Auto-created lead: ${newLead.id} for ${extractedName}`,
+        );
+      }
+    }
 
     // Insert call recording record with 'pending' status
     const { data: recording, error: insertError } = await supabaseAdmin
@@ -143,18 +177,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send confirmation message
-    const confirmMessage = lead
-      ? `📞 *Call Recording Received*\n\n` +
+    // Build confirmation message based on scenario
+    let confirmMessage: string;
+
+    if (lead && isNewLead) {
+      // New lead auto-created from filename
+      confirmMessage =
+        `📞 *Call Recording Received*\n\n` +
+        `✨ *New Lead Created!*\n` +
+        `👤 *Name:* ${lead.name}\n` +
+        `📱 *Phone:* ${normalizedPhone}\n` +
+        `📁 *File:* ${filename}\n\n` +
+        `⏳ Processing transcription...\n` +
+        `_Lead details will be auto-populated after analysis._`;
+    } else if (lead) {
+      // Existing lead found
+      confirmMessage =
+        `📞 *Call Recording Received*\n\n` +
         `👤 *Lead:* ${lead.name}\n` +
         `📱 *Phone:* ${normalizedPhone}\n` +
         `📁 *File:* ${filename}\n\n` +
-        `⏳ Processing will begin shortly...`
-      : `📞 *Call Recording Received*\n\n` +
+        `⏳ Processing will begin shortly...`;
+    } else {
+      // No lead found and couldn't extract name
+      confirmMessage =
+        `📞 *Call Recording Received*\n\n` +
         `📱 *Phone:* ${normalizedPhone}\n` +
         `📁 *File:* ${filename}\n\n` +
-        `⚠️ No matching lead found - recording saved for manual mapping.\n\n` +
+        `⚠️ Could not extract customer name from filename.\n` +
+        `Reply with \`NAME: Customer Name\` to create a lead.\n\n` +
         `⏳ Processing will begin shortly...`;
+    }
 
     await sendTelegramMessage(confirmMessage, chatId.toString());
 
