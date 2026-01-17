@@ -16,12 +16,11 @@ import {
   type CallRecording,
 } from "@maiyuri/shared";
 import {
-  AIAnalysisPanel,
   AudioUpload,
   WhatsAppButton,
   SmartQuoteCard,
+  UnifiedAIInsights,
 } from "@/components/leads";
-import { LeadIntelligenceSummary } from "@/components/leads/LeadIntelligenceSummary";
 import { LeadActivityTimeline } from "@/components/timeline";
 import { PriceEstimatorPanel } from "@/components/estimates";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
@@ -537,8 +536,8 @@ export default function LeadDetailPage() {
         </div>
       </Card>
 
-      {/* Lead Intelligence Summary - Decision Cockpit */}
-      <LeadIntelligenceSummary
+      {/* Unified AI Insights - Issue #24 */}
+      <UnifiedAIInsights
         lead={lead}
         onRefresh={() => {
           queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
@@ -899,14 +898,6 @@ export default function LeadDetailPage() {
               </p>
             )}
           </Card>
-
-          {/* AI Analysis Panel */}
-          <AIAnalysisPanel
-            lead={lead}
-            onAnalysisComplete={() => {
-              queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
-            }}
-          />
 
           {/* Staff Notes Card */}
           {lead.staff_notes && (
