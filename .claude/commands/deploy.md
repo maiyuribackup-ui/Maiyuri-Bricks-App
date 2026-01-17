@@ -1,23 +1,24 @@
----
-description: Deploy to Vercel
-allowed-tools: Bash, Read
----
+# Safe Deploy Command
 
-# Deploy to Vercel
+Deploy to production with all safety checks.
 
-## Pre-deployment Checklist
+## Instructions
 
-1. Run quality gate: `bun typecheck && bun lint && bun test`
-2. Check for uncommitted changes: `git status`
-3. Ensure on main branch or feature branch
+When the user runs /deploy, follow this safe deployment workflow:
 
-## Deployment Steps
+### Pre-Deploy Checklist (MANDATORY)
 
-1. Build the application: `bun build`
-2. Deploy to Vercel: `vercel --prod` (or `vercel` for preview)
-3. Verify deployment URL
-4. Run smoke tests on deployed version
+1. Run /test-all - All tests must pass
+2. Run /pre-commit - No critical issues
+3. Check git status - correct branch, all committed
 
-## Post-deployment
+### Deployment Steps
 
-Report the deployment URL and any issues encountered.
+1. Build: bun run build
+2. Preview: vercel --prod=false
+3. Smoke test preview: BASE_URL=<preview-url> bun run test:smoke
+4. Production: vercel --prod
+5. Post-deploy smoke test
+
+### Rollback
+vercel rollback
