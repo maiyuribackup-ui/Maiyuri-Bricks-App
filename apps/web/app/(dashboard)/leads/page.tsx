@@ -87,6 +87,23 @@ const viewTabs: { value: ViewType; label: string; icon: string }[] = [
   { value: "archived", label: "Archived", icon: "🗄️" },
 ];
 
+// Classification options (Issue #3)
+const classificationOptions = [
+  { value: "direct_customer", label: "Direct Customer" },
+  { value: "vendor", label: "Vendor" },
+  { value: "builder", label: "Builder" },
+  { value: "dealer", label: "Dealer" },
+  { value: "architect", label: "Architect" },
+];
+
+// Requirement type options (Issue #4)
+const requirementTypeOptions = [
+  { value: "residential_house", label: "Residential House" },
+  { value: "commercial_building", label: "Commercial Building" },
+  { value: "eco_friendly_building", label: "Eco-Friendly Building" },
+  { value: "compound_wall", label: "Compound Wall" },
+];
+
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "-";
   const date = new Date(dateStr);
@@ -182,6 +199,10 @@ export default function LeadsPage() {
     onError: () => toast.error("Failed to update status"),
   });
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [classificationFilter, setClassificationFilter] = useState<string>("");
+  const [requirementTypeFilter, setRequirementTypeFilter] =
+    useState<string>("");
+  const [locationFilter, setLocationFilter] = useState<string>("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<
@@ -294,6 +315,30 @@ export default function LeadsPage() {
         break;
     }
 
+    // Apply classification filter (Issue #3)
+    if (classificationFilter) {
+      filtered = filtered.filter(
+        (l) => l.classification === classificationFilter,
+      );
+    }
+
+    // Apply requirement type filter (Issue #4)
+    if (requirementTypeFilter) {
+      filtered = filtered.filter(
+        (l) => l.requirement_type === requirementTypeFilter,
+      );
+    }
+
+    // Apply location filter (Issue #5) - searches in both site_region and site_location
+    if (locationFilter) {
+      const searchTerm = locationFilter.toLowerCase();
+      filtered = filtered.filter(
+        (l) =>
+          l.site_region?.toLowerCase().includes(searchTerm) ||
+          l.site_location?.toLowerCase().includes(searchTerm),
+      );
+    }
+
     // Sort
     filtered.sort((a, b) => {
       let valA, valB;
@@ -317,7 +362,15 @@ export default function LeadsPage() {
     });
 
     return filtered;
-  }, [allLeads, activeView, sortBy, sortOrder]);
+  }, [
+    allLeads,
+    activeView,
+    sortBy,
+    sortOrder,
+    classificationFilter,
+    requirementTypeFilter,
+    locationFilter,
+  ]);
 
   return (
     <div className="space-y-6">
@@ -439,6 +492,52 @@ export default function LeadsPage() {
                 </option>
               ))}
             </select>
+
+            {/* Classification Filter - Issue #3 */}
+            <select
+              value={classificationFilter}
+              onChange={(e) => {
+                setClassificationFilter(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Classifications</option>
+              {classificationOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Requirement Type Filter - Issue #4 */}
+            <select
+              value={requirementTypeFilter}
+              onChange={(e) => {
+                setRequirementTypeFilter(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Requirement Types</option>
+              {requirementTypeOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Location Filter - Issue #5 */}
+            <input
+              type="text"
+              placeholder="Filter by region/location..."
+              value={locationFilter}
+              onChange={(e) => {
+                setLocationFilter(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
+            />
           </div>
         </div>
       </Card>
