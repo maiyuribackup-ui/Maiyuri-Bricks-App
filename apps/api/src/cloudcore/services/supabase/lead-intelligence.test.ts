@@ -17,7 +17,11 @@ config({ path: resolve(__dirname, '../../../../../../apps/web/.env.local') });
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-describe('Lead Intelligence Feature', () => {
+// Skip integration tests in CI when credentials are not available
+const hasCredentials = supabaseUrl && supabaseKey;
+const describeWithCredentials = hasCredentials ? describe : describe.skip;
+
+describeWithCredentials('Lead Intelligence Feature', () => {
   let supabase: SupabaseClient;
   let testLeadId: string;
 
