@@ -9,7 +9,7 @@
     "test": "vitest",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --max-warnings -1",
+    "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
