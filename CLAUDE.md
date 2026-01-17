@@ -74,10 +74,84 @@ tests/               # E2E and integration tests (see tests/CLAUDE.md)
 
 ## Git Workflow
 
-- Branch from main: `feature/description`
-- Conventional commits required
-- PRs need: typecheck, lint, tests passing + 1 approval
-- Squash commits before merge
+> **Full documentation:** See [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md)
+
+### Branch Strategy (GitHub Flow)
+
+| Branch | Purpose | Protection |
+|--------|---------|------------|
+| `main` | Production code | Protected: PR required, 1 approval, CI pass |
+| `feature/*` | New features | None |
+| `fix/*` | Bug fixes | None |
+| `hotfix/*` | Urgent production fixes | Fast-track review |
+
+### Workflow Steps
+
+1. **Create branch from main**
+   ```bash
+   git checkout main && git pull && git checkout -b feature/name
+   ```
+
+2. **Commit with conventional format**
+   ```bash
+   git commit -m "feat: add new feature"
+   git commit -m "fix: resolve bug"
+   ```
+
+3. **Push and create PR**
+   ```bash
+   git push -u origin feature/name
+   ```
+
+4. **After PR approval and CI pass** → Squash merge
+
+### Conventional Commits (REQUIRED)
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `feat` | New feature | `feat: add lead scoring` |
+| `fix` | Bug fix | `fix: resolve login error` |
+| `docs` | Documentation | `docs: update API guide` |
+| `style` | Formatting | `style: fix indentation` |
+| `refactor` | Code restructure | `refactor: simplify auth` |
+| `test` | Tests | `test: add unit tests` |
+| `chore` | Maintenance | `chore: update deps` |
+| `perf` | Performance | `perf: optimize query` |
+
+### Release Process
+
+1. **Ensure CI passes on main**
+2. **Update CHANGELOG.md** with version notes
+3. **Create version tag**
+   ```bash
+   git tag -a v0.2.0 -m "Release v0.2.0: Description"
+   git push origin v0.2.0
+   ```
+4. **Automatic:** GitHub Release created + Telegram notification sent
+
+### Version Format (SemVer)
+
+```
+MAJOR.MINOR.PATCH (e.g., v0.2.1)
+- PATCH: Bug fixes (0.1.0 → 0.1.1)
+- MINOR: New features (0.1.1 → 0.2.0)
+- MAJOR: Breaking changes (0.2.0 → 1.0.0)
+```
+
+### Pre-Commit Checklist
+
+Before every commit, run:
+```bash
+npm run typecheck && npm run lint && npm run test
+```
+
+### PR Requirements
+
+- [ ] CI passes (typecheck, lint, test)
+- [ ] 1 approval from team member
+- [ ] No merge conflicts
+- [ ] Conventional commit message
+- [ ] Documentation updated (if needed)
 
 ## Testing Strategy
 
