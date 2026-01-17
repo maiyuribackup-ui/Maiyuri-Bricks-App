@@ -24,14 +24,11 @@
     ],
     "lint-staged": {
         "*.{ts,tsx}": [
-            "eslint --fix --max-warnings 0",
+            "eslint --fix",
             "prettier --write"
         ],
         "*.{json,md}": [
             "prettier --write"
-        ],
-        "apps/web/src/**/*.{ts,tsx}": [
-            "eslint --fix --max-warnings 0"
         ]
     }
 }

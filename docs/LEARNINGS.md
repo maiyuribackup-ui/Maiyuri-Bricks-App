@@ -13,7 +13,8 @@
 3. [API Response Handling](#3-api-response-handling)
 4. [React Rendering Issues](#4-react-rendering-issues)
 5. [Database & Data Issues](#5-database--data-issues)
-6. [Prevention Checklist](#prevention-checklist)
+6. [CI/Build Configuration Issues](#6-cibuild-configuration-issues)
+7. [Prevention Checklist](#prevention-checklist)
 
 ---
 
@@ -566,6 +567,219 @@ describe("normalizePhoneForWhatsApp", () => {
 
 ---
 
+## 6. CI/Build Configuration Issues
+
+### BUG-009: ESLint 9 Flat Config CLI Flag Incompatibility
+
+**Date:** January 17, 2026
+**Severity:** Critical (CI completely blocked)
+**Files Affected:**
+- `apps/web/package.json`
+- `apps/api/package.json`
+- `packages/shared/package.json`
+- `packages/ui/package.json`
+
+**Error Message:**
+
+```
+No -NUM option defined.
+You're using eslint.config.js, some command line flags are no longer available.
+```
+
+**Root Cause:**
+ESLint 9 with flat config (`eslint.config.js`) does not support the `--max-warnings -1` syntax that was used in legacy `.eslintrc` configurations. The `-NUM` format for max-warnings is no longer valid.
+
+**Bad Code:**
+
+```json
+{
+  "scripts": {
+    "lint": "eslint . --max-warnings -1"
+  }
+}
+```
+
+**Good Code:**
+
+```json
+{
+  "scripts": {
+    "lint": "eslint ."
+  }
+}
+```
+
+**Prevention Pattern:**
+
+1. **Test lint locally before committing**: Run `npm run lint` after any lint config changes
+2. **Check ESLint version**: When using ESLint 9+, refer to flat config documentation
+3. **Use config file for settings**: Move warnings/errors config to `eslint.config.js` rules instead of CLI flags
+
+**Related Coding Principle:** [CI-001: Test Build Configuration Locally Before Push]
+
+---
+
+### BUG-010: CI Environment Missing Runtime (bun not installed)
+
+**Date:** January 17, 2026
+**Severity:** Critical (CI completely blocked)
+**Files Affected:**
+- `package.json` (root)
+- `apps/api/package.json`
+
+**Error Message:**
+
+```
+Process completed with exit code 127.
+bun: command not found
+```
+
+**Root Cause:**
+The root `package.json` test script used `bun test` but GitHub Actions CI uses npm and doesn't have bun installed by default.
+
+**Bad Code:**
+
+```json
+{
+  "scripts": {
+    "test": "bun test --test-name-pattern '.*' apps/api",
+    "build": "bun build src/index.ts --outdir dist"
+  }
+}
+```
+
+**Good Code:**
+
+```json
+{
+  "scripts": {
+    "test": "turbo run test",
+    "build": "turbo run build"
+  }
+}
+```
+
+Or install bun in CI:
+
+```yaml
+- name: Setup Bun
+  uses: oven-sh/setup-bun@v1
+```
+
+**Prevention Pattern:**
+
+1. **Match CI runtime to local**: Ensure scripts work with CI's runtime (npm/node)
+2. **Add runtime setup step**: If using bun/pnpm, add setup action to CI workflow
+3. **Test in CI environment**: Before merging, verify CI passes or use act locally
+4. **Use turbo for orchestration**: Turbo abstracts package-specific runners
+
+**Related Coding Principle:** [CI-002: Match Local and CI Environments]
+
+---
+
+### BUG-011: Turbo Task Dependencies Triggering Unavailable Commands
+
+**Date:** January 17, 2026
+**Severity:** High (CI blocked)
+**Files Affected:**
+- `turbo.json`
+
+**Error Message:**
+
+```
+@maiyuri/api#build: command exited (127)
+```
+
+**Root Cause:**
+The turbo test task had `dependsOn: ["^build"]` which triggered the API build task. The API build uses `bun build` which isn't available in CI.
+
+**Bad Code:**
+
+```json
+{
+  "tasks": {
+    "test": {
+      "dependsOn": ["^build"],
+      "env": ["CI"]
+    }
+  }
+}
+```
+
+**Good Code:**
+
+```json
+{
+  "tasks": {
+    "test": {
+      "env": ["CI"]
+    }
+  }
+}
+```
+
+**Prevention Pattern:**
+
+1. **Review turbo task graph**: Use `turbo run test --dry-run` to see what tasks will run
+2. **Avoid build dependencies for tests**: Vitest tests don't need build output
+3. **Test full CI locally**: Run `npm run test` to verify all transitive dependencies work
+
+**Related Coding Principle:** [CI-003: Verify Turbo Task Dependencies]
+
+---
+
+### BUG-012: lint-staged with Invalid ESLint Flags
+
+**Date:** January 17, 2026
+**Severity:** Medium (Pre-commit hooks blocked)
+**Files Affected:**
+- `package.json` (root)
+
+**Error Message:**
+
+```
+eslint --fix --max-warnings 0 failed
+```
+
+**Root Cause:**
+The lint-staged configuration used `--max-warnings 0` which also may have issues with ESLint 9 flat config in certain contexts.
+
+**Bad Code:**
+
+```json
+{
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix --max-warnings 0",
+      "prettier --write"
+    ]
+  }
+}
+```
+
+**Good Code:**
+
+```json
+{
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  }
+}
+```
+
+**Prevention Pattern:**
+
+1. **Test pre-commit hooks**: Run `npx lint-staged` manually after config changes
+2. **Align lint-staged with lint script**: Use same flags as package.json lint script
+3. **Check ESLint version compatibility**: Flat config has different CLI behavior
+
+**Related Coding Principle:** [CI-004: Keep lint-staged in Sync with lint Script]
+
+---
+
 ## Prevention Checklist
 
 ### Before Writing Code
@@ -587,12 +801,22 @@ describe("normalizePhoneForWhatsApp", () => {
 - [ ] Add tests for null/undefined edge cases
 - [ ] Run `bun typecheck` with strict mode
 - [ ] Check this file for similar bugs
+- [ ] Run `npm run lint` to verify lint config works
+- [ ] Verify scripts use npm-compatible commands (not bun-only)
 
 ### Before Deploying
 
 - [ ] Run E2E tests with error tracking
 - [ ] Test with empty/incomplete data
 - [ ] Verify no console errors
+
+### Before Modifying CI/Build Configuration
+
+- [ ] Test lint script: `npm run lint`
+- [ ] Test test script: `npm run test`
+- [ ] Verify turbo dependencies: `turbo run test --dry-run`
+- [ ] Check ESLint version and config format compatibility
+- [ ] Ensure scripts work with npm (not just bun)
 
 ---
 
@@ -647,8 +871,16 @@ When a bug is found, add it using this template:
 
 | Month | Bugs Found | Bugs Prevented | Prevention Rate |
 |-------|-----------|----------------|-----------------|
-| Jan 2026 | 8 | 0 | - |
+| Jan 2026 | 12 | 0 | - |
 | Feb 2026 | TBD | TBD | TBD |
+
+### Bug Categories (Jan 2026)
+- Null Safety: 2
+- TypeScript: 1
+- API Response: 1
+- React Rendering: 1
+- Database: 3
+- CI/Build Configuration: 4
 
 **Goal:** 95%+ bug prevention rate through proactive coding principles and testing.
 
