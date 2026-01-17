@@ -22,28 +22,33 @@ AI-powered lead management system for Maiyuri Bricks - a brick manufacturing bus
 ## Features
 
 ### Lead Management
+
 - Full lifecycle lead tracking with CRUD operations
 - AI-powered lead scoring and prioritization
 - Intelligent suggestions for follow-up actions
 - Call recording transcription and analysis
 
 ### Floor Plan AI
+
 - AI-assisted architectural floor plan generation
 - Vastu compliance checking
 - Regulation compliance validation
 - Multi-agent planning system
 
 ### Knowledge Base
+
 - RAG-powered Q&A with company knowledge
 - Document ingestion and processing
 - Semantic search capabilities
 
 ### Team Collaboration
+
 - Multi-role support (Founder, Accountant, Engineer)
 - Team invitation system with email notifications
 - Role-based access control
 
 ### Integrations
+
 - Telegram bot for real-time notifications
 - Odoo ERP integration
 - Google Drive storage support
@@ -52,15 +57,15 @@ AI-powered lead management system for Maiyuri Bricks - a brick manufacturing bus
 
 ## Tech Stack
 
-| Category | Technology |
-|----------|------------|
-| **Frontend** | Next.js 14, React 18, Tailwind CSS |
-| **Backend** | Next.js API Routes, Supabase |
-| **AI** | Claude AI (Anthropic), Gemini AI (Google) |
-| **Database** | PostgreSQL (Supabase) |
-| **Email** | Resend |
-| **Deployment** | Vercel |
-| **CI/CD** | GitHub Actions |
+| Category       | Technology                                |
+| -------------- | ----------------------------------------- |
+| **Frontend**   | Next.js 14, React 18, Tailwind CSS        |
+| **Backend**    | Next.js API Routes, Supabase              |
+| **AI**         | Claude AI (Anthropic), Gemini AI (Google) |
+| **Database**   | PostgreSQL (Supabase)                     |
+| **Email**      | Resend                                    |
+| **Deployment** | Vercel                                    |
+| **CI/CD**      | GitHub Actions                            |
 
 ---
 
@@ -77,22 +82,26 @@ AI-powered lead management system for Maiyuri Bricks - a brick manufacturing bus
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/maiyuribackup-ui/Maiyuri-Bricks-App.git
    cd Maiyuri-Bricks-App
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm install --legacy-peer-deps
    ```
 
 3. **Set up environment variables**
+
    ```bash
    cp apps/web/.env.example apps/web/.env.local
    ```
 
    Required variables:
+
    ```env
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
@@ -105,6 +114,7 @@ AI-powered lead management system for Maiyuri Bricks - a brick manufacturing bus
    ```
 
 4. **Start development server**
+
    ```bash
    npm run dev
    ```
@@ -180,9 +190,17 @@ We follow **Semantic Versioning (SemVer)** and **GitHub Flow** for version contr
 
 ### Current Version
 
-| Version | Status | Release Date |
-|---------|--------|--------------|
-| **v0.1.0** | Latest | 2026-01-17 |
+| Version    | Status | Release Date |
+| ---------- | ------ | ------------ |
+| **v0.2.0** | Latest | 2026-01-17   |
+
+#### v0.2.0 Highlights
+
+- WhatsApp Business auto-response with AI messages
+- Enhanced lead detail page layout
+- Auto-create leads from Telegram voice messages
+- Lead classification, requirement type, and location fields
+- 101 unit tests for lead management
 
 See [CHANGELOG.md](CHANGELOG.md) for full version history.
 
@@ -213,6 +231,7 @@ For detailed workflow, see [GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md).
 ### Branch Protection
 
 The `main` branch is protected:
+
 - Requires pull request with 1 approval
 - Requires passing CI checks
 - No direct pushes allowed
@@ -224,11 +243,13 @@ The `main` branch is protected:
 ### Quick Start
 
 1. Create a feature branch
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
 
 2. Make changes with conventional commits
+
    ```bash
    git commit -m "feat: add new feature"
    git commit -m "fix: resolve bug"
@@ -236,6 +257,7 @@ The `main` branch is protected:
    ```
 
 3. Push and create PR
+
    ```bash
    git push -u origin feature/your-feature-name
    ```
@@ -265,19 +287,20 @@ See [CLAUDE.md](CLAUDE.md) for detailed coding standards.
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [CLAUDE.md](CLAUDE.md) | Coding standards and AI guidance |
-| [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
-| [GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md) | Git workflow and release process |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture overview |
-| [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) | Deployment instructions |
+| Document                                   | Description                       |
+| ------------------------------------------ | --------------------------------- |
+| [CLAUDE.md](CLAUDE.md)                     | Coding standards and AI guidance  |
+| [CHANGELOG.md](CHANGELOG.md)               | Version history and release notes |
+| [GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md)    | Git workflow and release process  |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md)    | System architecture overview      |
+| [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) | Deployment instructions           |
 
 ---
 
 ## Notifications
 
 Release and CI notifications are sent to the team Telegram group:
+
 - **CI Pass/Fail**: Notified on every push to `main`
 - **New Release**: Notified when version tag is pushed
 
