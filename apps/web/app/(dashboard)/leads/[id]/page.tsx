@@ -12,6 +12,7 @@ import {
   type Lead,
   type Note,
   type LeadStatus,
+  type LeadStage,
   type CallRecording,
 } from "@maiyuri/shared";
 import {
@@ -44,6 +45,69 @@ const statusOptions: LeadStatus[] = [
   "lost",
 ];
 
+// Stage configuration with labels and icons (Issue #19)
+const stageConfig: Record<
+  LeadStage,
+  { label: string; icon: string; color: string }
+> = {
+  inquiry: {
+    label: "Inquiry",
+    icon: "💬",
+    color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300",
+  },
+  quote_sent: {
+    label: "Quote Sent",
+    icon: "📧",
+    color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  },
+  factory_visit: {
+    label: "Factory Visit",
+    icon: "🏭",
+    color:
+      "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+  },
+  negotiation: {
+    label: "Negotiation",
+    icon: "🤝",
+    color:
+      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  },
+  order_confirmed: {
+    label: "Order Confirmed",
+    icon: "✅",
+    color:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
+  },
+  in_production: {
+    label: "In Production",
+    icon: "⚙️",
+    color:
+      "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+  },
+  ready_dispatch: {
+    label: "Ready for Dispatch",
+    icon: "📦",
+    color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300",
+  },
+  delivered: {
+    label: "Delivered",
+    icon: "🚚",
+    color:
+      "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+  },
+};
+
+const stageOptions: LeadStage[] = [
+  "inquiry",
+  "quote_sent",
+  "factory_visit",
+  "negotiation",
+  "order_confirmed",
+  "in_production",
+  "ready_dispatch",
+  "delivered",
+];
+
 async function fetchLead(id: string) {
   const res = await fetch(`/api/leads/${id}`);
   if (!res.ok) throw new Error("Failed to fetch lead");
@@ -69,6 +133,19 @@ async function updateLeadStatus(id: string, status: LeadStatus) {
     body: JSON.stringify({ status }),
   });
   if (!res.ok) throw new Error("Failed to update status");
+  return res.json();
+}
+
+async function updateLeadStage(id: string, stage: LeadStage) {
+  const res = await fetch(`/api/leads/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      stage,
+      stage_updated_at: new Date().toISOString(),
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to update stage");
   return res.json();
 }
 
@@ -136,6 +213,18 @@ export default function LeadDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
       queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+
+  const stageMutation = useMutation({
+    mutationFn: (stage: LeadStage) => updateLeadStage(leadId, stage),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      toast.success("Stage updated successfully");
+    },
+    onError: () => {
+      toast.error("Failed to update stage");
     },
   });
 
@@ -225,7 +314,7 @@ export default function LeadDetailPage() {
                 <ArrowLeftIcon className="h-5 w-5 text-slate-500" />
               </Link>
               <div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
                     {lead.name}
                   </h1>
@@ -243,6 +332,14 @@ export default function LeadDetailPage() {
                   >
                     {statusLabels[lead.status]}
                   </Badge>
+                  {lead.stage && (
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${stageConfig[lead.stage].color}`}
+                    >
+                      <span>{stageConfig[lead.stage].icon}</span>
+                      <span>{stageConfig[lead.stage].label}</span>
+                    </span>
+                  )}
                 </div>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                   <PhoneIcon className="h-4 w-4 inline mr-1" />
@@ -665,6 +762,50 @@ export default function LeadDetailPage() {
                 </button>
               ))}
             </div>
+          </Card>
+
+          {/* Stage Card - Issue #19 */}
+          <Card className="p-6">
+            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+              Pipeline Stage
+            </h3>
+            <div className="space-y-2">
+              {stageOptions.map((stage) => {
+                const config = stageConfig[stage];
+                const isActive = lead.stage === stage;
+                return (
+                  <button
+                    key={stage}
+                    onClick={() => stageMutation.mutate(stage)}
+                    disabled={stageMutation.isPending}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
+                      isActive
+                        ? "ring-2 ring-blue-500 " + config.color
+                        : config.color + " opacity-60 hover:opacity-100"
+                    }`}
+                  >
+                    <span className="text-base">{config.icon}</span>
+                    <span>{config.label}</span>
+                    {isActive && (
+                      <span className="ml-auto text-blue-600 dark:text-blue-400">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {lead.stage_updated_at && (
+              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                Last updated:{" "}
+                {new Date(lead.stage_updated_at).toLocaleDateString("en-IN", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            )}
           </Card>
 
           {/* AI Analysis Panel */}

@@ -5,7 +5,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, Button, Spinner } from "@maiyuri/ui";
 import { LeadsKanban } from "./LeadsKanban";
 import Link from "next/link";
-import { buildWhatsAppUrl, type Lead, type LeadStatus } from "@maiyuri/shared";
+import {
+  buildWhatsAppUrl,
+  type Lead,
+  type LeadStatus,
+  type LeadStage,
+} from "@maiyuri/shared";
 import { Toaster, toast } from "sonner";
 import {
   ArchiveSuggestionsPanel,
@@ -73,6 +78,58 @@ const statusConfig: Record<
     bg: "bg-rose-50 dark:bg-rose-900/30",
     border: "border-rose-200 dark:border-rose-800",
     rowBg: "bg-rose-50/30 dark:bg-rose-950/20",
+  },
+};
+
+// Stage configuration with icons (Issue #19)
+const stageConfig: Record<
+  LeadStage,
+  { label: string; icon: string; color: string }
+> = {
+  inquiry: {
+    label: "Inquiry",
+    icon: "💬",
+    color: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
+  },
+  quote_sent: {
+    label: "Quote Sent",
+    icon: "📧",
+    color: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300",
+  },
+  factory_visit: {
+    label: "Factory Visit",
+    icon: "🏭",
+    color:
+      "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300",
+  },
+  negotiation: {
+    label: "Negotiation",
+    icon: "🤝",
+    color:
+      "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300",
+  },
+  order_confirmed: {
+    label: "Confirmed",
+    icon: "✅",
+    color:
+      "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300",
+  },
+  in_production: {
+    label: "Production",
+    icon: "⚙️",
+    color:
+      "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300",
+  },
+  ready_dispatch: {
+    label: "Dispatch",
+    icon: "📦",
+    color: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300",
+  },
+  delivered: {
+    label: "Delivered",
+    icon: "🚚",
+    color:
+      "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-300",
   },
 };
 
@@ -589,14 +646,15 @@ export default function LeadsPage() {
               {/* Table Header with Sort */}
               <div className="hidden lg:grid lg:grid-cols-12 gap-4 px-6 py-3 bg-slate-50 dark:bg-slate-800/50 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 select-none">
                 <div
-                  className="col-span-3 cursor-pointer hover:text-slate-800"
+                  className="col-span-2 cursor-pointer hover:text-slate-800"
                   onClick={() => toggleSort("name")}
                 >
                   Lead {sortBy === "name" && (sortOrder === "asc" ? "↑" : "↓")}
                 </div>
                 <div className="col-span-2">Contact</div>
-                <div className="col-span-2">Source / Type</div>
+                <div className="col-span-1">Source</div>
                 <div className="col-span-1">Status</div>
+                <div className="col-span-1">Stage</div>
                 <div
                   className="col-span-1 cursor-pointer hover:text-slate-800"
                   onClick={() => toggleSort("ai_score")}
@@ -618,7 +676,7 @@ export default function LeadsPage() {
                   Updated{" "}
                   {sortBy === "updated_at" && (sortOrder === "asc" ? "↑" : "↓")}
                 </div>
-                <div className="col-span-1 text-center">Actions</div>
+                <div className="col-span-2 text-center">Actions</div>
               </div>
 
               {/* Table Rows */}
@@ -716,6 +774,8 @@ function LeadRow({
   const isCreatedToday = isToday(lead.created_at);
   const isUpdatedToday = isToday(lead.updated_at) && !isCreatedToday;
 
+  const stage = lead.stage ? stageConfig[lead.stage] : null;
+
   return (
     <Link
       href={`/leads/${lead.id}`}
@@ -725,7 +785,7 @@ function LeadRow({
       onMouseEnter={() => onHover(lead)}
       onMouseLeave={() => onHover(null)}
     >
-      <div className="col-span-3 flex items-start gap-3">
+      <div className="col-span-2 flex items-start gap-3">
         <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-600 dark:to-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-medium text-sm">
           {lead.name
             .split(" ")
@@ -740,7 +800,7 @@ function LeadRow({
           </div>
           {lead.staff_notes && (
             <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
-              {lead.staff_notes.slice(0, 50)}...
+              {lead.staff_notes.slice(0, 30)}...
             </p>
           )}
         </div>
@@ -752,19 +812,34 @@ function LeadRow({
         </span>
       </div>
 
-      <div className="col-span-2 flex flex-col justify-center">
-        <span className="text-sm text-slate-900 dark:text-white">
+      <div className="col-span-1 flex flex-col justify-center">
+        <span className="text-sm text-slate-900 dark:text-white truncate">
           {lead.source}
         </span>
       </div>
 
       <div className="col-span-1 flex items-center">
         <span
-          className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium ${status.bg} ${status.color} border ${status.border}`}
+          className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium ${status.bg} ${status.color} border ${status.border}`}
         >
-          {lead.status === "hot" && "🔥 "}
+          {lead.status === "hot" && "🔥"}
           {status.label}
         </span>
+      </div>
+
+      {/* Stage Column - Issue #19 */}
+      <div className="col-span-1 flex items-center">
+        {stage ? (
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium ${stage.color}`}
+            title={stage.label}
+          >
+            <span>{stage.icon}</span>
+            <span className="hidden xl:inline truncate">{stage.label}</span>
+          </span>
+        ) : (
+          <span className="text-xs text-slate-400">-</span>
+        )}
       </div>
 
       <div className="col-span-1 flex items-center">
@@ -792,25 +867,25 @@ function LeadRow({
         {formatDate(lead.updated_at)}
       </div>
 
-      <div className="col-span-1 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="col-span-2 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={onCall}
           title="Call"
-          className="p-1 hover:bg-green-100 text-green-600 rounded"
+          className="p-1.5 hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 rounded"
         >
           📞
         </button>
         <button
           onClick={onWhatsApp}
           title="WhatsApp"
-          className="p-1 hover:bg-green-100 text-green-600 rounded"
+          className="p-1.5 hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 rounded"
         >
           💬
         </button>
         <button
           onClick={onArchive}
           title={lead.is_archived ? "Unarchive" : "Archive"}
-          className="p-1 hover:bg-slate-200 text-slate-600 rounded"
+          className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded"
         >
           {lead.is_archived ? "↩️" : "🗄️"}
         </button>
@@ -820,7 +895,8 @@ function LeadRow({
 }
 
 function LeadHoverCard({ lead }: { lead: Lead }) {
-  // Keep existing hover card logic essentially
+  const stage = lead.stage ? stageConfig[lead.stage] : null;
+
   return (
     <div className="fixed bottom-4 right-4 w-80 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-4 z-50 hidden lg:block animate-in slide-in-from-bottom-2">
       <div className="flex items-start justify-between mb-3">
@@ -839,6 +915,16 @@ function LeadHoverCard({ lead }: { lead: Lead }) {
           <span className={statusConfig[lead.status].color}>
             {statusConfig[lead.status].label}
           </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-slate-500">Stage</span>
+          {stage ? (
+            <span className={stage.color + " px-2 py-0.5 rounded text-xs"}>
+              {stage.icon} {stage.label}
+            </span>
+          ) : (
+            <span className="text-slate-400">-</span>
+          )}
         </div>
       </div>
     </div>

@@ -11,6 +11,18 @@ export const leadStatusSchema = z.enum([
   "lost",
 ]);
 
+// Lead Stage Schema - Sales pipeline progression (Issue #19)
+export const leadStageSchema = z.enum([
+  "inquiry",
+  "quote_sent",
+  "factory_visit",
+  "negotiation",
+  "order_confirmed",
+  "in_production",
+  "ready_dispatch",
+  "delivered",
+]);
+
 // Lead Classification Schema
 export const leadClassificationSchema = z.enum([
   "direct_customer",
@@ -42,6 +54,11 @@ export const optionalRequirementTypeSchema = emptyStringToNull(
   requirementTypeSchema.nullable().optional(),
 );
 
+// Optional lead stage that accepts empty string from form selects (Issue #19)
+export const optionalLeadStageSchema = emptyStringToNull(
+  leadStageSchema.nullable().optional(),
+);
+
 export const userRoleSchema = z.enum(["founder", "accountant", "engineer"]);
 
 export const createLeadSchema = z.object({
@@ -51,6 +68,8 @@ export const createLeadSchema = z.object({
   lead_type: z.string().min(1, "Lead type is required"),
   assigned_staff: z.string().uuid("Invalid staff ID").nullable().optional(),
   status: leadStatusSchema.default("new"),
+  // Sales pipeline stage (Issue #19)
+  stage: optionalLeadStageSchema,
   // New classification and location fields (coerce empty string to null)
   classification: optionalClassificationSchema,
   requirement_type: optionalRequirementTypeSchema,
@@ -68,6 +87,10 @@ export const updateLeadSchema = z.object({
   lead_type: z.string().min(1).optional(),
   assigned_staff: emptyStringToNull(z.string().uuid().nullable().optional()),
   status: leadStatusSchema.optional(),
+  // Sales pipeline stage (Issue #19)
+  stage: optionalLeadStageSchema,
+  stage_updated_at: emptyStringToNull(z.string().nullable().optional()),
+  stage_updated_by: emptyStringToNull(z.string().nullable().optional()),
   // New classification and location fields (coerce empty string to null)
   classification: optionalClassificationSchema,
   requirement_type: optionalRequirementTypeSchema,
@@ -89,6 +112,11 @@ export const createNoteSchema = z.object({
 
 export const updateLeadStatusSchema = z.object({
   status: leadStatusSchema,
+});
+
+// Update lead stage (Issue #19)
+export const updateLeadStageSchema = z.object({
+  stage: leadStageSchema,
 });
 
 export const updateNoteSchema = z.object({
@@ -113,6 +141,7 @@ export const paginationSchema = z.object({
 
 export const leadFiltersSchema = z.object({
   status: leadStatusSchema.optional(),
+  stage: leadStageSchema.optional(), // Issue #19
   assigned_staff: z.string().uuid().optional(),
   search: z.string().optional(),
   from_date: z.string().optional(),
@@ -186,6 +215,7 @@ export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
 export type CreateNoteInput = z.infer<typeof createNoteSchema>;
 export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;
 export type UpdateLeadStatusInput = z.infer<typeof updateLeadStatusSchema>;
+export type UpdateLeadStageInput = z.infer<typeof updateLeadStageSchema>;
 export type CreateKnowledgebaseInput = z.infer<
   typeof createKnowledgebaseSchema
 >;
