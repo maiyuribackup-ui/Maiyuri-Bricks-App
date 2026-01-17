@@ -1,62 +1,89 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Card, Button, Spinner } from '@maiyuri/ui';
-import { updateLeadSchema, type UpdateLeadInput, type Lead, type LeadStatus } from '@maiyuri/shared';
-import Link from 'next/link';
+import { useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Card, Button, Spinner } from "@maiyuri/ui";
+import {
+  updateLeadSchema,
+  type UpdateLeadInput,
+  type Lead,
+  type LeadStatus,
+  type User,
+} from "@maiyuri/shared";
+import Link from "next/link";
 
+// Source options (Issue #6)
 const sourceOptions = [
-  'Website',
-  'Referral',
-  'Walk-in',
-  'Phone',
-  'Social Media',
-  'Advertisement',
-  'Other',
+  "Facebook",
+  "Google",
+  "Customer Reference",
+  "Instagram",
+  "Company Website",
+  "Just Dial",
+  "IndiaMart",
+  "Walk-in",
+  "Phone",
+  "Other",
 ];
 
 const leadTypeOptions = [
-  'Commercial',
-  'Residential',
-  'Industrial',
-  'Government',
-  'Other',
+  "Commercial",
+  "Residential",
+  "Industrial",
+  "Government",
+  "Other",
+];
+
+// Classification options (Issue #3)
+const classificationOptions = [
+  { value: "direct_customer", label: "Direct Customer" },
+  { value: "vendor", label: "Vendor" },
+  { value: "builder", label: "Builder" },
+  { value: "dealer", label: "Dealer" },
+  { value: "architect", label: "Architect" },
+];
+
+// Requirement type options (Issue #4)
+const requirementTypeOptions = [
+  { value: "residential_house", label: "Residential House" },
+  { value: "commercial_building", label: "Commercial Building" },
+  { value: "eco_friendly_building", label: "Eco-Friendly Building" },
+  { value: "compound_wall", label: "Compound Wall" },
 ];
 
 const statusOptions: { value: LeadStatus; label: string }[] = [
-  { value: 'new', label: 'New' },
-  { value: 'follow_up', label: 'Follow Up' },
-  { value: 'hot', label: 'Hot' },
-  { value: 'cold', label: 'Cold' },
-  { value: 'converted', label: 'Converted' },
-  { value: 'lost', label: 'Lost' },
+  { value: "new", label: "New" },
+  { value: "follow_up", label: "Follow Up" },
+  { value: "hot", label: "Hot" },
+  { value: "cold", label: "Cold" },
+  { value: "converted", label: "Converted" },
+  { value: "lost", label: "Lost" },
 ];
 
 async function fetchLead(id: string) {
   const res = await fetch(`/api/leads/${id}`);
-  if (!res.ok) throw new Error('Failed to fetch lead');
+  if (!res.ok) throw new Error("Failed to fetch lead");
   return res.json();
 }
 
 async function fetchUsers() {
-  const res = await fetch('/api/users');
-  if (!res.ok) throw new Error('Failed to fetch users');
+  const res = await fetch("/api/users");
+  if (!res.ok) throw new Error("Failed to fetch users");
   return res.json();
 }
 
 async function updateLead(id: string, data: UpdateLeadInput) {
   const res = await fetch(`/api/leads/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
   if (!res.ok) {
     const error = await res.json();
-    throw new Error(error.error || 'Failed to update lead');
+    throw new Error(error.error || "Failed to update lead");
   }
   return res.json();
 }
@@ -68,13 +95,13 @@ export default function EditLeadPage() {
   const leadId = params.id as string;
 
   const { data: leadData, isLoading: leadLoading } = useQuery({
-    queryKey: ['lead', leadId],
+    queryKey: ["lead", leadId],
     queryFn: () => fetchLead(leadId),
     enabled: !!leadId,
   });
 
   const { data: usersData } = useQuery({
-    queryKey: ['users'],
+    queryKey: ["users"],
     queryFn: fetchUsers,
   });
 
@@ -100,8 +127,12 @@ export default function EditLeadPage() {
         lead_type: lead.lead_type,
         status: lead.status,
         assigned_staff: lead.assigned_staff,
+        classification: lead.classification,
+        requirement_type: lead.requirement_type,
+        site_region: lead.site_region,
+        site_location: lead.site_location,
         next_action: lead.next_action,
-        follow_up_date: lead.follow_up_date?.split('T')[0] || null,
+        follow_up_date: lead.follow_up_date?.split("T")[0] || null,
       });
     }
   }, [lead, reset]);
@@ -109,8 +140,8 @@ export default function EditLeadPage() {
   const mutation = useMutation({
     mutationFn: (data: UpdateLeadInput) => updateLead(leadId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lead', leadId] });
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
       router.push(`/leads/${leadId}`);
     },
   });
@@ -173,7 +204,7 @@ export default function EditLeadPage() {
               Name
             </label>
             <input
-              {...register('name')}
+              {...register("name")}
               type="text"
               placeholder="Enter lead name"
               className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -189,13 +220,15 @@ export default function EditLeadPage() {
               Contact Number
             </label>
             <input
-              {...register('contact')}
+              {...register("contact")}
               type="tel"
               placeholder="Enter contact number"
               className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             {errors.contact && (
-              <p className="mt-1 text-sm text-red-500">{errors.contact.message}</p>
+              <p className="mt-1 text-sm text-red-500">
+                {errors.contact.message}
+              </p>
             )}
           </div>
 
@@ -206,7 +239,7 @@ export default function EditLeadPage() {
                 Source
               </label>
               <select
-                {...register('source')}
+                {...register("source")}
                 className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select source</option>
@@ -217,7 +250,9 @@ export default function EditLeadPage() {
                 ))}
               </select>
               {errors.source && (
-                <p className="mt-1 text-sm text-red-500">{errors.source.message}</p>
+                <p className="mt-1 text-sm text-red-500">
+                  {errors.source.message}
+                </p>
               )}
             </div>
 
@@ -226,7 +261,7 @@ export default function EditLeadPage() {
                 Lead Type
               </label>
               <select
-                {...register('lead_type')}
+                {...register("lead_type")}
                 className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select type</option>
@@ -237,7 +272,9 @@ export default function EditLeadPage() {
                 ))}
               </select>
               {errors.lead_type && (
-                <p className="mt-1 text-sm text-red-500">{errors.lead_type.message}</p>
+                <p className="mt-1 text-sm text-red-500">
+                  {errors.lead_type.message}
+                </p>
               )}
             </div>
           </div>
@@ -248,7 +285,7 @@ export default function EditLeadPage() {
               Status
             </label>
             <select
-              {...register('status')}
+              {...register("status")}
               className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {statusOptions.map((option) => (
@@ -259,17 +296,81 @@ export default function EditLeadPage() {
             </select>
           </div>
 
+          {/* Classification and Requirement Type */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Classification
+              </label>
+              <select
+                {...register("classification")}
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select classification</option>
+                {classificationOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Requirement Type
+              </label>
+              <select
+                {...register("requirement_type")}
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select requirement type</option>
+                {requirementTypeOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Site Region and Location */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Site Region
+              </label>
+              <input
+                {...register("site_region")}
+                type="text"
+                placeholder="e.g., Chennai, Kanchipuram"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Site Location
+              </label>
+              <input
+                {...register("site_location")}
+                type="text"
+                placeholder="e.g., T Nagar, Anna Nagar"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
           {/* Assigned Staff */}
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               Assign To
             </label>
             <select
-              {...register('assigned_staff')}
+              {...register("assigned_staff")}
               className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Unassigned</option>
-              {users.map((user: any) => (
+              {users.map((user: User) => (
                 <option key={user.id} value={user.id}>
                   {user.name} ({user.role})
                 </option>
@@ -283,7 +384,7 @@ export default function EditLeadPage() {
               Next Action
             </label>
             <input
-              {...register('next_action')}
+              {...register("next_action")}
               type="text"
               placeholder="e.g., Call to discuss requirements"
               className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -296,7 +397,7 @@ export default function EditLeadPage() {
               Follow-up Date
             </label>
             <input
-              {...register('follow_up_date')}
+              {...register("follow_up_date")}
               type="date"
               className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -311,7 +412,7 @@ export default function EditLeadPage() {
                   Saving...
                 </>
               ) : (
-                'Save Changes'
+                "Save Changes"
               )}
             </Button>
             <Link href={`/leads/${leadId}`}>
@@ -328,8 +429,18 @@ export default function EditLeadPage() {
 
 function ArrowLeftIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+      />
     </svg>
   );
 }
