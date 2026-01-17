@@ -187,6 +187,9 @@ export default function LeadDetailPage() {
   const [showAudioUpload, setShowAudioUpload] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showEstimator, setShowEstimator] = useState(false);
+  // Issue #20: Quick status/stage dropdowns
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [showStageDropdown, setShowStageDropdown] = useState(false);
 
   const { data: leadData, isLoading: leadLoading } = useQuery({
     queryKey: ["lead", leadId],
@@ -318,28 +321,110 @@ export default function LeadDetailPage() {
                   <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
                     {lead.name}
                   </h1>
-                  <Badge
-                    variant={
-                      lead.status === "hot"
-                        ? "danger"
-                        : lead.status === "converted"
-                          ? "success"
-                          : lead.status === "follow_up"
-                            ? "warning"
-                            : "default"
-                    }
-                    className="text-sm px-3 py-1"
-                  >
-                    {statusLabels[lead.status]}
-                  </Badge>
-                  {lead.stage && (
-                    <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${stageConfig[lead.stage].color}`}
+                  {/* Issue #20: Clickable Status Badge with Dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setShowStatusDropdown(!showStatusDropdown);
+                        setShowStageDropdown(false);
+                      }}
+                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-blue-400 transition-all ${
+                        lead.status === "hot"
+                          ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                          : lead.status === "converted"
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                            : lead.status === "follow_up"
+                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                              : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+                      }`}
                     >
-                      <span>{stageConfig[lead.stage].icon}</span>
-                      <span>{stageConfig[lead.stage].label}</span>
-                    </span>
-                  )}
+                      {statusLabels[lead.status]}
+                      <ChevronDownIcon className="h-3 w-3" />
+                    </button>
+                    {showStatusDropdown && (
+                      <div className="absolute top-full left-0 mt-1 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50">
+                        {statusOptions.map((status) => (
+                          <button
+                            key={status}
+                            onClick={() => {
+                              statusMutation.mutate(status);
+                              setShowStatusDropdown(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-between ${
+                              lead.status === status
+                                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                                : "text-slate-700 dark:text-slate-300"
+                            }`}
+                          >
+                            {statusLabels[status]}
+                            {lead.status === status && (
+                              <span className="text-blue-600">✓</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Issue #20: Clickable Stage Badge with Dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setShowStageDropdown(!showStageDropdown);
+                        setShowStatusDropdown(false);
+                      }}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-blue-400 transition-all ${
+                        lead.stage
+                          ? stageConfig[lead.stage].color
+                          : "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400"
+                      }`}
+                    >
+                      <span>
+                        {lead.stage ? stageConfig[lead.stage].icon : "📋"}
+                      </span>
+                      <span>
+                        {lead.stage
+                          ? stageConfig[lead.stage].label
+                          : "Set Stage"}
+                      </span>
+                      <ChevronDownIcon className="h-3 w-3" />
+                    </button>
+                    {showStageDropdown && (
+                      <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50 max-h-72 overflow-y-auto">
+                        {stageOptions.map((stage) => {
+                          const config = stageConfig[stage];
+                          return (
+                            <button
+                              key={stage}
+                              onClick={() => {
+                                stageMutation.mutate(stage);
+                                setShowStageDropdown(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 ${
+                                lead.stage === stage
+                                  ? "bg-blue-50 dark:bg-blue-900/20"
+                                  : ""
+                              }`}
+                            >
+                              <span>{config.icon}</span>
+                              <span
+                                className={
+                                  lead.stage === stage
+                                    ? "text-blue-700 dark:text-blue-300"
+                                    : "text-slate-700 dark:text-slate-300"
+                                }
+                              >
+                                {config.label}
+                              </span>
+                              {lead.stage === stage && (
+                                <span className="ml-auto text-blue-600">✓</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                   <PhoneIcon className="h-4 w-4 inline mr-1" />
@@ -912,6 +997,25 @@ function ArrowLeftIcon({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+      />
+    </svg>
+  );
+}
+
+// Issue #20: Chevron icon for dropdowns
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M19.5 8.25l-7.5 7.5-7.5-7.5"
       />
     </svg>
   );
