@@ -4,6 +4,8 @@
  * POST /api/admin/call-recordings/[id]/retry - Retry processing a failed recording
  */
 
+export const dynamic = 'force-dynamic';
+
 import { NextRequest } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { success, error, notFound } from '@/lib/api-utils';

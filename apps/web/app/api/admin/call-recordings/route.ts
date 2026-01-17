@@ -4,6 +4,8 @@
  * GET /api/admin/call-recordings - List call recordings with filtering
  */
 
+export const dynamic = 'force-dynamic';
+
 import { NextRequest } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { success, error, parseQuery } from '@/lib/api-utils';

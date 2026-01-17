@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest } from 'next/server';
 import { routes } from '@maiyuri/api';
 import { success, error, notFound } from '@/lib/api-utils';

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest } from 'next/server';
 import { routes, contracts } from '@maiyuri/api';
 import { success, error, handleZodError } from '@/lib/api-utils';
