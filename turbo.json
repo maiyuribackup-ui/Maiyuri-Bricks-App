@@ -33,6 +33,14 @@
                 "^typecheck"
             ]
         },
+        "test": {
+            "dependsOn": [
+                "^build"
+            ],
+            "env": [
+                "CI"
+            ]
+        },
         "dev": {
             "cache": false,
             "persistent": true
