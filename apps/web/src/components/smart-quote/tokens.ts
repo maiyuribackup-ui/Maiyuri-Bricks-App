@@ -3,51 +3,69 @@
  *
  * Premium, calm, eco-friendly design system for Smart Quote pages.
  * Mobile-first with earth-inspired color palette.
+ *
+ * Design Philosophy: "Steve Jobs style" - One idea per screen,
+ * big visuals, few words, breathing room.
+ *
+ * Color Palette:
+ * - Warm Sand (#F5F0E8) - Primary background
+ * - Terracotta (#C87941) - CTA and accents
+ * - Deep Earth Brown (#4A3728) - Headlines
+ * - Soft Cream (#FFF9F0) - Cards
  */
 
 export const smartQuoteTokens = {
   colors: {
-    // Backgrounds
+    // Backgrounds - Earthy tones
     background: {
-      primary: "bg-stone-50 dark:bg-stone-900",
-      secondary: "bg-stone-100 dark:bg-stone-800",
-      hero: "bg-stone-200 dark:bg-stone-800",
+      primary: "bg-[#F5F0E8]", // Warm Sand
+      secondary: "bg-[#FFF9F0]", // Soft Cream - Cards
+      hero: "bg-stone-900", // Dark for contrast with image
+      card: "bg-white/90 backdrop-blur-sm", // Glass-morphism card
     },
-    // Text
+    // Text - Deep earth tones
     text: {
-      primary: "text-stone-800 dark:text-stone-100",
-      secondary: "text-stone-600 dark:text-stone-300",
-      muted: "text-stone-500 dark:text-stone-400",
+      primary: "text-[#4A3728]", // Deep Earth Brown
+      secondary: "text-[#6B5B4F]", // Medium brown
+      muted: "text-[#8B7B6B]", // Light brown
+      inverse: "text-white", // For dark backgrounds
     },
-    // Accent (earth/amber tones)
+    // Accent - Terracotta
     accent: {
-      primary: "text-amber-700 dark:text-amber-400",
-      secondary: "text-amber-600 dark:text-amber-500",
-      hover: "text-amber-800 dark:text-amber-300",
+      primary: "text-[#C87941]", // Terracotta
+      secondary: "text-[#A66A38]", // Darker terracotta
+      hover: "text-[#B56B35]", // Hover state
     },
-    // CTA Button
+    // CTA Button - Terracotta
     cta: {
-      bg: "bg-amber-600 hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-500",
+      bg: "bg-[#C87941] hover:bg-[#B56B35]",
       text: "text-white",
-      border: "border-amber-600 dark:border-amber-500",
+      border: "border-[#C87941]",
     },
     // Subtle decorative
     decorative: {
-      line: "bg-amber-200 dark:bg-amber-800",
-      dot: "bg-amber-400 dark:bg-amber-600",
+      line: "bg-[#C87941]/20",
+      dot: "bg-[#C87941]",
+      gradient: "from-[#C87941]/10 to-transparent",
+    },
+    // Trust/success colors
+    trust: {
+      bg: "bg-emerald-50",
+      text: "text-emerald-700",
+      icon: "text-emerald-600",
     },
   },
 
   spacing: {
     section: {
-      mobile: "py-10 px-4",
-      tablet: "md:py-14 md:px-6",
-      desktop: "lg:py-20 lg:px-8",
+      mobile: "py-12 px-5",
+      tablet: "md:py-16 md:px-8",
+      desktop: "lg:py-24 lg:px-12",
     },
     container: {
-      maxWidth: "max-w-3xl mx-auto",
-      narrow: "max-w-2xl mx-auto",
-      wide: "max-w-4xl mx-auto",
+      maxWidth: "max-w-2xl mx-auto", // Narrower for focus
+      narrow: "max-w-xl mx-auto",
+      wide: "max-w-3xl mx-auto",
     },
     gap: {
       xs: "gap-2",
@@ -56,13 +74,21 @@ export const smartQuoteTokens = {
       lg: "gap-8",
       xl: "gap-12",
     },
+    // Generous breathing room
+    breathe: {
+      small: "mb-6",
+      medium: "mb-10",
+      large: "mb-16",
+    },
   },
 
   typography: {
     headline: {
-      hero: "text-2xl md:text-3xl lg:text-4xl font-semibold leading-tight tracking-tight",
-      section: "text-xl md:text-2xl font-semibold leading-snug",
-      subsection: "text-lg md:text-xl font-medium leading-snug",
+      // Steve Jobs style - Big, bold, memorable
+      hero: "text-3xl md:text-4xl lg:text-5xl font-bold leading-tight tracking-tight",
+      section: "text-2xl md:text-3xl font-bold leading-snug tracking-tight",
+      subsection: "text-xl md:text-2xl font-semibold leading-snug",
+      card: "text-lg md:text-xl font-semibold leading-snug",
     },
     body: {
       large: "text-lg md:text-xl leading-relaxed",
@@ -70,9 +96,11 @@ export const smartQuoteTokens = {
       small: "text-sm md:text-base leading-relaxed",
     },
     label: {
-      base: "text-sm font-medium",
-      small: "text-xs font-medium uppercase tracking-wider",
+      base: "text-sm font-medium tracking-wide",
+      small: "text-xs font-semibold uppercase tracking-wider",
     },
+    // Personalization snippets - Friendly, conversational
+    personalized: "text-lg md:text-xl leading-relaxed italic",
   },
 
   radius: {
@@ -82,6 +110,7 @@ export const smartQuoteTokens = {
     lg: "rounded-lg",
     xl: "rounded-xl",
     "2xl": "rounded-2xl",
+    "3xl": "rounded-3xl",
     full: "rounded-full",
   },
 
@@ -90,7 +119,10 @@ export const smartQuoteTokens = {
     sm: "shadow-sm",
     md: "shadow-md",
     lg: "shadow-lg",
-    hero: "shadow-xl",
+    xl: "shadow-xl",
+    hero: "shadow-2xl",
+    // Soft earthy shadow
+    card: "shadow-[0_4px_20px_rgba(74,55,40,0.08)]",
   },
 
   transition: {

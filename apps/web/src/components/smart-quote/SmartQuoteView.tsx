@@ -1,21 +1,22 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { smartQuoteTokens, cn, getSectionClasses } from "./tokens";
+import { smartQuoteTokens, cn } from "./tokens";
 import { LanguageToggle } from "./ui/LanguageToggle";
 import { HeroSection } from "./ui/HeroSection";
-import {
-  ContentSection,
-  ContentBlock,
-  HighlightBox,
-  PriceRange,
-} from "./ui/ContentSection";
-import { CtaButton, MicroCta } from "./ui/CtaButton";
-import { CtaForm } from "./ui/CtaForm";
+import { PersonalizationCard } from "./ui/PersonalizationCard";
+import { ChennaiLogicSection } from "./ui/ChennaiLogicSection";
+import { ProofSection } from "./ui/ProofSection";
+import { PriceSection } from "./ui/PriceSection";
+import { ObjectionAnswerSection } from "./ui/ObjectionAnswerSection";
+import { RoutedCtaSection } from "./ui/RoutedCtaSection";
 import type {
   SmartQuoteLanguage,
   SmartQuoteWithImages,
   SmartQuoteCtaSubmission,
+  SmartQuoteAngle,
+  SmartQuoteRoute,
+  SmartQuotePersonalizationSnippets,
 } from "@maiyuri/shared";
 
 interface SmartQuoteViewProps {
@@ -23,9 +24,35 @@ interface SmartQuoteViewProps {
   slug: string;
 }
 
+// Default personalization snippets if not provided
+const defaultSnippets: SmartQuotePersonalizationSnippets = {
+  en: {
+    p1: "We understand you're looking for the best option for your home.",
+    p2: "Let us show you why earth blocks might be the perfect choice.",
+  },
+  ta: {
+    p1: "உங்கள் வீட்டிற்கு சிறந்த விருப்பத்தை நீங்கள் தேடுகிறீர்கள் என்பதை நாங்கள் புரிந்துகொள்கிறோம்.",
+    p2: "மண் செங்கற்கள் ஏன் சரியான தேர்வாக இருக்கும் என்பதைக் காட்டுவோம்.",
+  },
+};
+
 /**
- * Main Smart Quote customer view component
- * Renders personalized quote pages based on AI-generated content
+ * Smart Quote View - Steve Jobs Style
+ *
+ * Design Philosophy:
+ * - One idea per screen
+ * - Big visuals, few words
+ * - Breathing room everywhere
+ * - AI-routed personalization
+ *
+ * Section Order:
+ * 1. Hero - Belief-breaking headline
+ * 2. Personalization - "Made for you" card
+ * 3. Chennai Logic - Primary angle benefit
+ * 4. Proof - Social proof badges
+ * 5. Cost - Price range display
+ * 6. Objections - Answer top concern
+ * 7. CTA - AI-routed single action
  */
 export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
   const [language, setLanguage] = useState<SmartQuoteLanguage>(
@@ -40,6 +67,26 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
     },
     [copy],
   );
+
+  // Get personalization snippets (from lead's SmartQuotePayload or defaults)
+  const personalizationSnippets: SmartQuotePersonalizationSnippets =
+    quote.lead?.smart_quote_payload?.personalization_snippets ??
+    defaultSnippets;
+
+  // Get primary angle (from payload or default to cooling for Chennai)
+  const primaryAngle: SmartQuoteAngle =
+    (quote.primary_angle as SmartQuoteAngle) ?? "cooling";
+
+  // Get route decision (from payload or default based on stage)
+  const routeDecision: SmartQuoteRoute =
+    quote.route_decision ??
+    (quote.stage === "hot" ? "cost_estimate" : "site_visit");
+
+  // Get top objection (first one, or default to price)
+  const topObjection = quote.top_objections[0] ?? {
+    type: "price",
+    severity: "medium",
+  };
 
   // Track events
   const trackEvent = useCallback(
@@ -99,14 +146,6 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
     return () => observer.disconnect();
   }, [trackEvent]);
 
-  // Handle CTA click
-  const handleCtaClick = (section: string) => {
-    trackEvent("cta_click", section);
-    // Scroll to CTA form
-    const ctaSection = document.getElementById("cta-section");
-    ctaSection?.scrollIntoView({ behavior: "smooth" });
-  };
-
   // Handle form submission
   const handleSubmit = async (data: SmartQuoteCtaSubmission) => {
     const response = await fetch(`/api/sq/${slug}/submit`, {
@@ -126,148 +165,93 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
 
   return (
     <div className={cn("min-h-screen", colors.background.primary)}>
-      {/* Language Toggle */}
+      {/* Language Toggle - Fixed top right */}
       <LanguageToggle value={language} onChange={handleLanguageChange} />
 
-      {/* Entry Page - Hero */}
-      <section data-section="entry">
+      {/* === SECTION 1: HERO === */}
+      {/* Belief-breaking headline, full-bleed image, NO CTA */}
+      <section data-section="hero">
         <HeroSection
           image={quote.images.entry}
           headline={getCopy(
             "entry.hero_headline",
-            "Build cooler. Build healthier.",
+            language === "ta"
+              ? "குளிர்ச்சியாக கட்டுங்கள். ஆரோக்கியமாக வாழுங்கள்."
+              : "Build cooler. Live healthier.",
           )}
-          beliefBreaker={getCopy("entry.belief_breaker")}
-          trustAnchor={getCopy("entry.trust_anchor")}
-          ctaText={getCopy("entry.primary_cta")}
-          onCtaClick={() => handleCtaClick("entry")}
+          subheadline={getCopy("entry.belief_breaker")}
         />
       </section>
 
-      {/* Climate Page */}
-      <section data-section="climate">
-        <ContentSection
-          headline={getCopy(
-            "climate.section_headline",
-            "Made for Chennai summers",
-          )}
+      {/* === SECTION 2: PERSONALIZATION === */}
+      {/* "Made for you" card with AI-generated snippets */}
+      <section data-section="personalization">
+        <PersonalizationCard
+          snippets={personalizationSnippets}
+          language={language}
+          persona={quote.persona ?? undefined}
+        />
+      </section>
+
+      {/* === SECTION 3: CHENNAI LOGIC === */}
+      {/* Primary angle benefit with stat */}
+      <section data-section="logic">
+        <ChennaiLogicSection
           image={quote.images.climate}
-          imagePosition="top"
-        >
-          <ContentBlock>
-            {getCopy(
-              "climate.core_insight",
-              "Earth blocks naturally regulate indoor temperature.",
-            )}
-          </ContentBlock>
-          <div className="mt-6">
-            <MicroCta onClick={() => handleCtaClick("climate")}>
-              {getCopy("climate.micro_cta", "See how it works")}
-            </MicroCta>
-          </div>
-        </ContentSection>
+          primaryAngle={primaryAngle}
+          language={language}
+        />
       </section>
 
-      {/* Cost Page */}
+      {/* === SECTION 4: PROOF === */}
+      {/* Social proof badges */}
+      <section data-section="proof">
+        <ProofSection language={language} />
+      </section>
+
+      {/* === SECTION 5: COST === */}
+      {/* Price range display */}
       <section data-section="cost">
-        <ContentSection
-          headline={getCopy(
-            "cost.section_headline",
-            "What does it really cost?",
-          )}
+        <PriceSection
           image={quote.images.cost}
-          imagePosition="top"
-        >
-          <ContentBlock>
-            {getCopy(
-              "cost.range_frame",
-              "Your home size and design drive the final price.",
-            )}
-          </ContentBlock>
-
-          <HighlightBox variant="accent" className="my-6">
-            <PriceRange
-              label={language === "ta" ? "விலை வரம்பு" : "Price Range"}
-              value={getCopy("cost.range_placeholder", "₹45–₹55 per sq.ft")}
-            />
-          </HighlightBox>
-
-          <ContentBlock>
-            {getCopy(
-              "cost.drivers",
-              "Final cost depends on design complexity.",
-            )}
-          </ContentBlock>
-
-          <div className="mt-6">
-            <MicroCta onClick={() => handleCtaClick("cost")}>
-              {getCopy("cost.micro_cta", "Get your estimate")}
-            </MicroCta>
-          </div>
-        </ContentSection>
+          priceRange={getCopy("cost.range_placeholder", "₹45–₹55")}
+          language={language}
+        />
       </section>
 
-      {/* Objection Page */}
+      {/* === SECTION 6: OBJECTIONS === */}
+      {/* Answer top objection */}
       {quote.top_objections.length > 0 && (
         <section data-section="objection">
-          <ContentSection
-            headline={getCopy(
-              "objection.section_headline",
-              "You might be wondering...",
-            )}
-            image={quote.images.objection}
-            imagePosition="background"
-          >
-            <HighlightBox className="mb-4">
-              <p className={cn(typography.body.base, colors.text.primary)}>
-                {getCopy(
-                  "objection.answer",
-                  "Earth blocks are proven and reliable.",
-                )}
-              </p>
-            </HighlightBox>
-
-            <ContentBlock>
-              {getCopy(
-                "objection.reassurance",
-                "We'll show you real examples.",
-              )}
-            </ContentBlock>
-          </ContentSection>
+          <ObjectionAnswerSection
+            objection={topObjection}
+            language={language}
+          />
         </section>
       )}
 
-      {/* CTA Page */}
-      <section data-section="cta" id="cta-section">
-        <ContentSection
-          headline={getCopy("cta.section_headline", "Ready to explore?")}
-          image={quote.images.cta}
-          imagePosition="top"
-          variant="narrow"
-        >
-          <CtaForm
-            language={language}
-            labels={{
-              name: getCopy("cta.form_name_label", "Your name"),
-              phone: getCopy("cta.form_phone_label", "Phone number"),
-              locality: getCopy("cta.form_locality_label", "Your locality"),
-            }}
-            ctaText={getCopy("cta.primary_cta", "Get Started")}
-            routeExplainer={getCopy("cta.route_explainer")}
-            onSubmit={handleSubmit}
-          />
-        </ContentSection>
+      {/* === SECTION 7: CTA === */}
+      {/* AI-routed single CTA */}
+      <section data-section="cta">
+        <RoutedCtaSection
+          routeDecision={routeDecision}
+          language={language}
+          onSubmit={handleSubmit}
+        />
       </section>
 
       {/* Footer */}
-      <footer className={cn("py-8 text-center", colors.background.secondary)}>
-        <p className={cn(typography.label.small, colors.text.muted)}>
+      <footer className={cn("py-10 text-center", colors.background.secondary)}>
+        <p className={cn(typography.label.base, colors.text.primary)}>
           {language === "ta" ? "மையூரி செங்கற்கள்" : "Maiyuri Bricks"}
         </p>
-        <p className={cn(typography.label.small, colors.text.muted, "mt-1")}>
+        <p className={cn(typography.body.small, colors.text.muted, "mt-2")}>
           {language === "ta"
             ? "சென்னையில் சுற்றுச்சூழல் நட்பு கட்டுமானம்"
             : "Eco-friendly construction in Chennai"}
+        </p>
+        <p className={cn(typography.label.small, colors.text.muted, "mt-4")}>
+          © 2025 Maiyuri Bricks
         </p>
       </footer>
     </div>
