@@ -34,9 +34,6 @@
             ]
         },
         "test": {
-            "dependsOn": [
-                "^build"
-            ],
             "env": [
                 "CI"
             ]
