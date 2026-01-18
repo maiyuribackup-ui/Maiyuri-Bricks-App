@@ -13,6 +13,9 @@ const ODOO_CONFIG = {
   password: process.env.ODOO_PASSWORD || "",
 };
 
+// Default salesperson: Ms.Nithya (Odoo user_id: 10)
+const DEFAULT_SALESPERSON_ID = 10;
+
 // Lazy Supabase client for server-side operations
 function getSupabase() {
   return createClient(
@@ -429,6 +432,7 @@ export async function pushLeadToOdoo(leadId: string): Promise<SyncResult> {
       stage_id: stageId,
       type: "opportunity",
       expected_revenue: lead.ai_score ? lead.ai_score * 100000 : 0,
+      user_id: DEFAULT_SALESPERSON_ID, // Default salesperson: Ms.Nithya
     };
 
     let odooLeadId: number;
