@@ -59,7 +59,13 @@ export const optionalLeadStageSchema = emptyStringToNull(
   leadStageSchema.nullable().optional(),
 );
 
-export const userRoleSchema = z.enum(["founder", "accountant", "engineer"]);
+export const userRoleSchema = z.enum([
+  "founder",
+  "accountant",
+  "engineer",
+  "production_supervisor",
+  "owner",
+]);
 
 export const createLeadSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -538,3 +544,252 @@ export type SmartQuoteImageUploadInput = z.infer<
   typeof smartQuoteImageUploadSchema
 >;
 export type SmartQuoteAIOutputInput = z.infer<typeof smartQuoteAIOutputSchema>;
+
+// ============================================================================
+// Production Module Schemas (Odoo MRP Integration with Attendance)
+// ============================================================================
+
+// Status enums
+export const productionOrderStatusSchema = z.enum([
+  "draft",
+  "pending_approval",
+  "approved",
+  "confirmed",
+  "in_progress",
+  "done",
+  "cancelled",
+  "completed",
+]);
+
+export const productionSyncStatusSchema = z.enum([
+  "pending",
+  "synced",
+  "error",
+  "not_synced",
+]);
+
+export const productionShiftStatusSchema = z.enum(["in_progress", "completed"]);
+
+// Consumption line input (for creating/updating consumption)
+export const consumptionLineInputSchema = z.object({
+  raw_material_id: z.string().uuid("Invalid raw material ID"),
+  expected_quantity: z.number().positive("Expected quantity must be positive"),
+  actual_quantity: z.number().min(0).nullable().optional(),
+  uom_name: z.string().nullable().optional(),
+  sort_order: z.number().int().min(0).optional(),
+  notes: z.string().nullable().optional(),
+});
+
+// Shift input (for creating shifts with employees)
+export const shiftInputSchema = z.object({
+  shift_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+  start_time: z.string().min(1, "Start time is required"),
+  end_time: z.string().nullable().optional(),
+  employee_ids: z
+    .array(z.string().uuid())
+    .min(1, "At least one employee required"),
+  notes: z.string().nullable().optional(),
+});
+
+// Attendance entry input
+export const attendanceEntrySchema = z.object({
+  employee_id: z.string().uuid("Invalid employee ID"),
+  check_in: z.string().min(1, "Check-in time is required"),
+  check_out: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+
+// Create production order schema
+export const createProductionOrderSchema = z.object({
+  finished_good_id: z.string().uuid("Invalid finished good ID"),
+  planned_quantity: z.number().positive("Quantity must be positive"),
+  scheduled_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+  consumption_lines: z
+    .array(consumptionLineInputSchema)
+    .min(1, "At least one consumption line required"),
+  shifts: z.array(shiftInputSchema).optional(),
+  notes: z.string().nullable().optional(),
+});
+
+// Update production order schema
+export const updateProductionOrderSchema = z.object({
+  planned_quantity: z.number().positive().optional(),
+  actual_quantity: z.number().min(0).nullable().optional(),
+  status: productionOrderStatusSchema.optional(),
+  scheduled_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  start_date: z.string().nullable().optional(),
+  end_date: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+
+// Production order filters
+export const productionOrderFiltersSchema = z.object({
+  status: productionOrderStatusSchema.optional(),
+  finished_good_id: z.string().uuid().optional(),
+  from_date: z.string().optional(),
+  to_date: z.string().optional(),
+  odoo_sync_status: productionSyncStatusSchema.optional(),
+  search: z.string().optional(),
+});
+
+// Create shift schema (for adding shift to existing order)
+export const createShiftSchema = z.object({
+  production_order_id: z.string().uuid("Invalid production order ID"),
+  shift_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+  start_time: z.string().min(1, "Start time is required"),
+  employee_ids: z
+    .array(z.string().uuid())
+    .min(1, "At least one employee required"),
+  notes: z.string().nullable().optional(),
+});
+
+// Update shift schema (primarily for ending shift)
+export const updateShiftSchema = z.object({
+  end_time: z.string().nullable().optional(),
+  status: productionShiftStatusSchema.optional(),
+  notes: z.string().nullable().optional(),
+});
+
+// Update consumption line (actual quantity entry)
+export const updateConsumptionLineSchema = z.object({
+  actual_quantity: z.number().min(0, "Quantity cannot be negative"),
+  notes: z.string().nullable().optional(),
+});
+
+// Sync to Odoo request
+export const syncToOdooSchema = z.object({
+  include_attendance: z.boolean().default(true),
+});
+
+// Employee filter schema
+export const employeeFiltersSchema = z.object({
+  department: z.string().optional(),
+  is_active: z.boolean().optional(),
+  search: z.string().optional(),
+});
+
+// Export Production Module types
+export type ConsumptionLineInputData = z.infer<
+  typeof consumptionLineInputSchema
+>;
+export type ShiftInputData = z.infer<typeof shiftInputSchema>;
+export type AttendanceEntryData = z.infer<typeof attendanceEntrySchema>;
+export type CreateProductionOrderData = z.infer<
+  typeof createProductionOrderSchema
+>;
+export type UpdateProductionOrderData = z.infer<
+  typeof updateProductionOrderSchema
+>;
+export type ProductionOrderFiltersData = z.infer<
+  typeof productionOrderFiltersSchema
+>;
+export type CreateShiftData = z.infer<typeof createShiftSchema>;
+export type UpdateShiftData = z.infer<typeof updateShiftSchema>;
+export type UpdateConsumptionLineData = z.infer<
+  typeof updateConsumptionLineSchema
+>;
+export type SyncToOdooData = z.infer<typeof syncToOdooSchema>;
+export type EmployeeFiltersData = z.infer<typeof employeeFiltersSchema>;
+
+// ============================================================================
+// Approval Workflow Schemas (Ticketing System - Issue #25)
+// ============================================================================
+
+// Ticket status enums
+export const ticketStatusSchema = z.enum([
+  "pending",
+  "in_review",
+  "approved",
+  "rejected",
+  "changes_requested",
+]);
+
+export const ticketPrioritySchema = z.enum(["low", "medium", "high", "urgent"]);
+
+export const ticketTypeSchema = z.enum([
+  "production_order",
+  "quote_approval",
+  "payment_approval",
+]);
+
+export const ticketHistoryActionSchema = z.enum([
+  "created",
+  "status_changed",
+  "assigned",
+  "commented",
+  "approved",
+  "rejected",
+  "changes_requested",
+]);
+
+// Create ticket schema
+export const createTicketSchema = z.object({
+  type: ticketTypeSchema,
+  title: z.string().min(1, "Title is required"),
+  description: z.string().nullable().optional(),
+  priority: ticketPrioritySchema.default("medium"),
+  production_order_id: z.string().uuid().nullable().optional(),
+  lead_id: z.string().uuid().nullable().optional(),
+  due_date: z.string().nullable().optional(),
+  assigned_to: z.string().uuid().nullable().optional(),
+});
+
+// Approve ticket schema
+export const approveTicketSchema = z.object({
+  notes: z.string().optional(),
+});
+
+// Reject ticket schema
+export const rejectTicketSchema = z.object({
+  reason: z.string().min(1, "Rejection reason is required"),
+});
+
+// Request changes schema
+export const requestChangesSchema = z.object({
+  reason: z.string().min(1, "Change request reason is required"),
+});
+
+// Add comment schema
+export const addTicketCommentSchema = z.object({
+  comment: z.string().min(1, "Comment is required"),
+});
+
+// Ticket filters schema
+export const ticketFiltersSchema = z.object({
+  status: ticketStatusSchema.optional(),
+  priority: ticketPrioritySchema.optional(),
+  type: ticketTypeSchema.optional(),
+  created_by: z.string().uuid().optional(),
+  assigned_to: z.string().uuid().optional(),
+  from_date: z.string().optional(),
+  to_date: z.string().optional(),
+  search: z.string().optional(),
+});
+
+// Submit for approval schema (Production Order)
+export const submitForApprovalSchema = z.object({
+  priority: ticketPrioritySchema.default("medium"),
+  due_date: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+
+// Export Ticket types
+export type TicketStatusData = z.infer<typeof ticketStatusSchema>;
+export type TicketPriorityData = z.infer<typeof ticketPrioritySchema>;
+export type TicketTypeData = z.infer<typeof ticketTypeSchema>;
+export type CreateTicketData = z.infer<typeof createTicketSchema>;
+export type ApproveTicketData = z.infer<typeof approveTicketSchema>;
+export type RejectTicketData = z.infer<typeof rejectTicketSchema>;
+export type RequestChangesData = z.infer<typeof requestChangesSchema>;
+export type AddTicketCommentData = z.infer<typeof addTicketCommentSchema>;
+export type TicketFiltersData = z.infer<typeof ticketFiltersSchema>;
+export type SubmitForApprovalData = z.infer<typeof submitForApprovalSchema>;
