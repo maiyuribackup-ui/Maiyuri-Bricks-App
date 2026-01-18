@@ -1,5 +1,5 @@
 // Auth
-export { useAuth, useRequireAuth } from './useAuth';
+export { useAuth, useRequireAuth } from "./useAuth";
 
 // Leads
 export {
@@ -9,7 +9,7 @@ export {
   useUpdateLead,
   useDeleteLead,
   useUpdateLeadStatus,
-} from './useLeads';
+} from "./useLeads";
 
 // Notes
 export {
@@ -18,14 +18,14 @@ export {
   useCreateNote,
   useUpdateNote,
   useDeleteNote,
-} from './useNotes';
+} from "./useNotes";
 
 // Dashboard
 export {
   useDashboardStats,
   useLeadStats,
   useRecentActivity,
-} from './useDashboard';
+} from "./useDashboard";
 
 // Transcription & Audio
 export {
@@ -33,7 +33,7 @@ export {
   useSummarize,
   useUploadAudio,
   useDeleteAudio,
-} from './useTranscription';
+} from "./useTranscription";
 
 // Price Estimator
 export {
@@ -48,4 +48,38 @@ export {
   useSuggestDiscount,
   useCalculateDistance,
   calculateEstimateSummary,
-} from './useEstimates';
+} from "./useEstimates";
+
+// Production Module
+export {
+  // Finished Goods
+  useFinishedGoods,
+  useSyncFinishedGoods,
+  // BOM
+  useBOM,
+  useRefreshBOM,
+  // Employees
+  useEmployees,
+  useSyncEmployees,
+  // Production Orders
+  useProductionOrders,
+  useProductionOrder,
+  useCreateProductionOrder,
+  useUpdateProductionOrder,
+  useDeleteProductionOrder,
+  // Odoo Sync
+  useSyncToOdoo,
+  // Shifts
+  useShifts,
+  useCreateShift,
+  useUpdateShift,
+  useEndShift,
+  useDeleteShift,
+  // Consumption
+  useUpdateConsumptionLine,
+  // Attendance
+  useSyncAttendance,
+  // Utilities
+  calculateExpectedConsumption,
+  calculateConsumptionDifference,
+} from "./useProduction";
