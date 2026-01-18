@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { smartQuoteTokens, cn } from "../tokens";
 import type {
   SmartQuoteObjection,
@@ -7,7 +8,7 @@ import type {
 } from "@maiyuri/shared";
 
 interface ObjectionAnswerSectionProps {
-  objection: SmartQuoteObjection;
+  objections: SmartQuoteObjection[]; // Changed to array to support max 2
   language: "en" | "ta";
 }
 
@@ -121,20 +122,27 @@ const objectionAnswers: Record<
 };
 
 /**
- * Objection Answer Section - Address top concern
+ * Objection Answer Section - Accordion Style
  *
  * Design principles:
- * - One objection only (highest severity)
+ * - Max 2 objections in accordion format
  * - Question → Answer → Proof format
  * - Empathetic, not defensive
+ * - Clean, minimal accordion interaction
  */
 export function ObjectionAnswerSection({
-  objection,
+  objections,
   language,
 }: ObjectionAnswerSectionProps) {
-  const { colors, typography, radius, shadow, spacing } = smartQuoteTokens;
+  const { colors, typography, radius, spacing } = smartQuoteTokens;
 
-  const answer = objectionAnswers[objection.type];
+  // Only show max 2 objections
+  const displayObjections = objections.slice(0, 2);
+
+  // Track which accordion item is open (default first one open)
+  const [openIndex, setOpenIndex] = useState<number>(0);
+
+  const title = language === "ta" ? "நீங்கள் கேட்கலாம்..." : "Common questions";
 
   return (
     <section
@@ -146,76 +154,118 @@ export function ObjectionAnswerSection({
       )}
     >
       <div className={cn(spacing.container.narrow)}>
-        {/* Section label */}
-        <div className="text-center mb-6">
-          <span className={cn(typography.label.small, colors.text.muted)}>
-            {language === "ta"
-              ? "நீங்கள் கேட்கலாம்..."
-              : "You might be wondering..."}
-          </span>
-        </div>
-
-        {/* Objection card */}
-        <div
+        {/* Section title */}
+        <h2
           className={cn(
-            "bg-white",
-            radius["2xl"],
-            shadow.card,
-            "p-6 md:p-8 lg:p-10",
+            typography.headline.section,
+            colors.text.primary,
+            "text-center mb-10 md:mb-12",
           )}
         >
-          {/* The question */}
-          <p
-            className={cn(
-              typography.headline.subsection,
-              colors.text.primary,
-              "text-center mb-6",
-              "italic",
-            )}
-          >
-            {answer.question[language]}
-          </p>
+          {title}
+        </h2>
 
-          {/* Decorative line */}
-          <div
-            className={cn("h-px w-16 mx-auto mb-6", colors.decorative.line)}
-          />
+        {/* Accordion items */}
+        <div className="space-y-4">
+          {displayObjections.map((objection, index) => {
+            const answer = objectionAnswers[objection.type];
+            const isOpen = openIndex === index;
 
-          {/* The answer */}
-          <p
-            className={cn(
-              typography.body.base,
-              colors.text.secondary,
-              "text-center mb-6",
-            )}
-          >
-            {answer.answer[language]}
-          </p>
+            return (
+              <div
+                key={index}
+                className={cn(
+                  "bg-white",
+                  radius["2xl"],
+                  "border border-[#E8DED2]",
+                  "overflow-hidden",
+                  "transition-all duration-200",
+                )}
+              >
+                {/* Accordion header - clickable */}
+                <button
+                  className={cn(
+                    "w-full px-6 py-5 md:px-8 md:py-6",
+                    "flex items-center justify-between",
+                    "text-left",
+                    "transition-colors duration-200",
+                    "hover:bg-[#FBF7F2]/50",
+                  )}
+                  onClick={() => setOpenIndex(isOpen ? -1 : index)}
+                >
+                  <span
+                    className={cn(
+                      typography.headline.card,
+                      colors.text.primary,
+                    )}
+                  >
+                    {answer.question[language].replace(/"/g, "")}
+                  </span>
 
-          {/* Proof point */}
-          <div
-            className={cn(
-              "flex items-center justify-center gap-2",
-              "px-4 py-2",
-              radius.lg,
-              colors.trust.bg,
-            )}
-          >
-            <svg
-              className={cn("w-4 h-4", colors.trust.icon)}
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fillRule="evenodd"
-                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                clipRule="evenodd"
-              />
-            </svg>
-            <span className={cn(typography.body.small, colors.trust.text)}>
-              {answer.proof[language]}
-            </span>
-          </div>
+                  {/* Chevron icon */}
+                  <svg
+                    className={cn(
+                      "w-5 h-5",
+                      colors.text.muted,
+                      "transition-transform duration-200",
+                      isOpen && "rotate-180",
+                    )}
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* Accordion content */}
+                {isOpen && (
+                  <div className="px-6 pb-6 md:px-8 md:pb-8">
+                    {/* The answer */}
+                    <p
+                      className={cn(
+                        typography.body.base,
+                        colors.text.secondary,
+                        "mb-4",
+                      )}
+                    >
+                      {answer.answer[language]}
+                    </p>
+
+                    {/* Proof point */}
+                    <div
+                      className={cn(
+                        "inline-flex items-center gap-2",
+                        "px-4 py-2",
+                        radius.chip,
+                        colors.trust.bg,
+                      )}
+                    >
+                      <svg
+                        className={cn("w-4 h-4", colors.trust.icon)}
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      <span
+                        className={cn(typography.body.small, colors.trust.text)}
+                      >
+                        {answer.proof[language]}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>

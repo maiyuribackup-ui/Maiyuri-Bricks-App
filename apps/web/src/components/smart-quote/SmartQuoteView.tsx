@@ -5,7 +5,7 @@ import { smartQuoteTokens, cn } from "./tokens";
 import { LanguageToggle } from "./ui/LanguageToggle";
 import { HeroSection } from "./ui/HeroSection";
 import { PersonalizationCard } from "./ui/PersonalizationCard";
-import { ChennaiLogicSection } from "./ui/ChennaiLogicSection";
+import { WhyChennaiWorksSection } from "./ui/WhyChennaiWorksSection";
 import { ProofSection } from "./ui/ProofSection";
 import { PriceSection } from "./ui/PriceSection";
 import { ObjectionAnswerSection } from "./ui/ObjectionAnswerSection";
@@ -14,7 +14,6 @@ import type {
   SmartQuoteLanguage,
   SmartQuoteWithImages,
   SmartQuoteCtaSubmission,
-  SmartQuoteAngle,
   SmartQuoteRoute,
   SmartQuotePersonalizationSnippets,
 } from "@maiyuri/shared";
@@ -27,12 +26,28 @@ interface SmartQuoteViewProps {
 // Default personalization snippets if not provided
 const defaultSnippets: SmartQuotePersonalizationSnippets = {
   en: {
-    p1: "We understand you're looking for the best option for your home.",
-    p2: "Let us show you why earth blocks might be the perfect choice.",
+    p1: "We've analyzed your needs and believe earth blocks could be the perfect fit for your Chennai home.",
+    p2: "Let us show you why this works for families like yours.",
   },
   ta: {
-    p1: "உங்கள் வீட்டிற்கு சிறந்த விருப்பத்தை நீங்கள் தேடுகிறீர்கள் என்பதை நாங்கள் புரிந்துகொள்கிறோம்.",
-    p2: "மண் செங்கற்கள் ஏன் சரியான தேர்வாக இருக்கும் என்பதைக் காட்டுவோம்.",
+    p1: "உங்கள் தேவைகளை பகுப்பாய்வு செய்துள்ளோம், மண் செங்கற்கள் உங்கள் சென்னை வீட்டிற்கு சரியான தேர்வாக இருக்கும் என நம்புகிறோம்.",
+    p2: "உங்களைப் போன்ற குடும்பங்களுக்கு இது ஏன் வேலை செய்கிறது என்பதைக் காட்டுவோம்.",
+  },
+};
+
+// Hero copy - belief-breaking headline about Tamil architecture
+const heroCopy = {
+  en: {
+    headline:
+      "You've admired homes inspired by traditional Tamil architecture. Now you can build one in Chennai.",
+    subheadline:
+      "Not a heritage village. Not a resort. A real eco-friendly home designed for Chennai heat and city living.",
+  },
+  ta: {
+    headline:
+      "பாரம்பரிய தமிழ் கட்டிடக்கலையால் ஈர்க்கப்பட்ட வீடுகளை நீங்கள் பாராட்டியுள்ளீர்கள். இப்போது சென்னையில் ஒன்றை நீங்களே கட்டலாம்.",
+    subheadline:
+      "பாரம்பரிய கிராமம் அல்ல. ரிசார்ட் அல்ல. சென்னை வெப்பத்திற்கும் நகர வாழ்க்கைக்கும் வடிவமைக்கப்பட்ட உண்மையான சுற்றுச்சூழல் நட்பு வீடு.",
   },
 };
 
@@ -73,20 +88,16 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
     quote.lead?.smart_quote_payload?.personalization_snippets ??
     defaultSnippets;
 
-  // Get primary angle (from payload or default to cooling for Chennai)
-  const primaryAngle: SmartQuoteAngle =
-    (quote.primary_angle as SmartQuoteAngle) ?? "cooling";
-
   // Get route decision (from payload or default based on stage)
   const routeDecision: SmartQuoteRoute =
     quote.route_decision ??
     (quote.stage === "hot" ? "cost_estimate" : "site_visit");
 
-  // Get top objection (first one, or default to price)
-  const topObjection = quote.top_objections[0] ?? {
-    type: "price",
-    severity: "medium",
-  };
+  // Get top objections (max 2)
+  const topObjections =
+    quote.top_objections.length > 0
+      ? quote.top_objections.slice(0, 2)
+      : [{ type: "price" as const, severity: "medium" as const }];
 
   // Track events
   const trackEvent = useCallback(
@@ -124,7 +135,7 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
     trackEvent("lang_toggle", undefined, { from: language, to: newLang });
   };
 
-  // Track section views using Intersection Observer
+  // Track section views using Intersection Observer (40% visibility threshold)
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -137,7 +148,7 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
           }
         });
       },
-      { threshold: 0.5 },
+      { threshold: 0.4 }, // 40% visibility as specified
     );
 
     const sections = document.querySelectorAll("[data-section]");
@@ -169,23 +180,19 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
       <LanguageToggle value={language} onChange={handleLanguageChange} />
 
       {/* === SECTION 1: HERO === */}
-      {/* Belief-breaking headline, full-bleed image, NO CTA */}
+      {/* Full-bleed image, belief-breaking headline, trust chips, CTA */}
       <section data-section="hero">
         <HeroSection
           image={quote.images.entry}
-          headline={getCopy(
-            "entry.hero_headline",
-            language === "ta"
-              ? "குளிர்ச்சியாக கட்டுங்கள். ஆரோக்கியமாக வாழுங்கள்."
-              : "Build cooler. Live healthier.",
-          )}
-          subheadline={getCopy("entry.belief_breaker")}
+          headline={heroCopy[language].headline}
+          subheadline={heroCopy[language].subheadline}
+          language={language}
         />
       </section>
 
-      {/* === SECTION 2: PERSONALIZATION === */}
-      {/* "Made for you" card with AI-generated snippets */}
-      <section data-section="personalization">
+      {/* === SECTION 2: MADE FOR YOU === */}
+      {/* Personalized insights from AI */}
+      <section data-section="made_for_you">
         <PersonalizationCard
           snippets={personalizationSnippets}
           language={language}
@@ -193,46 +200,41 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
         />
       </section>
 
-      {/* === SECTION 3: CHENNAI LOGIC === */}
-      {/* Primary angle benefit with stat */}
-      <section data-section="logic">
-        <ChennaiLogicSection
-          image={quote.images.climate}
-          primaryAngle={primaryAngle}
-          language={language}
-        />
+      {/* === SECTION 3: WHY CHENNAI WORKS === */}
+      {/* Chennai-specific logic with 3 icon cards */}
+      <section data-section="why_chennai_works">
+        <WhyChennaiWorksSection language={language} />
       </section>
 
-      {/* === SECTION 4: PROOF === */}
-      {/* Social proof badges */}
-      <section data-section="proof">
+      {/* === SECTION 4: PROOF TEASER === */}
+      {/* 2-3 real project images */}
+      <section data-section="proof_teaser">
         <ProofSection language={language} />
       </section>
 
-      {/* === SECTION 5: COST === */}
-      {/* Price range display */}
-      <section data-section="cost">
+      {/* === SECTION 5: SMART RANGE === */}
+      {/* Cost as range with "what affects it" chips */}
+      <section data-section="smart_range">
         <PriceSection
-          image={quote.images.cost}
           priceRange={getCopy("cost.range_placeholder", "₹45–₹55")}
           language={language}
         />
       </section>
 
-      {/* === SECTION 6: OBJECTIONS === */}
-      {/* Answer top objection */}
-      {quote.top_objections.length > 0 && (
-        <section data-section="objection">
+      {/* === SECTION 6: OBJECTION HANDLING === */}
+      {/* Max 2 objections, accordion style */}
+      {topObjections.length > 0 && (
+        <section data-section="objection_handling">
           <ObjectionAnswerSection
-            objection={topObjection}
+            objections={topObjections}
             language={language}
           />
         </section>
       )}
 
-      {/* === SECTION 7: CTA === */}
-      {/* AI-routed single CTA */}
-      <section data-section="cta">
+      {/* === SECTION 7: FINAL CTA === */}
+      {/* Single button that changes by route_decision */}
+      <section data-section="final_cta">
         <RoutedCtaSection
           routeDecision={routeDecision}
           language={language}

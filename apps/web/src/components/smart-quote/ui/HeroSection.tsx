@@ -8,26 +8,40 @@ interface HeroSectionProps {
   image: SmartQuoteImage | null;
   headline: string;
   subheadline?: string;
+  language: "en" | "ta";
 }
 
 /**
- * Hero section - Steve Jobs style
+ * Hero Section - Steve Jobs Style Redesign
  *
  * Design principles:
- * - Full-bleed image (100vw × 85vh)
- * - One belief-breaking headline
- * - NO CTA button (let them breathe)
- * - Text at bottom with gradient overlay
+ * - Full-bleed high-quality image
+ * - Belief-breaking headline about Tamil architecture
+ * - Trust chips (2-3 minutes, No spam, No pressure)
+ * - Single clear CTA
+ * - Gradient overlay for text readability
  */
 export function HeroSection({
   image,
   headline,
   subheadline,
+  language,
 }: HeroSectionProps) {
-  const { typography, spacing } = smartQuoteTokens;
+  const { typography, spacing, colors, radius } = smartQuoteTokens;
+
+  // Trust chips content
+  const trustChips =
+    language === "ta"
+      ? ["2–3 நிமிடங்கள்", "ஸ்பேம் இல்லை", "அழுத்தம் இல்லை"]
+      : ["2–3 minutes", "No spam", "No pressure"];
+
+  const ctaText =
+    language === "ta"
+      ? "உங்கள் நிலத்திற்கு இது எப்படி வேலை செய்கிறது என்பதைப் பார்க்கவும்"
+      : "See how this works for your plot";
 
   return (
-    <section className="relative min-h-[85vh] flex flex-col justify-end">
+    <section className="relative min-h-screen flex flex-col justify-end">
       {/* Full-bleed Background Image */}
       {image ? (
         <div className="absolute inset-0 z-0">
@@ -39,66 +53,97 @@ export function HeroSection({
             priority
             sizes="100vw"
           />
-          {/* Gradient overlay - stronger at bottom for text readability */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+          {/* Gradient overlay - top: rgba(0,0,0,0.70), bottom: rgba(0,0,0,0.35) */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(to bottom, rgba(0,0,0,0.70) 0%, rgba(0,0,0,0.35) 100%)",
+            }}
+          />
         </div>
       ) : (
-        // Fallback - earthy gradient
-        <div className="absolute inset-0 z-0 bg-gradient-to-br from-[#4A3728] to-[#2D1F16]" />
+        // Fallback - dark gradient
+        <div className="absolute inset-0 z-0 bg-gradient-to-br from-stone-900 to-stone-800" />
       )}
 
       {/* Content - positioned at bottom */}
       <div
         className={cn(
           "relative z-10",
-          spacing.section.mobile,
-          spacing.section.tablet,
+          "px-6 md:px-10 lg:px-12",
+          "pb-12 md:pb-16 lg:pb-20",
           spacing.container.maxWidth,
-          "text-white",
-          "pb-16 md:pb-20 lg:pb-24", // Extra bottom padding
         )}
       >
+        {/* Trust chips - above headline */}
+        <div className="flex flex-wrap gap-3 mb-6">
+          {trustChips.map((chip, index) => (
+            <div
+              key={index}
+              className={cn(
+                "inline-flex items-center px-4 py-2",
+                "bg-white/10 backdrop-blur-md",
+                radius.chip,
+                "text-white/90",
+                typography.label.small,
+                "border border-white/20",
+              )}
+            >
+              {chip}
+            </div>
+          ))}
+        </div>
+
         {/* Belief-breaking Headline */}
         <h1
           className={cn(
             typography.headline.hero,
-            "mb-4",
+            "mb-4 max-w-3xl",
             "text-white",
-            "drop-shadow-lg",
+            "drop-shadow-2xl",
           )}
         >
           {headline}
         </h1>
 
-        {/* Optional subheadline */}
+        {/* Subheadline */}
         {subheadline && (
           <p
             className={cn(
               typography.body.large,
               "text-white/90",
-              "max-w-lg", // Constrain width for readability
+              "max-w-2xl mb-8",
+              "drop-shadow-lg",
             )}
           >
             {subheadline}
           </p>
         )}
 
-        {/* Scroll indicator */}
-        <div className="mt-8 flex justify-center">
-          <div className="animate-bounce">
-            <svg
-              className="w-6 h-6 text-white/60"
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-            </svg>
-          </div>
-        </div>
+        {/* CTA Button */}
+        <button
+          className={cn(
+            "inline-flex items-center px-8 py-4",
+            colors.cta.bg,
+            colors.cta.text,
+            radius.button,
+            typography.body.base,
+            "font-semibold",
+            "shadow-xl",
+            "transition-all duration-200",
+            "hover:shadow-2xl hover:scale-[1.02]",
+          )}
+          onClick={() => {
+            // Scroll to personalization section
+            const section = document.querySelector(
+              '[data-section="made_for_you"]',
+            );
+            section?.scrollIntoView({ behavior: "smooth" });
+          }}
+        >
+          {ctaText}
+        </button>
       </div>
     </section>
   );

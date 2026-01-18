@@ -1,45 +1,43 @@
 "use client";
 
+import Image from "next/image";
 import { smartQuoteTokens, cn } from "../tokens";
 
 interface ProofSectionProps {
   language: "en" | "ta";
 }
 
-// Social proof data
-const proofItems = [
+// Placeholder project images - these would come from the database in production
+const projectImages = [
   {
-    icon: "🏠",
-    value: "150+",
-    label: { en: "Homes built", ta: "வீடுகள் கட்டப்பட்டன" },
+    url: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&h=600&fit=crop",
+    caption: { en: "Adyar residence", ta: "அடையாறு குடியிருப்பு" },
   },
   {
-    icon: "📍",
-    value: "Chennai",
-    label: { en: "Local factory", ta: "உள்ளூர் தொழிற்சாலை" },
+    url: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&h=600&fit=crop",
+    caption: { en: "Velachery home", ta: "வேளச்சேரி வீடு" },
   },
   {
-    icon: "⭐",
-    value: "4.8",
-    label: { en: "Google rating", ta: "கூகுள் மதிப்பீடு" },
+    url: "https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=800&h=600&fit=crop",
+    caption: { en: "Tambaram project", ta: "தாம்பரம் திட்டம்" },
   },
 ];
 
-const testimonialSnippet = {
-  en: "We've helped families across Chennai build cooler, healthier homes.",
-  ta: "சென்னை முழுவதும் குடும்பங்கள் குளிர்ச்சியான, ஆரோக்கியமான வீடுகளை கட்ட நாங்கள் உதவியுள்ளோம்.",
-};
-
 /**
- * Proof Section - Social proof badges
+ * Proof Section - Project Image Teaser
  *
  * Design principles:
- * - Quick-scan proof badges (3 max)
- * - Numbers that build trust
- * - No lengthy testimonials here
+ * - 2-3 real project images in a grid
+ * - Clean, minimal presentation
+ * - Teaser style - shows it's real without overwhelming
  */
 export function ProofSection({ language }: ProofSectionProps) {
-  const { colors, typography, radius, shadow, spacing } = smartQuoteTokens;
+  const { colors, typography, radius, spacing } = smartQuoteTokens;
+
+  const title =
+    language === "ta"
+      ? "உண்மையான வீடுகள். உண்மையான குடும்பங்கள்."
+      : "Real homes. Real families.";
 
   return (
     <section
@@ -51,82 +49,76 @@ export function ProofSection({ language }: ProofSectionProps) {
       )}
     >
       <div className={cn(spacing.container.maxWidth)}>
-        {/* Trust statement */}
-        <p
+        {/* Section Title */}
+        <h2
           className={cn(
-            typography.body.base,
-            colors.text.secondary,
-            "text-center mb-8 md:mb-10",
+            typography.headline.section,
+            colors.text.primary,
+            "text-center mb-10 md:mb-12",
           )}
         >
-          {testimonialSnippet[language]}
-        </p>
+          {title}
+        </h2>
 
-        {/* Proof badges */}
-        <div className="flex justify-center gap-4 md:gap-8">
-          {proofItems.map((item, index) => (
+        {/* Project Images Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+          {projectImages.map((project, index) => (
             <div
               key={index}
               className={cn(
-                "bg-white",
-                radius.xl,
-                shadow.card,
-                "px-4 py-4 md:px-6 md:py-5",
-                "text-center",
-                "min-w-[100px] md:min-w-[120px]",
+                "relative aspect-[4/3] overflow-hidden",
+                radius["2xl"],
+                "group cursor-pointer",
               )}
             >
-              <span className="text-2xl md:text-3xl block mb-2">
-                {item.icon}
-              </span>
-              <p
+              <Image
+                src={project.url}
+                alt={project.caption[language]}
+                fill
+                className="object-cover transition-transform duration-300 group-hover:scale-105"
+                sizes="(max-width: 768px) 100vw, 33vw"
+              />
+              {/* Caption overlay */}
+              <div
                 className={cn(
-                  "text-xl md:text-2xl font-bold",
-                  colors.text.primary,
+                  "absolute bottom-0 left-0 right-0",
+                  "bg-gradient-to-t from-black/70 to-transparent",
+                  "p-4",
                 )}
               >
-                {item.value}
-              </p>
-              <p
-                className={cn(
-                  typography.label.small,
-                  colors.text.muted,
-                  "mt-1",
-                )}
-              >
-                {item.label[language]}
-              </p>
+                <p
+                  className={cn(
+                    typography.label.base,
+                    "text-white font-medium",
+                  )}
+                >
+                  {project.caption[language]}
+                </p>
+              </div>
             </div>
           ))}
         </div>
 
-        {/* Trust badge */}
-        <div className="mt-8 flex justify-center">
-          <div
+        {/* Proof stat */}
+        <div className="mt-10 text-center">
+          <p
             className={cn(
-              "inline-flex items-center gap-2",
-              "px-4 py-2",
-              radius.full,
-              colors.trust.bg,
+              typography.body.large,
+              colors.text.primary,
+              "font-semibold",
             )}
           >
-            <svg
-              className={cn("w-4 h-4", colors.trust.icon)}
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fillRule="evenodd"
-                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                clipRule="evenodd"
-              />
-            </svg>
-            <span className={cn(typography.label.base, colors.trust.text)}>
-              {language === "ta"
-                ? "சரிபார்க்கப்பட்ட வணிகம்"
-                : "Verified Business"}
-            </span>
-          </div>
+            {language === "ta"
+              ? "150+ வீடுகள் கட்டப்பட்டன"
+              : "150+ homes built"}
+          </p>
+          <p
+            className={cn(typography.body.small, colors.text.secondary, "mt-2")}
+          >
+            {language === "ta"
+              ? "சென்னை முழுவதும், 2020 முதல்"
+              : "Across Chennai, since 2020"}
+          </p>
         </div>
       </div>
     </section>

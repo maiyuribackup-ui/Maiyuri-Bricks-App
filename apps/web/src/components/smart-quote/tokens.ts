@@ -1,71 +1,72 @@
 /**
- * Smart Quote Design Tokens
+ * Smart Quote Design Tokens - Steve Jobs Style Redesign
  *
- * Premium, calm, eco-friendly design system for Smart Quote pages.
- * Mobile-first with earth-inspired color palette.
+ * Premium, minimalist, eco-friendly design system for Smart Quote pages.
+ * Mobile-first with sophisticated neutral palette inspired by Apple and Linear.
  *
  * Design Philosophy: "Steve Jobs style" - One idea per screen,
- * big visuals, few words, breathing room.
+ * full-bleed visuals, minimal words, generous whitespace.
  *
  * Color Palette:
- * - Warm Sand (#F5F0E8) - Primary background
- * - Terracotta (#C87941) - CTA and accents
- * - Deep Earth Brown (#4A3728) - Headlines
- * - Soft Cream (#FFF9F0) - Cards
+ * - Warm Off-White (#FBF7F2) - Primary background
+ * - Pure White (#FFFFFF) - Cards and surfaces
+ * - Deep Ink (#161616) - Primary text
+ * - Warm Accent (#C46A2B) - CTAs and highlights
+ * - Natural Success (#1E7F4D) - Trust indicators
  */
 
 export const smartQuoteTokens = {
   colors: {
-    // Backgrounds - Earthy tones
+    // Backgrounds - Premium neutrals
     background: {
-      primary: "bg-[#F5F0E8]", // Warm Sand
-      secondary: "bg-[#FFF9F0]", // Soft Cream - Cards
+      primary: "bg-[#FBF7F2]", // Warm Off-White
+      secondary: "bg-white", // Pure White - Cards
       hero: "bg-stone-900", // Dark for contrast with image
-      card: "bg-white/90 backdrop-blur-sm", // Glass-morphism card
+      card: "bg-white backdrop-blur-sm", // Clean cards
     },
-    // Text - Deep earth tones
+    // Text - High contrast ink tones
     text: {
-      primary: "text-[#4A3728]", // Deep Earth Brown
-      secondary: "text-[#6B5B4F]", // Medium brown
-      muted: "text-[#8B7B6B]", // Light brown
+      primary: "text-[#161616]", // Deep Ink
+      secondary: "text-[#5B5B5B]", // Muted Gray
+      muted: "text-[#8B8B8B]", // Light Gray
       inverse: "text-white", // For dark backgrounds
     },
-    // Accent - Terracotta
+    // Accent - Warm terracotta
     accent: {
-      primary: "text-[#C87941]", // Terracotta
-      secondary: "text-[#A66A38]", // Darker terracotta
-      hover: "text-[#B56B35]", // Hover state
+      primary: "text-[#C46A2B]", // Warm Accent
+      secondary: "text-[#8B4A22]", // Darker Accent
+      hover: "text-[#A65824]", // Hover state
     },
-    // CTA Button - Terracotta
+    // CTA Button - Warm accent
     cta: {
-      bg: "bg-[#C87941] hover:bg-[#B56B35]",
+      bg: "bg-[#C46A2B] hover:bg-[#A65824]",
       text: "text-white",
-      border: "border-[#C87941]",
+      border: "border-[#C46A2B]",
     },
     // Subtle decorative
     decorative: {
-      line: "bg-[#C87941]/20",
-      dot: "bg-[#C87941]",
-      gradient: "from-[#C87941]/10 to-transparent",
+      line: "bg-[#E8DED2]", // Subtle line
+      dot: "bg-[#C46A2B]",
+      gradient: "from-[#C46A2B]/10 to-transparent",
     },
     // Trust/success colors
     trust: {
-      bg: "bg-emerald-50",
-      text: "text-emerald-700",
-      icon: "text-emerald-600",
+      bg: "bg-[#1E7F4D]/10",
+      text: "text-[#1E7F4D]",
+      icon: "text-[#1E7F4D]",
     },
   },
 
   spacing: {
     section: {
-      mobile: "py-12 px-5",
-      tablet: "md:py-16 md:px-8",
-      desktop: "lg:py-24 lg:px-12",
+      mobile: "py-12 px-6",
+      tablet: "md:py-16 md:px-10",
+      desktop: "lg:py-20 lg:px-12",
     },
     container: {
-      maxWidth: "max-w-2xl mx-auto", // Narrower for focus
-      narrow: "max-w-xl mx-auto",
-      wide: "max-w-3xl mx-auto",
+      maxWidth: "max-w-[1040px] mx-auto", // Premium max width
+      narrow: "max-w-[720px] mx-auto",
+      wide: "max-w-[1200px] mx-auto",
     },
     gap: {
       xs: "gap-2",
@@ -74,33 +75,34 @@ export const smartQuoteTokens = {
       lg: "gap-8",
       xl: "gap-12",
     },
-    // Generous breathing room
+    // Generous breathing room - Steve Jobs style
     breathe: {
-      small: "mb-6",
-      medium: "mb-10",
-      large: "mb-16",
+      small: "mb-8",
+      medium: "mb-12",
+      large: "mb-20",
     },
   },
 
   typography: {
     headline: {
       // Steve Jobs style - Big, bold, memorable
-      hero: "text-3xl md:text-4xl lg:text-5xl font-bold leading-tight tracking-tight",
-      section: "text-2xl md:text-3xl font-bold leading-snug tracking-tight",
-      subsection: "text-xl md:text-2xl font-semibold leading-snug",
-      card: "text-lg md:text-xl font-semibold leading-snug",
+      hero: "text-[34px] md:text-[44px] font-bold leading-[1.1] tracking-[-0.02em]",
+      section:
+        "text-[26px] md:text-[32px] font-bold leading-[1.2] tracking-[-0.01em]",
+      subsection: "text-[20px] md:text-[24px] font-semibold leading-[1.3]",
+      card: "text-[18px] md:text-[20px] font-semibold leading-[1.4]",
     },
     body: {
-      large: "text-lg md:text-xl leading-relaxed",
-      base: "text-base md:text-lg leading-relaxed",
-      small: "text-sm md:text-base leading-relaxed",
+      large: "text-[18px] md:text-[20px] leading-[1.6]",
+      base: "text-[16px] md:text-[18px] leading-[1.6]",
+      small: "text-[14px] md:text-[16px] leading-[1.5]",
     },
     label: {
-      base: "text-sm font-medium tracking-wide",
-      small: "text-xs font-semibold uppercase tracking-wider",
+      base: "text-[14px] font-medium",
+      small: "text-[12px] font-semibold uppercase tracking-[0.05em]",
     },
     // Personalization snippets - Friendly, conversational
-    personalized: "text-lg md:text-xl leading-relaxed italic",
+    personalized: "text-[18px] md:text-[20px] leading-[1.6]",
   },
 
   radius: {
@@ -109,8 +111,10 @@ export const smartQuoteTokens = {
     md: "rounded-md",
     lg: "rounded-lg",
     xl: "rounded-xl",
-    "2xl": "rounded-2xl",
+    "2xl": "rounded-[20px]", // Card radius
     "3xl": "rounded-3xl",
+    button: "rounded-[14px]", // Button radius
+    chip: "rounded-full", // Chip radius
     full: "rounded-full",
   },
 

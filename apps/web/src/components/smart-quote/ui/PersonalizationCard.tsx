@@ -88,9 +88,14 @@ export function PersonalizationCard({
 
           {/* Primary personalization snippet */}
           <p
-            className={cn(typography.personalized, colors.text.primary, "mb-4")}
+            className={cn(
+              typography.personalized,
+              colors.text.primary,
+              "mb-4",
+              "font-normal",
+            )}
           >
-            &ldquo;{snippet.p1}&rdquo;
+            {snippet.p1}
           </p>
 
           {/* Secondary snippet (if provided) */}
