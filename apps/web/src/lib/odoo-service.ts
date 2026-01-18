@@ -437,13 +437,32 @@ export async function pushLeadToOdoo(leadId: string): Promise<SyncResult> {
 
     let odooLeadId: number;
 
+    // Context to skip mail notifications (avoids Odoo template errors)
+    const odooContext = {
+      context: {
+        mail_auto_subscribe_no_notify: true,
+        mail_create_nosubscribe: true,
+        tracking_disable: true,
+      },
+    };
+
     if (lead.odoo_lead_id) {
       // Update existing lead
-      await execute("crm.lead", "write", [[lead.odoo_lead_id], leadData]);
+      await execute(
+        "crm.lead",
+        "write",
+        [[lead.odoo_lead_id], leadData],
+        odooContext,
+      );
       odooLeadId = lead.odoo_lead_id;
     } else {
       // Create new lead
-      odooLeadId = (await execute("crm.lead", "create", [leadData])) as number;
+      odooLeadId = (await execute(
+        "crm.lead",
+        "create",
+        [leadData],
+        odooContext,
+      )) as number;
     }
 
     // Update Supabase with Odoo ID
