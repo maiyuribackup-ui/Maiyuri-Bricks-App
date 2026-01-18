@@ -8,18 +8,36 @@ interface PageProps {
 }
 
 /**
+ * Get base URL for API calls
+ * Priority: NEXT_PUBLIC_APP_URL > VERCEL_URL > localhost
+ */
+function getBaseUrl(): string {
+  // Explicit app URL (highest priority)
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+  // Vercel deployment URL (production/preview)
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  // Local development fallback
+  return "http://localhost:3000";
+}
+
+/**
  * Fetch Smart Quote data by slug
  */
 async function getSmartQuote(
   slug: string,
 ): Promise<SmartQuoteWithImages | null> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const baseUrl = getBaseUrl();
     const response = await fetch(`${baseUrl}/api/sq/${slug}`, {
       cache: "no-store", // Always fetch fresh data
     });
 
     if (!response.ok) {
+      console.error("[SmartQuotePage] API returned:", response.status);
       return null;
     }
 
