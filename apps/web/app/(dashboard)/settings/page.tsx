@@ -48,7 +48,7 @@ async function fetchTeamMembers(): Promise<{ data: TeamMember[] }> {
   return res.json();
 }
 
-type TabId = "profile" | "notifications" | "team" | "smart-quotes";
+type TabId = "profile" | "notifications" | "team" | "smart-quotes" | "nudges";
 
 interface Tab {
   id: TabId;
@@ -61,6 +61,7 @@ const TABS: Tab[] = [
   { id: "notifications", label: "Notifications" },
   { id: "team", label: "Team", roles: ["founder", "owner"] },
   { id: "smart-quotes", label: "Smart Quotes", roles: ["founder"] },
+  { id: "nudges", label: "Nudges", roles: ["founder", "owner", "admin"] },
 ];
 
 export default function SettingsPage() {
@@ -115,6 +116,7 @@ export default function SettingsPage() {
       {activeTab === "notifications" && <NotificationSettings />}
       {activeTab === "team" && <TeamSettings />}
       {activeTab === "smart-quotes" && <SmartQuoteImagesTab />}
+      {activeTab === "nudges" && <NudgesSettings />}
     </div>
   );
 }
@@ -839,6 +841,81 @@ function TeamSettings() {
         </div>
       )}
     </>
+  );
+}
+
+function NudgesSettings() {
+  return (
+    <Card className="p-6">
+      <div className="flex items-start gap-4">
+        <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+          <BellIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+        </div>
+        <div className="flex-1">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+            AI Nudge System
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+            Configure automated follow-up reminders for your team. Set up rules
+            to nudge staff about overdue follow-ups, high-score leads, and more.
+          </p>
+          <div className="flex flex-wrap gap-3 mb-4">
+            <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+              Morning Digest
+            </span>
+            <span className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
+              Manual Triggers
+            </span>
+            <span className="px-2 py-1 text-xs font-medium rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">
+              Telegram Notifications
+            </span>
+          </div>
+          <a
+            href="/settings/nudges"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Manage Nudge Rules
+            <ArrowRightIcon className="h-4 w-4" />
+          </a>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function BellIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"
+      />
+    </svg>
+  );
+}
+
+function ArrowRightIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
+      />
+    </svg>
   );
 }
 
