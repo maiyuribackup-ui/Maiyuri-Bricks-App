@@ -15,6 +15,7 @@ import {
 } from "./analysis.js";
 import { sendTelegramNotification } from "./notifications.js";
 import { logError, logProgress } from "./logger.js";
+import { triggerLeadAnalysis } from "./lead-analysis-trigger.js";
 
 // Types
 interface CallRecording {
@@ -339,6 +340,23 @@ export async function processRecording(
       extractedDetails: extractedDetails || undefined,
       isNewlyAutoPopulated,
     });
+
+    // ========================================
+    // Stage 7: Trigger Lead Analysis (if enabled and lead exists)
+    // ========================================
+    if (lead_id) {
+      logProgress(id, "Triggering lead analysis");
+
+      // Non-blocking: Don't fail processing if analysis trigger fails
+      triggerLeadAnalysis({
+        leadId: lead_id,
+        recordingId: id,
+      }).catch((err) => {
+        logError(`Failed to trigger analysis for lead ${lead_id}`, err);
+      });
+    } else {
+      logProgress(id, "No lead associated, skipping analysis");
+    }
 
     // ========================================
     // Mark as completed
