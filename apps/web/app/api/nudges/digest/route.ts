@@ -26,6 +26,11 @@ import {
   formatNudgeSummary,
   getNudgeCheckKey,
 } from "@/lib/nudge-utils";
+import {
+  batchEnhanceLeads,
+  formatEnhancedDigestEntry,
+  type NudgeAIEnhancement,
+} from "@/lib/nudge-ai";
 import type {
   Lead,
   NudgeRule,
@@ -41,6 +46,79 @@ interface UserWithTelegram {
   id: string;
   name: string;
   telegram_chat_id?: string;
+}
+
+const APP_URL =
+  process.env.NEXT_PUBLIC_APP_URL || "https://maiyuri-bricks-app.vercel.app";
+
+const STATUS_EMOJI: Record<string, string> = {
+  new: "🆕",
+  follow_up: "⏰",
+  hot: "🔥",
+  cold: "❄️",
+  converted: "✅",
+  lost: "❌",
+};
+
+/**
+ * Format AI-enhanced digest message
+ * Includes smart actions and optimal contact times when available
+ */
+function formatAIEnhancedDigestMessage(
+  group: NudgeDigestGroup,
+  enhancements: Map<string, NudgeAIEnhancement>,
+): string {
+  const { staff_name, leads } = group;
+  const lines: string[] = [];
+
+  // Header
+  lines.push(`🤖 *AI-Enhanced Morning Digest*`);
+  lines.push(``);
+
+  // Staff greeting
+  if (staff_name !== "Unassigned") {
+    lines.push(`Hi ${staff_name.split(" ")[0]},`);
+  }
+  lines.push(
+    `You have *${leads.length}* lead${leads.length > 1 ? "s" : ""} requiring attention:`,
+  );
+  lines.push(``);
+
+  // Sort leads by status priority
+  const statusOrder = ["hot", "follow_up", "new", "cold"];
+  const sortedLeads = [...leads].sort((a, b) => {
+    const aIndex = statusOrder.indexOf(a.status);
+    const bIndex = statusOrder.indexOf(b.status);
+    return aIndex - bIndex;
+  });
+
+  // Format each lead with AI enhancement
+  const displayLeads = sortedLeads.slice(0, 10);
+  for (const lead of displayLeads) {
+    const enhancement = enhancements.get(lead.id);
+    lines.push(formatEnhancedDigestEntry(lead, enhancement));
+    lines.push(``);
+  }
+
+  // Note if there are more leads
+  if (leads.length > 10) {
+    lines.push(`...and ${leads.length - 10} more leads`);
+    lines.push(``);
+  }
+
+  // AI Summary if available
+  const enhancedCount = Array.from(enhancements.values()).filter(
+    (e) => e.smart_action || e.optimal_time,
+  ).length;
+  if (enhancedCount > 0) {
+    lines.push(`✨ _AI insights generated for ${enhancedCount} leads_`);
+    lines.push(``);
+  }
+
+  // Footer with link
+  lines.push(`[View All Leads](${APP_URL}/leads)`);
+
+  return lines.join("\n");
 }
 
 /**
@@ -71,7 +149,16 @@ async function handleDigest(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  console.log("[Nudge Digest] Starting morning digest processing...");
+  // Check for AI enhancement mode (via query param or env var)
+  const searchParams = request.nextUrl.searchParams;
+  const aiModeParam = searchParams.get("ai");
+  const aiModeEnv = process.env.NUDGE_AI_ENHANCEMENT_ENABLED === "true";
+  const useAIEnhancement =
+    aiModeParam === "true" || (aiModeParam !== "false" && aiModeEnv);
+
+  console.log("[Nudge Digest] Starting morning digest processing...", {
+    aiEnhancement: useAIEnhancement,
+  });
 
   try {
     // Step 1: Fetch all active nudge rules (ordered by priority)
@@ -190,6 +277,30 @@ async function handleDigest(request: NextRequest): Promise<NextResponse> {
       }
     }
 
+    // Step 5.5: Optionally enhance leads with AI (Phase 3)
+    let aiEnhancements: Map<string, NudgeAIEnhancement> | null = null;
+    if (useAIEnhancement && matchedLeadIds.length > 0) {
+      console.log("[Nudge Digest] Generating AI enhancements...");
+      try {
+        // Collect all digest leads for batch enhancement
+        const allDigestLeads: NudgeDigestLead[] = [];
+        for (const leads of staffGroups.values()) {
+          allDigestLeads.push(...leads);
+        }
+
+        // Batch enhance (limited to top 5 for performance)
+        aiEnhancements = await batchEnhanceLeads(allDigestLeads.slice(0, 5), {
+          includeSmartActions: true,
+          includeOptimalTimes: true,
+          includePersonalizedMessages: false, // Keep digest format consistent
+        });
+        console.log(`[Nudge Digest] AI enhanced ${aiEnhancements.size} leads`);
+      } catch (aiError) {
+        console.error("[Nudge Digest] AI enhancement failed:", aiError);
+        // Continue without AI enhancement
+      }
+    }
+
     // Step 6: Send digest messages and record in history
     const errors: string[] = [];
     let groupsProcessed = 0;
@@ -225,8 +336,13 @@ async function handleDigest(request: NextRequest): Promise<NextResponse> {
         leads: digestLeads,
       };
 
-      // Format and send the message
-      const message = formatDigestMessage(group);
+      // Format message - use AI-enhanced format if available
+      let message: string;
+      if (aiEnhancements && aiEnhancements.size > 0) {
+        message = formatAIEnhancedDigestMessage(group, aiEnhancements);
+      } else {
+        message = formatDigestMessage(group);
+      }
       const result = await sendTelegramMessage(message, chatId);
 
       if (result.success) {

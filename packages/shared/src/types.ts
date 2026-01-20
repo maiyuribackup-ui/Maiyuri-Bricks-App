@@ -1077,6 +1077,70 @@ export interface EventNudgeResponse {
   error?: string;
 }
 
+// AI-powered nudge enhancement types (Phase 3)
+
+// Smart Action - AI-generated action suggestion based on lead context
+export interface NudgeSmartAction {
+  action: string;
+  priority: "high" | "medium" | "low";
+  reasoning: string;
+  script?: string; // Optional talk track for the action
+}
+
+// Optimal Contact Time - AI-predicted best time to reach the lead
+export interface NudgeOptimalTime {
+  recommended_time: string; // HH:MM format (IST)
+  time_window: string; // e.g., "9:00 AM - 11:00 AM IST"
+  confidence: number; // 0-1
+  reasoning: string;
+  day_preference?: "weekday" | "weekend" | "any";
+}
+
+// Personalized Message - AI-generated nudge message
+export interface NudgePersonalizedMessage {
+  message: string;
+  tone: "urgent" | "friendly" | "professional" | "empathetic";
+  call_to_action: string;
+  language: "en" | "ta";
+}
+
+// Complete AI enhancement for a nudge
+export interface NudgeAIEnhancement {
+  lead_id: string;
+  smart_action: NudgeSmartAction | null;
+  optimal_time: NudgeOptimalTime | null;
+  personalized_message: NudgePersonalizedMessage | null;
+  generated_at: string;
+}
+
+// API input for requesting AI enhancement
+export interface NudgeEnhanceInput {
+  lead_id?: string;
+  leads?: NudgeDigestLead[];
+  options?: {
+    include_smart_action?: boolean;
+    include_optimal_time?: boolean;
+    include_personalized_message?: boolean;
+    nudge_type?: "morning_digest" | "manual" | "event";
+    language?: "en" | "ta";
+    context?: {
+      days_overdue?: number;
+      rule_matched?: string;
+      event_type?: string;
+      staff_name?: string;
+    };
+  };
+}
+
+// API response for AI enhancement
+export interface NudgeEnhanceResponse {
+  success: boolean;
+  enhancement?: NudgeAIEnhancement;
+  enhancements?: Record<string, NudgeAIEnhancement>;
+  error?: string;
+  timestamp: string;
+}
+
 export interface NudgeRuleConditions {
   days_overdue?: number;
   days_idle?: number;
