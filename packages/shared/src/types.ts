@@ -1234,3 +1234,109 @@ export interface NudgeDigestResponse {
   leads_nudged: string[];
   errors: string[];
 }
+
+// Nudge Analytics Types (Phase 4)
+
+// Action taken on a nudge
+export type NudgeActionType =
+  | "called"
+  | "messaged"
+  | "visited"
+  | "emailed"
+  | "scheduled"
+  | "converted"
+  | "dismissed"
+  | "none";
+
+// Analytics record for a single nudge
+export interface NudgeAnalytics {
+  id: string;
+  nudge_history_id: string;
+  lead_id: string;
+  nudge_type: string;
+  ai_enhanced: boolean;
+  message_template_id?: string | null;
+  sent_at: string;
+  viewed_at?: string | null;
+  acted_at?: string | null;
+  action_taken?: NudgeActionType | null;
+  time_to_action_minutes?: number | null;
+  lead_status_before?: string | null;
+  lead_status_after?: string | null;
+  lead_score_before?: number | null;
+  lead_score_after?: number | null;
+  contributed_to_conversion: boolean;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+// Message template for A/B testing
+export interface NudgeTemplate {
+  id: string;
+  name: string;
+  description?: string | null;
+  template_type: string;
+  content: string;
+  is_active: boolean;
+  is_control: boolean;
+  send_count: number;
+  action_count: number;
+  action_rate?: number | null;
+  avg_time_to_action_minutes?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Daily aggregated statistics
+export interface NudgeDailyStats {
+  id: string;
+  stat_date: string;
+  nudges_sent: number;
+  nudges_ai_enhanced: number;
+  actions_taken: number;
+  conversions_attributed: number;
+  action_rate?: number | null;
+  ai_action_rate?: number | null;
+  non_ai_action_rate?: number | null;
+  avg_time_to_action_minutes?: number | null;
+  stats_by_type: Record<string, { sent: number; acted: number }>;
+  stats_by_staff: Record<string, { sent: number; acted: number }>;
+  created_at: string;
+  updated_at: string;
+}
+
+// Aggregated metrics for a time period
+export interface NudgeMetrics {
+  total_sent: number;
+  total_acted: number;
+  action_rate: number;
+  ai_enhanced_sent: number;
+  ai_enhanced_acted: number;
+  ai_action_rate: number;
+  non_ai_action_rate: number;
+  avg_time_to_action_minutes: number | null;
+  conversions_attributed: number;
+}
+
+// Analytics API response
+export interface NudgeAnalyticsResponse {
+  success: boolean;
+  data?: {
+    metrics: NudgeMetrics;
+    daily_stats: NudgeDailyStats[];
+    templates: NudgeTemplate[];
+    grouped?: Record<string, NudgeMetrics>;
+    period: { start_date: string; end_date: string };
+  };
+  error?: string;
+  timestamp: string;
+}
+
+// Input for recording an action
+export interface RecordNudgeActionInput {
+  nudge_history_id: string;
+  lead_id: string;
+  action_taken: NudgeActionType;
+  metadata?: Record<string, unknown>;
+}
