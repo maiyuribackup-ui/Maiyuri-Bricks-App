@@ -49,7 +49,8 @@ export type UserRole =
   | "accountant"
   | "engineer"
   | "production_supervisor"
-  | "owner";
+  | "owner"
+  | "driver";
 
 // Lead Intelligence Types - for decision cockpit
 export type LeadUrgency = "immediate" | "1-3_months" | "3-6_months" | "unknown";
@@ -1339,4 +1340,198 @@ export interface RecordNudgeActionInput {
   lead_id: string;
   action_taken: NudgeActionType;
   metadata?: Record<string, unknown>;
+}
+
+// ============================================
+// Delivery Management Types
+// ============================================
+
+// Delivery status mapped to Odoo stock.picking states
+export type DeliveryStatus =
+  | "draft"
+  | "waiting"
+  | "confirmed"
+  | "assigned"
+  | "in_transit"
+  | "delivered"
+  | "cancelled";
+
+// Sync status for tracking Odoo synchronization
+export type DeliverySyncStatus = "synced" | "pending_push" | "error";
+
+// Delivery priority (from Odoo)
+export type DeliveryPriority = 0 | 1; // 0=Normal, 1=Urgent
+
+// User-Odoo mapping for driver assignment sync
+export interface UserOdooMapping {
+  user_id: string;
+  odoo_user_id: number;
+  odoo_user_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Product line in a delivery (from Odoo stock.move)
+export interface DeliveryLine {
+  id: string;
+  delivery_id: string;
+  odoo_move_id: number;
+  product_name: string;
+  product_code: string | null;
+  odoo_product_id: number | null;
+  quantity_ordered: number;
+  quantity_delivered: number | null;
+  uom_name: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Delivery order (from Odoo stock.picking)
+export interface Delivery {
+  id: string;
+  odoo_picking_id: number;
+  name: string; // e.g., "WH/OUT/00423"
+  origin: string | null; // Source sale order name
+
+  // Sale Order reference
+  odoo_sale_id: number | null;
+  odoo_sale_name: string | null;
+
+  // Customer info
+  customer_name: string;
+  customer_phone: string | null;
+  customer_address: string | null;
+  customer_city: string | null;
+  delivery_latitude: number | null;
+  delivery_longitude: number | null;
+
+  // Status & Scheduling
+  status: DeliveryStatus;
+  priority: DeliveryPriority;
+  scheduled_date: string;
+  date_done: string | null;
+
+  // Driver assignment
+  assigned_driver_id: string | null;
+  odoo_user_id: number | null;
+
+  // Delivery details
+  total_weight: number | null;
+  total_quantity: number | null;
+  carrier_tracking_ref: string | null;
+
+  // Proof of Delivery
+  signature_url: string | null;
+  signature_captured_at: string | null;
+  photo_urls: string[] | null;
+  delivery_notes: string | null;
+  recipient_name: string | null;
+
+  // Sync tracking
+  odoo_sync_status: DeliverySyncStatus;
+  odoo_synced_at: string | null;
+  last_local_update: string;
+
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+
+  // Joined relations
+  lines?: DeliveryLine[];
+  assigned_driver?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
+// Filters for querying deliveries
+export interface DeliveryFilters {
+  status?: DeliveryStatus;
+  driver_id?: string;
+  from_date?: string;
+  to_date?: string;
+  search?: string;
+  priority?: DeliveryPriority;
+  sync_status?: DeliverySyncStatus;
+  // Pagination and sorting
+  sort_order?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+}
+
+// Delivery with lines for detail views
+export interface DeliveryWithLines extends Delivery {
+  delivery_lines?: DeliveryLine[];
+}
+
+// Proof of delivery input
+export interface ProofOfDelivery {
+  signature_data?: string; // Base64 encoded signature image
+  photo_files?: File[]; // Photos for upload
+  recipient_name?: string;
+  notes?: string;
+}
+
+// Delivery sync log entry
+export interface DeliverySyncLog {
+  id: string;
+  delivery_id: string | null;
+  sync_type: "pull" | "push_status" | "push_pod" | "push_driver";
+  status: "success" | "error";
+  odoo_response: Record<string, unknown> | null;
+  error_message: string | null;
+  created_at: string;
+}
+
+// API Response types
+export interface DeliveryListResponse {
+  success: boolean;
+  data?: Delivery[];
+  meta?: {
+    total: number;
+    page: number;
+    limit: number;
+  };
+  error?: string;
+  timestamp: string;
+}
+
+export interface DeliveryDetailResponse {
+  success: boolean;
+  data?: Delivery;
+  error?: string;
+  timestamp: string;
+}
+
+export interface DeliverySyncResponse {
+  success: boolean;
+  data?: {
+    synced: number;
+    created: number;
+    updated: number;
+    errors: string[];
+  };
+  error?: string;
+  timestamp: string;
+}
+
+// Input for updating delivery status
+export interface UpdateDeliveryStatusInput {
+  status: DeliveryStatus;
+  notes?: string;
+}
+
+// Input for assigning driver
+export interface AssignDriverInput {
+  driver_id: string;
+}
+
+// Input for completing delivery with POD
+export interface CompleteDeliveryInput {
+  signature_data?: string;
+  photo_urls?: string[];
+  recipient_name?: string;
+  notes?: string;
 }
