@@ -14,7 +14,8 @@
 4. [React Rendering Issues](#4-react-rendering-issues)
 5. [Database & Data Issues](#5-database--data-issues)
 6. [CI/Build Configuration Issues](#6-cibuild-configuration-issues)
-7. [Prevention Checklist](#prevention-checklist)
+7. [Implementation Patterns](#7-implementation-patterns)
+8. [Prevention Checklist](#prevention-checklist)
 
 ---
 
@@ -792,7 +793,7 @@ When a bug is found, add it using this template:
 **Related Bugs:** BUG-XXX, BUG-XXX
 **Related Coding Principle:** [Link to principle]
 
-```
+````
 
 **Categories:**
 - `NULL` - Null/undefined safety issues
@@ -822,10 +823,89 @@ When a bug is found, add it using this template:
 - DB (Database/Data): 3 (BUG-006, BUG-007, BUG-008)
 - CI (Build Configuration): 5 (BUG-009, BUG-010, BUG-011, BUG-012, BUG-013)
 
+### Implementation Patterns (Jan 2026)
+- PATTERN-001: Worker-to-API Auto-Trigger Pattern
+
 **Goal:** 95%+ bug prevention rate through proactive coding principles and testing.
 
 ---
 
-*Last Updated: January 17, 2026*
-*Maintainers: Development Team*
-```
+## 7. Implementation Patterns
+
+### [2026-01-20] PATTERN-001: Worker-to-API Auto-Trigger Pattern
+
+**Category:** Architecture Pattern
+**Files Implemented:**
+- `workers/call-recording-processor/src/lead-analysis-trigger.ts`
+- `workers/call-recording-processor/src/processor.ts`
+
+**Context:** Auto-triggering lead AI analysis when voice recordings complete processing, eliminating manual "Analyze" button clicks.
+
+**Pattern:** Worker calls existing API endpoint via HTTP after processing completion.
+
+**Why This Pattern:**
+1. **Code Reuse:** Leverages existing battle-tested `/api/leads/[id]/analyze` endpoint
+2. **Separation of Concerns:** Worker handles audio, API handles intelligence
+3. **Idempotency:** Analysis endpoint is already idempotent (safe to call multiple times)
+4. **Feature Flag:** Easy to enable/disable via `AUTO_TRIGGER_ANALYSIS` env var
+5. **Rollback:** Instant disable without code deployment
+
+**Implementation Details:**
+
+```typescript
+// 1. Feature Flag Check
+const autoTrigger = process.env.AUTO_TRIGGER_ANALYSIS === "true";
+if (!autoTrigger) return false;
+
+// 2. Debouncing (prevent duplicate triggers)
+const DEBOUNCE_WINDOW_MS = 60000; // 1 minute
+if (shouldDebounce(leadId)) return false;
+
+// 3. Non-blocking HTTP Call
+triggerLeadAnalysis({ leadId, recordingId }).catch((err) => {
+  logError(`Failed to trigger analysis`, err);
+  // Don't fail recording processing
+});
+
+// 4. Auth with Service Role Key
+headers: {
+  Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+}
+````
+
+**Anti-Patterns Avoided:**
+
+- ❌ Duplicating analysis logic in worker (code duplication)
+- ❌ Blocking recording completion on analysis success (coupling)
+- ❌ No feature flag (can't disable without deploy)
+- ❌ No debouncing (duplicate analyses on rapid uploads)
+
+**Key Design Decisions:**
+
+| Decision                | Reasoning                                    |
+| ----------------------- | -------------------------------------------- |
+| Call existing endpoint  | Reuse > rewrite; single source of truth      |
+| Non-blocking `.catch()` | Analysis failure shouldn't fail recording    |
+| 60s debounce window     | Prevents duplicate triggers on rapid uploads |
+| Service role key auth   | Worker is trusted internal service           |
+| Feature flag            | Instant rollback without code deploy         |
+
+**Testing Checklist:**
+
+- [ ] Upload voice for existing lead → Analysis triggered automatically
+- [ ] Upload voice with no lead match → No analysis triggered
+- [ ] Set `AUTO_TRIGGER_ANALYSIS=false` → No analysis triggered
+- [ ] Upload 2 recordings quickly for same lead → Second debounced
+- [ ] API returns error → Recording still marked completed
+
+**Related Principles:**
+
+- DRY: Reuse existing endpoints over reimplementing
+- Feature Flags: Always add for new behaviors
+- Non-blocking: Background tasks shouldn't block critical path
+- Graceful Degradation: Failures shouldn't cascade
+
+---
+
+_Last Updated: January 20, 2026_
+_Maintainers: Development Team_
