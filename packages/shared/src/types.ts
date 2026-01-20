@@ -1030,3 +1030,109 @@ export interface ProductionOrderWithTicket extends ProductionOrder {
   approved_by: string | null;
   ticket?: Ticket;
 }
+
+// ============================================================================
+// AI Nudging System Types (Automated Follow-up Reminders)
+// ============================================================================
+
+export type NudgeRuleType =
+  | "follow_up_overdue"
+  | "no_activity"
+  | "high_score_idle"
+  | "custom";
+
+export type NudgeChannel = "telegram" | "email" | "push";
+
+export interface NudgeRuleConditions {
+  days_overdue?: number;
+  days_idle?: number;
+  days_since_created?: number;
+  min_score?: number;
+  max_score?: number;
+  statuses?: LeadStatus[];
+  classifications?: LeadClassification[];
+  lead_types?: string[];
+}
+
+export interface NudgeRule {
+  id: string;
+  name: string;
+  description: string | null;
+  rule_type: NudgeRuleType;
+  conditions: NudgeRuleConditions;
+  priority: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NudgeHistory {
+  id: string;
+  lead_id: string;
+  rule_id: string | null;
+  nudge_type: string;
+  message: string;
+  channel: NudgeChannel;
+  sent_at: string;
+  delivered: boolean | null;
+  recipient_user_id: string | null;
+  metadata: Record<string, unknown>;
+  // Joined fields
+  lead?: Lead;
+  rule?: NudgeRule;
+}
+
+// Nudge digest lead info (for morning digest)
+export interface NudgeDigestLead {
+  id: string;
+  name: string;
+  contact: string;
+  status: LeadStatus;
+  ai_score: number | null;
+  follow_up_date: string | null;
+  next_action: string | null;
+  days_overdue?: number;
+  last_activity?: string;
+  rule_matched: string;
+}
+
+// Grouped digest for a staff member
+export interface NudgeDigestGroup {
+  staff_id: string;
+  staff_name: string;
+  telegram_chat_id?: string;
+  leads: NudgeDigestLead[];
+}
+
+// API input types
+export interface CreateNudgeRuleInput {
+  name: string;
+  description?: string | null;
+  rule_type: NudgeRuleType;
+  conditions: NudgeRuleConditions;
+  priority?: number;
+  is_active?: boolean;
+}
+
+export interface UpdateNudgeRuleInput {
+  name?: string;
+  description?: string | null;
+  rule_type?: NudgeRuleType;
+  conditions?: NudgeRuleConditions;
+  priority?: number;
+  is_active?: boolean;
+}
+
+export interface TriggerNudgeInput {
+  lead_id: string;
+  nudge_type?: string;
+  message?: string;
+}
+
+// Digest response
+export interface NudgeDigestResponse {
+  groups_processed: number;
+  nudges_sent: number;
+  leads_nudged: string[];
+  errors: string[];
+}

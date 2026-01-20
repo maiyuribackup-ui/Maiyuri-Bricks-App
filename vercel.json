@@ -3,5 +3,11 @@
   "framework": "nextjs",
   "installCommand": "npm install --legacy-peer-deps --registry=https://registry.npmjs.org --no-audit",
   "buildCommand": "turbo run build --filter=@maiyuri/web",
-  "outputDirectory": "apps/web/.next"
+  "outputDirectory": "apps/web/.next",
+  "crons": [
+    {
+      "path": "/api/nudges/digest",
+      "schedule": "30 2 * * *"
+    }
+  ]
 }

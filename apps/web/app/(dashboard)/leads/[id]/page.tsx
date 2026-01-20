@@ -23,7 +23,10 @@ import {
 } from "@/components/leads";
 import { LeadActivityTimeline } from "@/components/timeline";
 import { PriceEstimatorPanel } from "@/components/estimates";
-import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowTopRightOnSquareIcon,
+  BellAlertIcon,
+} from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Toaster, toast } from "sonner";
 
@@ -168,6 +171,23 @@ async function syncLeadWithOdoo(
   return res.json();
 }
 
+async function triggerNudge(leadId: string, message?: string) {
+  const res = await fetch("/api/nudges/trigger", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      lead_id: leadId,
+      nudge_type: "manual",
+      message,
+    }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to send nudge");
+  }
+  return res.json();
+}
+
 async function createNote(leadId: string, data: CreateNoteInput) {
   const res = await fetch(`/api/leads/${leadId}/notes`, {
     method: "POST",
@@ -274,6 +294,21 @@ export default function LeadDetailPage() {
     onError: (error) => {
       toast.error(
         `Sync failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    },
+  });
+
+  // Manual Nudge Mutation (Issue #27)
+  const nudgeMutation = useMutation({
+    mutationFn: () => triggerNudge(leadId),
+    onSuccess: (data) => {
+      toast.success(
+        `Nudge sent for ${data.data?.lead_name ?? "lead"} to ${data.data?.sent_to === "assigned_staff" ? "assigned staff" : "main channel"}`,
+      );
+    },
+    onError: (error) => {
+      toast.error(
+        `Failed to send nudge: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     },
   });
@@ -653,6 +688,22 @@ export default function LeadDetailPage() {
                 </Button>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 text-center">
                   Generate price estimate with AI discount suggestions
+                </p>
+              </div>
+
+              {/* Send Nudge Button (Issue #27) */}
+              <div>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => nudgeMutation.mutate()}
+                  disabled={nudgeMutation.isPending}
+                >
+                  <BellAlertIcon className="h-4 w-4 mr-2" />
+                  {nudgeMutation.isPending ? "Sending..." : "Send Nudge"}
+                </Button>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 text-center">
+                  Send reminder to assigned staff via Telegram
                 </p>
               </div>
             </div>
