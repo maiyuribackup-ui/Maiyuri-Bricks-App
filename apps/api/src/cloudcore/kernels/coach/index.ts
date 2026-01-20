@@ -4,8 +4,8 @@
  * Uses Claude for coaching analysis
  */
 
-import * as claude from '../../services/ai/claude';
-import * as db from '../../services/supabase';
+import * as claude from "../../services/ai/claude";
+import * as db from "../../services/supabase";
 import type {
   CloudCoreResult,
   CoachingRequest,
@@ -14,13 +14,13 @@ import type {
   CoachingInsight,
   CoachingRecommendation,
   User,
-} from '../../types';
+} from "../../types";
 
 export const KERNEL_CONFIG = {
-  name: 'Coach',
-  description: 'Provides staff performance coaching and insights',
-  version: '1.0.0',
-  defaultModel: 'claude-sonnet-4-20250514',
+  name: "Coach",
+  description: "Provides staff performance coaching and insights",
+  version: "1.0.0",
+  defaultModel: "claude-sonnet-4-20250514",
   maxTokens: 2048,
   temperature: 0.6,
 };
@@ -29,7 +29,7 @@ export const KERNEL_CONFIG = {
  * Generate coaching insights for a staff member
  */
 export async function coach(
-  request: CoachingRequest
+  request: CoachingRequest,
 ): Promise<CloudCoreResult<CoachingResponse>> {
   const startTime = Date.now();
 
@@ -41,14 +41,14 @@ export async function coach(
         success: false,
         data: null,
         error: {
-          code: 'STAFF_NOT_FOUND',
+          code: "STAFF_NOT_FOUND",
           message: `Staff not found: ${request.staffId}`,
         },
       };
     }
 
     const user = userResult.data;
-    const period = request.period || 'month';
+    const period = request.period || "month";
 
     // Get staff metrics
     const metricsResult = await db.getStaffMetrics(request.staffId, period);
@@ -57,8 +57,8 @@ export async function coach(
         success: false,
         data: null,
         error: {
-          code: 'METRICS_ERROR',
-          message: 'Failed to fetch staff metrics',
+          code: "METRICS_ERROR",
+          message: "Failed to fetch staff metrics",
         },
       };
     }
@@ -66,7 +66,10 @@ export async function coach(
     const rawMetrics = metricsResult.data;
 
     // Get additional metrics
-    const additionalMetrics = await getAdditionalMetrics(request.staffId, period);
+    const additionalMetrics = await getAdditionalMetrics(
+      request.staffId,
+      period,
+    );
 
     // Build staff metrics
     const metrics: StaffMetrics = {
@@ -74,7 +77,8 @@ export async function coach(
       conversionRate: rawMetrics.conversionRate,
       averageResponseTime: additionalMetrics.avgResponseTime,
       followUpCompletionRate: additionalMetrics.followUpCompletionRate,
-      notesPerLead: rawMetrics.notesCount / Math.max(1, rawMetrics.leadsHandled),
+      notesPerLead:
+        rawMetrics.notesCount / Math.max(1, rawMetrics.leadsHandled),
       activeLeads: rawMetrics.activeLeads,
     };
 
@@ -85,7 +89,7 @@ export async function coach(
       additionalMetrics,
       period,
       request.focusAreas,
-      request.language || 'en'
+      request.language || "en",
     );
 
     const response: CoachingResponse = {
@@ -104,13 +108,13 @@ export async function coach(
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Coaching error:', error);
+    console.error("Coaching error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'COACHING_ERROR',
-        message: error instanceof Error ? error.message : 'Coaching failed',
+        code: "COACHING_ERROR",
+        message: error instanceof Error ? error.message : "Coaching failed",
       },
     };
   }
@@ -121,7 +125,7 @@ export async function coach(
  */
 async function getAdditionalMetrics(
   staffId: string,
-  period: 'week' | 'month' | 'quarter'
+  period: "week" | "month" | "quarter",
 ): Promise<{
   avgResponseTime: number;
   followUpCompletionRate: number;
@@ -132,13 +136,13 @@ async function getAdditionalMetrics(
   const now = new Date();
   let startDate: Date;
   switch (period) {
-    case 'week':
+    case "week":
       startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       break;
-    case 'month':
+    case "month":
       startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       break;
-    case 'quarter':
+    case "quarter":
       startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
       break;
   }
@@ -146,10 +150,10 @@ async function getAdditionalMetrics(
   try {
     // Get leads for more detailed analysis
     const { data: leads } = await db.supabase
-      .from('leads')
-      .select('id, status, follow_up_date, created_at, updated_at')
-      .eq('assigned_staff', staffId)
-      .gte('updated_at', startDate.toISOString());
+      .from("leads")
+      .select("id, status, follow_up_date, created_at, updated_at")
+      .eq("assigned_staff", staffId)
+      .gte("updated_at", startDate.toISOString());
 
     if (!leads || leads.length === 0) {
       return {
@@ -160,31 +164,79 @@ async function getAdditionalMetrics(
       };
     }
 
+    // Get notes to calculate actual response times
+    const { data: notes } = await db.supabase
+      .from("notes")
+      .select("created_at, lead_id")
+      .eq("user_id", staffId)
+      .gte("created_at", startDate.toISOString())
+      .order("created_at", { ascending: true });
+
+    // Group notes by lead_id, get first note timestamp for each lead
+    const firstNoteByLead = new Map<string, Date>();
+    notes?.forEach((note) => {
+      if (!firstNoteByLead.has(note.lead_id)) {
+        firstNoteByLead.set(note.lead_id, new Date(note.created_at));
+      }
+    });
+
+    // Calculate response times (lead creation to first note)
+    const responseTimes: number[] = [];
+    leads.forEach((lead) => {
+      const firstNote = firstNoteByLead.get(lead.id);
+      if (firstNote) {
+        const leadCreated = new Date(lead.created_at);
+        const hours =
+          (firstNote.getTime() - leadCreated.getTime()) / (1000 * 60 * 60);
+        // Only include reasonable response times (0-168 hours / 1 week)
+        if (hours > 0 && hours < 168) {
+          responseTimes.push(hours);
+        }
+      }
+    });
+
+    // Calculate average response time
+    const avgResponseTime =
+      responseTimes.length > 0
+        ? Math.round(
+            (responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length) *
+              10,
+          ) / 10
+        : 0;
+
     // Calculate follow-up completion
     const leadsWithFollowUp = leads.filter((l) => l.follow_up_date);
     const pastFollowUps = leadsWithFollowUp.filter(
-      (l) => new Date(l.follow_up_date) < now
+      (l) => new Date(l.follow_up_date) < now,
     );
     const completedFollowUps = pastFollowUps.filter(
-      (l) => l.status === 'converted' || l.status === 'lost' || new Date(l.updated_at) >= new Date(l.follow_up_date)
+      (l) =>
+        l.status === "converted" ||
+        l.status === "lost" ||
+        new Date(l.updated_at) >= new Date(l.follow_up_date),
     );
 
-    const followUpCompletionRate = pastFollowUps.length > 0
-      ? completedFollowUps.length / pastFollowUps.length
-      : 1;
+    const followUpCompletionRate =
+      pastFollowUps.length > 0
+        ? completedFollowUps.length / pastFollowUps.length
+        : 1;
 
     // Hot leads analysis
-    const hotLeads = leads.filter((l) => l.status === 'hot' || l.status === 'converted');
-    const hotLeadsConverted = leads.filter((l) => l.status === 'converted').length;
+    const hotLeads = leads.filter(
+      (l) => l.status === "hot" || l.status === "converted",
+    );
+    const hotLeadsConverted = leads.filter(
+      (l) => l.status === "converted",
+    ).length;
 
     return {
-      avgResponseTime: 4, // Default 4 hours - would need notes timestamp analysis for real value
+      avgResponseTime, // Now calculated from actual note timestamps
       followUpCompletionRate,
       hotLeadsHandled: hotLeads.length,
       hotLeadsConverted,
     };
   } catch (error) {
-    console.error('Error getting additional metrics:', error);
+    console.error("Error getting additional metrics:", error);
     return {
       avgResponseTime: 0,
       followUpCompletionRate: 0,
@@ -201,9 +253,9 @@ async function generateCoaching(
   user: User,
   metrics: StaffMetrics,
   additionalMetrics: Awaited<ReturnType<typeof getAdditionalMetrics>>,
-  period: 'week' | 'month' | 'quarter',
-  focusAreas?: CoachingRequest['focusAreas'],
-  language: 'en' | 'ta' = 'en'
+  period: "week" | "month" | "quarter",
+  focusAreas?: CoachingRequest["focusAreas"],
+  language: "en" | "ta" = "en",
 ): Promise<{
   insights: CoachingInsight[];
   recommendations: CoachingRecommendation[];
@@ -223,27 +275,27 @@ Hot Leads Handled: ${additionalMetrics.hotLeadsHandled}
 Hot Leads Converted: ${additionalMetrics.hotLeadsConverted}`;
 
   const focusContext = focusAreas?.length
-    ? `Focus areas requested: ${focusAreas.join(', ')}`
-    : 'Analyze all performance areas';
+    ? `Focus areas requested: ${focusAreas.join(", ")}`
+    : "Analyze all performance areas";
 
   const result = await claude.generateCoachingInsights(
     staffContext,
-    metricsContext + '\n' + focusContext,
+    metricsContext + "\n" + focusContext,
     period,
-    language
+    language,
   );
 
   if (result.success && result.data) {
     return {
       insights: result.data.insights.map((i) => ({
-        type: i.type as CoachingInsight['type'],
+        type: i.type as CoachingInsight["type"],
         title: i.title,
         description: i.description,
         metric: i.metric,
         value: i.value,
       })),
       recommendations: result.data.recommendations.map((r) => ({
-        priority: r.priority as CoachingRecommendation['priority'],
+        priority: r.priority as CoachingRecommendation["priority"],
         area: r.area,
         action: r.action,
         expectedImpact: r.expectedImpact,
@@ -261,7 +313,7 @@ Hot Leads Converted: ${additionalMetrics.hotLeadsConverted}`;
  */
 function generateRuleBasedCoaching(
   metrics: StaffMetrics,
-  additionalMetrics: Awaited<ReturnType<typeof getAdditionalMetrics>>
+  additionalMetrics: Awaited<ReturnType<typeof getAdditionalMetrics>>,
 ): {
   insights: CoachingInsight[];
   recommendations: CoachingRecommendation[];
@@ -274,26 +326,26 @@ function generateRuleBasedCoaching(
   // Conversion rate analysis
   if (metrics.conversionRate >= 0.3) {
     insights.push({
-      type: 'strength',
-      title: 'Strong Conversion Rate',
+      type: "strength",
+      title: "Strong Conversion Rate",
       description: `Your conversion rate of ${Math.round(metrics.conversionRate * 100)}% is above average.`,
-      metric: 'conversionRate',
+      metric: "conversionRate",
       value: metrics.conversionRate,
     });
     score += 0.15;
   } else if (metrics.conversionRate < 0.15) {
     insights.push({
-      type: 'improvement',
-      title: 'Conversion Rate Needs Attention',
+      type: "improvement",
+      title: "Conversion Rate Needs Attention",
       description: `Your conversion rate of ${Math.round(metrics.conversionRate * 100)}% is below target.`,
-      metric: 'conversionRate',
+      metric: "conversionRate",
       value: metrics.conversionRate,
     });
     recommendations.push({
-      priority: 'high',
-      area: 'conversion',
-      action: 'Focus on qualifying leads earlier in the process',
-      expectedImpact: 'Improve conversion rate by 5-10%',
+      priority: "high",
+      area: "conversion",
+      action: "Focus on qualifying leads earlier in the process",
+      expectedImpact: "Improve conversion rate by 5-10%",
     });
     score -= 0.1;
   }
@@ -301,26 +353,26 @@ function generateRuleBasedCoaching(
   // Notes per lead analysis
   if (metrics.notesPerLead >= 3) {
     insights.push({
-      type: 'strength',
-      title: 'Excellent Documentation',
+      type: "strength",
+      title: "Excellent Documentation",
       description: `Averaging ${metrics.notesPerLead.toFixed(1)} notes per lead shows thorough follow-up.`,
-      metric: 'notesPerLead',
+      metric: "notesPerLead",
       value: metrics.notesPerLead,
     });
     score += 0.1;
   } else if (metrics.notesPerLead < 1.5) {
     insights.push({
-      type: 'improvement',
-      title: 'Documentation Needs Improvement',
+      type: "improvement",
+      title: "Documentation Needs Improvement",
       description: `Only ${metrics.notesPerLead.toFixed(1)} notes per lead - aim for 3+ for better tracking.`,
-      metric: 'notesPerLead',
+      metric: "notesPerLead",
       value: metrics.notesPerLead,
     });
     recommendations.push({
-      priority: 'medium',
-      area: 'engagement',
-      action: 'Add notes after every significant interaction',
-      expectedImpact: 'Better lead tracking and handoff capability',
+      priority: "medium",
+      area: "engagement",
+      action: "Add notes after every significant interaction",
+      expectedImpact: "Better lead tracking and handoff capability",
     });
     score -= 0.05;
   }
@@ -328,26 +380,26 @@ function generateRuleBasedCoaching(
   // Follow-up completion analysis
   if (metrics.followUpCompletionRate >= 0.9) {
     insights.push({
-      type: 'strength',
-      title: 'Excellent Follow-up Discipline',
+      type: "strength",
+      title: "Excellent Follow-up Discipline",
       description: `${Math.round(metrics.followUpCompletionRate * 100)}% follow-up completion rate.`,
-      metric: 'followUpCompletionRate',
+      metric: "followUpCompletionRate",
       value: metrics.followUpCompletionRate,
     });
     score += 0.1;
   } else if (metrics.followUpCompletionRate < 0.7) {
     insights.push({
-      type: 'alert',
-      title: 'Follow-ups Being Missed',
+      type: "alert",
+      title: "Follow-ups Being Missed",
       description: `Only ${Math.round(metrics.followUpCompletionRate * 100)}% of scheduled follow-ups completed.`,
-      metric: 'followUpCompletionRate',
+      metric: "followUpCompletionRate",
       value: metrics.followUpCompletionRate,
     });
     recommendations.push({
-      priority: 'high',
-      area: 'follow_up',
-      action: 'Set daily reminders for pending follow-ups',
-      expectedImpact: 'Prevent leads from going cold',
+      priority: "high",
+      area: "follow_up",
+      action: "Set daily reminders for pending follow-ups",
+      expectedImpact: "Prevent leads from going cold",
     });
     score -= 0.15;
   }
@@ -355,17 +407,17 @@ function generateRuleBasedCoaching(
   // Active leads analysis
   if (metrics.activeLeads > 20) {
     insights.push({
-      type: 'alert',
-      title: 'High Lead Volume',
+      type: "alert",
+      title: "High Lead Volume",
       description: `Managing ${metrics.activeLeads} active leads - consider prioritization.`,
-      metric: 'activeLeads',
+      metric: "activeLeads",
       value: metrics.activeLeads,
     });
     recommendations.push({
-      priority: 'medium',
-      area: 'engagement',
-      action: 'Prioritize hot leads and consider reassigning cold ones',
-      expectedImpact: 'Better focus on high-probability leads',
+      priority: "medium",
+      area: "engagement",
+      action: "Prioritize hot leads and consider reassigning cold ones",
+      expectedImpact: "Better focus on high-probability leads",
     });
   }
 
@@ -382,25 +434,27 @@ function generateRuleBasedCoaching(
 /**
  * Get period label
  */
-function getPeriodLabel(period: 'week' | 'month' | 'quarter'): string {
+function getPeriodLabel(period: "week" | "month" | "quarter"): string {
   switch (period) {
-    case 'week':
-      return 'Last 7 days';
-    case 'month':
-      return 'Last 30 days';
-    case 'quarter':
-      return 'Last 90 days';
+    case "week":
+      return "Last 7 days";
+    case "month":
+      return "Last 30 days";
+    case "quarter":
+      return "Last 90 days";
   }
 }
 
 /**
  * Get team coaching summary
  */
-export async function teamCoach(): Promise<CloudCoreResult<{
-  teamMetrics: StaffMetrics;
-  topPerformers: Array<{ staffId: string; staffName: string; score: number }>;
-  improvementAreas: Array<{ area: string; description: string }>;
-}>> {
+export async function teamCoach(): Promise<
+  CloudCoreResult<{
+    teamMetrics: StaffMetrics;
+    topPerformers: Array<{ staffId: string; staffName: string; score: number }>;
+    improvementAreas: Array<{ area: string; description: string }>;
+  }>
+> {
   const startTime = Date.now();
 
   try {
@@ -411,28 +465,28 @@ export async function teamCoach(): Promise<CloudCoreResult<{
         success: false,
         data: null,
         error: {
-          code: 'USERS_ERROR',
-          message: 'Failed to fetch users',
+          code: "USERS_ERROR",
+          message: "Failed to fetch users",
         },
       };
     }
 
-    const staff = usersResult.data.filter((u) => u.role !== 'founder');
+    const staff = usersResult.data.filter((u) => u.role !== "founder");
 
     if (staff.length === 0) {
       return {
         success: false,
         data: null,
         error: {
-          code: 'NO_STAFF',
-          message: 'No staff members found',
+          code: "NO_STAFF",
+          message: "No staff members found",
         },
       };
     }
 
     // Get coaching for each staff member
     const coachingResults = await Promise.all(
-      staff.map((s) => coach({ staffId: s.id, period: 'month' }))
+      staff.map((s) => coach({ staffId: s.id, period: "month" })),
     );
 
     // Aggregate team metrics
@@ -441,16 +495,30 @@ export async function teamCoach(): Promise<CloudCoreResult<{
       .map((r) => r.data!);
 
     const teamMetrics: StaffMetrics = {
-      leadsHandled: validResults.reduce((sum, r) => sum + r.metrics.leadsHandled, 0),
+      leadsHandled: validResults.reduce(
+        (sum, r) => sum + r.metrics.leadsHandled,
+        0,
+      ),
       conversionRate:
-        validResults.reduce((sum, r) => sum + r.metrics.conversionRate, 0) / validResults.length,
+        validResults.reduce((sum, r) => sum + r.metrics.conversionRate, 0) /
+        validResults.length,
       averageResponseTime:
-        validResults.reduce((sum, r) => sum + r.metrics.averageResponseTime, 0) / validResults.length,
+        validResults.reduce(
+          (sum, r) => sum + r.metrics.averageResponseTime,
+          0,
+        ) / validResults.length,
       followUpCompletionRate:
-        validResults.reduce((sum, r) => sum + r.metrics.followUpCompletionRate, 0) / validResults.length,
+        validResults.reduce(
+          (sum, r) => sum + r.metrics.followUpCompletionRate,
+          0,
+        ) / validResults.length,
       notesPerLead:
-        validResults.reduce((sum, r) => sum + r.metrics.notesPerLead, 0) / validResults.length,
-      activeLeads: validResults.reduce((sum, r) => sum + r.metrics.activeLeads, 0),
+        validResults.reduce((sum, r) => sum + r.metrics.notesPerLead, 0) /
+        validResults.length,
+      activeLeads: validResults.reduce(
+        (sum, r) => sum + r.metrics.activeLeads,
+        0,
+      ),
     };
 
     // Sort by score for top performers
@@ -487,13 +555,14 @@ export async function teamCoach(): Promise<CloudCoreResult<{
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Team coaching error:', error);
+    console.error("Team coaching error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'TEAM_COACHING_ERROR',
-        message: error instanceof Error ? error.message : 'Team coaching failed',
+        code: "TEAM_COACHING_ERROR",
+        message:
+          error instanceof Error ? error.message : "Team coaching failed",
       },
     };
   }

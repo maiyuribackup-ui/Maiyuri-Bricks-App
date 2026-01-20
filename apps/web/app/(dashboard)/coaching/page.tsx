@@ -58,6 +58,13 @@ interface ApiTeamCoachingResponse {
   improvementAreas: ApiImprovementArea[];
 }
 
+interface ApiRecommendation {
+  priority: string;
+  area: string;
+  action: string;
+  expectedImpact: string;
+}
+
 interface ApiIndividualCoaching {
   staffId: string;
   staffName: string;
@@ -70,7 +77,7 @@ interface ApiIndividualCoaching {
     metric: string;
     value: number;
   }>;
-  recommendations: string[];
+  recommendations: ApiRecommendation[];
   overallScore: number;
 }
 
@@ -187,8 +194,10 @@ function CoachingContent() {
                 areasForImprovement: memberData.insights
                   .filter((i) => i.type === "improvement" || i.type === "alert")
                   .map((i) => i.description),
-                recommendations: memberData.recommendations || [],
-                performanceScore: memberData.overallScore,
+                recommendations: (memberData.recommendations || []).map((r) =>
+                  typeof r === "string" ? r : r.action,
+                ),
+                performanceScore: Math.round(memberData.overallScore * 100),
               } as TeamMember;
             }
 
@@ -206,7 +215,7 @@ function CoachingContent() {
               strengths: [],
               areasForImprovement: [],
               recommendations: [],
-              performanceScore: Math.round(performer.score * 20), // Convert 0-5 score to 0-100
+              performanceScore: Math.round(performer.score * 100), // Convert 0-1 score to 0-100
             } as TeamMember;
           } catch {
             return {
@@ -222,7 +231,7 @@ function CoachingContent() {
               strengths: [],
               areasForImprovement: [],
               recommendations: [],
-              performanceScore: Math.round(performer.score * 20),
+              performanceScore: Math.round(performer.score * 100),
             } as TeamMember;
           }
         });
