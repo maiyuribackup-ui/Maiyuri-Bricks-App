@@ -4,7 +4,44 @@ import { success, error, notFound } from "@/lib/api-utils";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getUserFromRequest } from "@/lib/supabase-server";
 import { notifyAIAnalysis } from "@/lib/telegram";
-import type { Lead } from "@maiyuri/shared";
+import type { Lead, NudgeEventType } from "@maiyuri/shared";
+
+const APP_URL =
+  process.env.NEXT_PUBLIC_APP_URL || "https://maiyuri-bricks-app.vercel.app";
+
+// Hot lead threshold (80% score)
+const HOT_LEAD_THRESHOLD = 0.8;
+// Significant score change threshold (10%)
+const SCORE_CHANGE_THRESHOLD = 0.1;
+
+/**
+ * Trigger event-driven nudge (non-blocking)
+ */
+async function triggerEventNudge(
+  eventType: NudgeEventType,
+  leadId: string,
+  metadata?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const response = await fetch(`${APP_URL}/api/nudges/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event_type: eventType,
+        lead_id: leadId,
+        metadata,
+      }),
+    });
+    if (!response.ok) {
+      console.error(
+        `[Event Nudge] Failed to trigger ${eventType}:`,
+        await response.text(),
+      );
+    }
+  } catch (err) {
+    console.error(`[Event Nudge] Error triggering ${eventType}:`, err);
+  }
+}
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -168,6 +205,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Get user's language preference
     const language = await getUserLanguagePreference(request);
 
+    // Fetch current lead to get previous score for comparison
+    const currentLeadResult = await services.supabase.getLead(id);
+    const previousScore = currentLeadResult.data?.ai_score ?? null;
+
     // Use CloudCore's lead analyst kernel for full analysis
     const result = await kernels.leadAnalyst.analyze({
       leadId: id,
@@ -219,6 +260,45 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Fetch updated lead
     const leadResult = await services.supabase.getLead(id);
     const updatedLead = leadResult.data;
+
+    // Check for score changes and trigger appropriate nudges (non-blocking)
+    const newScore = result.data.score?.value ?? null;
+    if (updatedLead && newScore !== null) {
+      // Check if lead just became "hot" (crossed threshold)
+      const wasHot = (previousScore ?? 0) >= HOT_LEAD_THRESHOLD;
+      const isHot = newScore >= HOT_LEAD_THRESHOLD;
+
+      if (!wasHot && isHot) {
+        // Lead just became hot - trigger hot lead alert
+        triggerEventNudge("hot_lead_alert", id, {
+          previous_score: previousScore,
+          new_score: newScore,
+        }).catch((err) => {
+          console.error("[Hot Lead Alert] Failed to trigger nudge:", err);
+        });
+      } else if (previousScore !== null) {
+        // Check for significant score changes
+        const scoreDiff = newScore - previousScore;
+
+        if (scoreDiff >= SCORE_CHANGE_THRESHOLD) {
+          // Score increased significantly
+          triggerEventNudge("score_increased", id, {
+            previous_score: previousScore,
+            new_score: newScore,
+          }).catch((err) => {
+            console.error("[Score Increased] Failed to trigger nudge:", err);
+          });
+        } else if (scoreDiff <= -SCORE_CHANGE_THRESHOLD) {
+          // Score decreased significantly
+          triggerEventNudge("score_decreased", id, {
+            previous_score: previousScore,
+            new_score: newScore,
+          }).catch((err) => {
+            console.error("[Score Decreased] Failed to trigger nudge:", err);
+          });
+        }
+      }
+    }
 
     // Create actionable tasks from AI suggestions (non-blocking)
     if (updatedLead) {

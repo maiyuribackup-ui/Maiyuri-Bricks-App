@@ -16,6 +16,10 @@ import {
 import { sendTelegramNotification } from "./notifications.js";
 import { logError, logProgress } from "./logger.js";
 import { triggerLeadAnalysis } from "./lead-analysis-trigger.js";
+import {
+  triggerCallRecordingNudge,
+  triggerObjectionNudge,
+} from "./event-nudge-trigger.js";
 
 // Types
 interface CallRecording {
@@ -364,6 +368,43 @@ export async function processRecording(
       });
     } else {
       logProgress(id, "No lead associated, skipping analysis");
+    }
+
+    // ========================================
+    // Stage 8: Trigger Event Nudge (if lead exists)
+    // ========================================
+    if (lead_id) {
+      logProgress(id, "Triggering event nudge for call recording");
+
+      // Extract objections from insights if available
+      const objections = analysis.insights?.negativeSignals || [];
+
+      // Trigger call_recording_processed nudge (non-blocking)
+      triggerCallRecordingNudge({
+        leadId: lead_id,
+        recordingId: id,
+        summary: analysis.summary,
+        objections,
+      }).catch((err) => {
+        logError(
+          `Failed to trigger call recording nudge for lead ${lead_id}`,
+          err,
+        );
+      });
+
+      // If objections detected, also trigger objection nudge (non-blocking)
+      if (objections.length > 0) {
+        triggerObjectionNudge({
+          leadId: lead_id,
+          recordingId: id,
+          objections,
+        }).catch((err) => {
+          logError(
+            `Failed to trigger objection nudge for lead ${lead_id}`,
+            err,
+          );
+        });
+      }
     }
 
     // ========================================

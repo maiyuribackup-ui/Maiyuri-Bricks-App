@@ -1043,6 +1043,40 @@ export type NudgeRuleType =
 
 export type NudgeChannel = "telegram" | "email" | "push";
 
+// Event-driven nudge types (Phase 2)
+export type NudgeEventType =
+  | "hot_lead_alert" // Lead score crossed hot threshold
+  | "call_recording_processed" // Call recording analysis completed
+  | "quote_pending" // Smart quote not viewed/responded
+  | "score_increased" // AI score significantly increased
+  | "score_decreased" // AI score significantly decreased
+  | "objection_detected"; // Objection detected in call
+
+// Event-driven nudge input
+export interface EventNudgeInput {
+  event_type: NudgeEventType;
+  lead_id: string;
+  metadata?: {
+    previous_score?: number;
+    new_score?: number;
+    recording_id?: string;
+    quote_id?: string;
+    quote_slug?: string;
+    days_pending?: number;
+    objections?: string[];
+    summary?: string;
+  };
+}
+
+// Event-driven nudge response
+export interface EventNudgeResponse {
+  success: boolean;
+  nudge_sent: boolean;
+  message: string;
+  recipient?: string;
+  error?: string;
+}
+
 export interface NudgeRuleConditions {
   days_overdue?: number;
   days_idle?: number;

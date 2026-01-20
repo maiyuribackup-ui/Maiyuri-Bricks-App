@@ -8,6 +8,10 @@
     {
       "path": "/api/nudges/digest",
       "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/nudges/quotes",
+      "schedule": "0 9 * * *"
     }
   ]
 }
