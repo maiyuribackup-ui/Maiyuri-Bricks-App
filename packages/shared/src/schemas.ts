@@ -40,6 +40,17 @@ export const requirementTypeSchema = z.enum([
   "compound_wall",
 ]);
 
+// Product Interest Schema (multi-select)
+export const productInterestSchema = z.enum([
+  "8_inch_mud_interlock",
+  "6_inch_mud_interlock",
+  "8_inch_cement_interlock",
+  "6_inch_cement_interlock",
+  "compound_wall_project",
+  "residential_project",
+  "laying_services",
+]);
+
 // Helper to coerce empty strings to null (for optional select fields)
 const emptyStringToNull = <T extends z.ZodTypeAny>(schema: T) =>
   z.preprocess((val) => (val === "" ? null : val), schema);
@@ -79,6 +90,8 @@ export const createLeadSchema = z.object({
   // New classification and location fields (coerce empty string to null)
   classification: optionalClassificationSchema,
   requirement_type: optionalRequirementTypeSchema,
+  // Product interests (multi-select)
+  product_interests: z.array(productInterestSchema).default([]).optional(),
   site_region: emptyStringToNull(z.string().nullable().optional()),
   site_location: emptyStringToNull(z.string().nullable().optional()),
   next_action: emptyStringToNull(z.string().nullable().optional()),
@@ -100,6 +113,8 @@ export const updateLeadSchema = z.object({
   // New classification and location fields (coerce empty string to null)
   classification: optionalClassificationSchema,
   requirement_type: optionalRequirementTypeSchema,
+  // Product interests (multi-select)
+  product_interests: z.array(productInterestSchema).optional(),
   site_region: emptyStringToNull(z.string().nullable().optional()),
   site_location: emptyStringToNull(z.string().nullable().optional()),
   next_action: emptyStringToNull(z.string().nullable().optional()),

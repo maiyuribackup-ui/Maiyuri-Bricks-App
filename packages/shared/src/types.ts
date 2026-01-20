@@ -23,6 +23,16 @@ export type RequirementType =
   | "eco_friendly_building"
   | "compound_wall";
 
+// Product Interest - What products the lead is interested in (multi-select)
+export type ProductInterest =
+  | "8_inch_mud_interlock"
+  | "6_inch_mud_interlock"
+  | "8_inch_cement_interlock"
+  | "6_inch_cement_interlock"
+  | "compound_wall_project"
+  | "residential_project"
+  | "laying_services";
+
 // Lead Stage - Sales pipeline progression (Issue #19)
 export type LeadStage =
   | "inquiry" // Initial inquiry received
@@ -78,6 +88,7 @@ export interface Lead {
   // Classification and requirement fields
   classification?: LeadClassification | null;
   requirement_type?: RequirementType | null;
+  product_interests?: ProductInterest[] | null;
   site_region?: string | null;
   site_location?: string | null;
   staff_notes?: string | null;

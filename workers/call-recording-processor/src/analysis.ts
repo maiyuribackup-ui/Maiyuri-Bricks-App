@@ -183,6 +183,18 @@ function clampNumber(value: unknown, min: number, max: number): number {
 }
 
 /**
+ * Product interest values for multi-select
+ */
+export type ProductInterest =
+  | "8_inch_mud_interlock"
+  | "6_inch_mud_interlock"
+  | "8_inch_cement_interlock"
+  | "6_inch_cement_interlock"
+  | "compound_wall_project"
+  | "residential_project"
+  | "laying_services";
+
+/**
  * Lead details extracted from transcript for auto-population
  */
 export interface ExtractedLeadDetails {
@@ -207,6 +219,7 @@ export interface ExtractedLeadDetails {
     | "government_project"
     | "other"
     | null;
+  product_interests: ProductInterest[];
   site_region: string | null;
   site_location: string | null;
   next_action: string | null;
@@ -234,6 +247,7 @@ Extract lead information from this call in JSON format:
   "lead_type": "Residential|Commercial|Industrial|Government|Other",
   "classification": "builder|dealer|architect|direct_customer|contractor|engineer",
   "requirement_type": "residential_house|commercial_building|compound_wall|industrial_shed|government_project|other",
+  "product_interests": ["8_inch_mud_interlock", "6_inch_mud_interlock", "8_inch_cement_interlock", "6_inch_cement_interlock", "compound_wall_project", "residential_project", "laying_services"],
   "site_region": "Chennai|Coimbatore|Madurai|Salem|Trichy|Tirupur|Erode|Vellore|Thanjavur|Other",
   "site_location": "specific location/area if mentioned",
   "next_action": "recommended next step",
@@ -246,6 +260,16 @@ Guidelines:
 - lead_type: What type of project? (House=Residential, Shop/Office=Commercial, Factory=Industrial, Govt tender=Government)
 - classification: Who is the customer? (Builder builds for others, direct_customer for themselves, dealer for reselling)
 - requirement_type: Main purpose of bricks needed
+- product_interests: Array of products the customer is interested in. Select from:
+  - "8_inch_mud_interlock": 8" Mud Interlock Bricks (CSEB/compressed earth blocks)
+  - "6_inch_mud_interlock": 6" Mud Interlock Bricks
+  - "8_inch_cement_interlock": 8" Cement Interlock Bricks
+  - "6_inch_cement_interlock": 6" Cement Interlock Bricks
+  - "compound_wall_project": Full compound wall construction project
+  - "residential_project": Full residential building project
+  - "laying_services": Brick laying/construction services
+  If customer mentions specific brick sizes or project types, include all matching products.
+  Return empty array [] if no specific product interest is mentioned.
 - site_region: Tamil Nadu district/city if mentioned
 - site_location: Specific area, street, or village name if mentioned
 - next_action: What should sales team do next? (e.g., "Schedule site visit", "Send quotation", "Call back next week")
@@ -283,6 +307,7 @@ ${transcript}`;
       lead_type: "Other",
       classification: "direct_customer",
       requirement_type: null,
+      product_interests: [],
       site_region: null,
       site_location: null,
       next_action: "Follow up with customer",
@@ -332,6 +357,25 @@ function parseLeadDetailsResponse(response: string): ExtractedLeadDetails {
       "government_project",
       "other",
     ];
+    const validProductInterests: ProductInterest[] = [
+      "8_inch_mud_interlock",
+      "6_inch_mud_interlock",
+      "8_inch_cement_interlock",
+      "6_inch_cement_interlock",
+      "compound_wall_project",
+      "residential_project",
+      "laying_services",
+    ];
+
+    // Parse and validate product_interests array
+    let productInterests: ProductInterest[] = [];
+    if (Array.isArray(parsed.product_interests)) {
+      productInterests = parsed.product_interests.filter(
+        (p: unknown): p is ProductInterest =>
+          typeof p === "string" &&
+          validProductInterests.includes(p as ProductInterest),
+      );
+    }
 
     return {
       lead_type: validLeadTypes.includes(parsed.lead_type)
@@ -343,6 +387,7 @@ function parseLeadDetailsResponse(response: string): ExtractedLeadDetails {
       requirement_type: validRequirementTypes.includes(parsed.requirement_type)
         ? parsed.requirement_type
         : null,
+      product_interests: productInterests,
       site_region:
         typeof parsed.site_region === "string" ? parsed.site_region : null,
       site_location:
@@ -362,6 +407,7 @@ function parseLeadDetailsResponse(response: string): ExtractedLeadDetails {
       lead_type: "Other",
       classification: "direct_customer",
       requirement_type: null,
+      product_interests: [],
       site_region: null,
       site_location: null,
       next_action: null,

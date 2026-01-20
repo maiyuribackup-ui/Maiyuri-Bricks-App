@@ -52,6 +52,17 @@ const requirementTypeOptions = [
   { value: "compound_wall", label: "Compound Wall" },
 ];
 
+// Product interest options (multi-select)
+const productInterestOptions = [
+  { value: "8_inch_mud_interlock", label: '8" Mud Interlock Bricks' },
+  { value: "6_inch_mud_interlock", label: '6" Mud Interlock Bricks' },
+  { value: "8_inch_cement_interlock", label: '8" Cement Interlock Bricks' },
+  { value: "6_inch_cement_interlock", label: '6" Cement Interlock Bricks' },
+  { value: "compound_wall_project", label: "Compound Wall Project" },
+  { value: "residential_project", label: "Residential Project" },
+  { value: "laying_services", label: "Laying Services" },
+];
+
 async function fetchUsers() {
   const res = await fetch("/api/users");
   if (!res.ok) throw new Error("Failed to fetch users");
@@ -254,6 +265,31 @@ export default function NewLeadPage() {
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* Product Interests (Multi-select) */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Product Interests
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {productInterestOptions.map((opt) => (
+                <label
+                  key={opt.value}
+                  className="flex items-center gap-2 p-2 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    value={opt.value}
+                    {...register("product_interests")}
+                    className="rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-slate-700 dark:text-slate-300">
+                    {opt.label}
+                  </span>
+                </label>
+              ))}
             </div>
           </div>
 

@@ -511,7 +511,8 @@ export default function LeadDetailPage() {
           {/* Classification & Location Row */}
           {(lead.classification ||
             lead.requirement_type ||
-            lead.site_region) && (
+            lead.site_region ||
+            (lead.product_interests && lead.product_interests.length > 0)) && (
             <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
               {lead.classification && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
@@ -522,6 +523,19 @@ export default function LeadDetailPage() {
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
                   {formatRequirementType(lead.requirement_type)}
                 </span>
+              )}
+              {/* Product Interests - Multi-select display */}
+              {lead.product_interests && lead.product_interests.length > 0 && (
+                <>
+                  {lead.product_interests.map((interest) => (
+                    <span
+                      key={interest}
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+                    >
+                      🧱 {formatProductInterest(interest)}
+                    </span>
+                  ))}
+                </>
               )}
               {(lead.site_region || lead.site_location) && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300">
@@ -1193,5 +1207,26 @@ function formatRequirementType(requirementType: string): string {
       return "🧱 Compound Wall";
     default:
       return requirementType;
+  }
+}
+
+function formatProductInterest(interest: string): string {
+  switch (interest) {
+    case "8_inch_mud_interlock":
+      return '8" Mud Interlock';
+    case "6_inch_mud_interlock":
+      return '6" Mud Interlock';
+    case "8_inch_cement_interlock":
+      return '8" Cement Interlock';
+    case "6_inch_cement_interlock":
+      return '6" Cement Interlock';
+    case "compound_wall_project":
+      return "Compound Wall Project";
+    case "residential_project":
+      return "Residential Project";
+    case "laying_services":
+      return "Laying Services";
+    default:
+      return interest;
   }
 }

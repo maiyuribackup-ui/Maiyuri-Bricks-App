@@ -253,7 +253,7 @@ export async function processRecording(
       const { data: currentLead } = await supabase
         .from("leads")
         .select(
-          "lead_type, classification, requirement_type, site_region, site_location, next_action, estimated_quantity, notes",
+          "lead_type, classification, requirement_type, product_interests, site_region, site_location, next_action, estimated_quantity, notes",
         )
         .eq("id", lead_id)
         .single();
@@ -279,6 +279,14 @@ export async function processRecording(
           extractedDetails.requirement_type
         ) {
           updates.requirement_type = extractedDetails.requirement_type;
+        }
+        // Update product_interests if currently empty and AI extracted some
+        if (
+          (!currentLead.product_interests ||
+            currentLead.product_interests.length === 0) &&
+          extractedDetails.product_interests.length > 0
+        ) {
+          updates.product_interests = extractedDetails.product_interests;
         }
         if (!currentLead.site_region && extractedDetails.site_region) {
           updates.site_region = extractedDetails.site_region;
