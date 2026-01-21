@@ -4,7 +4,6 @@
  * GitHub Issue #25
  */
 
-import { createClient } from "@supabase/supabase-js";
 import type {
   Ticket,
   TicketHistoryEntry,
@@ -23,13 +22,11 @@ import {
   markManufacturingOrderDoneInOdoo,
   updateProductionOrderStatus,
 } from "./production-service";
+import { supabaseAdmin } from "./supabase";
 
-// Lazy Supabase client for server-side operations
+// Use centralized supabase admin client
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
+  return supabaseAdmin;
 }
 
 interface ServiceResult<T = void> {

@@ -96,13 +96,22 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedPhone = normalizePhoneNumber(extractedPhone);
+    console.warn(
+      `[Telegram Webhook] Step 1: Extracted phone=${normalizedPhone}, name=${extractedName}, file_id=${audio.file_id}`,
+    );
 
     // Check for duplicate (by telegram_file_id)
-    const { data: existing } = await supabaseAdmin
+    console.warn(`[Telegram Webhook] Step 2: Checking for duplicate...`);
+    const { data: existing, error: dupCheckError } = await supabaseAdmin
       .from("call_recordings")
       .select("id")
       .eq("telegram_file_id", audio.file_id)
       .single();
+
+    if (dupCheckError && dupCheckError.code !== "PGRST116") {
+      // PGRST116 is "not found" which is expected for new files
+      console.error(`[Telegram Webhook] Duplicate check error:`, dupCheckError);
+    }
 
     if (existing) {
       console.warn(`[Telegram Webhook] Duplicate file: ${audio.file_id}`);
@@ -113,9 +122,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    console.warn(
+      `[Telegram Webhook] Step 3: Finding lead for phone ${normalizedPhone}...`,
+    );
     // Find the most recent lead matching this phone number
     let lead = await findMostRecentLead(normalizedPhone);
     let isNewLead = false;
+    console.warn(
+      `[Telegram Webhook] Step 3 complete: Lead found=${!!lead}, lead_id=${lead?.id ?? "none"}`,
+    );
 
     // AUTO-CREATE LEAD if no match found and we have a name
     if (!lead && extractedName) {
@@ -149,6 +164,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert call recording record with 'pending' status
+    console.warn(`[Telegram Webhook] Step 4: Inserting call recording...`);
     const { data: recording, error: insertError } = await supabaseAdmin
       .from("call_recordings")
       .insert({
@@ -166,7 +182,10 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError) {
-      console.error("[Telegram Webhook] Insert error:", insertError);
+      console.error(
+        "[Telegram Webhook] Step 4 FAILED - Insert error:",
+        insertError,
+      );
       await sendTelegramMessage(
         `❌ *Upload Error*\n\nFailed to save recording. Please try again later.`,
         chatId.toString(),
@@ -176,6 +195,9 @@ export async function POST(request: NextRequest) {
         { status: 500 },
       );
     }
+    console.warn(
+      `[Telegram Webhook] Step 4 complete: Recording created, id=${recording.id}`,
+    );
 
     // Build confirmation message based on scenario
     let confirmMessage: string;
