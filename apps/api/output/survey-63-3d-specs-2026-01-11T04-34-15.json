@@ -1,0 +1,257 @@
+{
+  "input": {
+    "plot": {
+      "north": 29,
+      "south": 27.5,
+      "east": 41,
+      "west": 43
+    },
+    "setbacks": {
+      "north": 2,
+      "south": 3,
+      "east": 3.5,
+      "west": 2
+    },
+    "road": {
+      "side": "west",
+      "width": 20
+    },
+    "orientation": "north",
+    "requiredRooms": [
+      {
+        "name": "Verandah",
+        "type": "verandah",
+        "zone": "outdoor"
+      },
+      {
+        "name": "Living Room",
+        "type": "living",
+        "zone": "public"
+      },
+      {
+        "name": "Dining Room",
+        "type": "dining",
+        "zone": "public"
+      },
+      {
+        "name": "Kitchen",
+        "type": "kitchen",
+        "zone": "service"
+      },
+      {
+        "name": "Double Bedroom",
+        "type": "bedroom",
+        "zone": "private"
+      },
+      {
+        "name": "Dress Room",
+        "type": "dressing",
+        "zone": "private"
+      },
+      {
+        "name": "Common Toilet",
+        "type": "bathroom",
+        "zone": "service"
+      },
+      {
+        "name": "Staircase",
+        "type": "staircase",
+        "zone": "circulation"
+      },
+      {
+        "name": "Open-to-Sky Courtyard",
+        "type": "courtyard",
+        "zone": "eco"
+      }
+    ],
+    "ecoFeatures": [
+      "Traditional mutram (open-to-sky courtyard)",
+      "Shaded veranda in the front",
+      "Naturally ventilated and well-lit rooms",
+      "Rainwater recharge pit in courtyard",
+      "Spacious design with future expansion possible"
+    ]
+  },
+  "generatedRooms": [
+    {
+      "id": "verandah",
+      "name": "Verandah",
+      "type": "verandah",
+      "width": 4,
+      "depth": 20,
+      "areaSqft": 80,
+      "zone": "outdoor",
+      "adjacentTo": ["living-room"]
+    },
+    {
+      "id": "living-room",
+      "name": "Living Room",
+      "type": "living",
+      "width": 12,
+      "depth": 14,
+      "areaSqft": 168,
+      "zone": "public",
+      "adjacentTo": ["verandah", "dining-room", "courtyard"]
+    },
+    {
+      "id": "dining-room",
+      "name": "Dining Room",
+      "type": "dining",
+      "width": 10,
+      "depth": 10,
+      "areaSqft": 100,
+      "zone": "public",
+      "adjacentTo": ["living-room", "kitchen", "courtyard"]
+    },
+    {
+      "id": "kitchen",
+      "name": "Kitchen",
+      "type": "kitchen",
+      "width": 8,
+      "depth": 10,
+      "areaSqft": 80,
+      "zone": "service",
+      "adjacentTo": ["dining-room"]
+    },
+    {
+      "id": "courtyard",
+      "name": "Open-to-Sky Courtyard",
+      "type": "courtyard",
+      "width": 8,
+      "depth": 8,
+      "areaSqft": 64,
+      "zone": "eco",
+      "adjacentTo": ["living-room", "dining-room", "bedroom"]
+    },
+    {
+      "id": "bedroom",
+      "name": "Double Bedroom",
+      "type": "bedroom",
+      "width": 12,
+      "depth": 12,
+      "areaSqft": 144,
+      "zone": "private",
+      "adjacentTo": ["courtyard", "dress-room"]
+    },
+    {
+      "id": "dress-room",
+      "name": "Dress Room",
+      "type": "dressing",
+      "width": 6,
+      "depth": 8,
+      "areaSqft": 48,
+      "zone": "private",
+      "adjacentTo": ["bedroom", "toilet"]
+    },
+    {
+      "id": "toilet",
+      "name": "Common Toilet",
+      "type": "bathroom",
+      "width": 5,
+      "depth": 7,
+      "areaSqft": 35,
+      "zone": "service",
+      "adjacentTo": ["dress-room"]
+    },
+    {
+      "id": "staircase",
+      "name": "Staircase",
+      "type": "staircase",
+      "width": 4,
+      "depth": 10,
+      "areaSqft": 40,
+      "zone": "circulation",
+      "adjacentTo": ["living-room"]
+    }
+  ],
+  "validation": {
+    "passed": true,
+    "checks": [
+      {
+        "name": "Room: Verandah",
+        "passed": true,
+        "expected": "Verandah",
+        "actual": "Verandah (4'×20')"
+      },
+      {
+        "name": "Room: Living Room",
+        "passed": true,
+        "expected": "Living Room",
+        "actual": "Living Room (12'×14')"
+      },
+      {
+        "name": "Room: Dining Room",
+        "passed": true,
+        "expected": "Dining Room",
+        "actual": "Dining Room (10'×10')"
+      },
+      {
+        "name": "Room: Kitchen",
+        "passed": true,
+        "expected": "Kitchen",
+        "actual": "Kitchen (8'×10')"
+      },
+      {
+        "name": "Room: Double Bedroom",
+        "passed": true,
+        "expected": "Double Bedroom",
+        "actual": "Double Bedroom (12'×12')"
+      },
+      {
+        "name": "Room: Dress Room",
+        "passed": true,
+        "expected": "Dress Room",
+        "actual": "Dress Room (6'×8')"
+      },
+      {
+        "name": "Room: Common Toilet",
+        "passed": true,
+        "expected": "Common Toilet",
+        "actual": "Common Toilet (5'×7')"
+      },
+      {
+        "name": "Room: Staircase",
+        "passed": true,
+        "expected": "Staircase",
+        "actual": "Staircase (4'×10')"
+      },
+      {
+        "name": "Room: Open-to-Sky Courtyard",
+        "passed": true,
+        "expected": "Open-to-Sky Courtyard",
+        "actual": "Open-to-Sky Courtyard (8'×8')"
+      },
+      {
+        "name": "Total Area",
+        "passed": true,
+        "expected": "≤ 900 sqft",
+        "actual": "759 sqft"
+      },
+      {
+        "name": "Courtyard (Eco Feature)",
+        "passed": true,
+        "expected": "Present",
+        "actual": "Present"
+      },
+      {
+        "name": "Verandah (Entrance)",
+        "passed": true,
+        "expected": "Present",
+        "actual": "Present"
+      },
+      {
+        "name": "Kitchen Zone",
+        "passed": true,
+        "expected": "service",
+        "actual": "service"
+      },
+      {
+        "name": "Bedroom Zone",
+        "passed": true,
+        "expected": "private",
+        "actual": "private"
+      }
+    ]
+  },
+  "timestamp": "2026-01-11T04:34:15.205Z"
+}

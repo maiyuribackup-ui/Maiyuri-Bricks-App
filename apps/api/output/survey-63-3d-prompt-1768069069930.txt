@@ -1,0 +1,181 @@
+Create a professional 3D ISOMETRIC FLOOR PLAN visualization for client presentation.
+
+STYLE REFERENCE: Traditional Tamil Nadu courtyard house in modern 3D isometric view with:
+- Bird's eye view at 45-degree isometric angle
+- Cutaway walls (partial height) showing interior layout
+- Realistic furniture and fixtures inside each room
+- Traditional material textures visible
+- Soft shadows for depth
+- Clean white/cream background
+- Professional architectural presentation quality
+
+PROJECT: GROUND FLOOR PLAN - ECO-FRIENDLY COURTYARD HOUSE
+SURVEY NO: 63
+
+═══════════════════════════════════════════════════════════════════
+CRITICAL REQUIREMENTS - MUST FOLLOW EXACTLY
+═══════════════════════════════════════════════════════════════════
+
+PLOT DIMENSIONS (TRAPEZOIDAL):
+- NORTH (top): 29'-0" ← SHORTER side
+- SOUTH (bottom): 27'-6" ← SHORTER side
+- EAST (right): 41'-0" ← LONGER side
+- WEST (left): 43'-0" ← LONGER side (road)
+- Plot is DEEPER (East-West ~42') than WIDE (North-South ~28')
+
+SETBACKS:
+- North: 2'-0"
+- South: 3'-0"
+- East: 3'-6"
+- West: 2'-0"
+
+ORIENTATION:
+- North arrow pointing to TOP-RIGHT corner
+- Road (20'-0" wide) on WEST side (bottom-left in isometric)
+- Entrance from West via Verandah
+
+═══════════════════════════════════════════════════════════════════
+ROOM LAYOUT - EXACT LABELS (DO NOT CHANGE NAMES)
+═══════════════════════════════════════════════════════════════════
+
+• Living Room: 12'×12' (North) - sofa set, coffee table, TV unit
+• Dining: 10'×10' (West) - dining table with 4 chairs
+• Kitchen: 8'×10' (Southeast) - L-shaped counter, stove, sink, cabinets
+• Bedroom 1: 10'×12' (Southwest) - double bed, wardrobe, side table
+• Bedroom 2: 10'×10' (South) - single bed, study table, wardrobe
+• Common Toilet: 5'×7' (Northwest) - WC, wash basin, shower
+• Staircase: 4'×8' (South) - stairs going up (clockwise)
+• Verandah: 4'×18' (West (entrance)) - traditional sitting bench, planters
+• Mutram: 8'×8' (Center (Brahmasthan)) - 4 pillars only, open all sides, water feature, Tulsi plant
+
+IMPORTANT ROOM NOTES:
+1. "Bedroom 1" and "Bedroom 2" are TWO SEPARATE ROOMS (not one room)
+2. "Mutram" is the CENTRAL COURTYARD with:
+   - FOUR PILLARS at corners (traditional carved stone/wood)
+   - OPEN from ALL 4 SIDES (no walls enclosing it)
+   - Water feature/pool in center (4'×4' with stone edge)
+   - Tulsi plant pedestal
+   - Athangudi tile flooring
+   - Surrounding covered corridor on all sides
+
+═══════════════════════════════════════════════════════════════════
+VERNACULAR ARCHITECTURE - MATERIALS
+═══════════════════════════════════════════════════════════════════
+
+WALLS: CSEB (Compressed Stabilized Earth Blocks) with lime wash
+- Show earth-toned CSEB blocks (exposed or lime-washed cream)
+- 9" thick walls for thermal mass
+
+FLOORING (show different textures):
+- Living/Dining: Red oxide flooring with brass border strips
+- Bedrooms: Red oxide flooring
+- Mutram (Courtyard): Athangudi tiles (traditional Chettinad pattern)
+- Verandah: Athangudi tiles / stone
+- Bathroom: Kadappa stone (anti-skid)
+
+CEILING: Jack arch / exposed terracotta panels
+- Show exposed beams with terracotta panels between
+
+DOORS: Teak wood with traditional carvings
+- Main entrance: 7'×3'6" (double panel, carved)
+- Room doors: 7'×3'
+
+WINDOWS: Teak wood frames with MS grills
+- Bedroom windows: 4'×4'
+- Living windows: 5'×4'
+
+═══════════════════════════════════════════════════════════════════
+VISUAL REQUIREMENTS
+═══════════════════════════════════════════════════════════════════
+
+1. 3D ISOMETRIC VIEW at 45° angle from above
+
+2. WALLS shown as cutaway (half height) to reveal interiors
+
+3. FURNITURE in each room:
+   - Living Room: Wooden sofa set, coffee table, TV unit
+   - Dining: Wooden dining table with 4 chairs
+   - Kitchen: L-shaped counter, stove, sink, overhead cabinets
+   - Bedroom 1: Double bed with headboard, wardrobe, side table
+   - Bedroom 2: Single bed, study table, small wardrobe
+   - Common Toilet: WC, wash basin, shower area
+   - Staircase: Stairs going up (show 3-4 visible steps)
+   - Verandah: Traditional wooden bench, potted plants
+   - Mutram: 4 PILLARS at corners, water feature in center, Tulsi pedestal
+
+4. MATERIAL TEXTURES (critical for vernacular feel):
+   - Red oxide flooring: Deep maroon/terracotta color
+   - Athangudi tiles: Geometric patterns in earth tones
+   - CSEB walls: Earthy tan/cream color
+   - Kadappa stone: Grey-green in bathroom
+   - Teak wood: Warm brown for doors/furniture
+
+5. COLOR SCHEME:
+   - Walls: Cream/off-white (lime wash over CSEB)
+   - Floors: Terracotta red (oxide), earth patterns (Athangudi)
+   - Wood: Warm brown tones
+   - Courtyard: Blue-green water, earth tiles
+   - Landscaping: Green plants, grass in setbacks
+
+6. ROOM LABELS - EXACT TEXT (with dimensions):
+   - "LIVING ROOM 12'×12'"
+   - "DINING 10'×10'"
+   - "KITCHEN 8'×10'"
+   - "BEDROOM 1 10'×12'"
+   - "BEDROOM 2 10'×10'"
+   - "COMMON TOILET 5'×7'"
+   - "STAIRCASE 4'×8'"
+   - "VERANDAH 4'×18'"
+   - "MUTRAM 8'×8'"
+
+7. COMPASS ROSE: North indicator in top-right corner
+
+8. ROAD: "20'-0" WIDE ROAD" label on West side
+
+9. SETBACK AREAS: Green landscaping/grass around the building
+
+10. DIMENSION LINES: Show overall plot dimensions on all 4 sides
+
+═══════════════════════════════════════════════════════════════════
+HEADER & FOOTER
+═══════════════════════════════════════════════════════════════════
+
+HEADER (Top of image):
+- Title: "GROUND FLOOR PLAN: ECO-FRIENDLY COURTYARD HOUSE"
+- Subtitle: "SURVEY NO: 63"
+- Dimensions: "N: 29'-0", S: 27'-6", E: 41'-0", W: 43'-0""
+- Setbacks: "N: 2'-0", S: 3'-0", E: 3'-6", W: 2'-0""
+
+FOOTER (Bottom of image):
+"VERNACULAR ECO-DESIGN: Built with traditional materials"
+Checkmarks:
+✓ Traditional Mutram with 4 pillars & water feature
+✓ CSEB walls for thermal comfort
+✓ Athangudi tiles & Red oxide flooring
+✓ Cross-ventilated rooms
+✓ Rainwater harvesting ready
+✓ Future expansion possible
+
+═══════════════════════════════════════════════════════════════════
+OUTPUT REQUIREMENTS
+═══════════════════════════════════════════════════════════════════
+
+Generate a HIGH-QUALITY 3D isometric architectural visualization that:
+- Looks professional and suitable for client presentation
+- Shows the traditional Tamil Nadu courtyard house character
+- Clearly displays all rooms with correct labels
+- Highlights vernacular materials (CSEB, oxide flooring, Athangudi)
+- Makes the central Mutram (courtyard) a prominent feature with 4 pillars
+
+═══════════════════════════════════════════════════════════════════
+VALIDATION CHECKLIST (Image MUST satisfy ALL)
+═══════════════════════════════════════════════════════════════════
+□ TWO separate bedrooms labeled "BEDROOM 1" and "BEDROOM 2"
+□ MUTRAM has FOUR PILLARS at corners (no walls)
+□ MUTRAM is OPEN from all 4 sides
+□ MUTRAM has water feature in center
+□ Red oxide / Athangudi flooring visible
+□ North dimension = 29'-0" (shorter than East)
+□ East dimension = 41'-0" (longer than North)
+□ Road on West side with 20'-0" label
+□ All 9 rooms labeled with correct names

@@ -1,0 +1,5 @@
+# Run lint-staged for staged files
+bunx lint-staged
+
+# Run typecheck on the whole project
+bun run typecheck

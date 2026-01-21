@@ -2,17 +2,14 @@
   "$schema": "https://json.schemastore.org/mcp.json",
   "mcpServers": {
     "odoo": {
-      "command": "uvx",
-      "args": ["mcp-server-odoo"],
+      "command": "/Users/ramkumaranganeshan/.pyenv/versions/3.12.9/bin/python",
+      "args": ["-m", "odoo_mcp"],
       "env": {
-        "ODOO_URL": "https://CRM.MAIYURI.COM",
-        "ODOO_USER": "maiyuribricks@gmail.com",
-        "ODOO_PASSWORD": "Priyam2019",
+        "ODOO_URL": "https://crm.maiyuri.com",
         "ODOO_DB": "lite2",
-        "ODOO_YOLO": "read",
-        "ODOO_MCP_LOG_LEVEL": "INFO",
-        "ODOO_MCP_DEFAULT_LIMIT": "10",
-        "ODOO_MCP_MAX_LIMIT": "100"
+        "ODOO_USERNAME": "maiyuribricks@gmail.com",
+        "ODOO_API_KEY": "c6c96ff9bbfa8c569640e0285ac5e502ae396de9",
+        "ODOO_UID": "2"
       }
     }
   }

@@ -193,60 +193,126 @@ function parseXmlRpcResponse(xml: string): unknown {
     throw new Error(faultMatch?.[1] || "Odoo XML-RPC fault");
   }
 
-  // Extract value from response
-  const valueMatch = xml.match(/<value>[\s\S]*?<\/value>/);
-  if (!valueMatch) return null;
+  // Extract the value inside <param> - need to handle nested tags properly
+  // Find the content between <param><value> and </value></param>
+  const paramMatch = xml.match(
+    /<param>\s*<value>([\s\S]*)<\/value>\s*<\/param>/,
+  );
+  if (!paramMatch) return null;
 
-  return parseXmlValue(valueMatch[0]);
+  const innerContent = paramMatch[1];
+  return parseXmlValueContent(innerContent);
 }
 
 /**
- * Parse XML value to JS
+ * Parse XML value content (without outer <value> tags)
  */
-function parseXmlValue(xml: string): unknown {
+function parseXmlValueContent(xml: string): unknown {
+  const trimmed = xml.trim();
+
   // Integer
-  const intMatch = xml.match(/<int>(-?\d+)<\/int>|<i4>(-?\d+)<\/i4>/);
-  if (intMatch) return parseInt(intMatch[1] || intMatch[2], 10);
-
-  // Double
-  const doubleMatch = xml.match(/<double>(-?[\d.]+)<\/double>/);
-  if (doubleMatch) return parseFloat(doubleMatch[1]);
-
-  // Boolean
-  const boolMatch = xml.match(/<boolean>([01])<\/boolean>/);
-  if (boolMatch) return boolMatch[1] === "1";
-
-  // String
-  const stringMatch = xml.match(/<string>([\s\S]*?)<\/string>/);
-  if (stringMatch) return stringMatch[1];
-
-  // Array
-  if (xml.includes("<array>")) {
-    const dataMatch = xml.match(/<data>([\s\S]*?)<\/data>/);
-    if (dataMatch) {
-      const values = dataMatch[1].match(/<value>[\s\S]*?<\/value>/g) || [];
-      return values.map(parseXmlValue);
-    }
-    return [];
+  if (trimmed.startsWith("<int>") || trimmed.startsWith("<i4>")) {
+    const match = trimmed.match(/<(?:int|i4)>(-?\d+)<\/(?:int|i4)>/);
+    return match ? parseInt(match[1], 10) : 0;
   }
 
-  // Struct (object)
-  if (xml.includes("<struct>")) {
-    const result: Record<string, unknown> = {};
-    const memberMatches = xml.matchAll(
-      /<member>\s*<name>([^<]+)<\/name>\s*(<value>[\s\S]*?<\/value>)\s*<\/member>/g,
+  // Double
+  if (trimmed.startsWith("<double>")) {
+    const match = trimmed.match(/<double>(-?[\d.]+)<\/double>/);
+    return match ? parseFloat(match[1]) : 0;
+  }
+
+  // Boolean
+  if (trimmed.startsWith("<boolean>")) {
+    const match = trimmed.match(/<boolean>([01])<\/boolean>/);
+    return match ? match[1] === "1" : false;
+  }
+
+  // String
+  if (trimmed.startsWith("<string>")) {
+    const match = trimmed.match(/<string>([\s\S]*?)<\/string>/);
+    return match ? match[1] : "";
+  }
+
+  // Array - need to handle nested values carefully
+  if (trimmed.startsWith("<array>")) {
+    const result: unknown[] = [];
+    // Extract content between <data> and </data>
+    const dataMatch = trimmed.match(
+      /<array>\s*<data>([\s\S]*)<\/data>\s*<\/array>/,
     );
-    for (const match of memberMatches) {
-      result[match[1]] = parseXmlValue(match[2]);
+    if (dataMatch) {
+      const dataContent = dataMatch[1];
+      // Parse each <value>...</value> element - need balanced matching
+      const values = extractBalancedValues(dataContent);
+      for (const val of values) {
+        result.push(parseXmlValueContent(val));
+      }
     }
     return result;
   }
 
-  // Default empty value
-  if (xml.match(/<value\s*\/>/)) return "";
-  if (xml.match(/<value>\s*<\/value>/)) return "";
+  // Struct (object)
+  if (trimmed.startsWith("<struct>")) {
+    const result: Record<string, unknown> = {};
+    // Extract members
+    const structContent =
+      trimmed.match(/<struct>([\s\S]*)<\/struct>/)?.[1] || "";
+    const memberRegex =
+      /<member>\s*<name>([^<]+)<\/name>\s*<value>([\s\S]*?)<\/value>\s*<\/member>/g;
+    let match;
+    while ((match = memberRegex.exec(structContent)) !== null) {
+      const name = match[1];
+      const valueContent = match[2];
+      result[name] = parseXmlValueContent(valueContent);
+    }
+    return result;
+  }
 
-  return null;
+  // Empty or nil
+  if (trimmed === "" || trimmed === "<nil/>") {
+    return null;
+  }
+
+  return trimmed;
+}
+
+/**
+ * Extract balanced <value>...</value> elements from XML string
+ */
+function extractBalancedValues(xml: string): string[] {
+  const values: string[] = [];
+  let depth = 0;
+  let start = -1;
+
+  for (let i = 0; i < xml.length; i++) {
+    if (xml.slice(i, i + 7) === "<value>") {
+      if (depth === 0) start = i + 7;
+      depth++;
+      i += 6;
+    } else if (xml.slice(i, i + 8) === "</value>") {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        values.push(xml.slice(start, i));
+        start = -1;
+      }
+      i += 7;
+    }
+  }
+
+  return values;
+}
+
+/**
+ * Parse XML value to JS (legacy wrapper)
+ */
+function parseXmlValue(xml: string): unknown {
+  // Strip outer <value> tags if present
+  const match = xml.match(/<value>([\s\S]*)<\/value>/);
+  if (match) {
+    return parseXmlValueContent(match[1]);
+  }
+  return parseXmlValueContent(xml);
 }
 
 /**
