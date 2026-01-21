@@ -812,7 +812,7 @@ When a bug is found, add it using this template:
 
 | Month | Bugs Found | Bugs Prevented | Prevention Rate |
 |-------|-----------|----------------|-----------------|
-| Jan 2026 | 13 | 0 | - |
+| Jan 2026 | 14 | 0 | - |
 | Feb 2026 | TBD | TBD | TBD |
 
 ### Bug Categories (Jan 2026)
@@ -820,7 +820,7 @@ When a bug is found, add it using this template:
 - TYPE (TypeScript): 1 (BUG-003)
 - API (Response Handling): 1 (BUG-004)
 - REACT (Rendering): 1 (BUG-005)
-- DB (Database/Data): 3 (BUG-006, BUG-007, BUG-008)
+- DB (Database/Data): 4 (BUG-006, BUG-007, BUG-008, BUG-014)
 - CI (Build Configuration): 5 (BUG-009, BUG-010, BUG-011, BUG-012, BUG-013)
 
 ### Implementation Patterns (Jan 2026)
@@ -907,5 +907,100 @@ headers: {
 
 ---
 
-_Last Updated: January 20, 2026_
+### [2026-01-21] BUG-014: DB - Supabase Client Created with Non-Null Assertions
+
+**Severity:** Critical (Production errors - API routes failing silently)
+**Files Affected:**
+
+- `apps/web/src/lib/ticket-service.ts`
+
+**Context:** Creating Supabase clients in service files for database operations.
+
+**Mistake:** Created a new Supabase client using non-null assertions (`!`) instead of using the centralized `supabaseAdmin` client.
+
+**Error Message:**
+
+```
+supabaseKey is required
+```
+
+**Root Cause:**
+Service file created its own Supabase client with `!` assertions:
+
+```typescript
+createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
+```
+
+When environment variables were undefined, the `!` assertion passed `undefined` to the SDK, causing the error.
+
+**Prevention Rule:** NEVER create Supabase clients with `!` assertions; always use centralized `supabaseAdmin` from `@/lib/supabase`.
+
+**Code Example:**
+
+```typescript
+❌ Wrong:
+import { createClient } from "@supabase/supabase-js";
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+}
+
+✅ Correct:
+import { supabaseAdmin } from "./supabase";
+function getSupabase() {
+  return supabaseAdmin;
+}
+```
+
+**Solution:**
+
+The centralized `supabaseAdmin` in `@/lib/supabase` has proper lazy initialization with null checks:
+
+```typescript
+// apps/web/src/lib/supabase.ts - Centralized pattern
+let _supabaseAdmin: SupabaseClient | null = null;
+
+export const supabaseAdmin = (() => {
+  if (!_supabaseAdmin) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!url || !key) {
+      console.error("Supabase env vars missing");
+      // Graceful handling instead of runtime crash
+    }
+
+    _supabaseAdmin = createClient(url!, key!);
+  }
+  return _supabaseAdmin!;
+})();
+```
+
+**Test Case:**
+
+```typescript
+describe("Supabase Client Usage", () => {
+  it("should not create clients with non-null assertions", () => {
+    const files = glob.sync("apps/web/src/**/*.ts");
+    for (const file of files) {
+      const content = fs.readFileSync(file, "utf-8");
+      if (file !== "apps/web/src/lib/supabase.ts") {
+        expect(content).not.toMatch(/createClient\([^)]*!/);
+      }
+    }
+  });
+});
+```
+
+**Related Bugs:** BUG-001, BUG-002
+**Related Coding Principle:** [NULL-003: Never Use Non-Null Assertions for Environment Variables]
+
+---
+
+_Last Updated: January 21, 2026_
 _Maintainers: Development Team_

@@ -14,12 +14,12 @@ Telegram Group → Webhook (Vercel) → Queue Record → Railway Worker
 
 ## Components
 
-| Component | Hosting | Purpose |
-|-----------|---------|---------|
-| Webhook Handler | Vercel | Receives audio from Telegram, queues for processing |
-| Processing Worker | Railway | Downloads, converts, transcribes, analyzes audio |
-| Database | Supabase | Stores recording metadata and analysis results |
-| Audio Storage | Google Drive | Stores converted MP3 files |
+| Component         | Hosting      | Purpose                                             |
+| ----------------- | ------------ | --------------------------------------------------- |
+| Webhook Handler   | Vercel       | Receives audio from Telegram, queues for processing |
+| Processing Worker | Railway      | Downloads, converts, transcribes, analyzes audio    |
+| Database          | Supabase     | Stores recording metadata and analysis results      |
+| Audio Storage     | Google Drive | Stores converted MP3 files                          |
 
 ## Environment Variables
 
@@ -124,6 +124,7 @@ curl https://your-worker.railway.app/health
 ```
 
 Response:
+
 ```json
 {
   "status": "healthy",
@@ -136,11 +137,13 @@ Response:
 ### Admin API
 
 List recordings:
+
 ```bash
 GET /api/admin/call-recordings?processing_status=failed&limit=10
 ```
 
 Retry failed recording:
+
 ```bash
 POST /api/admin/call-recordings/{id}/retry
 ```
@@ -148,6 +151,7 @@ POST /api/admin/call-recordings/{id}/retry
 ### Database Queries
 
 Check processing stats:
+
 ```sql
 SELECT processing_status, COUNT(*)
 FROM call_recordings
@@ -155,6 +159,7 @@ GROUP BY processing_status;
 ```
 
 Find stuck recordings:
+
 ```sql
 SELECT * FROM call_recordings
 WHERE processing_status NOT IN ('completed', 'failed', 'pending')
@@ -172,12 +177,50 @@ WHERE processing_status NOT IN ('completed', 'failed', 'pending')
 - Ensure bot is added to the Telegram group
 - Check Vercel function logs for errors
 
-#### 2. Worker Not Processing
+#### 2. "supabaseKey is required" Error
+
+- **Cause:** Service files creating their own Supabase clients with `!` assertions instead of using centralized client
+- **Solution:** Always import and use `supabaseAdmin` from `@/lib/supabase`
+- **Check:** Search for `createClient` in service files - only `@/lib/supabase.ts` should create clients
+
+```typescript
+// ❌ WRONG - Don't create clients like this
+import { createClient } from "@supabase/supabase-js";
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
+
+// ✅ CORRECT - Use centralized client
+import { supabaseAdmin } from "@/lib/supabase";
+```
+
+#### 3. Worker Not Processing
 
 - Check Railway logs for errors
 - Verify all environment variables are set
 - Check database connectivity
 - Ensure no stuck jobs (reset if needed)
+
+### Webhook Step-by-Step Logging
+
+The webhook handler includes diagnostic logging to trace where failures occur:
+
+```
+[Telegram Webhook] Step 1: Extracted phone=+919876543210, name=Kumar, file_id=BQACAgUAAxkB...
+[Telegram Webhook] Step 2: Checking for duplicate...
+[Telegram Webhook] Step 3: Finding lead for phone +919876543210...
+[Telegram Webhook] Step 3 complete: Lead found=true, lead_id=7809f7e0-...
+[Telegram Webhook] Step 4: Inserting call recording...
+[Telegram Webhook] Step 4 complete: Recording created, id=abc123...
+```
+
+Use these logs in Vercel to diagnose exactly where the webhook fails:
+
+- **Stops at Step 1:** Phone extraction failed (check filename pattern)
+- **Stops at Step 2:** Database connection issue (check supabase credentials)
+- **Stops at Step 3:** Lead lookup failed (phone normalization issue)
+- **Stops at Step 4:** Insert failed (check RLS policies or schema)
 
 #### 3. Transcription Failures
 
@@ -216,6 +259,7 @@ WHERE processing_status = 'failed'
 #### Clear Processing Queue
 
 In case of worker restart:
+
 ```sql
 UPDATE call_recordings
 SET processing_status = 'pending'
@@ -226,10 +270,27 @@ WHERE processing_status IN ('downloading', 'converting', 'uploading', 'transcrib
 
 ### Filename Extraction
 
-Phone number is extracted from the filename using these patterns:
-- `Superfone_9876543210_20260115.wav`
-- `Call_+919876543210.wav`
-- `9876543210.wav`
+Phone number AND customer name are extracted from the filename using these patterns:
+
+| Pattern                   | Phone | Name | Example                                                |
+| ------------------------- | ----- | ---- | ------------------------------------------------------ |
+| `Name_Location_Phone.wav` | ✅    | ✅   | `Superfone_Recording_Sujan_Nolambur_+916374721152.wav` |
+| `Name_Phone.wav`          | ✅    | ✅   | `Robin_Avadi_9876543210.wav`                           |
+| `Provider_Phone_Date.wav` | ✅    | ❌   | `Superfone_9876543210_20260115.wav`                    |
+| `Call_Phone.wav`          | ✅    | ❌   | `Call_+919876543210.wav`                               |
+| `Phone.wav`               | ✅    | ❌   | `9876543210.wav`                                       |
+
+### Auto-Lead Creation
+
+When a recording is received:
+
+1. Phone number extracted from filename
+2. If name is also extracted AND no existing lead matches the phone:
+   - A new lead is automatically created with:
+     - `source: "Telegram"`
+     - `status: "new"`
+     - `lead_type: "Other"` (updated after transcription analysis)
+3. If no name extracted, user is prompted to reply with `NAME: Customer Name`
 
 ### Google Drive Structure
 
@@ -277,11 +338,11 @@ Budget of ₹15 lakhs discussed. Ready to visit factory next week.
 
 ### Worker Configuration
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| POLL_INTERVAL_MS | 30000 | How often to check for new recordings |
-| MAX_CONCURRENT | 3 | Maximum recordings processed simultaneously |
-| MAX_RETRIES | 3 | Maximum retry attempts for failed recordings |
+| Setting          | Default | Description                                  |
+| ---------------- | ------- | -------------------------------------------- |
+| POLL_INTERVAL_MS | 30000   | How often to check for new recordings        |
+| MAX_CONCURRENT   | 3       | Maximum recordings processed simultaneously  |
+| MAX_RETRIES      | 3       | Maximum retry attempts for failed recordings |
 
 ### Scaling Recommendations
 

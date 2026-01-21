@@ -18,6 +18,7 @@
 4. [Test Patterns](#4-test-patterns)
 5. [Error Investigation](#5-error-investigation)
 6. [Integration Test Patterns](#6-integration-test-patterns)
+7. [Agent-Browser E2E Testing](#7-agent-browser-e2e-testing-recommended)
 
 ---
 
@@ -551,6 +552,126 @@ export const factories = {
 
 ---
 
+## 7. Agent-Browser E2E Testing (Recommended)
+
+For AI-assisted E2E testing, use **agent-browser** - a headless browser automation CLI designed for AI agents.
+
+### Installation
+
+```bash
+# Already installed as dev dependency
+bun add -d agent-browser
+
+# Install Chromium (one-time)
+bunx agent-browser install
+```
+
+### Quick Start Workflow
+
+```bash
+# 1. Navigate to a page
+bunx agent-browser open http://localhost:3000/dashboard
+
+# 2. Take a snapshot (interactive elements only)
+bunx agent-browser snapshot -i
+# Output: - button "Submit" [ref=e1]
+#         - input "Email" [ref=e2]
+#         - link "Learn More" [ref=e3]
+
+# 3. Interact using element references
+bunx agent-browser click @e1        # Click element
+bunx agent-browser fill @e2 "test@example.com"  # Fill input
+bunx agent-browser type "Hello"     # Type text
+
+# 4. Take screenshot
+bunx agent-browser screenshot /tmp/claude/test.png
+
+# 5. Close browser when done
+bunx agent-browser close
+```
+
+### Common Commands
+
+| Command             | Description                 | Example                                         |
+| ------------------- | --------------------------- | ----------------------------------------------- |
+| `open <url>`        | Navigate to URL             | `bunx agent-browser open http://localhost:3000` |
+| `snapshot`          | Get page accessibility tree | `bunx agent-browser snapshot`                   |
+| `snapshot -i`       | Interactive elements only   | `bunx agent-browser snapshot -i`                |
+| `click <ref>`       | Click element               | `bunx agent-browser click @e1`                  |
+| `fill <ref> <text>` | Fill input field            | `bunx agent-browser fill @e2 "text"`            |
+| `type <text>`       | Type text                   | `bunx agent-browser type "hello"`               |
+| `press <key>`       | Press key                   | `bunx agent-browser press Enter`                |
+| `screenshot <path>` | Take screenshot             | `bunx agent-browser screenshot ./test.png`      |
+| `close`             | Close browser               | `bunx agent-browser close`                      |
+
+### Selector Types
+
+```bash
+# Element reference (from snapshot)
+bunx agent-browser click @e1
+
+# CSS selector
+bunx agent-browser click "css=button.submit"
+
+# Text matching
+bunx agent-browser click "text=Submit"
+
+# XPath
+bunx agent-browser click "xpath=//button[@type='submit']"
+```
+
+### E2E Test Pattern with agent-browser
+
+```bash
+# Test: User can create a new lead
+
+# 1. Open leads page
+bunx agent-browser open http://localhost:3000/leads
+
+# 2. Verify page loaded (check for expected elements)
+bunx agent-browser snapshot -i
+
+# 3. Click "New Lead" button
+bunx agent-browser click "text=New Lead"
+
+# 4. Fill the form
+bunx agent-browser fill "css=#name" "Test Lead"
+bunx agent-browser fill "css=#phone" "+919876543210"
+
+# 5. Submit
+bunx agent-browser click "text=Save"
+
+# 6. Verify success (take snapshot to check for success message)
+bunx agent-browser snapshot -i
+
+# 7. Screenshot for evidence
+bunx agent-browser screenshot ./test-results/create-lead.png
+
+# 8. Close
+bunx agent-browser close
+```
+
+### When to Use agent-browser vs Playwright
+
+| Use Case                   | Tool          |
+| -------------------------- | ------------- |
+| AI-assisted manual testing | agent-browser |
+| Quick visual verification  | agent-browser |
+| Exploratory testing        | agent-browser |
+| Automated CI/CD tests      | Playwright    |
+| Complex test suites        | Playwright    |
+| Cross-browser testing      | Playwright    |
+
+### Tips
+
+1. **Always start with `snapshot -i`** to see available interactive elements
+2. **Use element refs (@e1, @e2)** for reliable targeting
+3. **Re-snapshot after navigation** - page state changes
+4. **Take screenshots** for debugging and evidence
+5. **Close browser** when done to free resources
+
+---
+
 ## Quick Reference
 
 ### When Debugging
@@ -580,5 +701,5 @@ export const factories = {
 
 ---
 
-_Last Updated: January 17, 2026_
-_Version: 1.0_
+_Last Updated: January 21, 2026_
+_Version: 1.1_

@@ -42,3 +42,27 @@ src/
 - React Hook Form for all forms
 - Zod schemas for validation
 - Error messages in Tamil + English where applicable
+
+## Supabase Client Usage (CRITICAL)
+
+**ALWAYS use centralized clients from `@/lib/supabase`:**
+
+```typescript
+// ✅ Server-side (API routes, server components)
+import { supabaseAdmin } from "@/lib/supabase";
+
+// ✅ Client-side (browser)
+import { supabaseClient } from "@/lib/supabase";
+
+// ❌ NEVER create your own client with non-null assertions
+// This causes "supabaseKey is required" errors!
+import { createClient } from "@supabase/supabase-js";
+const supabase = createClient(process.env.URL!, process.env.KEY!);  // BAD!
+```
+
+See `docs/LEARNINGS.md` BUG-014 for details.
+
+## Key Library Files
+- `src/lib/supabase.ts` - Centralized Supabase clients
+- `src/lib/telegram.ts` - Telegram bot utilities
+- `src/lib/telegram-webhook.ts` - Webhook helper functions

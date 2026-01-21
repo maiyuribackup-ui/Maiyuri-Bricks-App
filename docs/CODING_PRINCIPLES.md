@@ -914,6 +914,36 @@ import DOMPurify from "dompurify";
 const sanitized = DOMPurify.sanitize(userContent);
 ```
 
+### SEC-003: Use Centralized Supabase Client
+
+**Rule:** NEVER create Supabase clients with non-null assertions. Always use centralized client.
+
+```typescript
+// ❌ WRONG - Non-null assertions will crash if env vars missing
+import { createClient } from "@supabase/supabase-js";
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!, // Passes undefined to SDK!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!, // Causes "supabaseKey is required" error
+);
+
+// ✅ CORRECT - Use centralized client from @/lib/supabase
+import { supabaseAdmin } from "@/lib/supabase";
+
+// The centralized client provides:
+// - Lazy initialization with proper null checks
+// - Singleton pattern (single instance)
+// - Graceful error logging if env vars missing
+
+const { data, error } = await supabaseAdmin.from("leads").select("*");
+```
+
+**Why This Matters:**
+
+- Non-null assertions (`!`) pass `undefined` to Supabase SDK when env vars are missing
+- This causes cryptic "supabaseKey is required" errors at runtime
+- The centralized client handles this gracefully with proper checks
+- See BUG-014 in LEARNINGS.md for full details
+
 ---
 
 ## 11. Naming Conventions
@@ -1369,5 +1399,5 @@ export type LeadStatus =
 
 ---
 
-_Last Updated: January 17, 2026_
-_Version: 1.0_
+_Last Updated: January 21, 2026_
+_Version: 1.1_
