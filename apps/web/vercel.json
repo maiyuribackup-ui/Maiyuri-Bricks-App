@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/deliveries/cron",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 6 * * *"
     }
   ]
 }
