@@ -23,6 +23,7 @@ import {
 } from "@/components/leads";
 import { LeadActivityTimeline } from "@/components/timeline";
 import { PriceEstimatorPanel } from "@/components/estimates";
+import { HelpButton } from "@/components/help";
 import {
   ArrowTopRightOnSquareIcon,
   BellAlertIcon,
@@ -335,6 +336,11 @@ export default function LeadDetailPage() {
   return (
     <div className="space-y-6">
       <Toaster position="top-right" />
+
+      {/* Help Button */}
+      <div className="flex justify-end">
+        <HelpButton section="lead-detail" variant="icon" />
+      </div>
 
       {/* Enhanced Header Card - Issue #8 */}
       <Card className="p-0 overflow-hidden">

@@ -12,6 +12,7 @@ import {
   type User,
 } from "@maiyuri/shared";
 import Link from "next/link";
+import { HelpButton } from "@/components/help";
 
 // Source options (Issue #6)
 const sourceOptions = [
@@ -124,21 +125,24 @@ export default function NewLeadPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          href="/leads"
-          className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800"
-        >
-          <ArrowLeftIcon className="h-5 w-5 text-slate-500" />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            New Lead
-          </h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Add a new lead to track
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link
+            href="/leads"
+            className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            <ArrowLeftIcon className="h-5 w-5 text-slate-500" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+              New Lead
+            </h1>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Add a new lead to track
+            </p>
+          </div>
         </div>
+        <HelpButton section="lead-new" variant="icon" />
       </div>
 
       {/* Form */}

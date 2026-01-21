@@ -10,6 +10,7 @@ import {
 } from "@/components/approvals";
 import { Toaster, toast } from "sonner";
 import type { Ticket, TicketFilters, TicketStatus } from "@maiyuri/shared";
+import { HelpButton } from "@/components/help";
 
 const statusTabs: { value: TicketStatus | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -74,6 +75,7 @@ export default function ApprovalsPage() {
           </p>
         </div>
         <div className="flex items-center gap-4">
+          <HelpButton section="approvals" variant="icon" />
           {/* Quick Stats */}
           {stats && (
             <div className="flex gap-4 text-sm">

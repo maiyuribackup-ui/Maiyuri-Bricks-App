@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { cn } from "@maiyuri/ui";
+import { HelpButton } from "@/components/help";
 
 // Tutorial Modal Component
 function TutorialModal({
@@ -595,12 +596,13 @@ function CoachingContent() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <HelpButton section="coaching" variant="icon" />
           <button
             onClick={() => setShowTutorial(true)}
             className="px-4 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
           >
             <HelpCircleIcon className="h-4 w-4" />
-            Help
+            Tutorial
           </button>
           <button
             onClick={fetchCoaching}

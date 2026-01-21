@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 /**
  * Design Page
@@ -13,13 +13,20 @@
  * - Iterative modifications based on user feedback
  */
 
-import { FloorPlanChatbot } from '@/components/FloorPlanChatbot';
-import type { GeneratedImages, DesignContextSummary } from '@/components/FloorPlanChatbot/types';
+import { FloorPlanChatbot } from "@/components/FloorPlanChatbot";
+import type {
+  GeneratedImages,
+  DesignContextSummary,
+} from "@/components/FloorPlanChatbot/types";
+import { HelpButton } from "@/components/help";
 
 export default function DesignPage() {
-  const handleDesignComplete = (images: GeneratedImages, context: DesignContextSummary) => {
+  const handleDesignComplete = (
+    images: GeneratedImages,
+    context: DesignContextSummary,
+  ) => {
     // Could show detailed view or trigger download
-    console.log('Design complete:', { images, context });
+    console.log("Design complete:", { images, context });
   };
 
   return (
@@ -34,7 +41,10 @@ export default function DesignPage() {
 
       <div className="relative max-w-4xl mx-auto px-4 py-6">
         {/* Page Header */}
-        <div className="text-center mb-6">
+        <div className="text-center mb-6 relative">
+          <div className="absolute right-0 top-0">
+            <HelpButton section="design" variant="icon" />
+          </div>
           <h1 className="text-3xl font-bold text-white flex items-center justify-center gap-3">
             <span className="text-4xl">🏠</span>
             <span className="bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">

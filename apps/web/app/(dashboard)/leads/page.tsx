@@ -12,6 +12,7 @@ import {
   type LeadStage,
 } from "@maiyuri/shared";
 import { Toaster, toast } from "sonner";
+import { HelpButton } from "@/components/help";
 
 // ============================================================================
 // CONSTANTS & HELPERS
@@ -418,6 +419,7 @@ export default function LeadsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <HelpButton section="leads" variant="icon" />
           <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg flex text-sm font-medium">
             <button
               onClick={() => setViewMode("list")}

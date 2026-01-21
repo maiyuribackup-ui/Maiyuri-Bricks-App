@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { HelpButton } from "@/components/help";
 
 interface Message {
   id: string;
@@ -123,7 +124,10 @@ export default function KnowledgeChatbot() {
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] max-w-3xl mx-auto">
       {/* Header */}
-      <div className="text-center py-4 border-b border-slate-200 dark:border-slate-700">
+      <div className="text-center py-4 border-b border-slate-200 dark:border-slate-700 relative">
+        <div className="absolute right-4 top-4">
+          <HelpButton section="knowledge" variant="icon" />
+        </div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center justify-center gap-2">
           <span className="text-3xl">🧠</span> Knowledge Assistant
         </h1>

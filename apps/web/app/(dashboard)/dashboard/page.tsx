@@ -22,6 +22,7 @@ import {
   GeographicHeatMap,
   ProductInterestBreakdown,
 } from "@/components/dashboard";
+import { HelpButton } from "@/components/help";
 
 interface StatusCounts {
   new: number;
@@ -231,6 +232,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <HelpButton section="dashboard" variant="icon" />
           <Select
             options={periodOptions}
             value={period}
