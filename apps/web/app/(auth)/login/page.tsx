@@ -1,25 +1,25 @@
-'use client';
+"use client";
 
-import { useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Image from 'next/image';
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { getSupabase } from '@/lib/supabase';
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { getSupabase } from "@/lib/supabase";
 
 // Brand colors from Brandguidelines.md
 const brandColors = {
-  primary: '#1F6F43',    // Earth Green
-  secondary: '#8B5E3C',  // Clay Brown
-  accent: '#2F80ED',     // Peacock Blue
-  bgPrimary: '#F7F7F4',  // Page background
+  primary: "#1F6F43", // Earth Green
+  secondary: "#8B5E3C", // Clay Brown
+  accent: "#2F80ED", // Peacock Blue
+  bgPrimary: "#F7F7F4", // Page background
 };
 
 // Validation schema
 const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -30,7 +30,7 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const redirectTo = searchParams.get('redirect') || '/dashboard';
+  const redirectTo = searchParams.get("redirect") || "/dashboard";
 
   const {
     register,
@@ -46,14 +46,15 @@ function LoginForm() {
 
     try {
       const supabase = getSupabase();
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password,
-      });
+      const { data: authData, error: authError } =
+        await supabase.auth.signInWithPassword({
+          email: data.email,
+          password: data.password,
+        });
 
       if (authError) {
-        if (authError.message.includes('Invalid login credentials')) {
-          setError('Invalid email or password');
+        if (authError.message.includes("Invalid login credentials")) {
+          setError("Invalid email or password");
         } else {
           setError(authError.message);
         }
@@ -65,7 +66,7 @@ function LoginForm() {
       window.location.href = redirectTo;
       return;
     } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+      setError("An unexpected error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -77,7 +78,11 @@ function LoginForm() {
         Sign in to your account
       </h2>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        method="POST"
+        className="space-y-5"
+      >
         {/* Email Field */}
         <div>
           <label
@@ -90,14 +95,18 @@ function LoginForm() {
             id="email"
             type="email"
             autoComplete="email"
-            {...register('email')}
+            {...register("email")}
             className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ '--tw-ring-color': brandColors.primary } as React.CSSProperties}
+            style={
+              { "--tw-ring-color": brandColors.primary } as React.CSSProperties
+            }
             placeholder="you@example.com"
             disabled={isLoading}
           />
           {errors.email && (
-            <p className="text-red-500 text-sm mt-1.5">{errors.email.message}</p>
+            <p className="text-red-500 text-sm mt-1.5">
+              {errors.email.message}
+            </p>
           )}
         </div>
 
@@ -113,14 +122,18 @@ function LoginForm() {
             id="password"
             type="password"
             autoComplete="current-password"
-            {...register('password')}
+            {...register("password")}
             className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ '--tw-ring-color': brandColors.primary } as React.CSSProperties}
+            style={
+              { "--tw-ring-color": brandColors.primary } as React.CSSProperties
+            }
             placeholder="Enter your password"
             disabled={isLoading}
           />
           {errors.password && (
-            <p className="text-red-500 text-sm mt-1.5">{errors.password.message}</p>
+            <p className="text-red-500 text-sm mt-1.5">
+              {errors.password.message}
+            </p>
           )}
         </div>
 
@@ -147,12 +160,18 @@ function LoginForm() {
           type="submit"
           disabled={isLoading}
           className="w-full py-2.5 px-4 text-white font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          style={{
-            backgroundColor: brandColors.primary,
-            '--tw-ring-color': brandColors.primary,
-          } as React.CSSProperties}
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#185835'}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = brandColors.primary}
+          style={
+            {
+              backgroundColor: brandColors.primary,
+              "--tw-ring-color": brandColors.primary,
+            } as React.CSSProperties
+          }
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.backgroundColor = "#185835")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.backgroundColor = brandColors.primary)
+          }
         >
           {isLoading ? (
             <>
@@ -160,7 +179,7 @@ function LoginForm() {
               Signing in...
             </>
           ) : (
-            'Sign in'
+            "Sign in"
           )}
         </button>
       </form>
@@ -226,7 +245,10 @@ export default function LoginPage() {
               priority
             />
           </div>
-          <h1 className="text-2xl font-bold" style={{ color: brandColors.primary }}>
+          <h1
+            className="text-2xl font-bold"
+            style={{ color: brandColors.primary }}
+          >
             Maiyuri Bricks
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
