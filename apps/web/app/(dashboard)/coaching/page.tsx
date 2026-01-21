@@ -4,6 +4,278 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { cn } from "@maiyuri/ui";
 
+// Tutorial Modal Component
+function TutorialModal({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div className="relative min-h-screen flex items-center justify-center p-4">
+        <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden">
+          {/* Header */}
+          <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <BookOpenIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                Coaching Tutorial
+              </h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+            >
+              <XIcon className="h-5 w-5 text-slate-500" />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="overflow-y-auto max-h-[calc(85vh-80px)] px-6 py-6 space-y-8">
+            {/* What is Coaching */}
+            <section>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                <SparklesIcon className="h-5 w-5 text-purple-500" />
+                What is the Coaching Module?
+              </h3>
+              <p className="text-slate-600 dark:text-slate-300 mb-4">
+                The Coaching Module uses AI to analyze your lead management
+                performance and provide personalized recommendations to help you
+                improve.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  "Leads handled",
+                  "Conversion rate",
+                  "Response time",
+                  "Follow-up completion",
+                ].map((item) => (
+                  <div
+                    key={item}
+                    className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400"
+                  >
+                    <CheckCircleIcon className="h-4 w-4 text-green-500" />
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* How to Access */}
+            <section>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                <MapIcon className="h-5 w-5 text-blue-500" />
+                How to Access
+              </h3>
+              <ol className="space-y-3">
+                {[
+                  "Log in to your account",
+                  'Click "Coaching" in the sidebar menu',
+                  "View Team Overview or Individual Coaching",
+                ].map((step, idx) => (
+                  <li key={idx} className="flex items-start gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-medium">
+                      {idx + 1}
+                    </span>
+                    <span className="text-slate-600 dark:text-slate-300">
+                      {step}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            {/* Understanding Team View */}
+            <section>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                <UsersIcon className="h-5 w-5 text-indigo-500" />
+                Team Overview
+              </h3>
+              <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-slate-500 dark:text-slate-400">
+                      <th className="pb-2">Metric</th>
+                      <th className="pb-2">What It Means</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-slate-600 dark:text-slate-300">
+                    <tr>
+                      <td className="py-1 font-medium">Total Leads</td>
+                      <td>Leads managed by the team</td>
+                    </tr>
+                    <tr>
+                      <td className="py-1 font-medium">Conversion Rate</td>
+                      <td>Leads converted to customers</td>
+                    </tr>
+                    <tr>
+                      <td className="py-1 font-medium">Top Performer</td>
+                      <td>Best performing team member</td>
+                    </tr>
+                    <tr>
+                      <td className="py-1 font-medium">Weekly Trend</td>
+                      <td>Performance direction</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            {/* Performance Score */}
+            <section>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                <ChartIcon className="h-5 w-5 text-green-500" />
+                Performance Score
+              </h3>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <span className="w-20 h-8 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center text-sm font-bold">
+                    80-100
+                  </span>
+                  <span className="text-slate-600 dark:text-slate-300">
+                    Excellent - Keep up the great work!
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="w-20 h-8 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 rounded-full flex items-center justify-center text-sm font-bold">
+                    60-79
+                  </span>
+                  <span className="text-slate-600 dark:text-slate-300">
+                    Good - Some areas for improvement
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="w-20 h-8 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center text-sm font-bold">
+                    &lt;60
+                  </span>
+                  <span className="text-slate-600 dark:text-slate-300">
+                    Needs attention - Focus on recommendations
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            {/* AI Recommendations */}
+            <section>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                <LightbulbIcon className="h-5 w-5 text-yellow-500" />
+                AI Recommendations
+              </h3>
+              <p className="text-slate-600 dark:text-slate-300 mb-3">
+                Each recommendation includes:
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
+                  <p className="font-medium text-slate-900 dark:text-white text-sm">
+                    Priority
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    High, Medium, or Low
+                  </p>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
+                  <p className="font-medium text-slate-900 dark:text-white text-sm">
+                    Area
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Which aspect to improve
+                  </p>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
+                  <p className="font-medium text-slate-900 dark:text-white text-sm">
+                    Action
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Steps you can take
+                  </p>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
+                  <p className="font-medium text-slate-900 dark:text-white text-sm">
+                    Impact
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Expected improvement
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* Tips for Improvement */}
+            <section>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                <ArrowUpIcon className="h-5 w-5 text-orange-500" />
+                Tips to Improve Quickly
+              </h3>
+              <ul className="space-y-2">
+                {[
+                  "Respond to leads within 2 hours",
+                  "Complete all scheduled follow-ups",
+                  "Keep detailed notes on every interaction",
+                  "Prioritize hot leads first",
+                  "Review coaching weekly on Mondays",
+                ].map((tip, idx) => (
+                  <li
+                    key={idx}
+                    className="flex items-start gap-2 text-slate-600 dark:text-slate-300"
+                  >
+                    <span className="text-green-500 mt-0.5">+</span>
+                    {tip}
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            {/* FAQ */}
+            <section>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                <QuestionIcon className="h-5 w-5 text-slate-500" />
+                Frequently Asked Questions
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <p className="font-medium text-slate-900 dark:text-white text-sm">
+                    How often is data updated?
+                  </p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Data is analyzed in real-time each time you view the page.
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium text-slate-900 dark:text-white text-sm">
+                    Why is my score low?
+                  </p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Check recommendations to see which specific areas need
+                    improvement.
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium text-slate-900 dark:text-white text-sm">
+                    Can my manager see my data?
+                  </p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Yes, managers can view team coaching data.
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface TeamMember {
   id: string;
   name: string;
@@ -122,6 +394,7 @@ function CoachingContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [callInsights, setCallInsights] = useState<CoachingCallInsight[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   // Read selected member from URL search params for persistence
   const selectedMember = searchParams.get("member");
@@ -321,14 +594,29 @@ function CoachingContent() {
             AI-powered performance insights and recommendations
           </p>
         </div>
-        <button
-          onClick={fetchCoaching}
-          className="px-4 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
-        >
-          <RefreshIcon className="h-4 w-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowTutorial(true)}
+            className="px-4 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
+          >
+            <HelpCircleIcon className="h-4 w-4" />
+            Help
+          </button>
+          <button
+            onClick={fetchCoaching}
+            className="px-4 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
+          >
+            <RefreshIcon className="h-4 w-4" />
+            Refresh
+          </button>
+        </div>
       </div>
+
+      {/* Tutorial Modal */}
+      <TutorialModal
+        isOpen={showTutorial}
+        onClose={() => setShowTutorial(false)}
+      />
 
       {/* View Toggle */}
       <div className="flex gap-2">
@@ -936,6 +1224,96 @@ function LoadingSpinner({ className }: { className?: string }) {
         className="opacity-75"
         fill="currentColor"
         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      />
+    </svg>
+  );
+}
+
+function HelpCircleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"
+      />
+    </svg>
+  );
+}
+
+function BookOpenIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
+      />
+    </svg>
+  );
+}
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6 18L18 6M6 6l12 12"
+      />
+    </svg>
+  );
+}
+
+function MapIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z"
+      />
+    </svg>
+  );
+}
+
+function QuestionIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"
       />
     </svg>
   );

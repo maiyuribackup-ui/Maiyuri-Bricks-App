@@ -6,6 +6,7 @@
 
 import * as claude from "../../services/ai/claude";
 import * as db from "../../services/supabase";
+import * as insightBridge from "../../services/insight-knowledge-bridge";
 import type {
   CloudCoreResult,
   KernelContext,
@@ -151,6 +152,22 @@ export async function analyze(
         // SmartQuotePayload for personalized quote experiences
         smart_quote_payload: response.smartQuotePayload,
       });
+
+      // Bridge insights to knowledge base (fire-and-forget, don't block response)
+      insightBridge
+        .processLeadInsight({
+          leadId: request.leadId,
+          dominantObjection: response.updatedFields?.dominant_objection,
+          bestConversionLever: response.updatedFields?.best_conversion_lever,
+          suggestions: response.suggestions?.items,
+          aiSummary: response.summary?.text,
+        })
+        .catch((err) => {
+          console.error(
+            "[LeadAnalyst] Error bridging insights to knowledge:",
+            err,
+          );
+        });
     }
 
     return {

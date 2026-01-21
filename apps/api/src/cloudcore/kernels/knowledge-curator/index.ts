@@ -4,25 +4,25 @@
  * Uses Gemini for embeddings
  */
 
-import * as gemini from '../../services/ai/gemini';
-import { chunking, reranker } from '../../services/ai';
-import * as embeddings from '../../services/embeddings';
-import * as scraper from '../../services/scraper';
-import { supabase } from '../../services/supabase';
+import * as gemini from "../../services/ai/gemini";
+import { chunking, reranker } from "../../services/ai";
+import * as embeddings from "../../services/embeddings";
+import * as scraper from "../../services/scraper";
+import { supabase } from "../../services/supabase";
 import type {
   CloudCoreResult,
   KnowledgeEntry,
   KnowledgeIngestionRequest,
   SemanticSearchRequest,
   SemanticSearchResult,
-} from '../../types';
-import type { ScrapeOptions, ScrapedPage } from '../../services/scraper';
+} from "../../types";
+import type { ScrapeOptions, ScrapedPage } from "../../services/scraper";
 
 export const KERNEL_CONFIG = {
-  name: 'KnowledgeCurator',
-  description: 'Manages knowledge base and semantic search',
-  version: '1.0.0',
-  defaultModel: 'text-embedding-004',
+  name: "KnowledgeCurator",
+  description: "Manages knowledge base and semantic search",
+  version: "1.0.0",
+  defaultModel: "text-embedding-004",
   maxTokens: 2048,
   temperature: 0,
 };
@@ -34,42 +34,42 @@ export const KERNEL_CONFIG = {
  * Ingest content into knowledge base
  */
 export async function ingest(
-  request: KnowledgeIngestionRequest
+  request: KnowledgeIngestionRequest,
 ): Promise<CloudCoreResult<KnowledgeEntry[]>> {
   const startTime = Date.now();
 
   try {
-    const title = request.title || 'Untitled Knowledge';
+    const title = request.title || "Untitled Knowledge";
 
     // 1. Generate Embedding for vector search
     const textForEmbedding = `${title}\n${request.content}`.slice(0, 8000);
     const embeddingResult = await gemini.generateEmbedding(textForEmbedding, {
-      taskType: 'RETRIEVAL_DOCUMENT',
-      title: title
+      taskType: "RETRIEVAL_DOCUMENT",
+      title: title,
     });
-    const embeddingVector = (embeddingResult.success && embeddingResult.data) 
-      ? embeddingResult.data.vector 
-      : null;
+    const embeddingVector =
+      embeddingResult.success && embeddingResult.data
+        ? embeddingResult.data.vector
+        : null;
 
     // 2. Store in Supabase (single source of truth for context stuffing)
     const { data, error } = await supabase
-      .from('knowledgebase')
+      .from("knowledgebase")
       .insert({
         question_text: title,
         answer_text: request.content,
         embeddings: embeddingVector,
         confidence_score: 1.0,
         source_lead_id: request.sourceLeadId,
-        content_type: request.contentType || 'manual',
+        content_type: request.contentType || "manual",
         metadata: {
           ...request.metadata,
-          rag_provider: 'context_stuffing'
+          rag_provider: "context_stuffing",
         },
         created_by: null,
       })
       .select()
       .single();
-
 
     if (error) throw error;
 
@@ -88,30 +88,127 @@ export async function ingest(
       updatedAt: data.last_updated,
     };
 
+    // 3. Auto-resolve matching knowledge gaps (fire-and-forget)
+    autoResolveKnowledgeGaps(entry, embeddingVector).catch((err) => {
+      console.error("[KnowledgeCurator] Error auto-resolving gaps:", err);
+    });
+
     return {
       success: true,
       data: [entry],
       meta: { processingTime: Date.now() - startTime },
     };
-
   } catch (error) {
-    console.error('Knowledge ingestion error:', error);
+    console.error("Knowledge ingestion error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'INGESTION_ERROR',
-        message: error instanceof Error ? error.message : 'Ingestion failed',
+        code: "INGESTION_ERROR",
+        message: error instanceof Error ? error.message : "Ingestion failed",
       },
     };
   }
 }
 
 /**
+ * Auto-resolve knowledge gaps when new knowledge is ingested
+ * Uses vector similarity to find matching unanswered questions
+ */
+async function autoResolveKnowledgeGaps(
+  knowledgeEntry: KnowledgeEntry,
+  embeddingVector: number[] | null,
+): Promise<void> {
+  if (!embeddingVector) {
+    console.log(
+      "[KnowledgeCurator] Skipping gap resolution - no embedding vector",
+    );
+    return;
+  }
+
+  try {
+    // Get pending unanswered questions
+    const { data: gaps, error: gapsError } = await supabase
+      .from("unanswered_questions")
+      .select("id, question_text")
+      .eq("status", "pending");
+
+    if (gapsError || !gaps || gaps.length === 0) {
+      return;
+    }
+
+    console.log(
+      `[KnowledgeCurator] Checking ${gaps.length} pending gaps for auto-resolution`,
+    );
+
+    // Check each gap for similarity with the new knowledge
+    for (const gap of gaps) {
+      // Generate embedding for the gap question
+      const gapEmbeddingResult = await gemini.generateEmbedding(
+        gap.question_text,
+        {
+          taskType: "RETRIEVAL_QUERY",
+        },
+      );
+
+      if (!gapEmbeddingResult.success || !gapEmbeddingResult.data) {
+        continue;
+      }
+
+      // Calculate cosine similarity
+      const similarity = cosineSimilarity(
+        embeddingVector,
+        gapEmbeddingResult.data.vector,
+      );
+
+      // If similarity > 0.85, auto-resolve the gap
+      if (similarity > 0.85) {
+        console.log(
+          `[KnowledgeCurator] Auto-resolving gap "${gap.question_text.slice(0, 50)}..." (similarity: ${similarity.toFixed(3)})`,
+        );
+
+        await supabase
+          .from("unanswered_questions")
+          .update({
+            status: "resolved",
+            resolved_by_knowledge_id: knowledgeEntry.id,
+          })
+          .eq("id", gap.id);
+      }
+    }
+  } catch (error) {
+    console.error(
+      "[KnowledgeCurator] Error in autoResolveKnowledgeGaps:",
+      error,
+    );
+  }
+}
+
+/**
+ * Calculate cosine similarity between two vectors
+ */
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length) return 0;
+
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+
+  const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+  return denominator === 0 ? 0 : dotProduct / denominator;
+}
+
+/**
  * Semantic search across knowledge base
  */
 export async function search(
-  request: SemanticSearchRequest
+  request: SemanticSearchRequest,
 ): Promise<CloudCoreResult<SemanticSearchResult[]>> {
   return embeddings.search(request);
 }
@@ -124,7 +221,7 @@ export async function searchKnowledge(
   options?: {
     limit?: number;
     threshold?: number;
-  }
+  },
 ): Promise<CloudCoreResult<SemanticSearchResult[]>> {
   return embeddings.searchKnowledge({
     query,
@@ -142,7 +239,7 @@ export async function searchNotes(
     leadId?: string;
     limit?: number;
     threshold?: number;
-  }
+  },
 ): Promise<CloudCoreResult<SemanticSearchResult[]>> {
   return embeddings.searchNotes({
     query,
@@ -163,26 +260,28 @@ export async function answerQuestion(
     leadId?: string;
     includeNotes?: boolean;
     maxSources?: number;
-    language?: 'en' | 'ta';
-  }
-): Promise<CloudCoreResult<{
-  answer: string;
-  sources: SemanticSearchResult[];
-  confidence: number;
-}>> {
+    language?: "en" | "ta";
+  },
+): Promise<
+  CloudCoreResult<{
+    answer: string;
+    sources: SemanticSearchResult[];
+    confidence: number;
+  }>
+> {
   const startTime = Date.now();
-  const language = options?.language || 'en';
+  const language = options?.language || "en";
 
   try {
     // Use the new Gemini File Search RAG
     const ragResult = await gemini.queryKnowledgeBase(question, { language });
 
     if (!ragResult.success || !ragResult.data) {
-        return {
-            success: false,
-            data: null,
-            error: ragResult.error
-        }
+      return {
+        success: false,
+        data: null,
+        error: ragResult.error,
+      };
     }
 
     const { answer, citations } = ragResult.data;
@@ -190,12 +289,12 @@ export async function answerQuestion(
     // Map citations to sources structure
     // Since we don't have the text snippet easily, we just list the URI
     const sources: SemanticSearchResult[] = citations.map((uri, idx) => ({
-        id: `citation-${idx}`,
-        sourceId: uri, // Use URI as sourceId
-        content: `Ref: ${uri}`,
-        score: 1.0,
-        sourceType: 'knowledge',
-        metadata: { uri }
+      id: `citation-${idx}`,
+      sourceId: uri, // Use URI as sourceId
+      content: `Ref: ${uri}`,
+      score: 1.0,
+      sourceType: "knowledge",
+      metadata: { uri },
     }));
 
     return {
@@ -203,18 +302,19 @@ export async function answerQuestion(
       data: {
         answer,
         sources,
-        confidence: 0.95 // Gemini usually is confident
+        confidence: 0.95, // Gemini usually is confident
       },
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Question answering error:', error);
+    console.error("Question answering error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'QA_ERROR',
-        message: error instanceof Error ? error.message : 'Question answering failed',
+        code: "QA_ERROR",
+        message:
+          error instanceof Error ? error.message : "Question answering failed",
       },
     };
   }
@@ -222,19 +322,25 @@ export async function answerQuestion(
 /**
  * Get knowledge entry by ID
  */
-export async function getEntry(id: string): Promise<CloudCoreResult<KnowledgeEntry | null>> {
+export async function getEntry(
+  id: string,
+): Promise<CloudCoreResult<KnowledgeEntry | null>> {
   const startTime = Date.now();
 
   try {
     const { data, error } = await supabase
-      .from('knowledgebase')
-      .select('*')
-      .eq('id', id)
+      .from("knowledgebase")
+      .select("*")
+      .eq("id", id)
       .single();
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return { success: true, data: null, meta: { processingTime: Date.now() - startTime } };
+      if (error.code === "PGRST116") {
+        return {
+          success: true,
+          data: null,
+          meta: { processingTime: Date.now() - startTime },
+        };
       }
       throw error;
     }
@@ -256,13 +362,13 @@ export async function getEntry(id: string): Promise<CloudCoreResult<KnowledgeEnt
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error getting knowledge entry:', error);
+    console.error("Error getting knowledge entry:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'GET_ENTRY_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to get entry',
+        code: "GET_ENTRY_ERROR",
+        message: error instanceof Error ? error.message : "Failed to get entry",
       },
     };
   }
@@ -273,7 +379,7 @@ export async function getEntry(id: string): Promise<CloudCoreResult<KnowledgeEnt
  */
 export async function updateEntry(
   id: string,
-  updates: Partial<Pick<KnowledgeEntry, 'question' | 'answer' | 'confidence'>>
+  updates: Partial<Pick<KnowledgeEntry, "question" | "answer" | "confidence">>,
 ): Promise<CloudCoreResult<KnowledgeEntry>> {
   const startTime = Date.now();
 
@@ -300,7 +406,7 @@ export async function updateEntry(
         const newAnswer = updates.answer || entry.data.answer;
 
         const embeddingResult = await gemini.generateEmbedding(
-          `${newQuestion} ${newAnswer}`
+          `${newQuestion} ${newAnswer}`,
         );
 
         if (embeddingResult.success && embeddingResult.data) {
@@ -310,9 +416,9 @@ export async function updateEntry(
     }
 
     const { data, error } = await supabase
-      .from('knowledgebase')
+      .from("knowledgebase")
       .update(dbUpdates)
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
 
@@ -337,13 +443,14 @@ export async function updateEntry(
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error updating knowledge entry:', error);
+    console.error("Error updating knowledge entry:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'UPDATE_ENTRY_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to update entry',
+        code: "UPDATE_ENTRY_ERROR",
+        message:
+          error instanceof Error ? error.message : "Failed to update entry",
       },
     };
   }
@@ -357,9 +464,9 @@ export async function deleteEntry(id: string): Promise<CloudCoreResult<void>> {
 
   try {
     const { error } = await supabase
-      .from('knowledgebase')
+      .from("knowledgebase")
       .delete()
-      .eq('id', id);
+      .eq("id", id);
 
     if (error) {
       throw error;
@@ -371,13 +478,14 @@ export async function deleteEntry(id: string): Promise<CloudCoreResult<void>> {
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error deleting knowledge entry:', error);
+    console.error("Error deleting knowledge entry:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'DELETE_ENTRY_ERROR',
-        message: error instanceof Error ? error.message : 'Failed to delete entry',
+        code: "DELETE_ENTRY_ERROR",
+        message:
+          error instanceof Error ? error.message : "Failed to delete entry",
       },
     };
   }
@@ -387,15 +495,15 @@ export async function deleteEntry(id: string): Promise<CloudCoreResult<void>> {
  * Backfill embeddings for entries without them
  */
 export async function backfillEmbeddings(
-  limit: number = 100
+  limit: number = 100,
 ): Promise<CloudCoreResult<{ processed: number; failed: number }>> {
   const startTime = Date.now();
 
   try {
     const { data: entries, error } = await supabase
-      .from('knowledgebase')
-      .select('id, question_text, answer_text')
-      .is('embeddings', null)
+      .from("knowledgebase")
+      .select("id, question_text, answer_text")
+      .is("embeddings", null)
       .limit(limit);
 
     if (error) {
@@ -415,14 +523,14 @@ export async function backfillEmbeddings(
 
     for (const entry of entries) {
       const embeddingResult = await gemini.generateEmbedding(
-        `${entry.question_text} ${entry.answer_text}`
+        `${entry.question_text} ${entry.answer_text}`,
       );
 
       if (embeddingResult.success && embeddingResult.data) {
         const { error: updateError } = await supabase
-          .from('knowledgebase')
+          .from("knowledgebase")
           .update({ embeddings: embeddingResult.data.vector })
-          .eq('id', entry.id);
+          .eq("id", entry.id);
 
         if (updateError) {
           failed++;
@@ -440,13 +548,13 @@ export async function backfillEmbeddings(
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('Error backfilling embeddings:', error);
+    console.error("Error backfilling embeddings:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'BACKFILL_ERROR',
-        message: error instanceof Error ? error.message : 'Backfill failed',
+        code: "BACKFILL_ERROR",
+        message: error instanceof Error ? error.message : "Backfill failed",
       },
     };
   }
@@ -464,7 +572,7 @@ export interface ScrapeResult {
 
 export async function scrapeWebsite(
   url: string,
-  options?: ScrapeOptions & { category?: string; tags?: string[] }
+  options?: ScrapeOptions & { category?: string; tags?: string[] },
 ): Promise<CloudCoreResult<ScrapeResult>> {
   const startTime = Date.now();
   const result: ScrapeResult = {
@@ -484,7 +592,10 @@ export async function scrapeWebsite(
       return {
         success: false,
         data: null,
-        error: crawlResult.error || { code: 'CRAWL_ERROR', message: 'Failed to crawl website' },
+        error: crawlResult.error || {
+          code: "CRAWL_ERROR",
+          message: "Failed to crawl website",
+        },
       };
     }
 
@@ -497,20 +608,23 @@ export async function scrapeWebsite(
       try {
         // Skip pages with very little content
         if (page.content.length < 200) {
-          console.log(`[KnowledgeCurator] Skipping ${page.url} - insufficient content`);
+          console.log(
+            `[KnowledgeCurator] Skipping ${page.url} - insufficient content`,
+          );
           continue;
         }
 
         // Truncate very long content
-        const content = page.content.length > 10000
-          ? page.content.slice(0, 10000) + '...'
-          : page.content;
+        const content =
+          page.content.length > 10000
+            ? page.content.slice(0, 10000) + "..."
+            : page.content;
 
         const ingestResult = await ingest({
           content: `Page: ${page.title}\nURL: ${page.url}\n\n${content}`,
           title: page.title,
-          category: options?.category || 'Website',
-          tags: options?.tags || ['scraped', new URL(url).hostname],
+          category: options?.category || "Website",
+          tags: options?.tags || ["scraped", new URL(url).hostname],
         });
 
         if (ingestResult.success && ingestResult.data) {
@@ -518,11 +632,13 @@ export async function scrapeWebsite(
           result.entries.push(...ingestResult.data);
           console.log(`[KnowledgeCurator] Created entry for: ${page.title}`);
         } else {
-          result.errors.push(`Failed to ingest ${page.url}: ${ingestResult.error?.message}`);
+          result.errors.push(
+            `Failed to ingest ${page.url}: ${ingestResult.error?.message}`,
+          );
         }
       } catch (pageError) {
         result.errors.push(
-          `Error processing ${page.url}: ${pageError instanceof Error ? pageError.message : 'Unknown error'}`
+          `Error processing ${page.url}: ${pageError instanceof Error ? pageError.message : "Unknown error"}`,
         );
       }
     }
@@ -536,13 +652,14 @@ export async function scrapeWebsite(
       },
     };
   } catch (error) {
-    console.error('[KnowledgeCurator] Scrape error:', error);
+    console.error("[KnowledgeCurator] Scrape error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'SCRAPE_ERROR',
-        message: error instanceof Error ? error.message : 'Website scraping failed',
+        code: "SCRAPE_ERROR",
+        message:
+          error instanceof Error ? error.message : "Website scraping failed",
       },
     };
   }
@@ -553,7 +670,7 @@ export async function scrapeWebsite(
  */
 export async function scrapeUrl(
   url: string,
-  options?: { category?: string; tags?: string[] }
+  options?: { category?: string; tags?: string[] },
 ): Promise<CloudCoreResult<KnowledgeEntry[]>> {
   const startTime = Date.now();
 
@@ -564,7 +681,10 @@ export async function scrapeUrl(
       return {
         success: false,
         data: null,
-        error: result.error || { code: 'SCRAPE_ERROR', message: 'Failed to scrape URL' },
+        error: result.error || {
+          code: "SCRAPE_ERROR",
+          message: "Failed to scrape URL",
+        },
       };
     }
 
@@ -574,20 +694,21 @@ export async function scrapeUrl(
       return {
         success: false,
         data: null,
-        error: { code: 'NO_CONTENT', message: 'Page has insufficient content' },
+        error: { code: "NO_CONTENT", message: "Page has insufficient content" },
       };
     }
 
     // Truncate very long content
-    const content = page.content.length > 10000
-      ? page.content.slice(0, 10000) + '...'
-      : page.content;
+    const content =
+      page.content.length > 10000
+        ? page.content.slice(0, 10000) + "..."
+        : page.content;
 
     const ingestResult = await ingest({
       content: `Page: ${page.title}\nURL: ${page.url}\n\n${content}`,
       title: page.title,
-      category: options?.category || 'Website',
-      tags: options?.tags || ['scraped', new URL(url).hostname],
+      category: options?.category || "Website",
+      tags: options?.tags || ["scraped", new URL(url).hostname],
     });
 
     if (!ingestResult.success) {
@@ -600,13 +721,13 @@ export async function scrapeUrl(
       meta: { processingTime: Date.now() - startTime },
     };
   } catch (error) {
-    console.error('[KnowledgeCurator] Single URL scrape error:', error);
+    console.error("[KnowledgeCurator] Single URL scrape error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'SCRAPE_ERROR',
-        message: error instanceof Error ? error.message : 'URL scraping failed',
+        code: "SCRAPE_ERROR",
+        message: error instanceof Error ? error.message : "URL scraping failed",
       },
     };
   }

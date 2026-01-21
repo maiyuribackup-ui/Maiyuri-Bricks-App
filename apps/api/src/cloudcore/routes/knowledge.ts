@@ -2,19 +2,21 @@
  * Knowledge Base Route Handlers
  */
 
-import * as knowledgeCurator from '../kernels/knowledge-curator';
-import * as contracts from '../contracts';
+import * as knowledgeCurator from "../kernels/knowledge-curator";
+import * as insightBridge from "../services/insight-knowledge-bridge";
+import * as contracts from "../contracts";
 import type {
   CloudCoreResult,
   KnowledgeEntry,
   SemanticSearchResult,
-} from '../types';
+} from "../types";
+import type { PendingKnowledgeEntry } from "../services/insight-knowledge-bridge";
 
 /**
  * Ingest content into knowledge base
  */
 export async function ingestKnowledge(
-  data: contracts.KnowledgeIngestionRequest
+  data: contracts.KnowledgeIngestionRequest,
 ): Promise<CloudCoreResult<KnowledgeEntry>> {
   // Validate request
   const parsed = contracts.KnowledgeIngestionRequestSchema.safeParse(data);
@@ -23,26 +25,30 @@ export async function ingestKnowledge(
       success: false,
       data: null,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Invalid request data',
+        code: "VALIDATION_ERROR",
+        message: "Invalid request data",
         details: { errors: parsed.error.errors },
       },
     };
   }
 
-  const result: Awaited<ReturnType<typeof knowledgeCurator.ingest>> = await knowledgeCurator.ingest({
-    content: parsed.data.content,
-    title: parsed.data.title,
-    sourceLeadId: parsed.data.sourceLeadId,
-    category: parsed.data.category,
-    tags: parsed.data.tags,
-  });
+  const result: Awaited<ReturnType<typeof knowledgeCurator.ingest>> =
+    await knowledgeCurator.ingest({
+      content: parsed.data.content,
+      title: parsed.data.title,
+      sourceLeadId: parsed.data.sourceLeadId,
+      category: parsed.data.category,
+      tags: parsed.data.tags,
+    });
 
   if (!result.success || !result.data || result.data.length === 0) {
     return {
       success: false,
       data: null,
-      error: result.error || { code: 'INGEST_ERROR', message: 'No entry returned' },
+      error: result.error || {
+        code: "INGEST_ERROR",
+        message: "No entry returned",
+      },
     };
   }
 
@@ -57,7 +63,7 @@ export async function ingestKnowledge(
  * Semantic search
  */
 export async function search(
-  data: contracts.SemanticSearchRequest
+  data: contracts.SemanticSearchRequest,
 ): Promise<CloudCoreResult<SemanticSearchResult[]>> {
   // Validate request
   const parsed = contracts.SemanticSearchRequestSchema.safeParse(data);
@@ -66,8 +72,8 @@ export async function search(
       success: false,
       data: null,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Invalid request data',
+        code: "VALIDATION_ERROR",
+        message: "Invalid request data",
         details: { errors: parsed.error.errors },
       },
     };
@@ -86,15 +92,15 @@ export async function search(
  */
 export async function searchKnowledge(
   query: string,
-  options?: { limit?: number; threshold?: number }
+  options?: { limit?: number; threshold?: number },
 ): Promise<CloudCoreResult<SemanticSearchResult[]>> {
   if (!query || query.length < 1) {
     return {
       success: false,
       data: null,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Query is required',
+        code: "VALIDATION_ERROR",
+        message: "Query is required",
       },
     };
   }
@@ -107,15 +113,15 @@ export async function searchKnowledge(
  */
 export async function searchNotes(
   query: string,
-  options?: { leadId?: string; limit?: number; threshold?: number }
+  options?: { leadId?: string; limit?: number; threshold?: number },
 ): Promise<CloudCoreResult<SemanticSearchResult[]>> {
   if (!query || query.length < 1) {
     return {
       success: false,
       data: null,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Query is required',
+        code: "VALIDATION_ERROR",
+        message: "Query is required",
       },
     };
   }
@@ -127,12 +133,14 @@ export async function searchNotes(
  * Answer a question using RAG
  */
 export async function answerQuestion(
-  data: contracts.QuestionAnswerRequest
-): Promise<CloudCoreResult<{
-  answer: string;
-  sources: SemanticSearchResult[];
-  confidence: number;
-}>> {
+  data: contracts.QuestionAnswerRequest,
+): Promise<
+  CloudCoreResult<{
+    answer: string;
+    sources: SemanticSearchResult[];
+    confidence: number;
+  }>
+> {
   // Validate request
   const parsed = contracts.QuestionAnswerRequestSchema.safeParse(data);
   if (!parsed.success) {
@@ -140,8 +148,8 @@ export async function answerQuestion(
       success: false,
       data: null,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Invalid request data',
+        code: "VALIDATION_ERROR",
+        message: "Invalid request data",
         details: { errors: parsed.error.errors },
       },
     };
@@ -158,7 +166,9 @@ export async function answerQuestion(
 /**
  * Get knowledge entry by ID
  */
-export async function getEntry(id: string): Promise<CloudCoreResult<KnowledgeEntry | null>> {
+export async function getEntry(
+  id: string,
+): Promise<CloudCoreResult<KnowledgeEntry | null>> {
   // Validate ID
   const parsed = contracts.UUIDSchema.safeParse(id);
   if (!parsed.success) {
@@ -166,8 +176,8 @@ export async function getEntry(id: string): Promise<CloudCoreResult<KnowledgeEnt
       success: false,
       data: null,
       error: {
-        code: 'INVALID_ID',
-        message: 'Invalid entry ID format',
+        code: "INVALID_ID",
+        message: "Invalid entry ID format",
       },
     };
   }
@@ -180,7 +190,7 @@ export async function getEntry(id: string): Promise<CloudCoreResult<KnowledgeEnt
  */
 export async function updateEntry(
   id: string,
-  updates: Partial<Pick<KnowledgeEntry, 'question' | 'answer' | 'confidence'>>
+  updates: Partial<Pick<KnowledgeEntry, "question" | "answer" | "confidence">>,
 ): Promise<CloudCoreResult<KnowledgeEntry>> {
   // Validate ID
   const idParsed = contracts.UUIDSchema.safeParse(id);
@@ -189,8 +199,8 @@ export async function updateEntry(
       success: false,
       data: null,
       error: {
-        code: 'INVALID_ID',
-        message: 'Invalid entry ID format',
+        code: "INVALID_ID",
+        message: "Invalid entry ID format",
       },
     };
   }
@@ -209,8 +219,8 @@ export async function deleteEntry(id: string): Promise<CloudCoreResult<void>> {
       success: false,
       data: null,
       error: {
-        code: 'INVALID_ID',
-        message: 'Invalid entry ID format',
+        code: "INVALID_ID",
+        message: "Invalid entry ID format",
       },
     };
   }
@@ -222,9 +232,101 @@ export async function deleteEntry(id: string): Promise<CloudCoreResult<void>> {
  * Backfill embeddings for entries without them
  */
 export async function backfillEmbeddings(
-  limit?: number
+  limit?: number,
 ): Promise<CloudCoreResult<{ processed: number; failed: number }>> {
   return knowledgeCurator.backfillEmbeddings(limit);
+}
+
+// ============================================
+// Pending Knowledge Queue Route Handlers
+// ============================================
+
+/**
+ * Get pending knowledge entries for admin review
+ */
+export async function getPendingQueue(options?: {
+  sourceType?:
+    | "objection"
+    | "suggestion"
+    | "coaching"
+    | "conversion"
+    | "call_summary";
+  limit?: number;
+  offset?: number;
+  sortBy?: "frequency" | "created_at";
+}): Promise<CloudCoreResult<PendingKnowledgeEntry[]>> {
+  return insightBridge.getPendingQueue(options);
+}
+
+/**
+ * Approve a pending entry and add to knowledge base
+ */
+export async function approvePendingEntry(
+  entryId: string,
+  answer: string,
+  reviewerId: string,
+): Promise<CloudCoreResult<string>> {
+  // Validate ID
+  const idParsed = contracts.UUIDSchema.safeParse(entryId);
+  if (!idParsed.success) {
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: "INVALID_ID",
+        message: "Invalid entry ID format",
+      },
+    };
+  }
+
+  if (!answer || answer.trim().length === 0) {
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Answer is required",
+      },
+    };
+  }
+
+  return insightBridge.approveEntry(entryId, answer, reviewerId);
+}
+
+/**
+ * Reject a pending entry
+ */
+export async function rejectPendingEntry(
+  entryId: string,
+  reviewerId: string,
+): Promise<CloudCoreResult<void>> {
+  // Validate ID
+  const idParsed = contracts.UUIDSchema.safeParse(entryId);
+  if (!idParsed.success) {
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: "INVALID_ID",
+        message: "Invalid entry ID format",
+      },
+    };
+  }
+
+  return insightBridge.rejectEntry(entryId, reviewerId);
+}
+
+/**
+ * Get statistics for the pending queue
+ */
+export async function getPendingQueueStats(): Promise<
+  CloudCoreResult<{
+    total: number;
+    bySourceType: Record<string, number>;
+    topFrequency: { question: string; frequency: number }[];
+  }>
+> {
+  return insightBridge.getQueueStats();
 }
 
 export default {
@@ -237,4 +339,9 @@ export default {
   updateEntry,
   deleteEntry,
   backfillEmbeddings,
+  // Pending knowledge queue
+  getPendingQueue,
+  approvePendingEntry,
+  rejectPendingEntry,
+  getPendingQueueStats,
 };

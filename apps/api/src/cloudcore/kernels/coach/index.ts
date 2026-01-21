@@ -6,6 +6,7 @@
 
 import * as claude from "../../services/ai/claude";
 import * as db from "../../services/supabase";
+import * as insightBridge from "../../services/insight-knowledge-bridge";
 import type {
   CloudCoreResult,
   CoachingRequest,
@@ -101,6 +102,29 @@ export async function coach(
       recommendations: coachingResult.recommendations,
       overallScore: coachingResult.overallScore,
     };
+
+    // Bridge coaching insights to knowledge pending queue (fire-and-forget)
+    // Track improvement and alert insights as training gaps
+    for (const insight of coachingResult.insights) {
+      if (insight.type === "improvement" || insight.type === "alert") {
+        insightBridge
+          .trackCoachingInsight({
+            staffId: request.staffId,
+            insightType:
+              insight.type === "improvement"
+                ? "missed_opportunity"
+                : "correction",
+            suggestion: insight.description,
+            context: `${insight.title}: ${insight.metric} = ${insight.value}`,
+          })
+          .catch((err) => {
+            console.error(
+              "[Coach] Error bridging coaching insight to knowledge:",
+              err,
+            );
+          });
+      }
+    }
 
     return {
       success: true,
