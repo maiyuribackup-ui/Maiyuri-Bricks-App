@@ -20,54 +20,87 @@ const brandColors = {
 };
 
 // Role-based navigation configuration
-// roles: array of roles that can see this item (undefined = visible to all)
 interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles?: UserRole[];
+  key: string; // Used for role-based filtering
   showBadge?: boolean;
 }
 
 const navigation: NavItem[] = [
-  { name: "Dashboard", href: "/dashboard", icon: HomeIcon },
-  { name: "Leads", href: "/leads", icon: UsersIcon },
-  { name: "Deliveries", href: "/deliveries", icon: DeliveriesIcon },
-  { name: "Production", href: "/production", icon: ProductionIcon },
+  { name: "Dashboard", href: "/dashboard", icon: HomeIcon, key: "dashboard" },
+  { name: "Leads", href: "/leads", icon: UsersIcon, key: "leads" },
+  {
+    name: "Deliveries",
+    href: "/deliveries",
+    icon: DeliveriesIcon,
+    key: "deliveries",
+  },
+  {
+    name: "Production",
+    href: "/production",
+    icon: ProductionIcon,
+    key: "production",
+  },
   {
     name: "Approvals",
     href: "/approvals",
     icon: ApprovalsIcon,
-    roles: ["engineer", "accountant", "owner", "founder"],
+    key: "approvals",
     showBadge: true,
   },
-  { name: "Design", href: "/design", icon: DesignIcon },
-  { name: "Knowledge", href: "/knowledge", icon: BookIcon },
-  { name: "Tasks", href: "/tasks", icon: TasksIcon },
-  { name: "Coaching", href: "/coaching", icon: ChartIcon },
-  { name: "KPI", href: "/kpi", icon: KPIIcon },
-  { name: "Settings", href: "/settings", icon: SettingsIcon },
+  { name: "Design", href: "/design", icon: DesignIcon, key: "design" },
+  { name: "Knowledge", href: "/knowledge", icon: BookIcon, key: "knowledge" },
+  { name: "Tasks", href: "/tasks", icon: TasksIcon, key: "tasks" },
+  { name: "Coaching", href: "/coaching", icon: ChartIcon, key: "coaching" },
+  { name: "KPI", href: "/kpi", icon: KPIIcon, key: "kpi" },
+  { name: "Settings", href: "/settings", icon: SettingsIcon, key: "settings" },
 ];
 
-// Production Supervisor can only see Dashboard, Production, Deliveries
-const productionSupervisorNav = [
-  "Dashboard",
-  "Production",
-  "Deliveries",
-  "Settings",
-];
+// Declarative role-to-module access mapping
+// "*" means all modules, otherwise specify allowed module keys
+const roleModuleAccess: Record<UserRole, string[]> = {
+  founder: ["*"], // Full access
+  owner: ["*"], // Full access
+  accountant: [
+    "dashboard",
+    "leads",
+    "tasks",
+    "approvals",
+    "settings",
+    "knowledge",
+  ],
+  engineer: [
+    "dashboard",
+    "leads",
+    "tasks",
+    "approvals",
+    "settings",
+    "knowledge",
+    "design",
+  ],
+  sales: ["dashboard", "leads", "tasks", "settings", "knowledge"],
+  driver: ["dashboard", "deliveries", "settings"],
+  production_supervisor: ["dashboard", "production", "deliveries", "settings"],
+};
 
 function getNavigationForRole(role: UserRole | undefined): NavItem[] {
-  if (role === "production_supervisor") {
-    return navigation.filter((item) =>
-      productionSupervisorNav.includes(item.name),
+  if (!role) {
+    // Not authenticated or role not loaded - show minimal nav
+    return navigation.filter(
+      (item) => item.key === "dashboard" || item.key === "settings",
     );
   }
-  // Filter out items that require specific roles the user doesn't have
-  return navigation.filter((item) => {
-    if (!item.roles) return true;
-    return role && item.roles.includes(role);
-  });
+
+  const allowedModules = roleModuleAccess[role] || [];
+
+  // "*" means all access
+  if (allowedModules.includes("*")) {
+    return navigation;
+  }
+
+  return navigation.filter((item) => allowedModules.includes(item.key));
 }
 
 export default function DashboardLayout({

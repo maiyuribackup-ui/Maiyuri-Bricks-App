@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "./supabase-server";
 import { supabaseAdmin } from "./supabase-admin";
+import type { UserRole } from "@maiyuri/shared";
 
-// User roles in the system
-export type UserRole =
-  | "founder"
-  | "sales"
-  | "accountant"
-  | "engineer"
-  | "admin";
+// Re-export UserRole for convenience
+export type { UserRole } from "@maiyuri/shared";
 
 // Custom error class for auth errors
 export class AuthError extends Error {
@@ -100,12 +96,12 @@ export async function requireFounder(
 }
 
 /**
- * Require admin or founder role
+ * Require admin-level access (founder or owner role)
  */
 export async function requireAdmin(
   request: NextRequest,
 ): Promise<AuthenticatedUser> {
-  return requireRole(request, ["founder", "admin"]);
+  return requireRole(request, ["founder", "owner"]);
 }
 
 /**

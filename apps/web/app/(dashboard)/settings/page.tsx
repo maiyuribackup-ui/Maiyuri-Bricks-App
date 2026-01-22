@@ -444,6 +444,17 @@ function NotificationSettings() {
   );
 }
 
+// All valid roles for selection
+const ALL_ROLES = [
+  { value: "founder", label: "Founder" },
+  { value: "owner", label: "Owner" },
+  { value: "accountant", label: "Accountant" },
+  { value: "engineer", label: "Engineer" },
+  { value: "production_supervisor", label: "Production Supervisor" },
+  { value: "sales", label: "Sales" },
+  { value: "driver", label: "Driver" },
+] as const;
+
 function TeamSettings() {
   const queryClient = useQueryClient();
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -457,6 +468,17 @@ function TeamSettings() {
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [inviteError, setInviteError] = useState("");
+
+  // Change Role modal state
+  const [showChangeRoleModal, setShowChangeRoleModal] = useState(false);
+  const [changeRoleMember, setChangeRoleMember] = useState<TeamMember | null>(
+    null,
+  );
+  const [newRole, setNewRole] = useState("");
+  const [changeRoleStatus, setChangeRoleStatus] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
+  const [changeRoleError, setChangeRoleError] = useState("");
 
   const { data: profileData } = useQuery({
     queryKey: ["profile"],
@@ -562,6 +584,45 @@ function TeamSettings() {
     }
   };
 
+  const openChangeRoleModal = (member: TeamMember) => {
+    setChangeRoleMember(member);
+    setNewRole(member.role);
+    setChangeRoleStatus("idle");
+    setChangeRoleError("");
+    setShowChangeRoleModal(true);
+  };
+
+  const handleChangeRole = async () => {
+    if (!changeRoleMember || !newRole || newRole === changeRoleMember.role) {
+      return;
+    }
+
+    setChangeRoleStatus("loading");
+    setChangeRoleError("");
+
+    try {
+      const res = await fetch(`/api/users/${changeRoleMember.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: newRole }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to change role");
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["team"] });
+      setShowChangeRoleModal(false);
+      setChangeRoleMember(null);
+    } catch (err) {
+      setChangeRoleError(
+        err instanceof Error ? err.message : "Failed to change role",
+      );
+      setChangeRoleStatus("error");
+    }
+  };
+
   if (isLoading) {
     return (
       <Card className="p-6">
@@ -601,16 +662,26 @@ function TeamSettings() {
     const colors: Record<string, string> = {
       founder:
         "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400",
+      owner:
+        "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400",
       accountant:
         "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
       engineer:
         "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400",
+      production_supervisor:
+        "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400",
+      sales:
+        "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
+      driver:
+        "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400",
     };
+    // Format role for display (replace underscore with space)
+    const displayRole = role.replace(/_/g, " ");
     return (
       <span
         className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${colors[role] || colors.engineer}`}
       >
-        {role}
+        {displayRole}
       </span>
     );
   };
@@ -672,6 +743,14 @@ function TeamSettings() {
                         <MoreIcon className="h-5 w-5 text-slate-400" />
                       </button>
                       <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                        {member.is_active !== false && (
+                          <button
+                            onClick={() => openChangeRoleModal(member)}
+                            className="w-full px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                          >
+                            Change Role
+                          </button>
+                        )}
                         {member.invitation_status === "pending" && (
                           <button
                             onClick={() => handleResendInvite(member.id)}
@@ -803,9 +882,11 @@ function TeamSettings() {
                       }
                       className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="engineer">Engineer</option>
-                      <option value="accountant">Accountant</option>
-                      <option value="founder">Founder</option>
+                      {ALL_ROLES.map((role) => (
+                        <option key={role.value} value={role.value}>
+                          {role.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -841,6 +922,86 @@ function TeamSettings() {
                 </>
               )}
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Change Role Modal */}
+      {showChangeRoleModal && changeRoleMember && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                Change Role
+              </h3>
+              <button
+                onClick={() => {
+                  setShowChangeRoleModal(false);
+                  setChangeRoleMember(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+              >
+                <CloseIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                  Changing role for{" "}
+                  <span className="font-medium text-slate-900 dark:text-white">
+                    {changeRoleMember.name}
+                  </span>
+                </p>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  New Role
+                </label>
+                <select
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value)}
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {ALL_ROLES.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {changeRoleError && (
+                <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm p-3 rounded-lg">
+                  {changeRoleError}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowChangeRoleModal(false);
+                    setChangeRoleMember(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="flex-1"
+                  disabled={
+                    changeRoleStatus === "loading" ||
+                    newRole === changeRoleMember.role
+                  }
+                  onClick={handleChangeRole}
+                >
+                  {changeRoleStatus === "loading"
+                    ? "Saving..."
+                    : "Save Changes"}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

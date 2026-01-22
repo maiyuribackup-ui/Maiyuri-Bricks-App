@@ -737,21 +737,56 @@ export function hasApprovalsAccess(userRole: string): boolean {
 
 /**
  * Get navigation items filtered by user role
+ * NOTE: Primary navigation filtering is in layout.tsx - this is for module-level checks
  */
 export function getNavigationForRole(userRole: string): string[] {
-  const allNavItems = [
-    "dashboard",
-    "leads",
-    "tasks",
-    "production",
-    "approvals",
-    "settings",
-  ];
+  const roleModuleAccess: Record<string, string[]> = {
+    founder: ["*"],
+    owner: ["*"],
+    accountant: [
+      "dashboard",
+      "leads",
+      "tasks",
+      "approvals",
+      "settings",
+      "knowledge",
+    ],
+    engineer: [
+      "dashboard",
+      "leads",
+      "tasks",
+      "approvals",
+      "settings",
+      "knowledge",
+      "design",
+    ],
+    sales: ["dashboard", "leads", "tasks", "settings", "knowledge"],
+    driver: ["dashboard", "deliveries", "settings"],
+    production_supervisor: [
+      "dashboard",
+      "production",
+      "deliveries",
+      "settings",
+    ],
+  };
 
-  if (userRole === "production_supervisor") {
-    return ["production"];
+  const allowedModules = roleModuleAccess[userRole] || [];
+
+  if (allowedModules.includes("*")) {
+    return [
+      "dashboard",
+      "leads",
+      "tasks",
+      "production",
+      "approvals",
+      "settings",
+      "deliveries",
+      "design",
+      "knowledge",
+      "coaching",
+      "kpi",
+    ];
   }
 
-  // All other roles see everything
-  return allNavItems;
+  return allowedModules;
 }
