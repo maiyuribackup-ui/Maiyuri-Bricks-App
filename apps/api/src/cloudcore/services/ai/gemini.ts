@@ -4,11 +4,11 @@
  * Model: gemini-2.5-flash-preview-05-20
  */
 
-import { GoogleGenerativeAI, Part, TaskType } from '@google/generative-ai';
-import { GoogleGenAI as GeminiClient } from '@google/genai';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import { GoogleGenerativeAI, Part, TaskType } from "@google/generative-ai";
+import { GoogleGenAI as GeminiClient } from "@google/genai";
+import fs from "fs";
+import path from "path";
+import os from "os";
 import {
   GeminiModels,
   GeminiImageModels,
@@ -18,14 +18,20 @@ import {
   type ImageGenerationResult,
   type GeneratedImage,
   type ImageAspectRatio,
-} from '../../types';
+} from "../../types";
+import {
+  createTrace,
+  calculateCost,
+  getLangfuse,
+  type TraceContext,
+} from "../../../services/observability";
 
 // Initialize Gemini client
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '');
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 // Default configuration
 const DEFAULT_MODEL = GeminiModels.FLASH;
-const EMBEDDING_MODEL = 'text-embedding-004';
+const EMBEDDING_MODEL = "text-embedding-004";
 const EMBEDDING_DIMENSIONS = 768;
 
 export interface GeminiCompletionRequest {
@@ -34,15 +40,27 @@ export interface GeminiCompletionRequest {
   maxTokens?: number;
   temperature?: number;
   parts?: Part[];
+  /** Optional trace context for observability */
+  traceContext?: {
+    traceId?: string;
+    userId?: string;
+    leadId?: string;
+    agentType?: string;
+    metadata?: Record<string, unknown>;
+  };
 }
 
 export interface GeminiCompletionResponse {
   content: string;
-  usage?: TokenUsage;
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  };
 }
 
 export interface TranscriptionOptions {
-  language?: 'en' | 'ta' | 'auto';
+  language?: "en" | "ta" | "auto";
   includeTimestamps?: boolean;
   speakerDiarization?: boolean;
 }
@@ -65,12 +83,35 @@ export interface EmbeddingResult {
  * Generate a completion using Gemini
  */
 export async function complete(
-  request: GeminiCompletionRequest
+  request: GeminiCompletionRequest,
 ): Promise<CloudCoreResult<GeminiCompletionResponse>> {
   const startTime = Date.now();
+  const modelName = request.model ? GeminiModels[request.model] : DEFAULT_MODEL;
+
+  // Create trace for observability (if context provided)
+  const trace = request.traceContext
+    ? createTrace({
+        traceId: request.traceContext.traceId || `gemini-${Date.now()}`,
+        userId: request.traceContext.userId,
+        leadId: request.traceContext.leadId,
+        agentType: request.traceContext.agentType || "gemini-completion",
+        metadata: request.traceContext.metadata,
+      })
+    : null;
+
+  // Create generation span for this LLM call
+  const generation = trace?.generation({
+    name: `${request.traceContext?.agentType || "gemini"}-llm-call`,
+    model: modelName,
+    input: request.prompt,
+    metadata: {
+      temperature: request.temperature,
+      maxTokens: request.maxTokens,
+      hasParts: Boolean(request.parts?.length),
+    },
+  });
 
   try {
-    const modelName = request.model ? GeminiModels[request.model] : DEFAULT_MODEL;
     const model = genAI.getGenerativeModel({
       model: modelName,
       generationConfig: {
@@ -81,33 +122,100 @@ export async function complete(
 
     let result;
     if (request.parts && request.parts.length > 0) {
-      result = await model.generateContent([...request.parts, { text: request.prompt }]);
+      result = await model.generateContent([
+        ...request.parts,
+        { text: request.prompt },
+      ]);
     } else {
       result = await model.generateContent(request.prompt);
     }
 
     const content = result.response.text();
+    const latencyMs = Date.now() - startTime;
+
+    // Extract usage metadata from Gemini response
+    const usageMetadata = result.response.usageMetadata;
+    const inputTokens = usageMetadata?.promptTokenCount ?? 0;
+    const outputTokens = usageMetadata?.candidatesTokenCount ?? 0;
+    const cost = calculateCost(modelName, inputTokens, outputTokens);
+
+    // End generation with success
+    generation?.end({
+      output: content,
+      usage: {
+        input: inputTokens,
+        output: outputTokens,
+        total: inputTokens + outputTokens,
+      },
+      metadata: {
+        cost,
+        latencyMs,
+        provider: "gemini",
+      },
+    });
+
+    // Update trace with summary
+    trace?.update({
+      metadata: {
+        totalTokens: inputTokens + outputTokens,
+        totalCost: cost,
+        latencyMs,
+        status: "success",
+        provider: "gemini",
+      },
+    });
 
     return {
       success: true,
       data: {
         content,
+        usage: usageMetadata
+          ? {
+              inputTokens,
+              outputTokens,
+              totalTokens: inputTokens + outputTokens,
+            }
+          : undefined,
       },
       meta: {
-        processingTime: Date.now() - startTime,
+        processingTime: latencyMs,
+        cost,
       },
     };
   } catch (error) {
-    console.error('Gemini completion error:', error);
+    const latencyMs = Date.now() - startTime;
+    const errorMessage =
+      error instanceof Error ? error.message : "Gemini completion failed";
+
+    // End generation with error
+    generation?.end({
+      level: "ERROR",
+      statusMessage: errorMessage,
+      metadata: {
+        latencyMs,
+        errorType: error instanceof Error ? error.name : "UnknownError",
+      },
+    });
+
+    // Update trace with error
+    trace?.update({
+      metadata: {
+        status: "error",
+        errorMessage,
+        latencyMs,
+      },
+    });
+
+    console.error("Gemini completion error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'GEMINI_COMPLETION_ERROR',
-        message: error instanceof Error ? error.message : 'Gemini completion failed',
+        code: "GEMINI_COMPLETION_ERROR",
+        message: errorMessage,
       },
       meta: {
-        processingTime: Date.now() - startTime,
+        processingTime: latencyMs,
       },
     };
   }
@@ -116,9 +224,12 @@ export async function complete(
 /**
  * Generate a JSON completion using Gemini (Adapter for Fallback)
  */
-export async function completeJson<T>(
-  request: { systemPrompt: string; userPrompt: string; maxTokens?: number; temperature?: number }
-): Promise<CloudCoreResult<T>> {
+export async function completeJson<T>(request: {
+  systemPrompt: string;
+  userPrompt: string;
+  maxTokens?: number;
+  temperature?: number;
+}): Promise<CloudCoreResult<T>> {
   // Merge system and user prompt as Flash typically performs better with single context block for instructions
   const mergedPrompt = `${request.systemPrompt}
 
@@ -153,13 +264,21 @@ ${request.userPrompt}`;
     if (jsonMatch && jsonMatch[1]) {
       jsonStr = jsonMatch[1].trim();
     } else {
-        // Fallback: try to find first { or [ and last } or ]
-        const firstParen = content.search(/[{[]/);
-        const lastParen = content.lastIndexOf(content.includes(']') && content.includes('}') ? (content.lastIndexOf(']') > content.lastIndexOf('}') ? ']' : '}') : (content.includes(']') ? ']' : '}'));
-        
-        if (firstParen !== -1 && lastParen !== -1 && lastParen > firstParen) {
-            jsonStr = content.substring(firstParen, lastParen + 1);
-        }
+      // Fallback: try to find first { or [ and last } or ]
+      const firstParen = content.search(/[{[]/);
+      const lastParen = content.lastIndexOf(
+        content.includes("]") && content.includes("}")
+          ? content.lastIndexOf("]") > content.lastIndexOf("}")
+            ? "]"
+            : "}"
+          : content.includes("]")
+            ? "]"
+            : "}",
+      );
+
+      if (firstParen !== -1 && lastParen !== -1 && lastParen > firstParen) {
+        jsonStr = content.substring(firstParen, lastParen + 1);
+      }
     }
 
     const parsed = JSON.parse(jsonStr) as T;
@@ -169,13 +288,13 @@ ${request.userPrompt}`;
       meta: result.meta,
     };
   } catch (parseError) {
-    console.error('JSON parse error (Gemini):', parseError);
+    console.error("JSON parse error (Gemini):", parseError);
     return {
       success: false,
       data: null,
       error: {
-        code: 'JSON_PARSE_ERROR',
-        message: 'Failed to parse Gemini response as JSON',
+        code: "JSON_PARSE_ERROR",
+        message: "Failed to parse Gemini response as JSON",
         details: { rawContent: result.data.content },
       },
       meta: result.meta,
@@ -189,8 +308,8 @@ ${request.userPrompt}`;
  */
 export async function transcribeAudio(
   audioUrl: string,
-  mimeType: string = 'audio/mpeg',
-  options: TranscriptionOptions = {}
+  mimeType: string = "audio/mpeg",
+  options: TranscriptionOptions = {},
 ): Promise<CloudCoreResult<TranscriptionResult>> {
   const startTime = Date.now();
 
@@ -204,7 +323,7 @@ export async function transcribeAudio(
     }
 
     const audioBuffer = await response.arrayBuffer();
-    const base64Audio = Buffer.from(audioBuffer).toString('base64');
+    const base64Audio = Buffer.from(audioBuffer).toString("base64");
 
     // Create audio part
     const audioPart: Part = {
@@ -215,13 +334,15 @@ export async function transcribeAudio(
     };
 
     // Build language instruction
-    let languageInstruction = '';
-    if (options.language === 'ta') {
-      languageInstruction = 'The audio is primarily in Tamil. Transcribe in Tamil script when applicable.';
-    } else if (options.language === 'en') {
-      languageInstruction = 'The audio is in English.';
+    let languageInstruction = "";
+    if (options.language === "ta") {
+      languageInstruction =
+        "The audio is primarily in Tamil. Transcribe in Tamil script when applicable.";
+    } else if (options.language === "en") {
+      languageInstruction = "The audio is in English.";
     } else {
-      languageInstruction = 'The audio may be in Tamil, English, or mixed. Preserve the original language.';
+      languageInstruction =
+        "The audio may be in Tamil, English, or mixed. Preserve the original language.";
     }
 
     const prompt = `You are a highly accurate transcription assistant.
@@ -229,11 +350,11 @@ export async function transcribeAudio(
 Instructions:
 1. Transcribe ALL spoken words exactly as heard
 2. Include punctuation and paragraph breaks where appropriate
-3. ${options.speakerDiarization ? 'Distinguish between different speakers with [Speaker 1], [Speaker 2], etc.' : ''}
+3. ${options.speakerDiarization ? "Distinguish between different speakers with [Speaker 1], [Speaker 2], etc." : ""}
 4. Include relevant non-speech sounds in [brackets] if important
 5. Mark unclear words with [unclear]
 6. ${languageInstruction}
-${options.includeTimestamps ? '7. Include timestamps in [MM:SS] format at the start of each paragraph' : ''}
+${options.includeTimestamps ? "7. Include timestamps in [MM:SS] format at the start of each paragraph" : ""}
 
 Return ONLY the transcription text, no explanations.`;
 
@@ -264,13 +385,14 @@ Return ONLY the transcription text, no explanations.`;
       },
     };
   } catch (error) {
-    console.error('Transcription error:', error);
+    console.error("Transcription error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'TRANSCRIPTION_ERROR',
-        message: error instanceof Error ? error.message : 'Transcription failed',
+        code: "TRANSCRIPTION_ERROR",
+        message:
+          error instanceof Error ? error.message : "Transcription failed",
       },
       meta: {
         processingTime: Date.now() - startTime,
@@ -284,8 +406,8 @@ Return ONLY the transcription text, no explanations.`;
  */
 export async function transcribeAudioFromBase64(
   base64Data: string,
-  mimeType: string = 'audio/mpeg',
-  options: TranscriptionOptions = {}
+  mimeType: string = "audio/mpeg",
+  options: TranscriptionOptions = {},
 ): Promise<CloudCoreResult<TranscriptionResult>> {
   const startTime = Date.now();
 
@@ -300,13 +422,15 @@ export async function transcribeAudioFromBase64(
     };
 
     // Build language instruction
-    let languageInstruction = '';
-    if (options.language === 'ta') {
-      languageInstruction = 'The audio is primarily in Tamil. Transcribe in Tamil script when applicable.';
-    } else if (options.language === 'en') {
-      languageInstruction = 'The audio is in English.';
+    let languageInstruction = "";
+    if (options.language === "ta") {
+      languageInstruction =
+        "The audio is primarily in Tamil. Transcribe in Tamil script when applicable.";
+    } else if (options.language === "en") {
+      languageInstruction = "The audio is in English.";
     } else {
-      languageInstruction = 'The audio may be in Tamil, English, or mixed. Preserve the original language.';
+      languageInstruction =
+        "The audio may be in Tamil, English, or mixed. Preserve the original language.";
     }
 
     const prompt = `You are a highly accurate transcription assistant.
@@ -338,13 +462,14 @@ Return ONLY the transcription text, no explanations.`;
       },
     };
   } catch (error) {
-    console.error('Transcription error:', error);
+    console.error("Transcription error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'TRANSCRIPTION_ERROR',
-        message: error instanceof Error ? error.message : 'Transcription failed',
+        code: "TRANSCRIPTION_ERROR",
+        message:
+          error instanceof Error ? error.message : "Transcription failed",
       },
       meta: {
         processingTime: Date.now() - startTime,
@@ -358,21 +483,21 @@ Return ONLY the transcription text, no explanations.`;
  */
 export async function generateEmbedding(
   text: string,
-  options?: { taskType?: string; title?: string }
+  options?: { taskType?: string; title?: string },
 ): Promise<CloudCoreResult<EmbeddingResult>> {
   const startTime = Date.now();
 
   try {
     const model = genAI.getGenerativeModel({ model: EMBEDDING_MODEL });
     const result = await model.embedContent({
-      content: { role: 'user', parts: [{ text }] },
+      content: { role: "user", parts: [{ text }] },
       taskType: options?.taskType as TaskType,
       title: options?.title,
     });
 
     const embedding = result.embedding;
     if (!embedding || !embedding.values) {
-      throw new Error('No embedding returned');
+      throw new Error("No embedding returned");
     }
 
     return {
@@ -387,13 +512,16 @@ export async function generateEmbedding(
       },
     };
   } catch (error) {
-    console.error('Embedding error:', error);
+    console.error("Embedding error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'EMBEDDING_ERROR',
-        message: error instanceof Error ? error.message : 'Embedding generation failed',
+        code: "EMBEDDING_ERROR",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Embedding generation failed",
       },
       meta: {
         processingTime: Date.now() - startTime,
@@ -406,12 +534,14 @@ export async function generateEmbedding(
  * Generate embeddings for multiple texts (batch)
  */
 export async function generateEmbeddings(
-  texts: string[]
+  texts: string[],
 ): Promise<CloudCoreResult<EmbeddingResult[]>> {
   const startTime = Date.now();
 
   try {
-    const results = await Promise.all(texts.map((text) => generateEmbedding(text)));
+    const results = await Promise.all(
+      texts.map((text) => generateEmbedding(text)),
+    );
 
     const embeddings: EmbeddingResult[] = [];
     const errors: string[] = [];
@@ -420,7 +550,7 @@ export async function generateEmbeddings(
       if (result.success && result.data) {
         embeddings.push(result.data);
       } else {
-        errors.push(result.error?.message || 'Unknown error');
+        errors.push(result.error?.message || "Unknown error");
       }
     }
 
@@ -429,8 +559,8 @@ export async function generateEmbeddings(
         success: false,
         data: null,
         error: {
-          code: 'BATCH_EMBEDDING_ERROR',
-          message: 'All embeddings failed',
+          code: "BATCH_EMBEDDING_ERROR",
+          message: "All embeddings failed",
           details: { errors },
         },
         meta: {
@@ -447,13 +577,14 @@ export async function generateEmbeddings(
       },
     };
   } catch (error) {
-    console.error('Batch embedding error:', error);
+    console.error("Batch embedding error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'BATCH_EMBEDDING_ERROR',
-        message: error instanceof Error ? error.message : 'Batch embedding failed',
+        code: "BATCH_EMBEDDING_ERROR",
+        message:
+          error instanceof Error ? error.message : "Batch embedding failed",
       },
       meta: {
         processingTime: Date.now() - startTime,
@@ -466,7 +597,7 @@ export async function generateEmbeddings(
  * Summarize transcribed text using Gemini
  */
 export async function summarizeTranscription(
-  text: string
+  text: string,
 ): Promise<CloudCoreResult<{ summary: string; highlights: string[] }>> {
   const startTime = Date.now();
 
@@ -498,10 +629,10 @@ Return a JSON object:
     // Try to parse as JSON
     try {
       let jsonStr = responseText;
-      if (responseText.startsWith('```json')) {
-        jsonStr = responseText.slice(7, responseText.lastIndexOf('```')).trim();
-      } else if (responseText.startsWith('```')) {
-        jsonStr = responseText.slice(3, responseText.lastIndexOf('```')).trim();
+      if (responseText.startsWith("```json")) {
+        jsonStr = responseText.slice(7, responseText.lastIndexOf("```")).trim();
+      } else if (responseText.startsWith("```")) {
+        jsonStr = responseText.slice(3, responseText.lastIndexOf("```")).trim();
       }
 
       const parsed = JSON.parse(jsonStr);
@@ -529,13 +660,14 @@ Return a JSON object:
       };
     }
   } catch (error) {
-    console.error('Summarization error:', error);
+    console.error("Summarization error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'SUMMARIZATION_ERROR',
-        message: error instanceof Error ? error.message : 'Summarization failed',
+        code: "SUMMARIZATION_ERROR",
+        message:
+          error instanceof Error ? error.message : "Summarization failed",
       },
       meta: {
         processingTime: Date.now() - startTime,
@@ -560,18 +692,20 @@ Return a JSON object:
  */
 export async function generateImage(
   prompt: string,
-  options: ImageGenerationConfig = {}
+  options: ImageGenerationConfig = {},
 ): Promise<CloudCoreResult<ImageGenerationResult>> {
   const startTime = Date.now();
 
   try {
     // Use the new @google/genai client for image generation
-    const geminiClient = new GeminiClient({ apiKey: process.env.GOOGLE_AI_API_KEY });
+    const geminiClient = new GeminiClient({
+      apiKey: process.env.GOOGLE_AI_API_KEY,
+    });
 
     // Build generation config
     const responseModalities = options.includeTextResponse
-      ? ['TEXT', 'IMAGE']
-      : ['IMAGE'];
+      ? ["TEXT", "IMAGE"]
+      : ["IMAGE"];
 
     // Build the request with image config if specified
     const generationConfig: Record<string, unknown> = {
@@ -587,7 +721,7 @@ export async function generateImage(
 
     const result = await geminiClient.models.generateContent({
       model: GeminiImageModels.PRO_IMAGE,
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: generationConfig,
     });
 
@@ -604,7 +738,9 @@ export async function generateImage(
           if (part.inlineData && part.inlineData.data) {
             images.push({
               base64Data: part.inlineData.data,
-              mimeType: (part.inlineData.mimeType as 'image/png' | 'image/jpeg') || 'image/png',
+              mimeType:
+                (part.inlineData.mimeType as "image/png" | "image/jpeg") ||
+                "image/png",
             });
           }
           // Check for text response
@@ -625,8 +761,9 @@ export async function generateImage(
         success: false,
         data: null,
         error: {
-          code: 'IMAGE_GENERATION_FAILED',
-          message: 'No images were generated. The model may have declined the request.',
+          code: "IMAGE_GENERATION_FAILED",
+          message:
+            "No images were generated. The model may have declined the request.",
           details: { response: result },
         },
         meta: {
@@ -648,13 +785,14 @@ export async function generateImage(
       },
     };
   } catch (error) {
-    console.error('Image generation error:', error);
+    console.error("Image generation error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'IMAGE_GENERATION_ERROR',
-        message: error instanceof Error ? error.message : 'Image generation failed',
+        code: "IMAGE_GENERATION_ERROR",
+        message:
+          error instanceof Error ? error.message : "Image generation failed",
         details: error instanceof Error ? { stack: error.stack } : undefined,
       },
       meta: {
@@ -683,21 +821,23 @@ export async function generateImage(
 export async function editImage(
   prompt: string,
   sourceImage: string,
-  mimeType: 'image/png' | 'image/jpeg' | 'image/webp' = 'image/png',
-  options: ImageGenerationConfig = {}
+  mimeType: "image/png" | "image/jpeg" | "image/webp" = "image/png",
+  options: ImageGenerationConfig = {},
 ): Promise<CloudCoreResult<ImageGenerationResult>> {
   const startTime = Date.now();
 
   try {
-    const geminiClient = new GeminiClient({ apiKey: process.env.GOOGLE_AI_API_KEY });
+    const geminiClient = new GeminiClient({
+      apiKey: process.env.GOOGLE_AI_API_KEY,
+    });
 
     // Strip data URL prefix if present
-    const base64Data = sourceImage.replace(/^data:image\/\w+;base64,/, '');
+    const base64Data = sourceImage.replace(/^data:image\/\w+;base64,/, "");
 
     // Build generation config
     const responseModalities = options.includeTextResponse
-      ? ['TEXT', 'IMAGE']
-      : ['IMAGE'];
+      ? ["TEXT", "IMAGE"]
+      : ["IMAGE"];
 
     const generationConfig: Record<string, unknown> = {
       responseModalities,
@@ -713,7 +853,7 @@ export async function editImage(
       model: GeminiImageModels.PRO_IMAGE,
       contents: [
         {
-          role: 'user',
+          role: "user",
           parts: [
             {
               inlineData: {
@@ -739,7 +879,9 @@ export async function editImage(
           if (part.inlineData && part.inlineData.data) {
             images.push({
               base64Data: part.inlineData.data,
-              mimeType: (part.inlineData.mimeType as 'image/png' | 'image/jpeg') || 'image/png',
+              mimeType:
+                (part.inlineData.mimeType as "image/png" | "image/jpeg") ||
+                "image/png",
             });
           }
           if (part.text) {
@@ -754,8 +896,9 @@ export async function editImage(
         success: false,
         data: null,
         error: {
-          code: 'IMAGE_EDIT_FAILED',
-          message: 'No edited images were generated. The model may have declined the request.',
+          code: "IMAGE_EDIT_FAILED",
+          message:
+            "No edited images were generated. The model may have declined the request.",
         },
         meta: {
           processingTime: Date.now() - startTime,
@@ -776,13 +919,14 @@ export async function editImage(
       },
     };
   } catch (error) {
-    console.error('Image edit error:', error);
+    console.error("Image edit error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'IMAGE_EDIT_ERROR',
-        message: error instanceof Error ? error.message : 'Image editing failed',
+        code: "IMAGE_EDIT_ERROR",
+        message:
+          error instanceof Error ? error.message : "Image editing failed",
       },
       meta: {
         processingTime: Date.now() - startTime,
@@ -808,8 +952,11 @@ export async function editImage(
  */
 export async function generateImageWithReferences(
   prompt: string,
-  referenceImages: Array<{ data: string; mimeType: 'image/png' | 'image/jpeg' | 'image/webp' }>,
-  options: ImageGenerationConfig = {}
+  referenceImages: Array<{
+    data: string;
+    mimeType: "image/png" | "image/jpeg" | "image/webp";
+  }>,
+  options: ImageGenerationConfig = {},
 ): Promise<CloudCoreResult<ImageGenerationResult>> {
   const startTime = Date.now();
 
@@ -819,8 +966,8 @@ export async function generateImageWithReferences(
         success: false,
         data: null,
         error: {
-          code: 'INVALID_INPUT',
-          message: 'At least one reference image is required',
+          code: "INVALID_INPUT",
+          message: "At least one reference image is required",
         },
         meta: {
           processingTime: Date.now() - startTime,
@@ -830,17 +977,24 @@ export async function generateImageWithReferences(
 
     // Gemini Pro Image supports up to 14 reference images
     if (referenceImages.length > 14) {
-      console.warn('Gemini Pro Image supports up to 14 reference images. Using first 14.');
+      console.warn(
+        "Gemini Pro Image supports up to 14 reference images. Using first 14.",
+      );
       referenceImages = referenceImages.slice(0, 14);
     }
 
-    const geminiClient = new GeminiClient({ apiKey: process.env.GOOGLE_AI_API_KEY });
+    const geminiClient = new GeminiClient({
+      apiKey: process.env.GOOGLE_AI_API_KEY,
+    });
 
     // Build parts array with reference images and prompt
-    const parts: Array<{ inlineData?: { mimeType: string; data: string }; text?: string }> = [];
+    const parts: Array<{
+      inlineData?: { mimeType: string; data: string };
+      text?: string;
+    }> = [];
 
     for (const ref of referenceImages) {
-      const base64Data = ref.data.replace(/^data:image\/\w+;base64,/, '');
+      const base64Data = ref.data.replace(/^data:image\/\w+;base64,/, "");
       parts.push({
         inlineData: {
           mimeType: ref.mimeType,
@@ -853,8 +1007,8 @@ export async function generateImageWithReferences(
 
     // Build generation config
     const responseModalities = options.includeTextResponse
-      ? ['TEXT', 'IMAGE']
-      : ['IMAGE'];
+      ? ["TEXT", "IMAGE"]
+      : ["IMAGE"];
 
     const generationConfig: Record<string, unknown> = {
       responseModalities,
@@ -868,7 +1022,7 @@ export async function generateImageWithReferences(
 
     const result = await geminiClient.models.generateContent({
       model: GeminiImageModels.PRO_IMAGE,
-      contents: [{ role: 'user', parts }],
+      contents: [{ role: "user", parts }],
       config: generationConfig,
     });
 
@@ -883,7 +1037,9 @@ export async function generateImageWithReferences(
           if (part.inlineData && part.inlineData.data) {
             images.push({
               base64Data: part.inlineData.data,
-              mimeType: (part.inlineData.mimeType as 'image/png' | 'image/jpeg') || 'image/png',
+              mimeType:
+                (part.inlineData.mimeType as "image/png" | "image/jpeg") ||
+                "image/png",
             });
           }
           if (part.text) {
@@ -898,8 +1054,8 @@ export async function generateImageWithReferences(
         success: false,
         data: null,
         error: {
-          code: 'IMAGE_GENERATION_FAILED',
-          message: 'No images were generated with references.',
+          code: "IMAGE_GENERATION_FAILED",
+          message: "No images were generated with references.",
         },
         meta: {
           processingTime: Date.now() - startTime,
@@ -921,13 +1077,16 @@ export async function generateImageWithReferences(
       },
     };
   } catch (error) {
-    console.error('Image generation with references error:', error);
+    console.error("Image generation with references error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'IMAGE_GENERATION_ERROR',
-        message: error instanceof Error ? error.message : 'Image generation with references failed',
+        code: "IMAGE_GENERATION_ERROR",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Image generation with references failed",
       },
       meta: {
         processingTime: Date.now() - startTime,
@@ -949,11 +1108,11 @@ function detectLanguage(text: string): string {
   const englishWords = text.match(englishWordPattern) || [];
 
   if (hasTamil && englishWords.length > 5) {
-    return 'mixed'; // Tamil + English
+    return "mixed"; // Tamil + English
   } else if (hasTamil) {
-    return 'ta'; // Tamil
+    return "ta"; // Tamil
   } else {
-    return 'en'; // English
+    return "en"; // English
   }
 }
 
@@ -967,26 +1126,28 @@ function detectLanguage(text: string): string {
 export async function addToKnowledgeBase(
   title: string,
   content: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, any>,
 ): Promise<CloudCoreResult<{ fileId: string; uri: string }>> {
   const startTime = Date.now();
 
   // With context stuffing, we don't upload to external File Search store
   // Storage is handled by knowledge-curator directly in Supabase
   // This function exists for API compatibility and future extensibility
-  
-  console.log(`[Context Stuffing] Knowledge entry prepared: "${title}" (${content.length} chars)`);
+
+  console.log(
+    `[Context Stuffing] Knowledge entry prepared: "${title}" (${content.length} chars)`,
+  );
 
   return {
     success: true,
     data: {
-      fileId: 'local-supabase',
-      uri: `supabase://knowledgebase/${Date.now()}`
+      fileId: "local-supabase",
+      uri: `supabase://knowledgebase/${Date.now()}`,
     },
     meta: {
       processingTime: Date.now() - startTime,
-      provider: 'context_stuffing'
-    }
+      provider: "context_stuffing",
+    },
   };
 }
 
@@ -996,29 +1157,32 @@ export async function addToKnowledgeBase(
  */
 export async function queryKnowledgeBase(
   query: string,
-  options?: { language?: 'en' | 'ta' }
+  options?: { language?: "en" | "ta" },
 ): Promise<CloudCoreResult<{ answer: string; citations: string[] }>> {
-  const language = options?.language || 'en';
+  const language = options?.language || "en";
   const startTime = Date.now();
 
   try {
     // 1. Fetch all knowledge entries from Supabase
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const supabaseKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
     if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Supabase credentials not configured');
+      throw new Error("Supabase credentials not configured");
     }
-    
+
     const supabase = createClient(supabaseUrl, supabaseKey);
-    
+
     const { data: documents, error: fetchError } = await supabase
-      .from('knowledgebase')
-      .select('id, question_text, answer_text, metadata')
-      .order('created_at', { ascending: false })
+      .from("knowledgebase")
+      .select("id, question_text, answer_text, metadata")
+      .order("created_at", { ascending: false })
       .limit(50); // Limit to recent 50 docs to stay within context window
-    
+
     if (fetchError) {
       throw new Error(`Failed to fetch knowledge: ${fetchError.message}`);
     }
@@ -1027,27 +1191,33 @@ export async function queryKnowledgeBase(
       return {
         success: true,
         data: {
-          answer: 'The knowledge base is empty. Please add some documents first.',
-          citations: []
+          answer:
+            "The knowledge base is empty. Please add some documents first.",
+          citations: [],
         },
-        meta: { processingTime: Date.now() - startTime }
+        meta: { processingTime: Date.now() - startTime },
       };
     }
 
     // 2. Build context block from documents
-    const contextBlock = documents.map((doc: any) => `
+    const contextBlock = documents
+      .map(
+        (doc: any) => `
 <DOCUMENT>
-  <TITLE>${doc.question_text || 'Untitled'}</TITLE>
+  <TITLE>${doc.question_text || "Untitled"}</TITLE>
   <CONTENT>
-${doc.answer_text || ''}
+${doc.answer_text || ""}
   </CONTENT>
 </DOCUMENT>
-`).join('\n');
+`,
+      )
+      .join("\n");
 
     // 3. Create system instruction with RAG rules
-    const languageInstruction = language === 'ta'
-      ? '\n\nIMPORTANT: Respond entirely in Tamil (தமிழ்). All text must be in Tamil script.'
-      : '';
+    const languageInstruction =
+      language === "ta"
+        ? "\n\nIMPORTANT: Respond entirely in Tamil (தமிழ்). All text must be in Tamil script."
+        : "";
 
     const systemInstruction = `
 You are a highly intelligent Knowledge Base Assistant for Maiyuri Bricks.
@@ -1065,21 +1235,24 @@ ${contextBlock}
 `;
 
     // 4. Generate response using Gemini with thinking mode
-    const geminiClient = new GeminiClient({ apiKey: process.env.GOOGLE_AI_API_KEY });
-    
+    const geminiClient = new GeminiClient({
+      apiKey: process.env.GOOGLE_AI_API_KEY,
+    });
+
     const result = await geminiClient.models.generateContent({
-      model: 'gemini-2.5-pro', // P2: Use pro model for better reasoning
+      model: "gemini-2.5-pro", // P2: Use pro model for better reasoning
       config: {
         systemInstruction: systemInstruction,
         temperature: 0.2, // P1: Low temperature for factual responses
-        thinkingConfig: { 
-          thinkingBudget: 2048 // P1: Enable thinking for better retrieval/reasoning
+        thinkingConfig: {
+          thinkingBudget: 2048, // P1: Enable thinking for better retrieval/reasoning
         },
       },
-      contents: [{ role: 'user', parts: [{ text: query }] }]
+      contents: [{ role: "user", parts: [{ text: query }] }],
     });
 
-    const responseText = result.text || result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const responseText =
+      result.text || result.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
     // 5. Extract cited document titles from the response
     const citations: string[] = [];
@@ -1095,25 +1268,23 @@ ${contextBlock}
       success: true,
       data: {
         answer: responseText,
-        citations
+        citations,
       },
-      meta: { processingTime: Date.now() - startTime }
+      meta: { processingTime: Date.now() - startTime },
     };
-
   } catch (error) {
-    console.error('Knowledge Base Query Error:', error);
+    console.error("Knowledge Base Query Error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'RAG_QUERY_ERROR',
-        message: error instanceof Error ? error.message : 'Query failed'
+        code: "RAG_QUERY_ERROR",
+        message: error instanceof Error ? error.message : "Query failed",
       },
-      meta: { processingTime: Date.now() - startTime }
+      meta: { processingTime: Date.now() - startTime },
     };
   }
 }
-
 
 /**
  * Generate high-quality 4K images using Gemini Pro Image model
@@ -1130,17 +1301,19 @@ ${contextBlock}
  */
 export async function generateProImage(
   prompt: string,
-  options: ImageGenerationConfig = {}
+  options: ImageGenerationConfig = {},
 ): Promise<CloudCoreResult<ImageGenerationResult>> {
   const startTime = Date.now();
 
   try {
-    const geminiClient = new GeminiClient({ apiKey: process.env.GOOGLE_AI_API_KEY });
+    const geminiClient = new GeminiClient({
+      apiKey: process.env.GOOGLE_AI_API_KEY,
+    });
 
     // Build generation config for Pro model
     const responseModalities = options.includeTextResponse
-      ? ['TEXT', 'IMAGE']
-      : ['IMAGE'];
+      ? ["TEXT", "IMAGE"]
+      : ["IMAGE"];
 
     const generationConfig: Record<string, unknown> = {
       responseModalities,
@@ -1161,7 +1334,7 @@ export async function generateProImage(
 
     const result = await geminiClient.models.generateContent({
       model: GeminiImageModels.PRO_IMAGE, // gemini-3-pro-image-preview
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: generationConfig,
     });
 
@@ -1176,7 +1349,9 @@ export async function generateProImage(
           if (part.inlineData && part.inlineData.data) {
             images.push({
               base64Data: part.inlineData.data,
-              mimeType: (part.inlineData.mimeType as 'image/png' | 'image/jpeg') || 'image/png',
+              mimeType:
+                (part.inlineData.mimeType as "image/png" | "image/jpeg") ||
+                "image/png",
             });
           }
           if (part.text) {
@@ -1191,8 +1366,9 @@ export async function generateProImage(
         success: false,
         data: null,
         error: {
-          code: 'PRO_IMAGE_GENERATION_FAILED',
-          message: 'No images were generated by Gemini Pro. The model may have declined the request.',
+          code: "PRO_IMAGE_GENERATION_FAILED",
+          message:
+            "No images were generated by Gemini Pro. The model may have declined the request.",
           details: { response: result },
         },
         meta: {
@@ -1211,18 +1387,21 @@ export async function generateProImage(
       meta: {
         processingTime: Date.now() - startTime,
         imageCount: images.length,
-        model: 'gemini-3-pro-image-preview',
-        resolution: '4K',
+        model: "gemini-3-pro-image-preview",
+        resolution: "4K",
       },
     };
   } catch (error) {
-    console.error('Pro image generation error:', error);
+    console.error("Pro image generation error:", error);
     return {
       success: false,
       data: null,
       error: {
-        code: 'PRO_IMAGE_GENERATION_ERROR',
-        message: error instanceof Error ? error.message : 'Pro image generation failed',
+        code: "PRO_IMAGE_GENERATION_ERROR",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Pro image generation failed",
         details: error instanceof Error ? { stack: error.stack } : undefined,
       },
       meta: {
@@ -1241,37 +1420,35 @@ export async function generateProImage(
  * @param floorPlanData - Floor plan specifications
  * @returns Generated 3D isometric floor plan image
  */
-export async function generate3DIsometricFloorPlan(
-  floorPlanData: {
-    title: string;
-    plotDimensions: { north: number; south: number; east: number; west: number };
-    setbacks: { north: number; south: number; east: number; west: number };
-    rooms: Array<{
-      name: string;
-      width: number;
-      depth: number;
-      zone: string;
-    }>;
-    roadSide: 'north' | 'south' | 'east' | 'west';
-    roadWidth: number;
-    orientation: string;
-    ecoFeatures?: string[];
-  }
-): Promise<CloudCoreResult<ImageGenerationResult>> {
+export async function generate3DIsometricFloorPlan(floorPlanData: {
+  title: string;
+  plotDimensions: { north: number; south: number; east: number; west: number };
+  setbacks: { north: number; south: number; east: number; west: number };
+  rooms: Array<{
+    name: string;
+    width: number;
+    depth: number;
+    zone: string;
+  }>;
+  roadSide: "north" | "south" | "east" | "west";
+  roadWidth: number;
+  orientation: string;
+  ecoFeatures?: string[];
+}): Promise<CloudCoreResult<ImageGenerationResult>> {
   // Build room specifications string
   const roomSpecs = floorPlanData.rooms
-    .map(r => `${r.name.toUpperCase()}: ${r.width}'-0" × ${r.depth}'-0"`)
-    .join('\n');
+    .map((r) => `${r.name.toUpperCase()}: ${r.width}'-0" × ${r.depth}'-0"`)
+    .join("\n");
 
   // Build eco features string
   const ecoFeatures = floorPlanData.ecoFeatures || [
-    'Traditional mutram (open-to-sky courtyard)',
-    'Shaded veranda in the front',
-    'Naturally ventilated and well-lit rooms',
-    'Rainwater recharge pit in courtyard',
-    'Spacious design with future expansion possible',
+    "Traditional mutram (open-to-sky courtyard)",
+    "Shaded veranda in the front",
+    "Naturally ventilated and well-lit rooms",
+    "Rainwater recharge pit in courtyard",
+    "Spacious design with future expansion possible",
   ];
-  const ecoFeaturesText = ecoFeatures.map(f => `✓ ${f}`).join('\n');
+  const ecoFeaturesText = ecoFeatures.map((f) => `✓ ${f}`).join("\n");
 
   // Create the detailed prompt for 3D isometric rendering
   const prompt = `Create a PHOTOREALISTIC 3D ISOMETRIC architectural floor plan visualization.
@@ -1318,8 +1495,8 @@ Generate a single, high-quality, photorealistic 3D isometric floor plan image.`;
 
   // Use Pro model for 4K output
   return generateProImage(prompt, {
-    aspectRatio: '4:3',
-    imageSize: '4K',
+    aspectRatio: "4:3",
+    imageSize: "4K",
     includeTextResponse: false,
   });
 }
@@ -1333,26 +1510,24 @@ Generate a single, high-quality, photorealistic 3D isometric floor plan image.`;
  * @param courtyardData - Courtyard specifications
  * @returns Generated 3D courtyard image
  */
-export async function generate3DCourtyardView(
-  courtyardData: {
-    courtyardSize: { width: number; depth: number };
-    surroundingRooms: Array<{ name: string; side: string }>;
-    features?: string[];
-    style?: string;
-  }
-): Promise<CloudCoreResult<ImageGenerationResult>> {
+export async function generate3DCourtyardView(courtyardData: {
+  courtyardSize: { width: number; depth: number };
+  surroundingRooms: Array<{ name: string; side: string }>;
+  features?: string[];
+  style?: string;
+}): Promise<CloudCoreResult<ImageGenerationResult>> {
   const surroundingDesc = courtyardData.surroundingRooms
-    .map(r => `${r.name} on the ${r.side}`)
-    .join(', ');
+    .map((r) => `${r.name} on the ${r.side}`)
+    .join(", ");
 
   const features = courtyardData.features || [
-    'Tulsi (holy basil) plant in decorative pot at center',
-    'Terracotta tile flooring with traditional pattern',
-    'Rainwater collection pit with decorative grate',
-    'Wooden pillared corridors (thinnai) around perimeter',
-    'Brass oil lamps (vilakku) in niches',
+    "Tulsi (holy basil) plant in decorative pot at center",
+    "Terracotta tile flooring with traditional pattern",
+    "Rainwater collection pit with decorative grate",
+    "Wooden pillared corridors (thinnai) around perimeter",
+    "Brass oil lamps (vilakku) in niches",
   ];
-  const featuresText = features.map(f => `- ${f}`).join('\n');
+  const featuresText = features.map((f) => `- ${f}`).join("\n");
 
   const prompt = `Create a PHOTOREALISTIC 3D INTERIOR VIEW of a traditional Tamil Nadu courtyard (mutram).
 
@@ -1393,7 +1568,7 @@ ${featuresText}
 **ATMOSPHERE:**
 - Peaceful, serene traditional home
 - Clean, well-maintained surfaces
-- ${courtyardData.style || 'Traditional Tamil Nadu Brahmin agraharam style'}
+- ${courtyardData.style || "Traditional Tamil Nadu Brahmin agraharam style"}
 - Spiritual and welcoming ambiance
 
 **QUALITY:**
@@ -1405,8 +1580,8 @@ ${featuresText}
 Generate a single, stunning, photorealistic interior courtyard view.`;
 
   return generateProImage(prompt, {
-    aspectRatio: '4:3',
-    imageSize: '4K',
+    aspectRatio: "4:3",
+    imageSize: "4K",
     includeTextResponse: false,
   });
 }
@@ -1420,39 +1595,37 @@ Generate a single, stunning, photorealistic interior courtyard view.`;
  * @param exteriorData - Exterior specifications
  * @returns Generated 3D exterior image
  */
-export async function generate3DExteriorView(
-  exteriorData: {
-    plotWidth: number;
-    plotDepth: number;
-    floors: number;
-    facingDirection: string;
-    roadSide: string;
-    roadWidth: number;
-    hasVerandah: boolean;
-    verandahWidth?: number;
-    roofType?: string;
-    wallFinish?: string;
-    features?: string[];
-  }
-): Promise<CloudCoreResult<ImageGenerationResult>> {
+export async function generate3DExteriorView(exteriorData: {
+  plotWidth: number;
+  plotDepth: number;
+  floors: number;
+  facingDirection: string;
+  roadSide: string;
+  roadWidth: number;
+  hasVerandah: boolean;
+  verandahWidth?: number;
+  roofType?: string;
+  wallFinish?: string;
+  features?: string[];
+}): Promise<CloudCoreResult<ImageGenerationResult>> {
   const features = exteriorData.features || [
-    'Sloped Mangalore tile roof in terracotta red',
-    'Lime-washed exterior walls in cream/off-white',
-    'Traditional wooden front door with brass fittings',
-    'Carved wooden window frames with iron grilles',
-    'Low compound wall with ornate gate',
-    'Verandah with wooden pillars and sit-out',
+    "Sloped Mangalore tile roof in terracotta red",
+    "Lime-washed exterior walls in cream/off-white",
+    "Traditional wooden front door with brass fittings",
+    "Carved wooden window frames with iron grilles",
+    "Low compound wall with ornate gate",
+    "Verandah with wooden pillars and sit-out",
   ];
-  const featuresText = features.map(f => `- ${f}`).join('\n');
+  const featuresText = features.map((f) => `- ${f}`).join("\n");
 
   const prompt = `Create a PHOTOREALISTIC 3D EXTERIOR VIEW of a traditional Tamil Nadu eco-friendly house.
 
 **HOUSE SPECIFICATIONS:**
 - Plot: ${exteriorData.plotWidth}' × ${exteriorData.plotDepth}'
-- Floors: ${exteriorData.floors} (G${exteriorData.floors > 1 ? '+' + (exteriorData.floors - 1) : ''})
+- Floors: ${exteriorData.floors} (G${exteriorData.floors > 1 ? "+" + (exteriorData.floors - 1) : ""})
 - Facing: ${exteriorData.facingDirection}
 - Road on ${exteriorData.roadSide} side (${exteriorData.roadWidth}' wide)
-${exteriorData.hasVerandah ? `- Front verandah: ${exteriorData.verandahWidth || 4}' deep` : ''}
+${exteriorData.hasVerandah ? `- Front verandah: ${exteriorData.verandahWidth || 4}' deep` : ""}
 
 **CAMERA POSITION:**
 - Street-level view from the road
@@ -1467,13 +1640,13 @@ Traditional Tamil Nadu residential architecture with eco-friendly elements
 ${featuresText}
 
 **ROOF DETAILS:**
-- ${exteriorData.roofType || 'Sloped Mangalore tile roof'} in terracotta red
+- ${exteriorData.roofType || "Sloped Mangalore tile roof"} in terracotta red
 - Traditional clay ridge tiles
 - Roof overhang for rain protection
 - Visible wooden rafters at eaves
 
 **WALL FINISH:**
-- ${exteriorData.wallFinish || 'Lime-washed walls'} in cream/off-white color
+- ${exteriorData.wallFinish || "Lime-washed walls"} in cream/off-white color
 - Clean, fresh appearance
 - Subtle texture of lime wash visible
 
@@ -1516,8 +1689,8 @@ ${featuresText}
 Generate a single, stunning, photorealistic exterior facade view.`;
 
   return generateProImage(prompt, {
-    aspectRatio: '16:9',
-    imageSize: '4K',
+    aspectRatio: "16:9",
+    imageSize: "4K",
     includeTextResponse: false,
   });
 }

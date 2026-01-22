@@ -1,4 +1,10 @@
-import type { Lead, Note, AISummary, AIScore, AISuggestion } from '@maiyuri/shared';
+import type {
+  Lead,
+  Note,
+  AISummary,
+  AIScore,
+  AISuggestion,
+} from "@maiyuri/shared";
 
 // Agent Result Types
 export interface AgentResult<T> {
@@ -40,7 +46,7 @@ export interface ScoringOutput {
   confidence: number; // 0-1
   factors: {
     factor: string;
-    impact: 'positive' | 'negative' | 'neutral';
+    impact: "positive" | "negative" | "neutral";
     weight: number;
   }[];
   recommendation: string;
@@ -59,9 +65,9 @@ export interface SuggestionInput {
 export interface SuggestionOutput {
   suggestions: {
     id: string;
-    type: 'action' | 'response' | 'insight';
+    type: "action" | "response" | "insight";
     content: string;
-    priority: 'high' | 'medium' | 'low';
+    priority: "high" | "medium" | "low";
     reasoning: string;
   }[];
   nextBestAction?: string;
@@ -72,7 +78,18 @@ export interface SuggestionOutput {
 export interface LeadManagerInput {
   lead: Lead;
   notes: Note[];
-  requestType: 'full_analysis' | 'quick_update' | 'scoring_only' | 'suggestions_only';
+  requestType:
+    | "full_analysis"
+    | "quick_update"
+    | "scoring_only"
+    | "suggestions_only";
+  /** Optional trace context for observability */
+  traceContext?: {
+    traceId?: string;
+    userId?: string;
+    sessionId?: string;
+    metadata?: Record<string, unknown>;
+  };
 }
 
 export interface LeadManagerOutput {
@@ -96,7 +113,7 @@ export interface AgentTool {
 export interface AgentConfig {
   name: string;
   description: string;
-  model: 'claude-sonnet-4-20250514' | 'claude-3-5-sonnet-20241022';
+  model: "claude-sonnet-4-20250514" | "claude-3-5-sonnet-20241022";
   maxTokens: number;
   temperature: number;
   tools?: AgentTool[];

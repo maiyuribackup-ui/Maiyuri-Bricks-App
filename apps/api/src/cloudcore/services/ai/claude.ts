@@ -2,6 +2,8 @@
  * Claude Service
  * Used for reasoning, analysis, scoring, and decision support
  * Model: claude-sonnet-4-20250514
+ *
+ * Instrumented with Langfuse observability for tracing and cost tracking.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -14,6 +16,12 @@ import {
   getLanguageInstruction,
   type LanguageCode,
 } from "../../utils/language";
+import {
+  createTrace,
+  calculateCost,
+  flushObservability,
+  type TraceContext,
+} from "../../../services/observability";
 
 // Initialize Claude client
 const anthropic = new Anthropic({
@@ -32,6 +40,13 @@ export interface ClaudeCompletionRequest {
   maxTokens?: number;
   temperature?: number;
   jsonMode?: boolean;
+  /** Optional trace context for observability correlation */
+  traceContext?: {
+    traceId?: string;
+    userId?: string;
+    leadId?: string;
+    agentType?: string;
+  };
 }
 
 export interface ClaudeCompletionResponse {
@@ -42,14 +57,42 @@ export interface ClaudeCompletionResponse {
 
 /**
  * Generate a completion using Claude
+ * Instrumented with Langfuse observability for tracing and cost tracking.
  */
 export async function complete(
   request: ClaudeCompletionRequest,
 ): Promise<CloudCoreResult<ClaudeCompletionResponse>> {
   const startTime = Date.now();
+  const model = request.model ? ClaudeModels[request.model] : DEFAULT_MODEL;
+
+  // Create trace for observability (if configured)
+  const trace = request.traceContext
+    ? createTrace({
+        traceId:
+          request.traceContext.traceId ||
+          `claude-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        userId: request.traceContext.userId,
+        leadId: request.traceContext.leadId,
+        agentType: request.traceContext.agentType || "claude-completion",
+      })
+    : null;
+
+  // Create generation span for this LLM call
+  const generation = trace?.generation({
+    name: request.traceContext?.agentType || "claude-completion",
+    model,
+    input: {
+      system: request.systemPrompt,
+      user: request.userPrompt,
+    },
+    metadata: {
+      maxTokens: request.maxTokens || DEFAULT_MAX_TOKENS,
+      temperature: request.temperature ?? DEFAULT_TEMPERATURE,
+      jsonMode: request.jsonMode || false,
+    },
+  });
 
   try {
-    const model = request.model ? ClaudeModels[request.model] : DEFAULT_MODEL;
     const maxTokens = request.maxTokens || DEFAULT_MAX_TOKENS;
     const temperature = request.temperature ?? DEFAULT_TEMPERATURE;
 
@@ -79,6 +122,32 @@ export async function complete(
       model,
     };
 
+    const processingTime = Date.now() - startTime;
+    const cost = calculateCost(
+      model,
+      response.usage.input_tokens,
+      response.usage.output_tokens,
+    );
+
+    // End generation with success
+    generation?.end({
+      output: content,
+      usage: {
+        input: response.usage.input_tokens,
+        output: response.usage.output_tokens,
+        total: response.usage.input_tokens + response.usage.output_tokens,
+      },
+      metadata: {
+        cost,
+        latencyMs: processingTime,
+        stopReason: response.stop_reason,
+        provider: "claude",
+      },
+    });
+
+    // Flush observability data (non-blocking)
+    flushObservability().catch(() => {});
+
     return {
       success: true,
       data: {
@@ -87,11 +156,27 @@ export async function complete(
         stopReason: response.stop_reason || "unknown",
       },
       meta: {
-        processingTime: Date.now() - startTime,
+        processingTime,
         usage,
+        cost,
       },
     };
   } catch (error) {
+    const processingTime = Date.now() - startTime;
+    const errorMessage =
+      error instanceof Error ? error.message : "Claude completion failed";
+
+    // Log error to trace
+    generation?.end({
+      level: "ERROR",
+      statusMessage: errorMessage,
+      metadata: {
+        latencyMs: processingTime,
+        errorType: error instanceof Error ? error.name : "UnknownError",
+        provider: "claude",
+      },
+    });
+
     console.error("Claude completion error:", error);
     console.warn(
       "Claude API failed, attempting fallback...",
@@ -108,15 +193,27 @@ export async function complete(
       });
 
       if (geminiResult.success && geminiResult.data) {
+        // Log fallback success to trace
+        trace?.event({
+          name: "fallback-success",
+          metadata: {
+            fallbackProvider: "gemini",
+            originalError: errorMessage,
+          },
+        });
+
+        // Flush observability data (non-blocking)
+        flushObservability().catch(() => {});
+
         return {
           success: true,
           data: {
             content: geminiResult.data.content,
-            usage: geminiResult.data.usage || {
-              inputTokens: 0,
-              outputTokens: 0,
-              totalTokens: 0,
-              model: "gemini-fallback",
+            usage: {
+              inputTokens: geminiResult.data.usage?.inputTokens ?? 0,
+              outputTokens: geminiResult.data.usage?.outputTokens ?? 0,
+              totalTokens: geminiResult.data.usage?.totalTokens ?? 0,
+              model: "gemini-2.5-flash-preview-05-20",
             },
             stopReason: "stop",
           },
@@ -131,14 +228,16 @@ export async function complete(
       console.error("Gemini fallback error:", geminiError);
     }
 
+    // Flush observability data (non-blocking)
+    flushObservability().catch(() => {});
+
     // Return original error if Gemini also fails
     return {
       success: false,
       data: null,
       error: {
         code: "CLAUDE_COMPLETION_ERROR",
-        message:
-          error instanceof Error ? error.message : "Claude completion failed",
+        message: errorMessage,
       },
       meta: {
         processingTime: Date.now() - startTime,
