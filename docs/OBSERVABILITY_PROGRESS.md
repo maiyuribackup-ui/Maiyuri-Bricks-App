@@ -82,7 +82,7 @@
 # Langfuse (required for observability to work)
 LANGFUSE_PUBLIC_KEY=pk-lf-xxxxx
 LANGFUSE_SECRET_KEY=sk-lf-xxxxx
-LANGFUSE_HOST=https://langfuse.your-domain.com  # Optional for self-hosted
+LANGFUSE_BASE_URL=https://cloud.langfuse.com  # EU region (or https://us.cloud.langfuse.com for US)
 
 # Alerting thresholds (Phase 4)
 AI_DAILY_COST_ALERT_USD=50
