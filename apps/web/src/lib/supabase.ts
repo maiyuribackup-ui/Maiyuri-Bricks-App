@@ -1,58 +1,18 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { createBrowserClient } from '@supabase/ssr';
+/**
+ * Supabase client exports
+ *
+ * This module re-exports both browser and admin clients for backwards compatibility.
+ *
+ * RECOMMENDED USAGE:
+ * - Client components: import { getSupabase, supabase } from '@/lib/supabase-browser'
+ * - Server/API routes: import { supabaseAdmin } from '@/lib/supabase-admin'
+ *
+ * The supabase-admin module includes 'server-only' pragma to prevent accidental
+ * bundling of the service role key in client code.
+ */
 
-// Lazy initialization to avoid build-time errors when env vars are not available
-let _supabase: SupabaseClient | null = null;
-let _supabaseAdmin: SupabaseClient | null = null;
+// Re-export browser client (safe for client components)
+export { getSupabase, supabase, supabaseClient } from "./supabase-browser";
 
-// Browser client (uses anon key) - uses SSR package for proper cookie handling
-export function getSupabase(): SupabaseClient {
-  if (!_supabase) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!url || !key) {
-      throw new Error('Missing Supabase environment variables: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required');
-    }
-
-    // Use createBrowserClient from @supabase/ssr for proper cookie handling
-    // This ensures the session is stored in cookies that middleware can read
-    _supabase = createBrowserClient(url, key);
-  }
-  return _supabase;
-}
-
-// For backwards compatibility - lazy getter
-export const supabase = new Proxy({} as SupabaseClient, {
-  get(_, prop) {
-    return Reflect.get(getSupabase(), prop);
-  },
-});
-
-// Server client (uses service role key for API routes)
-export function getSupabaseAdmin(): SupabaseClient {
-  if (!_supabaseAdmin) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (!url || !key) {
-      throw new Error('Missing Supabase environment variables for admin client');
-    }
-    
-    _supabaseAdmin = createClient(url, key, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
-  }
-  return _supabaseAdmin;
-}
-
-// For backwards compatibility - lazy getter
-export const supabaseAdmin = new Proxy({} as SupabaseClient, {
-  get(_, prop) {
-    return Reflect.get(getSupabaseAdmin(), prop);
-  },
-});
-
+// Re-export admin client (server-only, will error if imported in client code)
+export { getSupabaseAdmin, supabaseAdmin } from "./supabase-admin";
