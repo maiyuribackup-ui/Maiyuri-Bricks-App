@@ -8,11 +8,6 @@ const forgotPasswordSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  // Debug: Check if env vars are available
-  const hasUrl = !!process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const hasKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
-  console.log(`[forgot-password] Env check - URL: ${hasUrl}, KEY: ${hasKey}`);
-
   try {
     const body = await request.json();
     const result = forgotPasswordSchema.safeParse(body);
