@@ -1,61 +1,63 @@
-import { NextRequest } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
-import { success, error, notFound, parseBody } from '@/lib/api-utils';
-import { updateEstimateSchema, type Estimate } from '@maiyuri/shared';
+import { NextRequest } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { success, error, notFound, parseBody } from "@/lib/api-utils";
+import { updateEstimateSchema, type Estimate } from "@maiyuri/shared";
 
 // GET /api/estimates/[id] - Get a single estimate
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
 
     const { data, error: dbError } = await supabaseAdmin
-      .from('estimates')
-      .select(`
+      .from("estimates")
+      .select(
+        `
         *,
         items:estimate_items(
           *,
           product:products(*)
         ),
         lead:leads(*)
-      `)
-      .eq('id', id)
+      `,
+      )
+      .eq("id", id)
       .single();
 
     if (dbError || !data) {
-      if (dbError?.code === 'PGRST116') {
-        return notFound('Estimate not found');
+      if (dbError?.code === "PGRST116") {
+        return notFound("Estimate not found");
       }
-      console.error('Database error:', dbError);
-      return error('Failed to fetch estimate', 500);
+      console.error("Database error:", dbError);
+      return error("Failed to fetch estimate", 500);
     }
 
     return success<Estimate>(data);
   } catch (err) {
-    console.error('Error fetching estimate:', err);
-    return error('Internal server error', 500);
+    console.error("Error fetching estimate:", err);
+    return error("Internal server error", 500);
   }
 }
 
 // PUT /api/estimates/[id] - Update an estimate
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
 
     // Verify estimate exists
     const { data: existing, error: existingError } = await supabaseAdmin
-      .from('estimates')
-      .select('id, lead_id')
-      .eq('id', id)
+      .from("estimates")
+      .select("id, lead_id")
+      .eq("id", id)
       .single();
 
     if (existingError || !existing) {
-      return notFound('Estimate not found');
+      return notFound("Estimate not found");
     }
 
     const parsed = await parseBody(request, updateEstimateSchema);
@@ -66,10 +68,7 @@ export async function PUT(
     // If items are provided, recalculate subtotal
     if (items && items.length > 0) {
       // Delete existing items
-      await supabaseAdmin
-        .from('estimate_items')
-        .delete()
-        .eq('estimate_id', id);
+      await supabaseAdmin.from("estimate_items").delete().eq("estimate_id", id);
 
       // Calculate new subtotal
       let subtotal = 0;
@@ -78,9 +77,9 @@ export async function PUT(
           let unitPrice = item.unit_price;
           if (!unitPrice) {
             const { data: product } = await supabaseAdmin
-              .from('products')
-              .select('base_price')
-              .eq('id', item.product_id)
+              .from("products")
+              .select("base_price")
+              .eq("id", item.product_id)
               .single();
             unitPrice = product?.base_price || 0;
           }
@@ -98,17 +97,17 @@ export async function PUT(
             notes: item.notes || null,
             sort_order: index,
           };
-        })
+        }),
       );
 
       // Insert new items
-      await supabaseAdmin.from('estimate_items').insert(itemsToInsert);
+      await supabaseAdmin.from("estimate_items").insert(itemsToInsert);
 
       // Get existing transport cost from DB
       const { data: existingEstimate } = await supabaseAdmin
-        .from('estimates')
-        .select('transport_cost')
-        .eq('id', id)
+        .from("estimates")
+        .select("transport_cost")
+        .eq("id", id)
         .single();
 
       // Calculate with new subtotal
@@ -118,7 +117,7 @@ export async function PUT(
       const totalAmount = subtotal + transportCost - discountAmount;
 
       const { data, error: dbError } = await supabaseAdmin
-        .from('estimates')
+        .from("estimates")
         .update({
           ...updateData,
           subtotal,
@@ -126,19 +125,21 @@ export async function PUT(
           total_amount: totalAmount,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', id)
-        .select(`
+        .eq("id", id)
+        .select(
+          `
           *,
           items:estimate_items(
             *,
             product:products(*)
           )
-        `)
+        `,
+        )
         .single();
 
       if (dbError) {
-        console.error('Database error:', dbError);
-        return error('Failed to update estimate', 500);
+        console.error("Database error:", dbError);
+        return error("Failed to update estimate", 500);
       }
 
       return success<Estimate>(data);
@@ -148,9 +149,9 @@ export async function PUT(
     let finalUpdateData: Record<string, unknown> = { ...updateData };
     if (updateData.discount_percentage !== undefined) {
       const { data: currentEstimate } = await supabaseAdmin
-        .from('estimates')
-        .select('subtotal, transport_cost')
-        .eq('id', id)
+        .from("estimates")
+        .select("subtotal, transport_cost")
+        .eq("id", id)
         .single();
 
       const subtotal = currentEstimate?.subtotal ?? 0;
@@ -167,55 +168,57 @@ export async function PUT(
     }
 
     const { data, error: dbError } = await supabaseAdmin
-      .from('estimates')
+      .from("estimates")
       .update({
         ...finalUpdateData,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', id)
-      .select(`
+      .eq("id", id)
+      .select(
+        `
         *,
         items:estimate_items(
           *,
           product:products(*)
         )
-      `)
+      `,
+      )
       .single();
 
     if (dbError) {
-      console.error('Database error:', dbError);
-      return error('Failed to update estimate', 500);
+      console.error("Database error:", dbError);
+      return error("Failed to update estimate", 500);
     }
 
     return success<Estimate>(data);
   } catch (err) {
-    console.error('Error updating estimate:', err);
-    return error('Internal server error', 500);
+    console.error("Error updating estimate:", err);
+    return error("Internal server error", 500);
   }
 }
 
 // DELETE /api/estimates/[id] - Delete an estimate
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
 
     // Delete estimate (items will cascade delete)
     const { error: dbError } = await supabaseAdmin
-      .from('estimates')
+      .from("estimates")
       .delete()
-      .eq('id', id);
+      .eq("id", id);
 
     if (dbError) {
-      console.error('Database error:', dbError);
-      return error('Failed to delete estimate', 500);
+      console.error("Database error:", dbError);
+      return error("Failed to delete estimate", 500);
     }
 
     return success({ deleted: true });
   } catch (err) {
-    console.error('Error deleting estimate:', err);
-    return error('Internal server error', 500);
+    console.error("Error deleting estimate:", err);
+    return error("Internal server error", 500);
   }
 }

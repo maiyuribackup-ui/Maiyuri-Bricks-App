@@ -9,7 +9,7 @@ import {
   parseBody,
 } from "@/lib/api-utils";
 import { createSupabaseRouteClient } from "@/lib/supabase-server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { rejectTicket, canApproveTickets } from "@/lib/ticket-service";
 import { rejectTicketSchema } from "@maiyuri/shared";
 

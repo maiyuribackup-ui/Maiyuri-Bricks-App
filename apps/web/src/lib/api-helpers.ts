@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "./supabase-server";
-import { supabaseAdmin } from "./supabase";
+import { supabaseAdmin } from "./supabase-admin";
 
 // User roles in the system
 export type UserRole =

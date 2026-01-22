@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, error } from "@/lib/api-utils";
 
 const VALID_STATUSES = new Set(["pending", "task_created", "resolved"]);

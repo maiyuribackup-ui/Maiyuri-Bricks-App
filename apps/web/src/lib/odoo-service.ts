@@ -3,7 +3,7 @@
  * Handles bidirectional sync between Maiyuri Bricks app and Odoo CRM
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "./supabase-admin";
 
 // Odoo connection config
 const ODOO_CONFIG = {
@@ -16,12 +16,9 @@ const ODOO_CONFIG = {
 // Default salesperson: Ms.Nithya (Odoo user_id: 10)
 const DEFAULT_SALESPERSON_ID = 10;
 
-// Lazy Supabase client for server-side operations
+// Use centralized Supabase admin client (see BUG-014 in LEARNINGS.md)
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
+  return supabaseAdmin;
 }
 
 interface OdooLead {

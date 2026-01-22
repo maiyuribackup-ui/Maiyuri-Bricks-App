@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, error } from "@/lib/api-utils";
 
 // POST /api/users/sync - Sync auth users with profiles

@@ -8,7 +8,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { Lead, NudgeDigestLead } from "@maiyuri/shared";
 
 // Initialize Claude client
@@ -386,7 +386,9 @@ export function formatEnhancedDigestEntry(
   const lines: string[] = [];
 
   // Header
-  lines.push(`${emoji} *${lead.status.toUpperCase()}:* ${lead.name}`);
+  lines.push(
+    `${emoji} *${(lead?.status ?? "unknown").toUpperCase()}:* ${lead.name}`,
+  );
   lines.push(`   📱 ${lead.contact}`);
 
   // Overdue info

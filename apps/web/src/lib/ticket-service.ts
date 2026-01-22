@@ -22,7 +22,7 @@ import {
   markManufacturingOrderDoneInOdoo,
   updateProductionOrderStatus,
 } from "./production-service";
-import { supabaseAdmin } from "./supabase";
+import { supabaseAdmin } from "./supabase-admin";
 
 // Use centralized supabase admin client
 function getSupabase() {

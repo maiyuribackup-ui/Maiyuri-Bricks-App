@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createSupabaseRouteClient } from "@/lib/supabase-server";
 import {
   success,
@@ -132,7 +132,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate Smart Quote content using AI pipeline
-    console.log("[SmartQuotes] Generating content for lead:", lead_id);
     const aiResult = await generateSmartQuoteContent(
       combinedTranscript,
       lead.name,
@@ -166,8 +165,6 @@ export async function POST(request: NextRequest) {
       console.error("[SmartQuotes] Insert error:", insertError);
       return error("Failed to create Smart Quote", 500);
     }
-
-    console.log("[SmartQuotes] Created quote:", smartQuote.id);
 
     return success<SmartQuote>(smartQuote);
   } catch (err) {

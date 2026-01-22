@@ -21,7 +21,7 @@ The following changes were implemented to make AI insights action‑oriented and
    - Recommendation: enforce auth for `/api/*` by default in middleware (except explicitly public endpoints), and/or add a shared “require session + role” helper used by every route. Prefer using a user-scoped Supabase client with RLS where possible; reserve service role for strictly internal tasks.
 
 2. **Remove committed credentials and rotate them**
-   - `apps/web/test-credentials.txt` contains a working email/password pair.
+   - `apps/web/test-credentials.txt` is referenced in docs but not present in this workspace; confirm it stays removed.
    - Many scripts/tests and migrations hardcode `TempPass123!` and real emails (e.g., `supabase/migrations/20260109000001_seed_auth_users.sql`, multiple Playwright specs and `.mjs` scripts).
    - Recommendation: remove/replace committed credentials with environment-based secrets, rotate the affected accounts/passwords, and ensure CI/e2e uses `process.env.*` (or secret storage) rather than literals.
 
@@ -30,8 +30,8 @@ The following changes were implemented to make AI insights action‑oriented and
    - Recommendation: split into explicit modules (e.g., `supabase-browser.ts` and `supabase-admin.server.ts`), mark server-only modules with `server-only`, and make it hard to import admin helpers from client code.
 
 4. **Protect user management endpoints and remove default passwords**
-   - `apps/web/app/api/users/route.ts` creates users with a fallback password (`TempPass123!`) and accepts bulk “seed” creation, but there is no auth/role gate.
-   - Recommendation: require founder/admin role for user management, remove password fallbacks, and require explicit passwords or invite-flow links.
+   - `apps/web/app/api/users/route.ts` allows bulk seed creation and user creation without an auth/role gate; it requires a password but does not restrict who can call it.
+   - Recommendation: require founder/admin role for user management, disable public seed endpoints in production, and prefer invite-flow links for user creation.
 
 ## P1 (Correctness/Functional)
 
@@ -105,6 +105,34 @@ The following changes were implemented to make AI insights action‑oriented and
 2. **Make test credentials configurable**
    - Playwright and `.mjs` scripts embed user creds.
    - Recommendation: read creds from env and provide a `.env.example` for local testing; add a short “how to run e2e” doc that does not include secrets.
+
+## Codex Review Addendum (Local Workspace Only)
+
+Scope: local workspace scan only; no GitHub/network access.
+
+### Confirmed Findings (Evidence-Based)
+
+1. **P0: API routes allow unauthenticated access and use service-role clients**
+   - `apps/web/middleware.ts` allows `/api/*` without session checks.
+   - Many `/api` routes use `supabaseAdmin` for read/write (examples: `apps/web/app/api/leads/route.ts`, `apps/web/app/api/leads/[id]/route.ts`, `apps/web/app/api/users/route.ts`, `apps/web/app/api/upload/route.ts`).
+   - `apps/web/src/lib/supabase.ts` exports browser and admin clients from one module, increasing risk of server-only code in client bundles.
+
+2. **P0: Seed migration includes real emails and a shared password**
+   - `supabase/migrations/20260109000001_seed_auth_users.sql` inserts fixed UUIDs and `TempPass123!`.
+
+3. **P1: CSP is permissive in production**
+   - `apps/web/middleware.ts` sets `script-src 'unsafe-inline' 'unsafe-eval'` unconditionally.
+
+4. **P1: Lead search filter can break on special characters**
+   - `apps/web/app/api/leads/route.ts` interpolates `filters.search` into `.or(...)`.
+
+5. **P2: E2E test uses production login and hardcoded password**
+   - `apps/web/tests/test-sq-redesign.ts` logs into a production URL with a hardcoded password.
+
+### Open Questions
+
+- Are `/api/*` endpoints intended to be publicly accessible, or is there an external gateway that enforces auth?
+- Are seed migrations ever run outside local/dev environments?
 
 ## Notes
 

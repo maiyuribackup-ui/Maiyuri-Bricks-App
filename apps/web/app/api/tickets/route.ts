@@ -11,7 +11,7 @@ import {
   forbidden,
 } from "@/lib/api-utils";
 import { createSupabaseRouteClient } from "@/lib/supabase-server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   getTickets,
   createTicket,

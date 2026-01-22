@@ -55,3 +55,7 @@ bun.lockb
 # OpenMemory - IDE/Assistant specific rules
 .cursor/rules/openmemory.mdc
 CLAUDE.md
+
+# Vercel environment check files
+.env.vercel-production
+apps/web/.env.vercel-check

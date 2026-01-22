@@ -1,14 +1,17 @@
-import { NextRequest } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
-import { success, error, parseBody } from '@/lib/api-utils';
-import { calculateDistanceSchema, type DistanceCalculation } from '@maiyuri/shared';
+import { NextRequest } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { success, error, parseBody } from "@/lib/api-utils";
+import {
+  calculateDistanceSchema,
+  type DistanceCalculation,
+} from "@maiyuri/shared";
 
 // Calculate distance between two points using Haversine formula
 function haversineDistance(
   lat1: number,
   lon1: number,
   lat2: number,
-  lon2: number
+  lon2: number,
 ): number {
   const R = 6371; // Earth's radius in km
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -33,13 +36,18 @@ export async function POST(request: NextRequest) {
 
     // Get factory settings
     const { data: factorySettings, error: settingsError } = await supabaseAdmin
-      .from('factory_settings')
-      .select('latitude, longitude, transport_rate_per_km, min_transport_charge')
+      .from("factory_settings")
+      .select(
+        "latitude, longitude, transport_rate_per_km, min_transport_charge",
+      )
       .limit(1)
       .single();
 
     if (settingsError || !factorySettings) {
-      return error('Factory settings not configured. Please set factory location first.', 400);
+      return error(
+        "Factory settings not configured. Please set factory location first.",
+        400,
+      );
     }
 
     // Calculate distance using Haversine formula (straight-line distance)
@@ -47,13 +55,14 @@ export async function POST(request: NextRequest) {
       factorySettings.latitude,
       factorySettings.longitude,
       destination_latitude,
-      destination_longitude
+      destination_longitude,
     );
 
     // Road distance is typically 1.3-1.5x straight-line distance
     // Using 1.4 as a reasonable multiplier for Tamil Nadu roads
     const roadDistanceMultiplier = 1.4;
-    const distanceKm = Math.round(straightLineDistance * roadDistanceMultiplier * 10) / 10;
+    const distanceKm =
+      Math.round(straightLineDistance * roadDistanceMultiplier * 10) / 10;
 
     // Estimate duration (assuming average 40 km/h for loaded trucks)
     const averageSpeedKmh = 40;
@@ -72,8 +81,8 @@ export async function POST(request: NextRequest) {
 
     return success<DistanceCalculation>(result);
   } catch (err) {
-    console.error('Error calculating distance:', err);
-    return error('Internal server error', 500);
+    console.error("Error calculating distance:", err);
+    return error("Internal server error", 500);
   }
 }
 

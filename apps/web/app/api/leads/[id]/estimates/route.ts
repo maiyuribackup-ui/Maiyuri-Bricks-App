@@ -1,69 +1,71 @@
-import { NextRequest } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
-import { success, created, error, notFound, parseBody } from '@/lib/api-utils';
-import { createEstimateSchema, type Estimate } from '@maiyuri/shared';
+import { NextRequest } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { success, created, error, notFound, parseBody } from "@/lib/api-utils";
+import { createEstimateSchema, type Estimate } from "@maiyuri/shared";
 
 // GET /api/leads/[id]/estimates - List all estimates for a lead
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: leadId } = await params;
 
     // Verify lead exists
     const { data: lead, error: leadError } = await supabaseAdmin
-      .from('leads')
-      .select('id')
-      .eq('id', leadId)
+      .from("leads")
+      .select("id")
+      .eq("id", leadId)
       .single();
 
     if (leadError || !lead) {
-      return notFound('Lead not found');
+      return notFound("Lead not found");
     }
 
     // Fetch estimates with items
     const { data, error: dbError } = await supabaseAdmin
-      .from('estimates')
-      .select(`
+      .from("estimates")
+      .select(
+        `
         *,
         items:estimate_items(
           *,
           product:products(*)
         )
-      `)
-      .eq('lead_id', leadId)
-      .order('created_at', { ascending: false });
+      `,
+      )
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false });
 
     if (dbError) {
-      console.error('Database error:', dbError);
-      return error('Failed to fetch estimates', 500);
+      console.error("Database error:", dbError);
+      return error("Failed to fetch estimates", 500);
     }
 
     return success<Estimate[]>(data || []);
   } catch (err) {
-    console.error('Error fetching estimates:', err);
-    return error('Internal server error', 500);
+    console.error("Error fetching estimates:", err);
+    return error("Internal server error", 500);
   }
 }
 
 // POST /api/leads/[id]/estimates - Create a new estimate for a lead
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: leadId } = await params;
 
     // Verify lead exists
     const { data: lead, error: leadError } = await supabaseAdmin
-      .from('leads')
-      .select('id')
-      .eq('id', leadId)
+      .from("leads")
+      .select("id")
+      .eq("id", leadId)
       .single();
 
     if (leadError || !lead) {
-      return notFound('Lead not found');
+      return notFound("Lead not found");
     }
 
     const parsed = await parseBody(request, createEstimateSchema);
@@ -79,9 +81,9 @@ export async function POST(
         let unitPrice = item.unit_price;
         if (!unitPrice) {
           const { data: product } = await supabaseAdmin
-            .from('products')
-            .select('base_price')
-            .eq('id', item.product_id)
+            .from("products")
+            .select("base_price")
+            .eq("id", item.product_id)
             .single();
           unitPrice = product?.base_price || 0;
         }
@@ -98,21 +100,22 @@ export async function POST(
           notes: item.notes || null,
           sort_order: index,
         };
-      })
+      }),
     );
 
     // Calculate transport cost
     const { data: factorySettings } = await supabaseAdmin
-      .from('factory_settings')
-      .select('transport_rate_per_km, min_transport_charge')
+      .from("factory_settings")
+      .select("transport_rate_per_km, min_transport_charge")
       .limit(1)
       .single();
 
     let transportCost = 0;
     if (estimateData.distance_km && factorySettings) {
       transportCost = Math.max(
-        estimateData.distance_km * (factorySettings.transport_rate_per_km || 15),
-        factorySettings.min_transport_charge || 500
+        estimateData.distance_km *
+          (factorySettings.transport_rate_per_km || 15),
+        factorySettings.min_transport_charge || 500,
       );
     }
 
@@ -123,7 +126,7 @@ export async function POST(
 
     // Create estimate
     const { data: estimate, error: estimateError } = await supabaseAdmin
-      .from('estimates')
+      .from("estimates")
       .insert({
         lead_id: leadId,
         delivery_address: estimateData.delivery_address,
@@ -147,8 +150,8 @@ export async function POST(
       .single();
 
     if (estimateError) {
-      console.error('Database error:', estimateError);
-      return error('Failed to create estimate', 500);
+      console.error("Database error:", estimateError);
+      return error("Failed to create estimate", 500);
     }
 
     // Insert estimate items
@@ -158,32 +161,34 @@ export async function POST(
     }));
 
     const { error: itemsError } = await supabaseAdmin
-      .from('estimate_items')
+      .from("estimate_items")
       .insert(itemsWithEstimateId);
 
     if (itemsError) {
-      console.error('Database error inserting items:', itemsError);
+      console.error("Database error inserting items:", itemsError);
       // Rollback estimate
-      await supabaseAdmin.from('estimates').delete().eq('id', estimate.id);
-      return error('Failed to create estimate items', 500);
+      await supabaseAdmin.from("estimates").delete().eq("id", estimate.id);
+      return error("Failed to create estimate items", 500);
     }
 
     // Fetch complete estimate with items
     const { data: completeEstimate } = await supabaseAdmin
-      .from('estimates')
-      .select(`
+      .from("estimates")
+      .select(
+        `
         *,
         items:estimate_items(
           *,
           product:products(*)
         )
-      `)
-      .eq('id', estimate.id)
+      `,
+      )
+      .eq("id", estimate.id)
       .single();
 
     return created<Estimate>(completeEstimate);
   } catch (err) {
-    console.error('Error creating estimate:', err);
-    return error('Internal server error', 500);
+    console.error("Error creating estimate:", err);
+    return error("Internal server error", 500);
   }
 }

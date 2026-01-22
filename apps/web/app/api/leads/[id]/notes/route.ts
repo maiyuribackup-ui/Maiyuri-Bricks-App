@@ -1,7 +1,14 @@
-import { NextRequest } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
-import { success, created, error, notFound, parseBody, parseQuery } from '@/lib/api-utils';
-import { createNoteSchema, paginationSchema, type Note } from '@maiyuri/shared';
+import { NextRequest } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  success,
+  created,
+  error,
+  notFound,
+  parseBody,
+  parseQuery,
+} from "@/lib/api-utils";
+import { createNoteSchema, paginationSchema, type Note } from "@maiyuri/shared";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -17,27 +24,31 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Verify lead exists
     const { data: lead } = await supabaseAdmin
-      .from('leads')
-      .select('id')
-      .eq('id', id)
+      .from("leads")
+      .select("id")
+      .eq("id", id)
       .single();
 
     if (!lead) {
-      return notFound('Lead not found');
+      return notFound("Lead not found");
     }
 
     // Get notes
-    const { data: notes, error: dbError, count } = await supabaseAdmin
-      .from('notes')
-      .select('*', { count: 'exact' })
-      .eq('lead_id', id)
-      .order('date', { ascending: false })
-      .order('created_at', { ascending: false })
+    const {
+      data: notes,
+      error: dbError,
+      count,
+    } = await supabaseAdmin
+      .from("notes")
+      .select("*", { count: "exact" })
+      .eq("lead_id", id)
+      .order("date", { ascending: false })
+      .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (dbError) {
-      console.error('Database error:', dbError);
-      return error('Failed to fetch notes', 500);
+      console.error("Database error:", dbError);
+      return error("Failed to fetch notes", 500);
     }
 
     return success<Note[]>(notes || [], {
@@ -46,8 +57,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       limit,
     });
   } catch (err) {
-    console.error('Error fetching notes:', err);
-    return error('Internal server error', 500);
+    console.error("Error fetching notes:", err);
+    return error("Internal server error", 500);
   }
 }
 
@@ -58,13 +69,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Verify lead exists
     const { data: lead } = await supabaseAdmin
-      .from('leads')
-      .select('id')
-      .eq('id', id)
+      .from("leads")
+      .select("id")
+      .eq("id", id)
       .single();
 
     if (!lead) {
-      return notFound('Lead not found');
+      return notFound("Lead not found");
     }
 
     const parsed = await parseBody(request, createNoteSchema);
@@ -77,19 +88,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     };
 
     const { data: note, error: dbError } = await supabaseAdmin
-      .from('notes')
+      .from("notes")
       .insert(noteData)
       .select()
       .single();
 
     if (dbError) {
-      console.error('Database error:', dbError);
-      return error('Failed to create note', 500);
+      console.error("Database error:", dbError);
+      return error("Failed to create note", 500);
     }
 
     return created<Note>(note);
   } catch (err) {
-    console.error('Error creating note:', err);
-    return error('Internal server error', 500);
+    console.error("Error creating note:", err);
+    return error("Internal server error", 500);
   }
 }

@@ -8,7 +8,7 @@ import {
   parseBody,
   parseQuery,
 } from "@/lib/api-utils";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createShift, getShifts } from "@/lib/production-service";
 import { createShiftSchema } from "@maiyuri/shared";
 import type { ProductionShift } from "@maiyuri/shared";

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { kernels, services } from "@maiyuri/api";
 import { success, error, notFound } from "@/lib/api-utils";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { getUserFromRequest } from "@/lib/supabase-server";
 import { notifyAIAnalysis } from "@/lib/telegram";
 import type { Lead, NudgeEventType } from "@maiyuri/shared";

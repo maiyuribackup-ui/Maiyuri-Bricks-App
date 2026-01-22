@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   generateSmartAction,
   predictOptimalContactTime,
@@ -62,8 +62,6 @@ interface EnhanceResponse {
  * Enhance one or more leads with AI-powered nudge insights
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  console.log("[Nudge AI] Starting enhancement request...");
-
   try {
     const body = (await request.json()) as EnhanceRequest;
     const { lead_id, leads, options = {} } = body;
@@ -152,8 +150,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       await Promise.all(tasks);
 
-      console.log("[Nudge AI] Single lead enhancement complete:", lead_id);
-
       return NextResponse.json({
         success: true,
         enhancement,
@@ -163,8 +159,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Batch enhancement for digest
     if (leads && leads.length > 0) {
-      console.log(`[Nudge AI] Batch enhancing ${leads.length} leads...`);
-
       const enhancementsMap = await batchEnhanceLeads(leads, {
         includeSmartActions: include_smart_action,
         includeOptimalTimes: include_optimal_time,
@@ -177,10 +171,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       for (const [id, enhancement] of enhancementsMap) {
         enhancements[id] = enhancement;
       }
-
-      console.log(
-        `[Nudge AI] Batch enhancement complete: ${Object.keys(enhancements).length} leads`,
-      );
 
       return NextResponse.json({
         success: true,

@@ -1,18 +1,20 @@
 /**
- * Supabase client exports
+ * Supabase client exports (BROWSER ONLY)
  *
- * This module re-exports both browser and admin clients for backwards compatibility.
+ * This module exports ONLY the browser client for use in client components.
+ * It is safe to import in any client-side code.
  *
- * RECOMMENDED USAGE:
- * - Client components: import { getSupabase, supabase } from '@/lib/supabase-browser'
+ * USAGE:
+ * - Client components: import { getSupabase, supabase } from '@/lib/supabase'
  * - Server/API routes: import { supabaseAdmin } from '@/lib/supabase-admin'
  *
- * The supabase-admin module includes 'server-only' pragma to prevent accidental
- * bundling of the service role key in client code.
+ * IMPORTANT: Do NOT import supabase-admin from this file!
+ * The admin client has 'server-only' pragma and will cause build errors
+ * if imported in client components.
  */
 
-// Re-export browser client (safe for client components)
+// Re-export browser client ONLY (safe for client components)
 export { getSupabase, supabase, supabaseClient } from "./supabase-browser";
 
-// Re-export admin client (server-only, will error if imported in client code)
-export { getSupabaseAdmin, supabaseAdmin } from "./supabase-admin";
+// NOTE: For server-side code, import directly from '@/lib/supabase-admin'
+// DO NOT re-export supabaseAdmin here - it has 'server-only' pragma

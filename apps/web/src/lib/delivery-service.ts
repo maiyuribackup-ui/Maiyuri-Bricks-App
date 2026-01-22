@@ -3,7 +3,7 @@
  * 2-way integration with Odoo stock.picking (delivery orders)
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "./supabase-admin";
 import type {
   Delivery,
   DeliveryWithLines,
@@ -24,12 +24,9 @@ const ODOO_CONFIG = {
   password: process.env.ODOO_PASSWORD || "",
 };
 
-// Supabase client for server-side operations
+// Use centralized Supabase admin client (see BUG-014 in LEARNINGS.md)
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
+  return supabaseAdmin;
 }
 
 // Types for Odoo responses

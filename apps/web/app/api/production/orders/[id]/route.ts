@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { success, error, notFound, parseBody } from "@/lib/api-utils";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getProductionOrder } from "@/lib/production-service";
 import { updateProductionOrderSchema } from "@maiyuri/shared";
 import type { ProductionOrder } from "@maiyuri/shared";

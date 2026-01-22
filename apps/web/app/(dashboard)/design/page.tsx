@@ -22,11 +22,11 @@ import { HelpButton } from "@/components/help";
 
 export default function DesignPage() {
   const handleDesignComplete = (
-    images: GeneratedImages,
-    context: DesignContextSummary,
+    _images: GeneratedImages,
+    _context: DesignContextSummary,
   ) => {
     // Could show detailed view or trigger download
-    console.log("Design complete:", { images, context });
+    // TODO: Implement detailed view modal or download functionality
   };
 
   return (

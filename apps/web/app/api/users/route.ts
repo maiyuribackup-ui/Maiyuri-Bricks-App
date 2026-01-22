@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, error, created } from "@/lib/api-utils";
 import { requireAuth, requireFounder, handleApiError } from "@/lib/api-helpers";
 import type { User } from "@maiyuri/shared";

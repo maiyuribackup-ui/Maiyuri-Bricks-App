@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { success, error, notFound, parseBody } from "@/lib/api-utils";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { updateConsumptionLine } from "@/lib/production-service";
 import { updateConsumptionLineSchema } from "@maiyuri/shared";
 import type { ProductionConsumptionLine } from "@maiyuri/shared";

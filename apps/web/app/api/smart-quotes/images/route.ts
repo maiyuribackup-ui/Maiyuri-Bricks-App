@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createSupabaseRouteClient } from "@/lib/supabase-server";
 import { success, error, forbidden } from "@/lib/api-utils";
 import type {

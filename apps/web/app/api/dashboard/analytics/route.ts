@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, error } from "@/lib/api-utils";
 import {
   subDays,

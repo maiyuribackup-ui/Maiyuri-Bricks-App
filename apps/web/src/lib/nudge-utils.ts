@@ -191,7 +191,9 @@ function formatDigestLeadEntry(lead: NudgeDigestLead, index: number): string {
   const lines: string[] = [];
 
   // Header line with status and name
-  lines.push(`${emoji} *${lead.status.toUpperCase()}:* ${lead.name}`);
+  lines.push(
+    `${emoji} *${(lead?.status ?? "unknown").toUpperCase()}:* ${lead.name}`,
+  );
 
   // Phone number
   lines.push(`   📱 ${lead.contact}`);
@@ -240,8 +242,8 @@ export function formatDigestMessage(group: NudgeDigestGroup): string {
   lines.push(``);
 
   // Staff greeting
-  if (staff_name !== "Unassigned") {
-    lines.push(`Hi ${staff_name.split(" ")[0]},`);
+  if (staff_name && staff_name !== "Unassigned") {
+    lines.push(`Hi ${(staff_name ?? "User").split(" ")[0] || "User"},`);
   }
   lines.push(
     `You have *${leads.length}* lead${leads.length > 1 ? "s" : ""} requiring attention:`,
@@ -293,7 +295,7 @@ export function formatManualNudgeMessage(
   lines.push(``);
   lines.push(`${emoji} *Lead:* ${lead.name}`);
   lines.push(`📱 *Phone:* ${lead.contact}`);
-  lines.push(`📋 *Status:* ${lead.status.toUpperCase()}`);
+  lines.push(`📋 *Status:* ${(lead?.status ?? "unknown").toUpperCase()}`);
 
   if (lead.ai_score !== null && lead.ai_score !== undefined) {
     lines.push(`🎯 *Score:* ${formatScore(lead.ai_score)}`);

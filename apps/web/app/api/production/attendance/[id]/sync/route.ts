@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { success, error, notFound } from "@/lib/api-utils";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createAttendanceInOdoo } from "@/lib/production-service";
 
 interface Params {

@@ -5,7 +5,7 @@ import {
   createSupabaseRouteClient,
   getUserFromRequest,
 } from "@/lib/supabase-server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { sendInvitationEmail } from "@/lib/email";
 import { notifyStaffInvited } from "@/lib/telegram";
 import { v4 as uuidv4 } from "uuid";

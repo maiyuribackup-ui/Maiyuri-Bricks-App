@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch the created order
-    const supabaseAdmin = (await import("@/lib/supabase")).supabaseAdmin;
+    const { supabaseAdmin } = await import("@/lib/supabase-admin");
     const { data: order } = await supabaseAdmin
       .from("production_orders")
       .select(

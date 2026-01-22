@@ -1,27 +1,29 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-import { NextRequest } from 'next/server';
-import { routes, contracts } from '@maiyuri/api';
-import { success, error, handleZodError } from '@/lib/api-utils';
-import { getSupabaseAdmin } from '@/lib/supabase';
-import { getUserFromRequest } from '@/lib/supabase-server';
-import { ZodError } from 'zod';
+import { NextRequest } from "next/server";
+import { routes, contracts } from "@maiyuri/api";
+import { success, error, handleZodError } from "@/lib/api-utils";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { getUserFromRequest } from "@/lib/supabase-server";
+import { ZodError } from "zod";
 
 // Helper to get user's language preference
-async function getUserLanguagePreference(request: NextRequest): Promise<'en' | 'ta'> {
+async function getUserLanguagePreference(
+  request: NextRequest,
+): Promise<"en" | "ta"> {
   try {
     const authUser = await getUserFromRequest(request);
-    if (!authUser) return 'en';
+    if (!authUser) return "en";
 
     const { data: user } = await getSupabaseAdmin()
-      .from('users')
-      .select('language_preference')
-      .eq('id', authUser.id)
+      .from("users")
+      .select("language_preference")
+      .eq("id", authUser.id)
       .single();
 
-    return (user?.language_preference as 'en' | 'ta') || 'en';
+    return (user?.language_preference as "en" | "ta") || "en";
   } catch {
-    return 'en';
+    return "en";
   }
 }
 
@@ -46,7 +48,10 @@ export async function POST(request: NextRequest) {
     });
 
     if (!result.success || !result.data) {
-      return error(result.error?.message || 'Failed to get coaching insights', 500);
+      return error(
+        result.error?.message || "Failed to get coaching insights",
+        500,
+      );
     }
 
     return success(result.data);
@@ -54,8 +59,8 @@ export async function POST(request: NextRequest) {
     if (err instanceof ZodError) {
       return handleZodError(err);
     }
-    console.error('Coaching error:', err);
-    return error('Failed to get coaching insights', 500);
+    console.error("Coaching error:", err);
+    return error("Failed to get coaching insights", 500);
   }
 }
 
@@ -65,12 +70,12 @@ export async function GET(request: NextRequest) {
     const result = await routes.coaching.getTeamCoaching();
 
     if (!result.success || !result.data) {
-      return error(result.error?.message || 'Failed to get team coaching', 500);
+      return error(result.error?.message || "Failed to get team coaching", 500);
     }
 
     return success(result.data);
   } catch (err) {
-    console.error('Team coaching error:', err);
-    return error('Failed to get team coaching', 500);
+    console.error("Team coaching error:", err);
+    return error("Failed to get team coaching", 500);
   }
 }

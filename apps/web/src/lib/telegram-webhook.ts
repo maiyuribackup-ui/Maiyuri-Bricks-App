@@ -4,7 +4,7 @@
  * Utility functions for processing Telegram call recording uploads.
  */
 
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { Lead } from "@maiyuri/shared";
 
 // ============================================================================
