@@ -31,6 +31,7 @@ const publicApiRoutes = [
   "/api/health", // Health check
   "/api/auth/login", // Login endpoint
   "/api/auth/logout", // Logout endpoint
+  "/api/auth/forgot-password", // Password reset request (no auth needed)
   "/api/users/accept-invite", // Accept invitation (uses invite token)
   "/api/webhooks", // External webhooks
   "/api/telegram/processing-callback", // Telegram callback
