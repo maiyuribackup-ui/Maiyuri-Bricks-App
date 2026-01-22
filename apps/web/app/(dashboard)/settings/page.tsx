@@ -480,6 +480,18 @@ function TeamSettings() {
   >("idle");
   const [changeRoleError, setChangeRoleError] = useState("");
 
+  // Manage Credentials modal state
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [credentialsMember, setCredentialsMember] = useState<TeamMember | null>(
+    null,
+  );
+  const [newEmail, setNewEmail] = useState("");
+  const [credentialsStatus, setCredentialsStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+  const [credentialsError, setCredentialsError] = useState("");
+  const [credentialsMessage, setCredentialsMessage] = useState("");
+
   const { data: profileData } = useQuery({
     queryKey: ["profile"],
     queryFn: fetchProfile,
@@ -623,6 +635,82 @@ function TeamSettings() {
     }
   };
 
+  const openCredentialsModal = (member: TeamMember) => {
+    setCredentialsMember(member);
+    setNewEmail(member.email);
+    setCredentialsStatus("idle");
+    setCredentialsError("");
+    setCredentialsMessage("");
+    setShowCredentialsModal(true);
+  };
+
+  const handleUpdateEmail = async () => {
+    if (
+      !credentialsMember ||
+      !newEmail ||
+      newEmail === credentialsMember.email
+    ) {
+      return;
+    }
+
+    setCredentialsStatus("loading");
+    setCredentialsError("");
+
+    try {
+      const res = await fetch(`/api/users/${credentialsMember.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: newEmail }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update email");
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["team"] });
+      setCredentialsStatus("success");
+      setCredentialsMessage("Email updated successfully!");
+      // Update local state
+      setCredentialsMember((prev) =>
+        prev ? { ...prev, email: newEmail } : null,
+      );
+    } catch (err) {
+      setCredentialsError(
+        err instanceof Error ? err.message : "Failed to update email",
+      );
+      setCredentialsStatus("error");
+    }
+  };
+
+  const handleSendPasswordReset = async () => {
+    if (!credentialsMember) return;
+
+    setCredentialsStatus("loading");
+    setCredentialsError("");
+
+    try {
+      const res = await fetch(`/api/users/${credentialsMember.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ send_password_reset: true }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to send password reset");
+      }
+
+      setCredentialsStatus("success");
+      setCredentialsMessage("Password reset email sent!");
+    } catch (err) {
+      setCredentialsError(
+        err instanceof Error ? err.message : "Failed to send password reset",
+      );
+      setCredentialsStatus("error");
+    }
+  };
+
   if (isLoading) {
     return (
       <Card className="p-6">
@@ -744,12 +832,20 @@ function TeamSettings() {
                       </button>
                       <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
                         {member.is_active !== false && (
-                          <button
-                            onClick={() => openChangeRoleModal(member)}
-                            className="w-full px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                          >
-                            Change Role
-                          </button>
+                          <>
+                            <button
+                              onClick={() => openChangeRoleModal(member)}
+                              className="w-full px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                            >
+                              Change Role
+                            </button>
+                            <button
+                              onClick={() => openCredentialsModal(member)}
+                              className="w-full px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                            >
+                              Manage Credentials
+                            </button>
+                          </>
                         )}
                         {member.invitation_status === "pending" && (
                           <button
@@ -1005,6 +1101,120 @@ function TeamSettings() {
           </div>
         </div>
       )}
+
+      {/* Manage Credentials Modal */}
+      {showCredentialsModal && credentialsMember && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                Manage Credentials
+              </h3>
+              <button
+                onClick={() => {
+                  setShowCredentialsModal(false);
+                  setCredentialsMember(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+              >
+                <CloseIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-6">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Managing credentials for{" "}
+                <span className="font-medium text-slate-900 dark:text-white">
+                  {credentialsMember.name}
+                </span>
+              </p>
+
+              {/* Success Message */}
+              {credentialsStatus === "success" && credentialsMessage && (
+                <div className="bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-sm p-3 rounded-lg flex items-center gap-2">
+                  <CheckIcon className="h-4 w-4" />
+                  {credentialsMessage}
+                </div>
+              )}
+
+              {/* Error Message */}
+              {credentialsStatus === "error" && credentialsError && (
+                <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm p-3 rounded-lg">
+                  {credentialsError}
+                </div>
+              )}
+
+              {/* Email Update Section */}
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Email Address
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="user@example.com"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={
+                      credentialsStatus === "loading" ||
+                      newEmail === credentialsMember.email ||
+                      !newEmail
+                    }
+                    onClick={handleUpdateEmail}
+                  >
+                    {credentialsStatus === "loading" ? "..." : "Update"}
+                  </Button>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  This will update the user&apos;s login email in Supabase Auth.
+                </p>
+              </div>
+
+              {/* Password Reset Section */}
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-700 space-y-3">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Password Reset
+                </label>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  disabled={credentialsStatus === "loading"}
+                  onClick={handleSendPasswordReset}
+                >
+                  <MailIcon className="h-4 w-4 mr-2" />
+                  {credentialsStatus === "loading"
+                    ? "Sending..."
+                    : "Send Password Reset Email"}
+                </Button>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Sends a password reset link to {credentialsMember.email}
+                </p>
+              </div>
+
+              {/* Close Button */}
+              <div className="pt-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => {
+                    setShowCredentialsModal(false);
+                    setCredentialsMember(null);
+                  }}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -1151,6 +1361,24 @@ function CheckIcon({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M4.5 12.75l6 6 9-13.5"
+      />
+    </svg>
+  );
+}
+
+function MailIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
       />
     </svg>
   );
