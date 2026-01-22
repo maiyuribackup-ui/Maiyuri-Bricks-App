@@ -1,30 +1,48 @@
-import { NextResponse, type NextRequest } from 'next/server';
-import { createSupabaseMiddlewareClient } from '@/lib/supabase-server';
+import { NextResponse, type NextRequest } from "next/server";
+import { createSupabaseMiddlewareClient } from "@/lib/supabase-server";
 import {
   checkRateLimit,
   getClientIP,
   rateLimitConfigs,
-} from '@/lib/rate-limit';
+} from "@/lib/rate-limit";
 
-// Routes that don't require authentication
-const publicRoutes = ['/login', '/forgot-password', '/reset-password', '/accept-invite', '/api/auth'];
+// Routes that don't require authentication (pages)
+const publicRoutes = [
+  "/login",
+  "/forgot-password",
+  "/reset-password",
+  "/accept-invite",
+];
 
-// Routes that require authentication
+// Routes that require authentication (pages)
 const protectedRoutes = [
-  '/dashboard',
-  '/leads',
-  '/coaching',
-  '/reports',
-  '/knowledgebase',
-  '/settings',
-  '/tasks',
+  "/dashboard",
+  "/leads",
+  "/coaching",
+  "/reports",
+  "/knowledgebase",
+  "/settings",
+  "/tasks",
+];
+
+// API routes that DON'T require authentication
+// All other /api/* routes WILL require authentication
+const publicApiRoutes = [
+  "/api/health", // Health check
+  "/api/auth/login", // Login endpoint
+  "/api/auth/logout", // Logout endpoint
+  "/api/users/accept-invite", // Accept invitation (uses invite token)
+  "/api/webhooks", // External webhooks
+  "/api/telegram/processing-callback", // Telegram callback
+  "/api/notifications/telegram", // Telegram webhook
+  "/api/sq/", // Smart quote public pages (customer-facing)
 ];
 
 // Routes that need rate limiting
 const rateLimitedRoutes = {
-  auth: ['/api/auth', '/login', '/forgot-password', '/reset-password'],
-  ai: ['/api/leads', '/api/knowledge', '/api/coaching'],
-  passwordReset: ['/api/auth/forgot-password', '/api/auth/reset-password'],
+  auth: ["/api/auth", "/login", "/forgot-password", "/reset-password"],
+  ai: ["/api/leads", "/api/knowledge", "/api/coaching"],
+  passwordReset: ["/api/auth/forgot-password", "/api/auth/reset-password"],
 };
 
 /**
@@ -32,26 +50,26 @@ const rateLimitedRoutes = {
  */
 function addSecurityHeaders(response: NextResponse): NextResponse {
   // Prevent clickjacking
-  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set("X-Frame-Options", "DENY");
 
   // Prevent MIME type sniffing
-  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set("X-Content-Type-Options", "nosniff");
 
   // Prevent XSS attacks
-  response.headers.set('X-XSS-Protection', '1; mode=block');
+  response.headers.set("X-XSS-Protection", "1; mode=block");
 
   // Referrer policy
-  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
 
   // Permissions policy
   response.headers.set(
-    'Permissions-Policy',
-    'camera=(), microphone=(self), geolocation=(self)'
+    "Permissions-Policy",
+    "camera=(), microphone=(self), geolocation=(self)",
   );
 
   // Content Security Policy (basic - adjust as needed)
   response.headers.set(
-    'Content-Security-Policy',
+    "Content-Security-Policy",
     [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js needs unsafe-eval for dev
@@ -60,14 +78,14 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
       "font-src 'self' data:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://generativelanguage.googleapis.com",
       "frame-ancestors 'none'",
-    ].join('; ')
+    ].join("; "),
   );
 
   // HSTS (only in production)
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === "production") {
     response.headers.set(
-      'Strict-Transport-Security',
-      'max-age=31536000; includeSubDomains'
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains",
     );
   }
 
@@ -79,7 +97,7 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
  */
 function checkRateLimiting(
   request: NextRequest,
-  pathname: string
+  pathname: string,
 ): { limited: boolean; response?: NextResponse } {
   const clientIP = getClientIP(request);
 
@@ -103,15 +121,15 @@ function checkRateLimiting(
   if (!result.success) {
     const response = NextResponse.json(
       {
-        error: 'Too many requests',
+        error: "Too many requests",
         retryAfter: result.retryAfter,
       },
-      { status: 429 }
+      { status: 429 },
     );
-    response.headers.set('Retry-After', String(result.retryAfter));
-    response.headers.set('X-RateLimit-Limit', String(config.limit));
-    response.headers.set('X-RateLimit-Remaining', '0');
-    response.headers.set('X-RateLimit-Reset', String(result.reset));
+    response.headers.set("Retry-After", String(result.retryAfter));
+    response.headers.set("X-RateLimit-Limit", String(config.limit));
+    response.headers.set("X-RateLimit-Remaining", "0");
+    response.headers.set("X-RateLimit-Reset", String(result.reset));
     return { limited: true, response };
   }
 
@@ -122,7 +140,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Check rate limiting for API routes
-  if (pathname.startsWith('/api')) {
+  if (pathname.startsWith("/api")) {
     const { limited, response } = checkRateLimiting(request, pathname);
     if (limited && response) {
       return addSecurityHeaders(response);
@@ -131,8 +149,8 @@ export async function middleware(request: NextRequest) {
 
   // Allow static files and Next.js internals
   if (
-    pathname.startsWith('/_next') ||
-    pathname.includes('.') // Static files
+    pathname.startsWith("/_next") ||
+    pathname.includes(".") // Static files
   ) {
     return NextResponse.next();
   }
@@ -143,20 +161,60 @@ export async function middleware(request: NextRequest) {
     return addSecurityHeaders(response);
   }
 
-  // Allow API routes (handled separately by each route)
-  if (pathname.startsWith('/api')) {
-    const response = NextResponse.next();
-    return addSecurityHeaders(response);
+  // Handle API routes - check if authentication is required
+  if (pathname.startsWith("/api")) {
+    // Check if this is a public API endpoint
+    const isPublicApi = publicApiRoutes.some((route) =>
+      pathname.startsWith(route),
+    );
+
+    if (isPublicApi) {
+      // Public API - no auth required
+      const response = NextResponse.next();
+      return addSecurityHeaders(response);
+    }
+
+    // Protected API - require authentication
+    const response = NextResponse.next({
+      request: {
+        headers: request.headers,
+      },
+    });
+
+    try {
+      const supabase = createSupabaseMiddlewareClient(request, response);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        // No session - return 401 Unauthorized
+        return addSecurityHeaders(
+          NextResponse.json(
+            { error: "Unauthorized: Authentication required" },
+            { status: 401 },
+          ),
+        );
+      }
+
+      // User is authenticated, allow the request
+      return addSecurityHeaders(response);
+    } catch (error) {
+      console.error("API auth middleware error:", error);
+      return addSecurityHeaders(
+        NextResponse.json({ error: "Authentication error" }, { status: 401 }),
+      );
+    }
   }
 
   // Check if route needs protection
   const isProtectedRoute = protectedRoutes.some((route) =>
-    pathname.startsWith(route)
+    pathname.startsWith(route),
   );
 
   // If root path, redirect to dashboard (which will check auth)
-  if (pathname === '/') {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  if (pathname === "/") {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   // Only check auth for protected routes
@@ -182,17 +240,17 @@ export async function middleware(request: NextRequest) {
 
     // If no session and trying to access protected route, redirect to login
     if (!session) {
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('redirect', pathname);
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("redirect", pathname);
       return NextResponse.redirect(loginUrl);
     }
 
     // User is authenticated, allow access with security headers
     return addSecurityHeaders(response);
   } catch (error) {
-    console.error('Middleware auth error:', error);
+    console.error("Middleware auth error:", error);
     // On error, redirect to login
-    return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 }
 
@@ -205,6 +263,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public folder
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

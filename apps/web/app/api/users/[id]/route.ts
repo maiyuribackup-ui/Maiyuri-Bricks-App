@@ -1,86 +1,79 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseRouteClient } from '@/lib/supabase-server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase";
+import {
+  requireAuth,
+  requireFounder,
+  handleApiError,
+  errorResponse,
+  successResponse,
+} from "@/lib/api-helpers";
 
 /**
  * GET /api/users/[id]
  * Get a specific user by ID
+ * SECURITY: Requires authentication
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
-    const supabase = createSupabaseRouteClient(request);
 
-    // Check authentication
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Require authentication
+    await requireAuth(request);
 
     const { data: userData, error } = await supabaseAdmin
-      .from('users')
-      .select('*')
-      .eq('id', id)
+      .from("users")
+      .select("*")
+      .eq("id", id)
       .single();
 
     if (error || !userData) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      return errorResponse("User not found", 404);
     }
 
-    return NextResponse.json({ data: userData });
+    return successResponse({ data: userData });
   } catch (error) {
-    console.error('Get user error:', error);
-    return NextResponse.json(
-      { error: 'Failed to get user' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
 /**
  * PATCH /api/users/[id]
  * Update a user (founder only for other users, self for own profile)
+ * SECURITY: Requires authentication, founder role for modifying others
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
-    const supabase = createSupabaseRouteClient(request);
 
-    // Check authentication
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Require authentication and get user info
+    const currentUser = await requireAuth(request);
 
-    // Check if user is founder or updating their own profile
-    const { data: currentUser } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    const isFounder = currentUser?.role === 'founder';
-    const isOwnProfile = user.id === id;
+    const isFounder = currentUser.role === "founder";
+    const isOwnProfile = currentUser.id === id;
 
     if (!isFounder && !isOwnProfile) {
-      return NextResponse.json(
-        { error: 'Only founders can update other users' },
-        { status: 403 }
-      );
+      return errorResponse("Only founders can update other users", 403);
     }
 
     const body = await request.json();
 
     // Restrict what fields can be updated based on role
     const allowedFields = isFounder
-      ? ['name', 'phone', 'role', 'is_active', 'invitation_status', 'notification_preferences']
-      : ['name', 'phone', 'notification_preferences', 'language_preference'];
+      ? [
+          "name",
+          "phone",
+          "role",
+          "is_active",
+          "invitation_status",
+          "notification_preferences",
+        ]
+      : ["name", "phone", "notification_preferences", "language_preference"];
 
     const updates: Record<string, unknown> = {};
     for (const field of allowedFields) {
@@ -90,106 +83,69 @@ export async function PATCH(
     }
 
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json(
-        { error: 'No valid fields to update' },
-        { status: 400 }
-      );
+      return errorResponse("No valid fields to update", 400);
     }
 
     const { data: updatedUser, error } = await supabaseAdmin
-      .from('users')
+      .from("users")
       .update(updates)
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
 
     if (error) {
-      console.error('Update user error:', error);
-      return NextResponse.json(
-        { error: 'Failed to update user' },
-        { status: 500 }
-      );
+      console.error("Update user error:", error);
+      return errorResponse("Failed to update user", 500);
     }
 
-    return NextResponse.json({
+    return successResponse({
       success: true,
       data: updatedUser,
     });
   } catch (error) {
-    console.error('Update user error:', error);
-    return NextResponse.json(
-      { error: 'Failed to update user' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
 /**
  * DELETE /api/users/[id]
  * Soft delete a user (founder only)
+ * SECURITY: Requires founder role
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
-    const supabase = createSupabaseRouteClient(request);
 
-    // Check authentication
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if user is founder
-    const { data: currentUser } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!currentUser || currentUser.role !== 'founder') {
-      return NextResponse.json(
-        { error: 'Only founders can delete users' },
-        { status: 403 }
-      );
-    }
+    // Require founder role for user deletion
+    const currentUser = await requireFounder(request);
 
     // Prevent self-deletion
-    if (user.id === id) {
-      return NextResponse.json(
-        { error: 'Cannot delete your own account' },
-        { status: 400 }
-      );
+    if (currentUser.id === id) {
+      return errorResponse("Cannot delete your own account", 400);
     }
 
     // Soft delete - just deactivate
     const { error } = await supabaseAdmin
-      .from('users')
+      .from("users")
       .update({
         is_active: false,
-        invitation_status: 'deactivated',
+        invitation_status: "deactivated",
       })
-      .eq('id', id);
+      .eq("id", id);
 
     if (error) {
-      console.error('Delete user error:', error);
-      return NextResponse.json(
-        { error: 'Failed to delete user' },
-        { status: 500 }
-      );
+      console.error("Delete user error:", error);
+      return errorResponse("Failed to delete user", 500);
     }
 
-    return NextResponse.json({
+    return successResponse({
       success: true,
-      message: 'User deactivated',
+      message: "User deactivated",
     });
   } catch (error) {
-    console.error('Delete user error:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete user' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

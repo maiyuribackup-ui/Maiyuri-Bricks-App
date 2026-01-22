@@ -3,16 +3,27 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { success, error, created } from "@/lib/api-utils";
+import { requireAuth, requireFounder, handleApiError } from "@/lib/api-helpers";
 import type { User } from "@maiyuri/shared";
 
 // POST /api/users - Create a new user (creates auth user first, then profile)
+// SECURITY: Requires founder role for user management
 export async function POST(request: NextRequest) {
   try {
+    // Require founder role for creating users
+    await requireFounder(request);
+
     const body = await request.json();
     const { email, name, role, password, seed } = body;
 
     // Seed mode - bulk create users
+    // SECURITY: Only allowed in development, requires founder role
     if (seed && Array.isArray(body.users)) {
+      // Block seed mode in production
+      if (process.env.NODE_ENV === "production") {
+        return error("Seed mode is disabled in production", 403);
+      }
+
       const results = [];
       for (const userData of body.users) {
         try {
@@ -96,7 +107,7 @@ export async function POST(request: NextRequest) {
       return error("Email, name, role, and password are required", 400);
     }
 
-    const validRoles = ["founder", "accountant", "engineer"];
+    const validRoles = ["founder", "accountant", "engineer", "sales", "admin"];
     if (!validRoles.includes(role)) {
       return error(
         `Invalid role. Must be one of: ${validRoles.join(", ")}`,
@@ -160,14 +171,17 @@ export async function POST(request: NextRequest) {
 
     return created(user);
   } catch (err) {
-    console.error("Error creating user:", err);
-    return error("Internal server error", 500);
+    return handleApiError(err);
   }
 }
 
 // GET /api/users - List all users (for assignment dropdowns)
-export async function GET(_request: NextRequest) {
+// SECURITY: Requires authentication (any role can list users for assignment)
+export async function GET(request: NextRequest) {
   try {
+    // Require authentication (any authenticated user can list users)
+    await requireAuth(request);
+
     const { data: users, error: dbError } = await supabaseAdmin
       .from("users")
       .select(
@@ -182,7 +196,6 @@ export async function GET(_request: NextRequest) {
 
     return success<User[]>(users || []);
   } catch (err) {
-    console.error("Error fetching users:", err);
-    return error("Internal server error", 500);
+    return handleApiError(err);
   }
 }
