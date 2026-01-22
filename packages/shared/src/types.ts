@@ -50,7 +50,8 @@ export type UserRole =
   | "engineer"
   | "production_supervisor"
   | "owner"
-  | "driver";
+  | "driver"
+  | "sales";
 
 // Lead Intelligence Types - for decision cockpit
 export type LeadUrgency = "immediate" | "1-3_months" | "3-6_months" | "unknown";
