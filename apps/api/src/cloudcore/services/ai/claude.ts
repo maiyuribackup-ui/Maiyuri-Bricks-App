@@ -65,21 +65,22 @@ export async function complete(
   const startTime = Date.now();
   const model = request.model ? ClaudeModels[request.model] : DEFAULT_MODEL;
 
-  // Create trace for observability (if configured)
-  const trace = request.traceContext
-    ? createTrace({
-        traceId:
-          request.traceContext.traceId ||
-          `claude-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        userId: request.traceContext.userId,
-        leadId: request.traceContext.leadId,
-        agentType: request.traceContext.agentType || "claude-completion",
-      })
-    : null;
+  // Always create trace for observability (auto-generate context if not provided)
+  const traceId =
+    request.traceContext?.traceId ||
+    `claude-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const agentType = request.traceContext?.agentType || "claude-completion";
+
+  const trace = createTrace({
+    traceId,
+    userId: request.traceContext?.userId,
+    leadId: request.traceContext?.leadId,
+    agentType,
+  });
 
   // Create generation span for this LLM call
   const generation = trace?.generation({
-    name: request.traceContext?.agentType || "claude-completion",
+    name: agentType,
     model,
     input: {
       system: request.systemPrompt,
