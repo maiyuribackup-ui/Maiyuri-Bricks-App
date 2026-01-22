@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { Card } from '@maiyuri/ui';
-import { cn } from '@maiyuri/ui';
+import { Card } from "@maiyuri/ui";
+import { cn } from "@maiyuri/ui";
 
-interface FunnelStage {
+export interface FunnelStage {
   name: string;
   value: number;
   count: number;
@@ -18,7 +18,7 @@ interface SalesFunnelProps {
 
 export function SalesFunnel({
   stages,
-  title = 'Sales Funnel',
+  title = "Sales Funnel",
   loading = false,
 }: SalesFunnelProps) {
   if (loading) {
@@ -38,7 +38,9 @@ export function SalesFunnel({
     );
   }
 
-  const maxValue = Math.max(...stages.map(s => s.value));
+  // Guard against empty array - Math.max returns -Infinity for empty arrays
+  const maxValue =
+    stages.length > 0 ? Math.max(...stages.map((s) => s.value)) : 1;
 
   return (
     <Card className="p-6">
@@ -68,8 +70,8 @@ export function SalesFunnel({
               <div className="relative h-10 bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden">
                 <div
                   className={cn(
-                    'absolute inset-y-0 left-0 rounded-lg transition-all duration-500 ease-out',
-                    'group-hover:opacity-80'
+                    "absolute inset-y-0 left-0 rounded-lg transition-all duration-500 ease-out",
+                    "group-hover:opacity-80",
                   )}
                   style={{
                     width: `${widthPercent}%`,
@@ -77,10 +79,14 @@ export function SalesFunnel({
                   }}
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className={cn(
-                    'text-xs font-semibold',
-                    widthPercent > 50 ? 'text-white' : 'text-slate-700 dark:text-slate-300'
-                  )}>
+                  <span
+                    className={cn(
+                      "text-xs font-semibold",
+                      widthPercent > 50
+                        ? "text-white"
+                        : "text-slate-700 dark:text-slate-300",
+                    )}
+                  >
                     {stage.value}%
                   </span>
                 </div>
@@ -121,28 +127,28 @@ export function getDefaultFunnelStages(data: {
   const total = data.total || 1;
   return [
     {
-      name: 'Lead',
+      name: "Lead",
       value: 100,
       count: data.total,
-      color: '#3b82f6', // blue-500
+      color: "#3b82f6", // blue-500
     },
     {
-      name: 'Qualified',
+      name: "Qualified",
       value: Math.round((data.qualified / total) * 100),
       count: data.qualified,
-      color: '#8b5cf6', // violet-500
+      color: "#8b5cf6", // violet-500
     },
     {
-      name: 'Proposal',
+      name: "Proposal",
       value: Math.round((data.proposal / total) * 100),
       count: data.proposal,
-      color: '#f59e0b', // amber-500
+      color: "#f59e0b", // amber-500
     },
     {
-      name: 'Closed',
+      name: "Closed",
       value: Math.round((data.closed / total) * 100),
       count: data.closed,
-      color: '#22c55e', // green-500
+      color: "#22c55e", // green-500
     },
   ];
 }
