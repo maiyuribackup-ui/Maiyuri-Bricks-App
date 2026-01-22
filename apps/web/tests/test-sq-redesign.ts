@@ -5,9 +5,23 @@
 
 import { chromium } from "playwright";
 
-const LOGIN_EMAIL = "ram@maiyuri.app";
-const LOGIN_PASSWORD = "TempPass123!";
+// Use environment variables for test credentials
+// NEVER commit actual credentials - see .env.example for setup
+const LOGIN_EMAIL = process.env.E2E_TEST_EMAIL || "ram@maiyuri.app";
 const TEST_LEAD_NAME = "robin avadi";
+
+function getRequiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`ERROR: ${name} environment variable is required`);
+    console.error("Set it in your .env.local or pass it via command line:");
+    console.error(`  ${name}=your-value bun run test:e2e`);
+    process.exit(1);
+  }
+  return value;
+}
+
+const LOGIN_PASSWORD = getRequiredEnv("E2E_TEST_PASSWORD");
 
 async function testSmartQuoteRedesign() {
   console.log("Launching browser...");
