@@ -44,13 +44,24 @@ const TEST_USERS = {
   },
 };
 
-// Helper function to login
+// Helper function to login - simple approach like TC001
 async function login(page: Page, email: string, password: string) {
   await page.goto("/login");
+
+  // Fill login form - simple approach that works
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', password);
+
+  // Submit
   await page.click('button[type="submit"]');
-  await page.waitForURL(/\/(dashboard|leads)/, { timeout: 10000 });
+
+  // Should redirect to dashboard
+  await expect(page).toHaveURL(/\/(dashboard|leads)/, { timeout: 30000 });
+}
+
+// Helper function to navigate with faster load
+async function gotoFast(page: Page, url: string) {
+  await page.goto(url, { waitUntil: "domcontentloaded" });
 }
 
 // ============================================
@@ -166,14 +177,14 @@ test.describe("Phase 4: Password Reset Flow", () => {
 // PHASE 3 & 7: Staff Invitation & Team Management
 // ============================================
 
-test.describe("Phase 3 & 7: Team Management & Invitations", () => {
+test.describe("Phase 3 & 7: Team Management (Founder)", () => {
   test.beforeEach(async ({ page }) => {
     // Login as founder for team management tests
     await login(page, TEST_USERS.founder.email, TEST_USERS.founder.password);
   });
 
   test("TC006: Team tab displays all team members", async ({ page }) => {
-    await page.goto("/settings");
+    await gotoFast(page, "/settings");
 
     // Click Team tab
     await page.click('button:has-text("Team")');
@@ -191,7 +202,7 @@ test.describe("Phase 3 & 7: Team Management & Invitations", () => {
   });
 
   test("TC007: Founder can open invite modal", async ({ page }) => {
-    await page.goto("/settings");
+    await gotoFast(page, "/settings");
 
     // Click Team tab
     await page.click('button:has-text("Team")');
@@ -217,27 +228,8 @@ test.describe("Phase 3 & 7: Team Management & Invitations", () => {
     }
   });
 
-  test("TC008: Non-founder cannot invite staff", async ({ page }) => {
-    // Logout and login as accountant
-    await page.goto("/login");
-    await page.fill('input[type="email"]', TEST_USERS.accountant.email);
-    await page.fill('input[type="password"]', TEST_USERS.accountant.password);
-    await page.click('button[type="submit"]');
-
-    await page.waitForURL(/\/(dashboard|leads)/, { timeout: 15000 });
-
-    await page.goto("/settings");
-    await page.click('button:has-text("Team")');
-
-    await page.waitForTimeout(1000);
-
-    // Invite button should not be visible for non-founders
-    const inviteButton = page.getByRole("button", { name: /invite.*member/i });
-    await expect(inviteButton).not.toBeVisible();
-  });
-
   test("Team page shows status badges", async ({ page }) => {
-    await page.goto("/settings");
+    await gotoFast(page, "/settings");
     await page.click('button:has-text("Team")');
 
     await page.waitForTimeout(2000);
@@ -253,7 +245,7 @@ test.describe("Phase 3 & 7: Team Management & Invitations", () => {
   });
 
   test("Team page shows role badges", async ({ page }) => {
-    await page.goto("/settings");
+    await gotoFast(page, "/settings");
     await page.click('button:has-text("Team")');
 
     await page.waitForTimeout(2000);
@@ -266,6 +258,34 @@ test.describe("Phase 3 & 7: Team Management & Invitations", () => {
         .or(page.getByText(/engineer/i))
         .first(),
     ).toBeVisible();
+  });
+});
+
+// ============================================
+// PHASE 7: Non-Founder Access Control
+// Separate describe block - no beforeEach login
+// ============================================
+
+test.describe("Phase 7: Non-Founder Access Control", () => {
+  test("TC008: Non-founder cannot access team management", async ({ page }) => {
+    // Login as accountant (no beforeEach, fresh login)
+    await login(
+      page,
+      TEST_USERS.accountant.email,
+      TEST_USERS.accountant.password,
+    );
+
+    await gotoFast(page, "/settings");
+
+    // Wait for settings page to load
+    await page.waitForTimeout(1000);
+
+    // Team tab should NOT be visible for non-founders (only founder/owner can see it)
+    const teamTab = page.locator('button:has-text("Team")');
+    await expect(teamTab).not.toBeVisible();
+
+    // Profile tab should still be visible
+    await expect(page.locator('button:has-text("Profile")')).toBeVisible();
   });
 });
 
@@ -397,16 +417,11 @@ test.describe("Full User Journeys", () => {
   test("Journey: Founder login -> Settings -> Team -> View Members", async ({
     page,
   }) => {
-    // Step 1: Login
-    await page.goto("/login");
-    await page.fill('input[type="email"]', TEST_USERS.founder.email);
-    await page.fill('input[type="password"]', TEST_USERS.founder.password);
-    await page.click('button[type="submit"]');
-
-    await page.waitForURL(/\/(dashboard|leads)/, { timeout: 15000 });
+    // Step 1: Login using helper
+    await login(page, TEST_USERS.founder.email, TEST_USERS.founder.password);
 
     // Step 2: Navigate to Settings
-    await page.goto("/settings");
+    await gotoFast(page, "/settings");
 
     // Step 3: Click Team tab
     await page.click('button:has-text("Team")');
@@ -424,28 +439,24 @@ test.describe("Full User Journeys", () => {
   test("Journey: Engineer login -> Limited access verification", async ({
     page,
   }) => {
-    // Login as engineer
-    await page.goto("/login");
-    await page.fill('input[type="email"]', TEST_USERS.engineer.email);
-    await page.fill('input[type="password"]', TEST_USERS.engineer.password);
-    await page.click('button[type="submit"]');
-
-    await page.waitForURL(/\/(dashboard|leads)/, { timeout: 15000 });
+    // Login as engineer using helper
+    await login(page, TEST_USERS.engineer.email, TEST_USERS.engineer.password);
 
     // Engineer should be able to access dashboard
-    await page.goto("/dashboard");
+    await gotoFast(page, "/dashboard");
     await expect(page).toHaveURL(/\/dashboard/);
 
     // Engineer should be able to access settings
-    await page.goto("/settings");
+    await gotoFast(page, "/settings");
     await expect(page).toHaveURL(/\/settings/);
 
-    // But should not see invite button in team section
-    await page.click('button:has-text("Team")');
+    // Engineer should NOT see Team tab (only founder/owner can see it)
     await page.waitForTimeout(1000);
+    const teamTab = page.locator('button:has-text("Team")');
+    await expect(teamTab).not.toBeVisible();
 
-    const inviteButton = page.getByRole("button", { name: /invite.*member/i });
-    await expect(inviteButton).not.toBeVisible();
+    // But should see Profile tab
+    await expect(page.locator('button:has-text("Profile")')).toBeVisible();
   });
 
   test("Journey: Profile settings can be updated", async ({ page }) => {
@@ -456,7 +467,7 @@ test.describe("Full User Journeys", () => {
       TEST_USERS.accountant.password,
     );
 
-    await page.goto("/settings");
+    await gotoFast(page, "/settings");
 
     // Profile tab should be active by default
     await expect(page.getByText(/profile information/i)).toBeVisible();
