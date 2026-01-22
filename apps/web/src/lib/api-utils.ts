@@ -1,19 +1,22 @@
-import { NextResponse } from 'next/server';
-import { ZodError } from 'zod';
-import type { ApiResponse } from '@maiyuri/shared';
+import { NextResponse } from "next/server";
+import { ZodError } from "zod";
+import type { ApiResponse } from "@maiyuri/shared";
 
 // Standard API response helper
 export function apiResponse<T>(
   data: T | null,
   error: string | null = null,
   status: number = 200,
-  meta?: { total?: number; page?: number; limit?: number }
+  meta?: { total?: number; page?: number; limit?: number },
 ): NextResponse<ApiResponse<T>> {
   return NextResponse.json({ data, error, meta }, { status });
 }
 
 // Success response
-export function success<T>(data: T, meta?: { total?: number; page?: number; limit?: number }) {
+export function success<T>(
+  data: T,
+  meta?: { total?: number; page?: number; limit?: number },
+) {
   return apiResponse(data, null, 200, meta);
 }
 
@@ -28,30 +31,30 @@ export function error(message: string, status: number = 400) {
 }
 
 // Not found response
-export function notFound(message: string = 'Resource not found') {
+export function notFound(message: string = "Resource not found") {
   return apiResponse(null, message, 404);
 }
 
 // Unauthorized response
-export function unauthorized(message: string = 'Unauthorized') {
+export function unauthorized(message: string = "Unauthorized") {
   return apiResponse(null, message, 401);
 }
 
 // Forbidden response
-export function forbidden(message: string = 'Forbidden') {
+export function forbidden(message: string = "Forbidden") {
   return apiResponse(null, message, 403);
 }
 
 // Handle Zod validation errors
 export function handleZodError(err: ZodError) {
-  const messages = err.errors.map((e) => `${e.path.join('.')}: ${e.message}`);
-  return error(messages.join(', '), 400);
+  const messages = err.errors.map((e) => `${e.path.join(".")}: ${e.message}`);
+  return error(messages.join(", "), 400);
 }
 
 // Parse request body with Zod schema
 export async function parseBody<T>(
   request: Request,
-  schema: { parse: (data: unknown) => T }
+  schema: { parse: (data: unknown) => T },
 ): Promise<{ data: T; error: null } | { data: null; error: NextResponse }> {
   try {
     const body = await request.json();
@@ -61,7 +64,7 @@ export async function parseBody<T>(
     if (err instanceof ZodError) {
       return { data: null, error: handleZodError(err) };
     }
-    return { data: null, error: error('Invalid request body') };
+    return { data: null, error: error("Invalid request body") };
   }
 }
 
@@ -73,4 +76,23 @@ export function parseQuery(request: Request): Record<string, string> {
     params[key] = value;
   });
   return params;
+}
+
+/**
+ * Sanitize a search term for use in Supabase/PostgREST ILIKE patterns.
+ * Escapes special characters that could cause injection issues:
+ * - % and _ are SQL wildcards in ILIKE patterns
+ * - , and . are special characters in PostgREST filter syntax
+ * - Backslash is the escape character
+ */
+export function sanitizeSearchTerm(term: string): string {
+  // Escape backslash first (since it's the escape character)
+  let sanitized = term.replace(/\\/g, "\\\\");
+  // Escape SQL ILIKE wildcards
+  sanitized = sanitized.replace(/%/g, "\\%");
+  sanitized = sanitized.replace(/_/g, "\\_");
+  // Escape PostgREST special characters
+  sanitized = sanitized.replace(/,/g, "\\,");
+  sanitized = sanitized.replace(/\./g, "\\.");
+  return sanitized;
 }

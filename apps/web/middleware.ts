@@ -49,6 +49,8 @@ const rateLimitedRoutes = {
  * Add security headers to the response
  */
 function addSecurityHeaders(response: NextResponse): NextResponse {
+  const isDev = process.env.NODE_ENV === "development";
+
   // Prevent clickjacking
   response.headers.set("X-Frame-Options", "DENY");
 
@@ -67,12 +69,17 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
     "camera=(), microphone=(self), geolocation=(self)",
   );
 
-  // Content Security Policy (basic - adjust as needed)
+  // Content Security Policy
+  // Note: 'unsafe-eval' is only needed for Next.js HMR in development
+  const scriptSrc = isDev
+    ? "'self' 'unsafe-inline' 'unsafe-eval'"
+    : "'self' 'unsafe-inline'";
+
   response.headers.set(
     "Content-Security-Policy",
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js needs unsafe-eval for dev
+      `script-src ${scriptSrc}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https: blob:",
       "font-src 'self' data:",
