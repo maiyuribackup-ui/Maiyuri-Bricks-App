@@ -27,6 +27,7 @@
     "@tarikjabiri/dxf": "^2.8.9",
     "cheerio": "^1.1.2",
     "dotenv": "^17.2.3",
+    "langfuse": "^3.38.6",
     "makerjs": "^0.18.2",
     "openai": "^6.15.0",
     "zod": "^3.24.1"
