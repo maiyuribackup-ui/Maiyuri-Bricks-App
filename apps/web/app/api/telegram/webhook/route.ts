@@ -42,6 +42,10 @@ export async function POST(request: NextRequest) {
 
     // Only process message updates
     if (!update.message) {
+      console.warn(
+        "[Telegram Webhook] No message field in update:",
+        update.update_id,
+      );
       return NextResponse.json({ ok: true });
     }
 
@@ -68,7 +72,15 @@ export async function POST(request: NextRequest) {
         : null);
 
     if (!audio) {
-      // Silently ignore non-audio messages
+      console.warn("[Telegram Webhook] No audio content in message:", {
+        message_id: message.message_id,
+        chat_id: chatId,
+        has_text: !!message.text,
+        has_voice: !!message.voice,
+        has_audio: !!message.audio,
+        has_document: !!message.document,
+        document_mime: message.document?.mime_type,
+      });
       return NextResponse.json({ ok: true });
     }
 
@@ -83,7 +95,61 @@ export async function POST(request: NextRequest) {
       extractFromFilename(filename);
 
     if (!extractedPhone) {
-      // Notify user about filename requirement
+      // For voice messages (which can't be renamed), prompt for phone number
+      const isVoiceMessage = !!message.voice;
+
+      if (isVoiceMessage) {
+        // Store the recording without a phone number, pending user input
+        console.warn(
+          `[Telegram Webhook] Voice message without phone, storing for later linking...`,
+        );
+
+        const { data: recording, error: insertError } = await supabaseAdmin
+          .from("call_recordings")
+          .insert({
+            lead_id: null,
+            phone_number: "PENDING", // Marker for unlinked recordings
+            telegram_file_id: audio.file_id,
+            telegram_message_id: message.message_id,
+            telegram_chat_id: chatId,
+            telegram_user_id: message.from?.id || null,
+            original_filename: filename,
+            file_size_bytes: audio.file_size || null,
+            processing_status: "pending",
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error(
+            "[Telegram Webhook] Failed to store voice recording:",
+            insertError,
+          );
+          await sendTelegramMessage(
+            `❌ *Upload Error*\n\nFailed to save recording. Please try again.`,
+            chatId.toString(),
+          );
+          return NextResponse.json({ ok: true });
+        }
+
+        await sendTelegramMessage(
+          `📞 *Voice Recording Received*\n\n` +
+            `I received your voice recording but couldn't find a phone number.\n\n` +
+            `Please reply with the customer's phone number:\n` +
+            `\`PHONE: 9876543210\`\n\n` +
+            `Or with name and phone:\n` +
+            `\`NAME: Customer Name\`\n` +
+            `\`PHONE: 9876543210\``,
+          chatId.toString(),
+        );
+
+        console.warn(
+          `[Telegram Webhook] Voice recording stored: ${recording.id}, awaiting phone number`,
+        );
+        return NextResponse.json({ ok: true, recording_id: recording.id });
+      }
+
+      // For audio files/documents, suggest renaming
       await sendTelegramMessage(
         `❌ *Phone Number Not Found*\n\nCould not extract phone number from filename:\n\`${filename}\`\n\n` +
           `Please rename the file to include the phone number, e.g.:\n` +
@@ -261,17 +327,148 @@ export async function GET() {
 }
 
 /**
+ * Handle PHONE: input to link pending voice recordings
+ */
+async function handlePhoneInput(
+  phoneInput: string,
+  chatId: number,
+  fullText: string,
+): Promise<NextResponse> {
+  const normalizedPhone = normalizePhoneNumber(phoneInput);
+
+  // Validate phone number
+  if (normalizedPhone.length !== 10 || !/^[6-9]/.test(normalizedPhone)) {
+    await sendTelegramMessage(
+      `❌ *Invalid Phone Number*\n\n` +
+        `Please provide a valid 10-digit Indian mobile number starting with 6-9.\n` +
+        `Example: \`PHONE: 9876543210\``,
+      chatId.toString(),
+    );
+    return NextResponse.json({ ok: true });
+  }
+
+  // Find the most recent pending recording from this chat that needs a phone number
+  const { data: pendingRecording, error: fetchError } = await supabaseAdmin
+    .from("call_recordings")
+    .select("*")
+    .eq("telegram_chat_id", chatId)
+    .eq("phone_number", "PENDING")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (fetchError || !pendingRecording) {
+    await sendTelegramMessage(
+      `❌ *No Pending Recording*\n\n` +
+        `I couldn't find a recent voice recording waiting for a phone number.\n` +
+        `Please upload a voice recording first.`,
+      chatId.toString(),
+    );
+    return NextResponse.json({ ok: true });
+  }
+
+  // Check for NAME: in the same message or extract from subsequent messages
+  const nameMatch = fullText.match(/(?:NAME|name|Name)[:\s]+(.+?)(?:\n|$)/i);
+  const extractedName = nameMatch ? nameMatch[1].trim() : null;
+
+  // Try to find existing lead
+  let lead = await findMostRecentLead(normalizedPhone);
+  let isNewLead = false;
+
+  // Auto-create lead if we have a name but no existing lead
+  if (!lead && extractedName) {
+    const { data: newLead, error: createError } = await supabaseAdmin
+      .from("leads")
+      .insert({
+        name: extractedName,
+        contact: normalizedPhone,
+        source: "Telegram",
+        status: "new",
+        lead_type: "Other",
+        classification: "direct_customer",
+      })
+      .select()
+      .single();
+
+    if (!createError && newLead) {
+      lead = newLead;
+      isNewLead = true;
+    }
+  }
+
+  // Update the recording with the phone number and lead
+  const { error: updateError } = await supabaseAdmin
+    .from("call_recordings")
+    .update({
+      phone_number: normalizedPhone,
+      lead_id: lead?.id || null,
+    })
+    .eq("id", pendingRecording.id);
+
+  if (updateError) {
+    console.error(
+      "[Telegram Webhook] Failed to update recording:",
+      updateError,
+    );
+    await sendTelegramMessage(
+      `❌ *Update Failed*\n\nFailed to link phone number. Please try again.`,
+      chatId.toString(),
+    );
+    return NextResponse.json({ ok: true });
+  }
+
+  // Build confirmation message
+  let confirmMessage: string;
+  if (lead && isNewLead) {
+    confirmMessage =
+      `✅ *Recording Linked Successfully*\n\n` +
+      `✨ *New Lead Created!*\n` +
+      `👤 *Name:* ${lead.name}\n` +
+      `📱 *Phone:* ${normalizedPhone}\n\n` +
+      `⏳ Processing transcription...`;
+  } else if (lead) {
+    confirmMessage =
+      `✅ *Recording Linked Successfully*\n\n` +
+      `👤 *Lead:* ${lead.name}\n` +
+      `📱 *Phone:* ${normalizedPhone}\n\n` +
+      `⏳ Processing will begin shortly...`;
+  } else {
+    confirmMessage =
+      `✅ *Phone Number Added*\n\n` +
+      `📱 *Phone:* ${normalizedPhone}\n\n` +
+      `⚠️ No existing lead found for this number.\n` +
+      `Reply with \`NAME: Customer Name\` to create a lead.\n\n` +
+      `⏳ Processing will begin shortly...`;
+  }
+
+  await sendTelegramMessage(confirmMessage, chatId.toString());
+
+  console.warn(
+    `[Telegram Webhook] Recording ${pendingRecording.id} linked to phone ${normalizedPhone}, lead=${lead?.id ?? "none"}`,
+  );
+
+  return NextResponse.json({ ok: true, recording_id: pendingRecording.id });
+}
+
+/**
  * Handle text messages - process missing field inputs for lead creation
  * Supports formats:
  * - NAME: John Doe
  * - name: John Doe
- * - Recording ID: <uuid>
+ * - PHONE: 9876543210
+ * - phone: 9876543210
  */
 async function handleTextMessage(
   messageText: string,
   chatId: number,
 ): Promise<NextResponse> {
   const text = messageText.trim();
+
+  // Check for PHONE: pattern (for linking pending voice recordings)
+  const phoneMatch = text.match(/^(?:PHONE|phone|Phone)[:\s]+(\+?[\d\s-]+)$/i);
+  if (phoneMatch) {
+    return await handlePhoneInput(phoneMatch[1].trim(), chatId, text);
+  }
 
   // Check for NAME: pattern
   const nameMatch = text.match(/^(?:NAME|name|Name)[:\s]+(.+)$/i);
