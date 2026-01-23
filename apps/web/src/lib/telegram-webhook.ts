@@ -5,7 +5,7 @@
  * This module uses getSupabaseAdmin and must only be used on the server.
  */
 
-import "server-only";
+// Note: This module should only be used on the server side
 
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import type { Lead } from "@maiyuri/shared";
