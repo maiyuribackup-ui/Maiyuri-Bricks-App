@@ -40,11 +40,14 @@ export async function POST(request: NextRequest) {
           { status: 500 },
         );
       }
+      console.warn("[Telegram Webhook] Supabase admin client validated");
     } catch (initError) {
-      console.error(
-        "[Telegram Webhook] Supabase initialization failed:",
-        initError,
-      );
+      console.error("[Telegram Webhook] Supabase initialization failed:", {
+        error:
+          initError instanceof Error ? initError.message : String(initError),
+        hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+        hasKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      });
       return NextResponse.json(
         { ok: false, error: "Database configuration error" },
         { status: 500 },
