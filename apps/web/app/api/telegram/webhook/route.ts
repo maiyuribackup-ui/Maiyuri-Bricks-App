@@ -27,6 +27,30 @@ const ALLOWED_CHAT_IDS =
  */
 export async function POST(request: NextRequest) {
   try {
+    // Early validation: Ensure Supabase admin client is available
+    // This catches env var issues before any DB operations
+    try {
+      const testAccess = supabaseAdmin.from;
+      if (!testAccess) {
+        console.error(
+          "[Telegram Webhook] supabaseAdmin not properly initialized",
+        );
+        return NextResponse.json(
+          { ok: false, error: "Database configuration error" },
+          { status: 500 },
+        );
+      }
+    } catch (initError) {
+      console.error(
+        "[Telegram Webhook] Supabase initialization failed:",
+        initError,
+      );
+      return NextResponse.json(
+        { ok: false, error: "Database configuration error" },
+        { status: 500 },
+      );
+    }
+
     // Verify webhook secret if configured
     const secretHeader = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
     if (TELEGRAM_WEBHOOK_SECRET && secretHeader !== TELEGRAM_WEBHOOK_SECRET) {
@@ -168,11 +192,28 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate (by telegram_file_id)
     console.warn(`[Telegram Webhook] Step 2: Checking for duplicate...`);
-    const { data: existing, error: dupCheckError } = await supabaseAdmin
-      .from("call_recordings")
-      .select("id")
-      .eq("telegram_file_id", audio.file_id)
-      .single();
+    let existing = null;
+    let dupCheckError = null;
+
+    try {
+      const result = await supabaseAdmin
+        .from("call_recordings")
+        .select("id")
+        .eq("telegram_file_id", audio.file_id)
+        .single();
+      existing = result.data;
+      dupCheckError = result.error;
+    } catch (dbError) {
+      console.error(
+        `[Telegram Webhook] Step 2 FAILED - Database access error:`,
+        {
+          error: dbError instanceof Error ? dbError.message : String(dbError),
+          operation: "duplicate_check",
+          file_id: audio.file_id,
+        },
+      );
+      throw dbError; // Re-throw to be caught by outer handler
+    }
 
     if (dupCheckError && dupCheckError.code !== "PGRST116") {
       // PGRST116 is "not found" which is expected for new files
@@ -305,7 +346,31 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true, recording_id: recording.id });
   } catch (error) {
-    console.error("[Telegram Webhook] Error:", error);
+    // Structured error logging for debugging
+    const errorDetails = {
+      message: error instanceof Error ? error.message : String(error),
+      name: error instanceof Error ? error.name : "Unknown",
+      stack:
+        error instanceof Error
+          ? error.stack?.split("\n").slice(0, 5).join("\n")
+          : undefined,
+    };
+
+    console.error(
+      "[Telegram Webhook] Unhandled error:",
+      JSON.stringify(errorDetails, null, 2),
+    );
+
+    // Check for specific error types
+    if (
+      errorDetails.message.includes("supabase") ||
+      errorDetails.message.includes("environment")
+    ) {
+      console.error(
+        "[Telegram Webhook] Likely cause: Database configuration issue",
+      );
+    }
+
     return NextResponse.json(
       { ok: false, error: "Internal server error" },
       { status: 500 },

@@ -2,7 +2,10 @@
  * Telegram Webhook Helpers
  *
  * Utility functions for processing Telegram call recording uploads.
+ * This module uses supabaseAdmin and must only be used on the server.
  */
+
+import "server-only";
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { Lead } from "@maiyuri/shared";
