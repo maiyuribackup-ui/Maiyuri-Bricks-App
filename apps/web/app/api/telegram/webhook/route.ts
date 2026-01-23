@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { sendTelegramMessage } from "@/lib/telegram";
 import {
   extractFromFilename,
@@ -26,34 +26,24 @@ const ALLOWED_CHAT_IDS =
  * Receives updates from Telegram Bot API
  */
 export async function POST(request: NextRequest) {
+  // Early validation: Get Supabase admin client before any DB operations
+  let supabaseAdmin;
   try {
-    // Early validation: Ensure Supabase admin client is available
-    // This catches env var issues before any DB operations
-    try {
-      const testAccess = supabaseAdmin.from;
-      if (!testAccess) {
-        console.error(
-          "[Telegram Webhook] supabaseAdmin not properly initialized",
-        );
-        return NextResponse.json(
-          { ok: false, error: "Database configuration error" },
-          { status: 500 },
-        );
-      }
-      console.warn("[Telegram Webhook] Supabase admin client validated");
-    } catch (initError) {
-      console.error("[Telegram Webhook] Supabase initialization failed:", {
-        error:
-          initError instanceof Error ? initError.message : String(initError),
-        hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-        hasKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-      });
-      return NextResponse.json(
-        { ok: false, error: "Database configuration error" },
-        { status: 500 },
-      );
-    }
+    supabaseAdmin = getSupabaseAdmin();
+    console.warn("[Telegram Webhook] Supabase admin client initialized");
+  } catch (initError) {
+    console.error("[Telegram Webhook] Supabase initialization failed:", {
+      error: initError instanceof Error ? initError.message : String(initError),
+      hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    });
+    return NextResponse.json(
+      { ok: false, error: "Database configuration error" },
+      { status: 500 },
+    );
+  }
 
+  try {
     // Verify webhook secret if configured
     const secretHeader = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
     if (TELEGRAM_WEBHOOK_SECRET && secretHeader !== TELEGRAM_WEBHOOK_SECRET) {
@@ -402,6 +392,7 @@ async function handlePhoneInput(
   chatId: number,
   fullText: string,
 ): Promise<NextResponse> {
+  const supabaseAdmin = getSupabaseAdmin();
   const normalizedPhone = normalizePhoneNumber(phoneInput);
 
   // Validate phone number
@@ -530,6 +521,7 @@ async function handleTextMessage(
   messageText: string,
   chatId: number,
 ): Promise<NextResponse> {
+  const supabaseAdmin = getSupabaseAdmin();
   const text = messageText.trim();
 
   // Check for PHONE: pattern (for linking pending voice recordings)

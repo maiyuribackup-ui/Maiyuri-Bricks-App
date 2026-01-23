@@ -2,12 +2,12 @@
  * Telegram Webhook Helpers
  *
  * Utility functions for processing Telegram call recording uploads.
- * This module uses supabaseAdmin and must only be used on the server.
+ * This module uses getSupabaseAdmin and must only be used on the server.
  */
 
 import "server-only";
 
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import type { Lead } from "@maiyuri/shared";
 
 // ============================================================================
@@ -237,6 +237,8 @@ export function normalizePhoneNumber(phone: string): string {
  * Find the most recently updated lead matching a phone number
  */
 export async function findMostRecentLead(phone: string): Promise<Lead | null> {
+  const supabaseAdmin = getSupabaseAdmin();
+
   // Try exact match first
   let { data: leads } = await supabaseAdmin
     .from("leads")
