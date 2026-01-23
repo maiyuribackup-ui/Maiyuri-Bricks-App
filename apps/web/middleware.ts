@@ -34,6 +34,7 @@ const publicApiRoutes = [
   "/api/auth/forgot-password", // Password reset request (no auth needed)
   "/api/users/accept-invite", // Accept invitation (uses invite token)
   "/api/webhooks", // External webhooks
+  "/api/telegram/webhook", // Telegram bot webhook (receives voice recordings)
   "/api/telegram/processing-callback", // Telegram callback
   "/api/notifications/telegram", // Telegram webhook
   "/api/sq/", // Smart quote public pages (customer-facing)
