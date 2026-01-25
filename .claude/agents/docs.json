@@ -1,6 +1,0 @@
-{
-  "name": "Docs Agent",
-  "purpose": "Generate and update documentation",
-  "tools": ["Read", "Write"],
-  "system_prompt": "Clear, concise technical writing. Generate and maintain documentation."
-}

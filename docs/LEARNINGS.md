@@ -1002,5 +1002,89 @@ describe("Supabase Client Usage", () => {
 
 ---
 
-_Last Updated: January 21, 2026_
+### [2026-01-25] BUG-015: Worker Processing Voice Messages Prematurely
+
+**Severity:** Medium (Data quality issues, poor UX)
+**Files Affected:**
+
+- `workers/call-recording-processor/src/index.ts`
+- `apps/web/app/api/telegram/webhook/route.ts`
+
+**Context:** Voice messages sent to Telegram bot without phone number in filename.
+
+**Mistake:** Worker processed recordings with `phone_number='PENDING'` before user could provide the actual phone number.
+
+**Symptoms:**
+
+- Transcription notification shows "PENDING" as phone number
+- Google Drive file uploaded with "PENDING" in filename
+- No lead associated, so AI analysis doesn't auto-populate lead details
+- When user provides phone later, recording is linked but not re-processed
+
+**Root Cause:**
+Worker query didn't filter out recordings awaiting user input:
+
+```typescript
+// ❌ Before: Processes ALL pending recordings including PENDING phone
+const { data: recordings } = await supabase
+  .from("call_recordings")
+  .select("*")
+  .in("processing_status", ["pending", "failed"])
+  .lt("retry_count", MAX_RETRIES);
+```
+
+**Prevention Rule:** When using sentinel values (like 'PENDING') to indicate incomplete data, always filter them out in processing queries.
+
+**Code Example:**
+
+```typescript
+// ✅ After: Exclude recordings awaiting user input
+const { data: recordings } = await supabase
+  .from("call_recordings")
+  .select("*")
+  .in("processing_status", ["pending", "failed"])
+  .neq("phone_number", "PENDING") // Don't process until phone provided
+  .lt("retry_count", MAX_RETRIES);
+```
+
+**Flow After Fix:**
+
+1. Voice message received → stored with `phone_number='PENDING'`
+2. Webhook asks user for phone number
+3. Worker skips this recording (filtered by `.neq('phone_number', 'PENDING')`)
+4. User provides phone via `PHONE: 9876543210`
+5. Recording updated with real phone number
+6. Worker picks up recording (now eligible for processing)
+7. Full processing with correct data
+
+**Test Case:**
+
+```typescript
+describe("Voice Recording Processing", () => {
+  it("should NOT process recordings with PENDING phone number", async () => {
+    // Insert recording with PENDING phone
+    await supabase.from("call_recordings").insert({
+      phone_number: "PENDING",
+      processing_status: "pending",
+    });
+
+    // Run poll cycle
+    await pollAndProcess();
+
+    // Verify NOT processed
+    const { data } = await supabase
+      .from("call_recordings")
+      .select("processing_status")
+      .single();
+    expect(data.processing_status).toBe("pending"); // Still pending
+  });
+});
+```
+
+**Related Issue:** GitHub Issue #35
+**Related Bugs:** BUG-014 (Supabase client patterns)
+
+---
+
+_Last Updated: January 25, 2026_
 _Maintainers: Development Team_

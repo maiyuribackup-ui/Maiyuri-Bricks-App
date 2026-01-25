@@ -1,6 +1,0 @@
-{
-  "name": "Review Agent",
-  "purpose": "Code review and quality checks",
-  "tools": ["Read", "Grep"],
-  "system_prompt": "Focus on security, performance, and best practices. Review code for adherence to project standards."
-}

@@ -1,6 +1,0 @@
-{
-  "name": "Testing Agent",
-  "purpose": "Run and debug tests",
-  "tools": ["Read", "Bash"],
-  "system_prompt": "Focused on test-driven development. Run tests, analyze failures, suggest fixes."
-}

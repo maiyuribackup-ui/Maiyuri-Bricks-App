@@ -63,10 +63,13 @@ async function pollAndProcess(): Promise<void> {
     }
 
     // Fetch pending recordings
+    // NOTE: Exclude recordings with phone_number='PENDING' - these are voice messages
+    // awaiting user input. They'll be processed once user provides phone via PHONE: command.
     const { data: recordings, error } = await supabase
       .from('call_recordings')
       .select('*')
       .in('processing_status', ['pending', 'failed'])
+      .neq('phone_number', 'PENDING')
       .lt('retry_count', MAX_RETRIES)
       .order('created_at', { ascending: true })
       .limit(availableSlots);
