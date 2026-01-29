@@ -148,7 +148,7 @@ bun typecheck && bun lint && bun test
 
 | Branch | Purpose | Protection |
 |--------|---------|------------|
-| `main` | Production code | Protected: PR required, 1 approval, CI pass |
+| `main` | Production code | Protected: PR required, CI pass |
 | `feature/*` | New features | None |
 | `fix/*` | Bug fixes | None |
 | `hotfix/*` | Urgent production fixes | Fast-track review |
@@ -216,7 +216,6 @@ npm run typecheck && npm run lint && npm run test
 ### PR Requirements
 
 - [ ] CI passes (typecheck, lint, test)
-- [ ] 1 approval from team member
 - [ ] No merge conflicts
 - [ ] Conventional commit message
 - [ ] Documentation updated (if needed)
