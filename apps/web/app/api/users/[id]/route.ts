@@ -7,6 +7,7 @@ import {
   errorResponse,
   successResponse,
 } from "@/lib/api-helpers";
+import { sendPasswordResetEmail } from "@/lib/email";
 
 /**
  * GET /api/users/[id]
@@ -69,10 +70,10 @@ export async function PATCH(
 
     // Handle password reset request (founder only)
     if (body.send_password_reset && isFounder) {
-      // Get user's email first
+      // Get user's email and name first
       const { data: userData, error: userError } = await supabaseAdmin
         .from("users")
-        .select("email")
+        .select("email, name")
         .eq("id", id)
         .single();
 
@@ -80,19 +81,43 @@ export async function PATCH(
         return errorResponse("User not found or no email", 404);
       }
 
-      // Generate password reset link and send email
-      const { error: resetError } = await supabaseAdmin.auth.admin.generateLink(
-        {
+      // Generate password reset link
+      const appUrl =
+        process.env.NEXT_PUBLIC_APP_URL ||
+        "https://maiyuri-bricks-app.vercel.app";
+      const { data: linkData, error: resetError } =
+        await supabaseAdmin.auth.admin.generateLink({
           type: "recovery",
           email: userData.email,
-        },
-      );
+          options: {
+            redirectTo: `${appUrl}/reset-password`,
+          },
+        });
 
       if (resetError) {
         console.error("Password reset error:", resetError);
+        return errorResponse("Failed to generate password reset link", 500);
+      }
+
+      const actionLink = linkData.properties?.action_link;
+      if (!actionLink) {
+        console.error("No action link in response:", linkData);
+        return errorResponse("Failed to generate password reset link", 500);
+      }
+
+      // Send the password reset email
+      const emailResult = await sendPasswordResetEmail(
+        userData.email,
+        userData.name || "User",
+        actionLink,
+      );
+
+      if (!emailResult.success) {
+        console.error("Failed to send password reset email:", emailResult.error);
         return errorResponse("Failed to send password reset email", 500);
       }
 
+      console.log(`Password reset email sent to: ${userData.email}`);
       return successResponse({
         success: true,
         message: "Password reset email sent",
