@@ -492,6 +492,10 @@ function TeamSettings() {
   const [credentialsError, setCredentialsError] = useState("");
   const [credentialsMessage, setCredentialsMessage] = useState("");
 
+  // Manual password state
+  const [showManualPassword, setShowManualPassword] = useState(false);
+  const [manualPassword, setManualPassword] = useState("");
+
   const { data: profileData } = useQuery({
     queryKey: ["profile"],
     queryFn: fetchProfile,
@@ -641,6 +645,8 @@ function TeamSettings() {
     setCredentialsStatus("idle");
     setCredentialsError("");
     setCredentialsMessage("");
+    setShowManualPassword(false);
+    setManualPassword("");
     setShowCredentialsModal(true);
   };
 
@@ -706,6 +712,42 @@ function TeamSettings() {
     } catch (err) {
       setCredentialsError(
         err instanceof Error ? err.message : "Failed to send password reset",
+      );
+      setCredentialsStatus("error");
+    }
+  };
+
+  const handleSetManualPassword = async () => {
+    if (!credentialsMember || !manualPassword) return;
+
+    if (manualPassword.length < 6) {
+      setCredentialsError("Password must be at least 6 characters");
+      setCredentialsStatus("error");
+      return;
+    }
+
+    setCredentialsStatus("loading");
+    setCredentialsError("");
+
+    try {
+      const res = await fetch(`/api/users/${credentialsMember.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new_password: manualPassword }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to set password");
+      }
+
+      setCredentialsStatus("success");
+      setCredentialsMessage("Password updated successfully!");
+      setManualPassword("");
+      setShowManualPassword(false);
+    } catch (err) {
+      setCredentialsError(
+        err instanceof Error ? err.message : "Failed to set password",
       );
       setCredentialsStatus("error");
     }
@@ -1195,6 +1237,50 @@ function TeamSettings() {
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Sends a password reset link to {credentialsMember.email}
                 </p>
+              </div>
+
+              {/* Manual Password Section */}
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Set Password Manually
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowManualPassword(!showManualPassword)}
+                    className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                  >
+                    {showManualPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
+                {showManualPassword && (
+                  <div className="space-y-3">
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={manualPassword}
+                        onChange={(e) => setManualPassword(e.target.value)}
+                        placeholder="New password (min 6 chars)"
+                        className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={
+                          credentialsStatus === "loading" ||
+                          !manualPassword ||
+                          manualPassword.length < 6
+                        }
+                        onClick={handleSetManualPassword}
+                      >
+                        {credentialsStatus === "loading" ? "..." : "Set"}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Directly set the user&apos;s password without sending an email.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Close Button */}
