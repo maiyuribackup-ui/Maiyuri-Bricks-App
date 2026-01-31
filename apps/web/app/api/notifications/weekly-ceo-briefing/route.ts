@@ -943,10 +943,24 @@ async function handleWeeklyBriefing(request: NextRequest): Promise<NextResponse>
       process.env.CEO_TELEGRAM_CHAT_ID ||
       process.env.TELEGRAM_CHAT_ID;
 
+    // Debug: Log which env vars are available (keys only, no values for security)
+    console.log("[Weekly CEO Briefing] Checking Telegram env vars:", {
+      hasNotificationChatId: !!process.env.Notification_TELEGRAM_CHAT_ID,
+      hasCeoChatId: !!process.env.CEO_TELEGRAM_CHAT_ID,
+      hasTelegramChatId: !!process.env.TELEGRAM_CHAT_ID,
+      chatIdFound: !!chatId,
+    });
+
     if (!chatId) {
       console.error("[Weekly CEO Briefing] No Telegram chat ID configured");
       return NextResponse.json(
-        { error: "Telegram not configured" },
+        {
+          error: "Telegram not configured",
+          debug: {
+            hint: "Please ensure Notification_TELEGRAM_CHAT_ID is set in Vercel environment variables for Production",
+            envVarsChecked: ["Notification_TELEGRAM_CHAT_ID", "CEO_TELEGRAM_CHAT_ID", "TELEGRAM_CHAT_ID"]
+          }
+        },
         { status: 500 }
       );
     }
