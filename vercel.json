@@ -16,6 +16,10 @@
     {
       "path": "/api/notifications/daily-summary",
       "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/notifications/weekly-ceo-briefing",
+      "schedule": "0 3 * * 6"
     }
   ]
 }
