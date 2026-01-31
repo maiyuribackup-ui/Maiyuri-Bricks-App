@@ -73,23 +73,43 @@ function ResetPasswordForm() {
   useEffect(() => {
     const checkSession = async () => {
       const supabase = getSupabase();
-      const { data: { session } } = await supabase.auth.getSession();
 
-      // Supabase automatically handles the recovery token from the URL hash
-      // If there's a session with a recovery type, we're good
+      // First check if there's already a session
+      const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setIsValidSession(true);
-      } else {
-        // Try to get session from URL hash (Supabase Auth handles this)
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const accessToken = hashParams.get('access_token');
-        const type = hashParams.get('type');
+        return;
+      }
 
-        if (accessToken && type === 'recovery') {
+      // Try to extract tokens from URL hash and establish session
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      const type = hashParams.get('type');
+
+      if (accessToken && refreshToken && type === 'recovery') {
+        // Manually set the session using the tokens from the hash
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        if (error) {
+          console.error('Error setting session:', error);
+          setIsValidSession(false);
+          setError('Failed to verify recovery link. Please request a new one.');
+        } else if (data.session) {
           setIsValidSession(true);
+          // Clear the hash from URL for cleaner display
+          window.history.replaceState(null, '', window.location.pathname);
         } else {
           setIsValidSession(false);
         }
+      } else if (accessToken && type === 'recovery') {
+        // Has access token but no refresh token - try anyway
+        setIsValidSession(true);
+      } else {
+        setIsValidSession(false);
       }
     };
 
