@@ -105,9 +105,11 @@ function ResetPasswordForm() {
         } else {
           setIsValidSession(false);
         }
-      } else if (accessToken && type === 'recovery') {
-        // Has access token but no refresh token - try anyway
-        setIsValidSession(true);
+      } else if (accessToken && type === 'recovery' && !refreshToken) {
+        // Has access token but no refresh token - link is malformed or expired
+        console.error('Recovery link missing refresh_token');
+        setIsValidSession(false);
+        setError('Invalid recovery link. Please request a new password reset.');
       } else {
         setIsValidSession(false);
       }
@@ -122,6 +124,15 @@ function ResetPasswordForm() {
 
     try {
       const supabase = getSupabase();
+
+      // Verify session is still valid before updating password
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Session expired. Please request a new password reset link.');
+        setIsValidSession(false);
+        return;
+      }
+
       const { error: updateError } = await supabase.auth.updateUser({
         password: data.password,
       });
