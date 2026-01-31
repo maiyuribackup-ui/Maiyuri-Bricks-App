@@ -12,6 +12,10 @@
     {
       "path": "/api/nudges/quotes",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/notifications/daily-summary",
+      "schedule": "30 3 * * *"
     }
   ]
 }
