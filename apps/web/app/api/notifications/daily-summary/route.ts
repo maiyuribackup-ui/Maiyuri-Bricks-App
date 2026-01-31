@@ -604,10 +604,11 @@ async function handleDailySummary(request: NextRequest): Promise<NextResponse> {
 
     // Step 5: Send to Telegram
     console.log("[Daily Summary] Sending to Telegram...");
-    const chatId = process.env.TELEGRAM_CHAT_ID;
+    const chatId =
+      process.env.Notification_TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
 
     if (!chatId) {
-      console.error("[Daily Summary] TELEGRAM_CHAT_ID not configured");
+      console.error("[Daily Summary] Notification_TELEGRAM_CHAT_ID not configured");
       return NextResponse.json(
         { error: "Telegram not configured" },
         { status: 500 }

@@ -937,9 +937,11 @@ async function handleWeeklyBriefing(request: NextRequest): Promise<NextResponse>
     // Step 6: Send to Telegram (CEO chat or main channel)
     console.log("[Weekly CEO Briefing] Sending to Telegram...");
 
-    // Use CEO-specific chat ID if available, otherwise main channel
+    // Use notification-specific chat ID
     const chatId =
-      process.env.CEO_TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
+      process.env.Notification_TELEGRAM_CHAT_ID ||
+      process.env.CEO_TELEGRAM_CHAT_ID ||
+      process.env.TELEGRAM_CHAT_ID;
 
     if (!chatId) {
       console.error("[Weekly CEO Briefing] No Telegram chat ID configured");
