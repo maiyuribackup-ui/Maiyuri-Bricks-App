@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { z } from "zod";
@@ -31,6 +31,19 @@ function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
 
   const redirectTo = searchParams.get("redirect") || "/dashboard";
+
+  // Check for recovery token in URL hash and redirect to reset-password
+  // This happens when Supabase redirects after password reset link click
+  useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = hashParams.get("access_token");
+    const type = hashParams.get("type");
+
+    if (accessToken && type === "recovery") {
+      // Redirect to reset-password page, preserving the hash fragment
+      window.location.href = "/reset-password" + window.location.hash;
+    }
+  }, []);
 
   const {
     register,
