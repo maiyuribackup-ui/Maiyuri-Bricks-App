@@ -15,8 +15,11 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { services } from "@maiyuri/api";
 import { sendTelegramMessage } from "@/lib/telegram";
+
+// Use the working cloudcore supabase service
+const supabaseAdmin = services.supabase.supabase;
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Allow up to 60 seconds for processing
