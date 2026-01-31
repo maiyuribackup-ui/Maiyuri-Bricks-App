@@ -486,6 +486,8 @@ function TeamSettings() {
     null,
   );
   const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
   const [credentialsStatus, setCredentialsStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
@@ -638,6 +640,8 @@ function TeamSettings() {
   const openCredentialsModal = (member: TeamMember) => {
     setCredentialsMember(member);
     setNewEmail(member.email);
+    setNewPassword("");
+    setShowPasswordInput(false);
     setCredentialsStatus("idle");
     setCredentialsError("");
     setCredentialsMessage("");
@@ -688,6 +692,7 @@ function TeamSettings() {
 
     setCredentialsStatus("loading");
     setCredentialsError("");
+    setCredentialsMessage("");
 
     try {
       const res = await fetch(`/api/users/${credentialsMember.id}`, {
@@ -696,16 +701,55 @@ function TeamSettings() {
         body: JSON.stringify({ send_password_reset: true }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || "Failed to send password reset");
       }
 
       setCredentialsStatus("success");
-      setCredentialsMessage("Password reset email sent!");
+      setCredentialsMessage("Password reset email sent successfully!");
     } catch (err) {
       setCredentialsError(
         err instanceof Error ? err.message : "Failed to send password reset",
+      );
+      setCredentialsStatus("error");
+    }
+  };
+
+  const handleSetPassword = async () => {
+    if (!credentialsMember || !newPassword) return;
+
+    if (newPassword.length < 6) {
+      setCredentialsError("Password must be at least 6 characters");
+      setCredentialsStatus("error");
+      return;
+    }
+
+    setCredentialsStatus("loading");
+    setCredentialsError("");
+    setCredentialsMessage("");
+
+    try {
+      const res = await fetch(`/api/users/${credentialsMember.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new_password: newPassword }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update password");
+      }
+
+      setCredentialsStatus("success");
+      setCredentialsMessage("Password updated successfully!");
+      setNewPassword("");
+      setShowPasswordInput(false);
+    } catch (err) {
+      setCredentialsError(
+        err instanceof Error ? err.message : "Failed to update password",
       );
       setCredentialsStatus("error");
     }
@@ -1195,6 +1239,48 @@ function TeamSettings() {
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Sends a password reset link to {credentialsMember.email}
                 </p>
+              </div>
+
+              {/* Manual Password Entry Section */}
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Set Password Manually
+                  </label>
+                  {!showPasswordInput && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordInput(true)}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      Show
+                    </button>
+                  )}
+                </div>
+                {showPasswordInput && (
+                  <>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Enter new password (min 6 chars)"
+                        className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={credentialsStatus === "loading" || !newPassword || newPassword.length < 6}
+                        onClick={handleSetPassword}
+                      >
+                        Set
+                      </Button>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Directly set a new password without email verification. Use this if emails aren&apos;t working.
+                    </p>
+                  </>
+                )}
               </div>
 
               {/* Close Button */}
