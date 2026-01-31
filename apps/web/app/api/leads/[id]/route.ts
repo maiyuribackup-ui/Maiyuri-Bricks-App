@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createSupabaseRouteClient } from "@/lib/supabase-server";
 import { success, error, notFound, parseBody } from "@/lib/api-utils";
 import { updateLeadSchema, type Lead } from "@maiyuri/shared";
+import { notifyFactoryVisitScheduled } from "@/lib/telegram";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -50,10 +51,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // Get current lead state to detect status transitions
+    // Get current lead state to detect status/stage transitions
     const { data: currentLead } = await supabaseAdmin
       .from("leads")
-      .select("status, is_archived")
+      .select("status, stage, is_archived, name, contact, site_location, site_region")
       .eq("id", id)
       .single();
 
@@ -92,6 +93,58 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
       console.error("Database error:", dbError);
       return error("Failed to update lead", 500);
+    }
+
+    // Handle factory visit pending stage transition
+    // Create task for engineer and send Telegram notification
+    if (
+      currentLead &&
+      updateData.stage === "factory_visit_pending" &&
+      currentLead.stage !== "factory_visit_pending"
+    ) {
+      // Find an engineer to assign the task to
+      const { data: engineers } = await supabaseAdmin
+        .from("users")
+        .select("id, name")
+        .eq("role", "engineer")
+        .eq("is_active", true)
+        .limit(1);
+
+      const engineerId = engineers?.[0]?.id ?? null;
+
+      // Calculate due date (3 days from now)
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 3);
+
+      // Create task for factory visit
+      const taskData = {
+        title: `Factory Visit: ${currentLead.name}`,
+        description: `Schedule and complete factory visit for ${currentLead.name}.\nContact: ${currentLead.contact}${currentLead.site_location ? `\nLocation: ${currentLead.site_location}` : ""}`,
+        status: "todo",
+        priority: "high",
+        due_date: dueDate.toISOString(),
+        assigned_to: engineerId,
+        lead_id: id,
+      };
+
+      const { error: taskError } = await supabaseAdmin
+        .from("tasks")
+        .insert(taskData);
+
+      if (taskError) {
+        console.error("Failed to create factory visit task:", taskError);
+      }
+
+      // Send Telegram notification to engineer channel (non-blocking)
+      notifyFactoryVisitScheduled({
+        leadId: id,
+        leadName: currentLead.name,
+        contact: currentLead.contact,
+        siteLocation: currentLead.site_location,
+        siteRegion: currentLead.site_region,
+      }).catch((err) => {
+        console.error("Failed to send factory visit Telegram notification:", err);
+      });
     }
 
     return success<Lead>(lead);

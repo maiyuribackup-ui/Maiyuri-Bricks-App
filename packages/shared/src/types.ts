@@ -37,7 +37,8 @@ export type ProductInterest =
 export type LeadStage =
   | "inquiry" // Initial inquiry received
   | "quote_sent" // Quote/proposal sent
-  | "factory_visit" // Factory visit scheduled or done
+  | "factory_visit_pending" // Factory visit scheduled but not completed
+  | "factory_visit_completed" // Factory visit completed
   | "negotiation" // In active negotiation
   | "order_confirmed" // Order confirmed by customer
   | "in_production" // Order in production

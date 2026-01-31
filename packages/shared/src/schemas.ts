@@ -15,7 +15,8 @@ export const leadStatusSchema = z.enum([
 export const leadStageSchema = z.enum([
   "inquiry",
   "quote_sent",
-  "factory_visit",
+  "factory_visit_pending",
+  "factory_visit_completed",
   "negotiation",
   "order_confirmed",
   "in_production",

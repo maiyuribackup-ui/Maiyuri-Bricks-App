@@ -10,6 +10,7 @@ function getConfig() {
   return {
     botToken: process.env.TELEGRAM_BOT_TOKEN,
     chatId: process.env.TELEGRAM_CHAT_ID,
+    engineerChatId: process.env.TELEGRAM_ENGINEER_CHAT_ID || '5109584030',
   };
 }
 
@@ -585,4 +586,43 @@ export async function notifyCallRecordingError(
     `Please check the worker logs for details.`;
 
   return sendTelegramMessage(message, chatId);
+}
+
+/**
+ * Factory Visit Notification - sent to engineer channel
+ */
+export interface FactoryVisitNotification {
+  leadId: string;
+  leadName: string;
+  contact: string;
+  siteLocation?: string | null;
+  siteRegion?: string | null;
+}
+
+/**
+ * Notify engineer when a factory visit is scheduled (stage changed to factory_visit_pending)
+ * Sends to the engineer-specific Telegram channel
+ */
+export async function notifyFactoryVisitScheduled(
+  data: FactoryVisitNotification
+): Promise<SendTelegramResult> {
+  const config = getConfig();
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://maiyuri-bricks-app.vercel.app';
+
+  const { leadId, leadName, contact, siteLocation, siteRegion } = data;
+
+  const locationText = [siteLocation, siteRegion].filter(Boolean).join(', ');
+
+  const message = `🏭 *Factory Visit Scheduled*
+
+👤 *Lead:* ${leadName}
+📱 *Contact:* ${contact}
+${locationText ? `📍 *Location:* ${locationText}` : ''}
+
+A task has been created for the factory visit.
+
+[Edit Lead](${APP_URL}/leads/${leadId}/edit)`;
+
+  // Send to engineer channel
+  return sendTelegramMessage(message.trim(), config.engineerChatId);
 }

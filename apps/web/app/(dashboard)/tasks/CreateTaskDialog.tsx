@@ -6,8 +6,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Button } from '@maiyuri/ui';
 import { toast } from 'sonner';
 import { useEffect } from 'react';
-import { createTaskSchema, type CreateTaskInput, type TaskPriority, type TaskStatus, type Task } from '@maiyuri/shared';
-// ... imports
+import { createTaskSchema, type CreateTaskInput, type Task, type User } from '@maiyuri/shared';
 
 interface CreateTaskDialogProps {
     open: boolean;
@@ -15,11 +14,23 @@ interface CreateTaskDialogProps {
     initialData?: Task | null;
 }
 
-// ... fetchUsers
+async function fetchUsers(): Promise<User[]> {
+    const res = await fetch('/api/users');
+    if (!res.ok) throw new Error('Failed to fetch users');
+    const json = await res.json();
+    return json.data || [];
+}
 
 export function CreateTaskDialog({ open, onOpenChange, initialData }: CreateTaskDialogProps) {
     const queryClient = useQueryClient();
     const isEdit = !!initialData;
+
+    // Fetch users for assignment dropdown
+    const { data: users = [], isLoading: usersLoading } = useQuery({
+        queryKey: ['users'],
+        queryFn: fetchUsers,
+        staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    });
     const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CreateTaskInput>({
         resolver: zodResolver(createTaskSchema),
         defaultValues: initialData ? {
@@ -148,15 +159,23 @@ export function CreateTaskDialog({ open, onOpenChange, initialData }: CreateTask
                         </div>
                     </div>
 
-                    {/* Assignee Selection (Placeholder for now) */}
+                    {/* Assignee Selection */}
                     <div className="space-y-2">
-                        <label className="text-sm font-medium">Assign To (User ID for now)</label>
-                        <input
+                        <label className="text-sm font-medium">Assign To</label>
+                        <select
                             {...register('assigned_to')}
                             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                            placeholder="UUID of user"
-                        />
-                        <p className="text-xs text-slate-500">Note: User selection dropdown coming soon</p>
+                            disabled={usersLoading}
+                        >
+                            <option value="">
+                                {usersLoading ? 'Loading team members...' : 'Select team member'}
+                            </option>
+                            {users.map((user) => (
+                                <option key={user.id} value={user.id}>
+                                    {user.name} ({user.role})
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
                     <DialogFooter>

@@ -81,11 +81,17 @@ const stageConfig: Record<
     icon: "📧",
     color: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300",
   },
-  factory_visit: {
-    label: "Factory Visit",
-    icon: "🏭",
+  factory_visit_pending: {
+    label: "Factory Visit Pending",
+    icon: "🏭📅",
     color:
       "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300",
+  },
+  factory_visit_completed: {
+    label: "Factory Visit Done",
+    icon: "🏭✅",
+    color:
+      "bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300",
   },
   negotiation: {
     label: "Negotiation",
