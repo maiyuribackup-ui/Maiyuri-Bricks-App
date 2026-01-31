@@ -37,6 +37,8 @@ const publicApiRoutes = [
   "/api/telegram/webhook", // Telegram bot webhook (receives voice recordings)
   "/api/telegram/processing-callback", // Telegram callback
   "/api/notifications/telegram", // Telegram webhook
+  "/api/notifications/daily-summary", // Daily summary cron job
+  "/api/notifications/weekly-ceo-briefing", // Weekly CEO briefing cron job
   "/api/sq/", // Smart quote public pages (customer-facing)
 ];
 
