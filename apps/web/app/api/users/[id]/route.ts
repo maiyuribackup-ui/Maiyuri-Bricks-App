@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   requireAuth,
@@ -7,6 +7,9 @@ import {
   errorResponse,
   successResponse,
 } from "@/lib/api-helpers";
+import { sendPasswordResetEmail } from "@/lib/email";
+
+export const dynamic = "force-dynamic";
 
 /**
  * GET /api/users/[id]
@@ -47,6 +50,7 @@ export async function GET(
  * Special fields (founder only):
  * - email: Updates auth.users email AND public.users email
  * - send_password_reset: If true, sends a password reset email to the user
+ * - new_password: Directly set user's password
  */
 export async function PATCH(
   request: NextRequest,
@@ -67,36 +71,121 @@ export async function PATCH(
 
     const body = await request.json();
 
+    // Handle manual password update (founder only)
+    if (body.new_password && isFounder) {
+      if (
+        typeof body.new_password !== "string" ||
+        body.new_password.length < 6
+      ) {
+        return errorResponse("Password must be at least 6 characters", 400);
+      }
+
+      try {
+        const { error: passwordError } =
+          await supabaseAdmin.auth.admin.updateUserById(id, {
+            password: body.new_password,
+          });
+
+        if (passwordError) {
+          console.error("Password update error:", passwordError);
+          return errorResponse(
+            `Failed to update password: ${passwordError.message}`,
+            500,
+          );
+        }
+
+        console.log(`Password updated successfully for user ${id}`);
+
+        return successResponse({
+          success: true,
+          message: "Password updated successfully",
+        });
+      } catch (passwordError) {
+        console.error("Password update exception:", passwordError);
+        return errorResponse(
+          `Failed to update password: ${passwordError instanceof Error ? passwordError.message : "Unknown error"}`,
+          500,
+        );
+      }
+    }
+
     // Handle password reset request (founder only)
     if (body.send_password_reset && isFounder) {
-      // Get user's email first
+      // Get user's email and name first
       const { data: userData, error: userError } = await supabaseAdmin
         .from("users")
-        .select("email")
+        .select("email, name")
         .eq("id", id)
         .single();
 
       if (userError || !userData?.email) {
+        console.error("User lookup error:", userError);
         return errorResponse("User not found or no email", 404);
       }
 
-      // Generate password reset link and send email
-      const { error: resetError } = await supabaseAdmin.auth.admin.generateLink(
-        {
+      // Generate password reset link with redirect URL
+      const APP_URL =
+        process.env.NEXT_PUBLIC_APP_URL ||
+        "https://maiyuri-bricks-app.vercel.app";
+      const { data: linkData, error: resetError } =
+        await supabaseAdmin.auth.admin.generateLink({
           type: "recovery",
           email: userData.email,
-        },
-      );
+          options: {
+            redirectTo: `${APP_URL}/reset-password`,
+          },
+        });
 
       if (resetError) {
-        console.error("Password reset error:", resetError);
-        return errorResponse("Failed to send password reset email", 500);
+        console.error("Password reset link generation error:", resetError);
+        return errorResponse(
+          `Failed to generate reset link: ${resetError.message}`,
+          500,
+        );
       }
 
-      return successResponse({
-        success: true,
-        message: "Password reset email sent",
-      });
+      // Extract the recovery link from the response
+      const resetUrl = linkData.properties?.action_link;
+      if (!resetUrl) {
+        console.error("No action_link in response:", linkData);
+        return errorResponse(
+          "Failed to generate reset link - no URL returned",
+          500,
+        );
+      }
+
+      // Actually send the email via Resend
+      try {
+        const emailResult = await sendPasswordResetEmail(
+          userData.email,
+          userData.name || "User",
+          resetUrl,
+        );
+
+        if (!emailResult.success) {
+          console.error("Email sending failed:", emailResult.error);
+          return errorResponse(
+            `Failed to send email: ${emailResult.error ?? "Unknown error"}`,
+            500,
+          );
+        }
+
+        console.log(
+          `Password reset email sent successfully to ${userData.email}, Resend ID: ${emailResult.id}`,
+        );
+
+        return successResponse({
+          success: true,
+          message: "Password reset email sent successfully",
+          email_id: emailResult.id,
+        });
+      } catch (emailError) {
+        console.error("Email service exception:", emailError);
+        return errorResponse(
+          `Email service error: ${emailError instanceof Error ? emailError.message : "Unknown error"}`,
+          500,
+        );
+      }
     }
 
     // Handle email change (founder only)
