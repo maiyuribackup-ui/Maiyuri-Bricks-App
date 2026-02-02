@@ -9,6 +9,7 @@ import { Toaster, toast } from "sonner";
 import { PlusIcon, RefreshCw as RefreshIcon } from "lucide-react";
 import type { Task, TaskStatus } from "@maiyuri/shared";
 import { HelpButton } from "@/components/help";
+import Link from "next/link";
 
 // Icons Mock if not available
 const Icon = ({ name }: { name: string }) => <span>{name}</span>;
@@ -120,6 +121,7 @@ export default function TasksPage() {
                   <thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-slate-800">
                     <tr>
                       <th className="px-4 py-3">Task</th>
+                      <th className="px-4 py-3">Lead</th>
                       <th className="px-4 py-3">Priority</th>
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3">Assignee</th>
@@ -133,6 +135,18 @@ export default function TasksPage() {
                         className="border-b border-slate-100 dark:border-slate-800"
                       >
                         <td className="px-4 py-3 font-medium">{task.title}</td>
+                        <td className="px-4 py-3">
+                          {task.lead ? (
+                            <Link
+                              href={`/leads/${task.lead.id}`}
+                              className="text-blue-600 hover:text-blue-500 hover:underline"
+                            >
+                              {task.lead.name}
+                            </Link>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
                         <td className="px-4 py-3">{task.priority}</td>
                         <td className="px-4 py-3">{task.status}</td>
                         <td className="px-4 py-3">

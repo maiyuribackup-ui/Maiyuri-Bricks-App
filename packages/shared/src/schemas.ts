@@ -15,8 +15,8 @@ export const leadStatusSchema = z.enum([
 export const leadStageSchema = z.enum([
   "inquiry",
   "quote_sent",
+  "quotation_pending",
   "factory_visit",
-  "negotiation",
   "order_confirmed",
   "in_production",
   "ready_dispatch",
@@ -123,6 +123,8 @@ export const updateLeadSchema = z.object({
   archived_at: emptyStringToNull(z.string().nullable().optional()),
   archived_by: emptyStringToNull(z.string().uuid().nullable().optional()),
   archive_reason: emptyStringToNull(z.string().nullable().optional()),
+  // Lost reason - mandatory when status is "lost"
+  lost_reason: emptyStringToNull(z.string().nullable().optional()),
 });
 
 export const createNoteSchema = z.object({
@@ -133,7 +135,20 @@ export const createNoteSchema = z.object({
 
 export const updateLeadStatusSchema = z.object({
   status: leadStatusSchema,
-});
+  lost_reason: z.string().optional(),
+}).refine(
+  (data) => {
+    // If status is "lost", lost_reason is required
+    if (data.status === "lost") {
+      return !!data.lost_reason && data.lost_reason.trim().length > 0;
+    }
+    return true;
+  },
+  {
+    message: "Reason for lost is required when marking a lead as lost",
+    path: ["lost_reason"],
+  }
+);
 
 // Update lead stage (Issue #19)
 export const updateLeadStageSchema = z.object({

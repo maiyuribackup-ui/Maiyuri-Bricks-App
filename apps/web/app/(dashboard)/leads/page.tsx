@@ -81,17 +81,17 @@ const stageConfig: Record<
     icon: "📧",
     color: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300",
   },
+  quotation_pending: {
+    label: "Quotation Pending",
+    icon: "⏳",
+    color:
+      "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300",
+  },
   factory_visit: {
     label: "Factory Visit",
     icon: "🏭",
     color:
       "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300",
-  },
-  negotiation: {
-    label: "Negotiation",
-    icon: "🤝",
-    color:
-      "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300",
   },
   order_confirmed: {
     label: "Confirmed",
@@ -155,16 +155,10 @@ const requirementTypeOptions = [
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "-";
   const date = new Date(dateStr);
-  const now = new Date();
-  const diffDays = Math.floor(
-    (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24),
-  );
-
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays}d ago`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
-  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 function isToday(dateStr: string): boolean {
