@@ -81,17 +81,17 @@ const stageConfig: Record<
     icon: "📧",
     color: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300",
   },
+  quotation_pending: {
+    label: "Quotation Pending",
+    icon: "⏳",
+    color:
+      "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300",
+  },
   factory_visit: {
     label: "Factory Visit",
     icon: "🏭",
     color:
       "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300",
-  },
-  negotiation: {
-    label: "Negotiation",
-    icon: "🤝",
-    color:
-      "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300",
   },
   order_confirmed: {
     label: "Confirmed",
