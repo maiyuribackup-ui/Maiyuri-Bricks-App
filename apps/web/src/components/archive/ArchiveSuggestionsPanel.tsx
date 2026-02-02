@@ -303,7 +303,8 @@ function SuggestionItem({
   onToggle: () => void;
 }) {
   const lead = suggestion.lead;
-  const daysSince = getDaysSince(suggestion.suggested_at);
+  const suggestedDate = formatDate(suggestion.suggested_at);
+  const updatedDate = lead?.updated_at ? formatDate(lead.updated_at) : null;
 
   return (
     <div
@@ -337,19 +338,21 @@ function SuggestionItem({
           {suggestion.suggestion_reason}
         </p>
         <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-          Suggested {daysSince === 0 ? "today" : `${daysSince} days ago`}
+          Suggested: {suggestedDate}
+          {updatedDate && ` | Updated: ${updatedDate}`}
         </p>
       </div>
     </div>
   );
 }
 
-// Helper function
-function getDaysSince(dateStr: string): number {
+// Helper function - format date as DD/MM/YYYY
+function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
-  const now = new Date();
-  const diffTime = Math.abs(now.getTime() - date.getTime());
-  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 // Icon Components
