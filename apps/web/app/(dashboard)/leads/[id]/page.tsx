@@ -130,11 +130,15 @@ async function fetchCallRecordings(leadId: string) {
   return res.json();
 }
 
-async function updateLeadStatus(id: string, status: LeadStatus) {
+async function updateLeadStatus(id: string, status: LeadStatus, lostReason?: string) {
+  const body: { status: LeadStatus; lost_reason?: string } = { status };
+  if (status === "lost" && lostReason) {
+    body.lost_reason = lostReason;
+  }
   const res = await fetch(`/api/leads/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error("Failed to update status");
   return res.json();
@@ -211,6 +215,9 @@ export default function LeadDetailPage() {
   // Issue #20: Quick status/stage dropdowns
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showStageDropdown, setShowStageDropdown] = useState(false);
+  // Lost reason modal state
+  const [showLostReasonModal, setShowLostReasonModal] = useState(false);
+  const [lostReason, setLostReason] = useState("");
 
   const { data: leadData, isLoading: leadLoading } = useQuery({
     queryKey: ["lead", leadId],
@@ -233,12 +240,38 @@ export default function LeadDetailPage() {
   const callRecordings: CallRecording[] = callRecordingsData?.data || [];
 
   const statusMutation = useMutation({
-    mutationFn: (status: LeadStatus) => updateLeadStatus(leadId, status),
+    mutationFn: ({ status, lostReason }: { status: LeadStatus; lostReason?: string }) =>
+      updateLeadStatus(leadId, status, lostReason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
       queryClient.invalidateQueries({ queryKey: ["leads"] });
+      setShowLostReasonModal(false);
+      setLostReason("");
+      toast.success("Status updated successfully");
+    },
+    onError: () => {
+      toast.error("Failed to update status");
     },
   });
+
+  // Handler for status change - shows modal if "lost" is selected
+  const handleStatusChange = (status: LeadStatus) => {
+    if (status === "lost") {
+      setShowLostReasonModal(true);
+    } else {
+      statusMutation.mutate({ status });
+    }
+    setShowStatusDropdown(false);
+  };
+
+  // Handler for confirming lost status with reason
+  const handleConfirmLost = () => {
+    if (!lostReason.trim()) {
+      toast.error("Please enter a reason for marking this lead as lost");
+      return;
+    }
+    statusMutation.mutate({ status: "lost", lostReason });
+  };
 
   const stageMutation = useMutation({
     mutationFn: (stage: LeadStage) => updateLeadStage(leadId, stage),
@@ -387,10 +420,7 @@ export default function LeadDetailPage() {
                         {statusOptions.map((status) => (
                           <button
                             key={status}
-                            onClick={() => {
-                              statusMutation.mutate(status);
-                              setShowStatusDropdown(false);
-                            }}
+                            onClick={() => handleStatusChange(status)}
                             className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-between ${
                               lead.status === status
                                 ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
@@ -912,7 +942,7 @@ export default function LeadDetailPage() {
               {statusOptions.map((status) => (
                 <button
                   key={status}
-                  onClick={() => statusMutation.mutate(status)}
+                  onClick={() => handleStatusChange(status)}
                   disabled={statusMutation.isPending}
                   className={`px-3 py-2 text-xs font-medium rounded-md transition-colors ${
                     lead.status === status
@@ -1036,6 +1066,47 @@ export default function LeadDetailPage() {
             disabled={deleteMutation.isPending}
           >
             {deleteMutation.isPending ? "Deleting..." : "Delete"}
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Lost Reason Modal */}
+      <Modal
+        isOpen={showLostReasonModal}
+        onClose={() => {
+          setShowLostReasonModal(false);
+          setLostReason("");
+        }}
+        title="Reason for Lost"
+        size="sm"
+      >
+        <p className="text-slate-600 dark:text-slate-300 mb-4">
+          Please provide a reason for marking <strong>{lead.name}</strong> as lost.
+          This helps with post-mortem analysis.
+        </p>
+        <textarea
+          value={lostReason}
+          onChange={(e) => setLostReason(e.target.value)}
+          placeholder="Enter reason for lost (e.g., chose competitor, budget constraints, no response...)"
+          className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm min-h-[100px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+          autoFocus
+        />
+        <div className="mt-6 flex justify-end gap-3">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setShowLostReasonModal(false);
+              setLostReason("");
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={handleConfirmLost}
+            disabled={statusMutation.isPending || !lostReason.trim()}
+          >
+            {statusMutation.isPending ? "Updating..." : "Mark as Lost"}
           </Button>
         </div>
       </Modal>
