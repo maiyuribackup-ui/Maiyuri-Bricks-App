@@ -22,7 +22,15 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Card } from '@maiyuri/ui';
 import { type Lead, type LeadStatus } from '@maiyuri/shared';
-import { formatDistanceToNow } from 'date-fns';
+
+// Format date as DD/MM/YYYY
+function formatDate(dateStr: string): string {
+    const date = new Date(dateStr);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+}
 
 // ============================================================================
 // CONSTANTS
@@ -202,7 +210,7 @@ function KanbanCard({ lead, isOverlay, onClick }: { lead: Lead; isOverlay?: bool
             </div>
 
             <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-100 dark:border-slate-700 text-xs text-slate-400">
-                <span>{formatDistanceToNow(new Date(lead.updated_at), { addSuffix: true })}</span>
+                <span>{formatDate(lead.updated_at)}</span>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button className="hover:text-blue-600">Open</button>
                 </div>
