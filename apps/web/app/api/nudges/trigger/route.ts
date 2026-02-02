@@ -9,8 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { formatManualNudgeMessage } from "@/lib/nudge-utils";
 import { z } from "zod";
@@ -26,34 +25,21 @@ const triggerNudgeSchema = z.object({
 });
 
 /**
- * Helper to get authenticated user
+ * Helper to get authenticated user with details from users table
  */
-async function getAuthenticatedUser() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (name: string) => cookieStore.get(name)?.value,
-      },
-    },
-  );
+async function getAuthenticatedUser(request: NextRequest) {
+  // Use standard auth helper that supports both cookies and Bearer token
+  const authUser = await getUserFromRequest(request);
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user) {
+  if (!authUser) {
     return null;
   }
 
-  // Get user details
+  // Get user details from users table
   const { data: userData } = await supabaseAdmin
     .from("users")
     .select("id, name, telegram_chat_id")
-    .eq("id", user.id)
+    .eq("id", authUser.id)
     .single();
 
   return userData;
@@ -64,8 +50,8 @@ async function getAuthenticatedUser() {
  */
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
-    const currentUser = await getAuthenticatedUser();
+    // Check authentication using standard helper
+    const currentUser = await getAuthenticatedUser(request);
 
     if (!currentUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
