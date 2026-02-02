@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   try {
     let query = supabaseAdmin
       .from("tasks")
-      .select("*, assignee:users!tasks_assigned_to_fkey(*)"); // Join assignee details
+      .select("*, assignee:users!tasks_assigned_to_fkey(*), lead:leads!tasks_lead_id_fkey(id, name)"); // Join assignee and lead details
 
     if (status) query = query.eq("status", status);
     if (assignee) query = query.eq("assigned_to", assignee);

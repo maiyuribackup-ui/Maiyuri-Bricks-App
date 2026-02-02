@@ -258,6 +258,7 @@ export interface Task {
   created_at: string;
   updated_at: string;
   assignee?: User; // Joined fields
+  lead?: { id: string; name: string }; // Joined lead info
 }
 
 // Price Estimator Types

@@ -20,7 +20,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { type Task, type TaskStatus } from '@maiyuri/shared';
-import { formatDistanceToNow } from 'date-fns';
+import Link from 'next/link';
 
 // ============================================================================
 // CONSTANTS
@@ -194,6 +194,19 @@ function KanbanCard({ task, isOverlay, onClick }: { task: Task; isOverlay?: bool
                         {task.assignee.name.charAt(0)}
                     </div>
                     <span className="text-xs text-slate-600 dark:text-slate-400">{task.assignee.name}</span>
+                </div>
+            )}
+
+            {task.lead && (
+                <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs text-slate-500">Lead:</span>
+                    <Link
+                        href={`/leads/${task.lead.id}`}
+                        className="text-xs text-blue-600 hover:text-blue-500 hover:underline truncate"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {task.lead.name}
+                    </Link>
                 </div>
             )}
 
