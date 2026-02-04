@@ -9,7 +9,8 @@ const TELEGRAM_API_BASE = 'https://api.telegram.org/bot';
 function getConfig() {
   return {
     botToken: process.env.TELEGRAM_BOT_TOKEN,
-    chatId: process.env.TELEGRAM_CHAT_ID,
+    // Support both env var names for consistency with notification routes
+    chatId: process.env.Notification_TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHAT_ID,
   };
 }
 

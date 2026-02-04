@@ -316,7 +316,8 @@ async function handleDigest(request: NextRequest): Promise<NextResponse> {
     }> = [];
 
     // Default chat ID for unassigned leads (goes to main channel)
-    const defaultChatId = process.env.TELEGRAM_CHAT_ID;
+    // Support both env var names for consistency with notification routes
+    const defaultChatId = process.env.Notification_TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
 
     for (const [staffId, digestLeads] of staffGroups) {
       const user = usersMap.get(staffId);

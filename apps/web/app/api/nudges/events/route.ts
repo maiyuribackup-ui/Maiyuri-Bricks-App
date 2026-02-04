@@ -277,8 +277,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Fall back to default channel
+    // Support both env var names for consistency with notification routes
     if (!targetChatId) {
-      targetChatId = process.env.TELEGRAM_CHAT_ID;
+      targetChatId = process.env.Notification_TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
     }
 
     if (!targetChatId) {
