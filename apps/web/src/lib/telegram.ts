@@ -9,13 +9,28 @@ const TELEGRAM_API_BASE = 'https://api.telegram.org/bot';
 function getConfig() {
   return {
     botToken: process.env.TELEGRAM_BOT_TOKEN,
+    // TELEGRAM_CHAT_ID: For webhook responses (Maiyuri Bricks group - voice messages & transcriptions)
     chatId: process.env.TELEGRAM_CHAT_ID,
+    // Notification_TELEGRAM_CHAT_ID: For app notifications (Maiyuri Bricks Notification group - reminders & nudges)
+    notificationChatId: process.env.Notification_TELEGRAM_CHAT_ID,
   };
 }
 
 export interface SendTelegramResult {
   success: boolean;
   error?: string;
+}
+
+/**
+ * Send a notification to the Notification group (for app alerts, reminders, nudges)
+ * Uses Notification_TELEGRAM_CHAT_ID
+ */
+export async function sendAppNotification(
+  text: string
+): Promise<SendTelegramResult> {
+  const config = getConfig();
+  const targetChatId = config.notificationChatId || config.chatId;
+  return sendTelegramMessage(text, targetChatId);
 }
 
 /**
@@ -95,7 +110,7 @@ ${source ? `📍 *Source:* ${source}` : ''}
 
 [View in Dashboard](https://maiyuri-bricks-app.vercel.app/leads)`;
 
-  return sendTelegramMessage(message);
+  return sendAppNotification(message);
 }
 
 /**
@@ -137,7 +152,7 @@ ${assignedStaff ? `👷 *Assigned to:* ${assignedStaff}` : ''}
 
 [View Lead Details](https://maiyuri-bricks-app.vercel.app/leads/${id})`;
 
-  return sendTelegramMessage(message.trim());
+  return sendAppNotification(message.trim());
 }
 
 export async function notifyLeadUpdated(
@@ -151,7 +166,7 @@ export async function notifyLeadUpdated(
 🔄 *Update:* ${updateType}
 ${details ? `📄 *Details:* ${details}` : ''}`;
 
-  return sendTelegramMessage(message);
+  return sendAppNotification(message);
 }
 
 export async function notifyStaffInvited(
@@ -168,7 +183,7 @@ ${roleEmoji} *Name:* ${staffName}
 
 Invitation valid for 7 days.`;
 
-  return sendTelegramMessage(message);
+  return sendAppNotification(message);
 }
 
 export async function notifyStaffJoined(
@@ -182,7 +197,7 @@ export async function notifyStaffJoined(
 
 They can now access the lead management system.`;
 
-  return sendTelegramMessage(message);
+  return sendAppNotification(message);
 }
 
 export async function notifyFollowUpReminder(
@@ -198,7 +213,7 @@ ${assignedTo ? `👷 *Assigned to:* ${assignedTo}` : ''}
 
 Don't forget to follow up!`;
 
-  return sendTelegramMessage(message);
+  return sendAppNotification(message);
 }
 
 export async function notifyDailySummary(
@@ -218,7 +233,7 @@ export async function notifyDailySummary(
 
 [View Dashboard](https://maiyuri-bricks-app.vercel.app/dashboard)`;
 
-  return sendTelegramMessage(message);
+  return sendAppNotification(message);
 }
 
 export async function notifyAIInsight(
@@ -230,7 +245,7 @@ export async function notifyAIInsight(
 👤 *Lead:* ${leadName}
 💡 *Insight:* ${insight.slice(0, 200)}${insight.length > 200 ? '...' : ''}`;
 
-  return sendTelegramMessage(message);
+  return sendAppNotification(message);
 }
 
 /**
@@ -333,7 +348,7 @@ ${followUpDate ? `📅 *Suggested Follow-up:* ${followUpDate}` : ''}
 
 [View Lead Details](https://maiyuri-bricks-app.vercel.app/leads/${leadId})`;
 
-  return sendTelegramMessage(message.trim());
+  return sendAppNotification(message.trim());
 }
 
 export async function notifyQuoteReceived(
@@ -347,7 +362,7 @@ export async function notifyQuoteReceived(
 💵 *Amount:* ₹${amount}
 ${source ? `📍 *From:* ${source}` : ''}`;
 
-  return sendTelegramMessage(message);
+  return sendAppNotification(message);
 }
 
 export async function notifyError(
@@ -361,7 +376,7 @@ export async function notifyError(
 
 Please investigate.`;
 
-  return sendTelegramMessage(message);
+  return sendAppNotification(message);
 }
 
 /**
@@ -379,7 +394,7 @@ You will receive notifications for:
 • Daily summaries
 • Staff updates`;
 
-  return sendTelegramMessage(message);
+  return sendAppNotification(message);
 }
 
 /**
