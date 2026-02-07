@@ -301,7 +301,7 @@ export function ProductionOrderPanel({
   const canSubmit = selectedGood && productionQty > 0;
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 flex">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/30 backdrop-blur-sm"
@@ -309,8 +309,8 @@ export function ProductionOrderPanel({
         aria-hidden="true"
       />
 
-      {/* Panel */}
-      <div className="relative ml-auto flex h-full w-full max-w-2xl flex-col bg-white shadow-xl dark:bg-slate-900">
+      {/* Modal */}
+      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-xl dark:bg-slate-900">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-700">
           <div className="flex items-center gap-2">
