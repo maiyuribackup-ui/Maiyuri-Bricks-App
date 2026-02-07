@@ -28,7 +28,7 @@ const protectedRoutes = [
 // API routes that DON'T require authentication
 // All other /api/* routes WILL require authentication
 const publicApiRoutes = [
-  "/api/health", // Health check
+  "/api/health", // Health check + health cron
   "/api/auth/login", // Login endpoint
   "/api/auth/logout", // Logout endpoint
   "/api/auth/forgot-password", // Password reset request (no auth needed)
@@ -39,6 +39,10 @@ const publicApiRoutes = [
   "/api/notifications/telegram", // Telegram webhook
   "/api/notifications/daily-summary", // Daily summary cron job
   "/api/notifications/weekly-ceo-briefing", // Weekly CEO briefing cron job
+  "/api/nudges/digest", // Nudge digest cron job
+  "/api/nudges/quotes", // Quote nudges cron job
+  "/api/odoo/cron", // Odoo sync cron job
+  "/api/deliveries/cron", // Delivery sync cron job
   "/api/sq/", // Smart quote public pages (customer-facing)
 ];
 
