@@ -18,9 +18,9 @@ import type { HealthCheckResult, HealthStatus } from '../types';
  * Helper: Race a promise against a timeout
  * @throws {Error} with message "Timeout exceeded" if timeout occurs
  */
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number): Promise<T> {
   return Promise.race([
-    promise,
+    Promise.resolve(promise),
     new Promise<T>((_, reject) =>
       setTimeout(() => reject(new Error('Timeout exceeded')), timeoutMs)
     ),
