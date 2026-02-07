@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { syncAllLeadsToOdoo, syncAllQuotesFromOdoo } from '@/lib/odoo-service';
+import { startCronLog } from '@/lib/health/cron-logger';
 
 // GET /api/odoo/cron
 // Scheduled sync endpoint for Vercel Cron or external cron services
@@ -31,6 +32,8 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const cronLog = await startCronLog('odoo-sync');
+
   try {
     console.log('[Odoo Cron] Starting scheduled sync...');
 
@@ -46,6 +49,8 @@ export async function GET(request: NextRequest) {
     const message = `Push: ${pushResult.message} | Pull: ${pullResult.message}`;
     console.log('[Odoo Cron] Sync completed:', message);
 
+    await cronLog.success();
+
     return NextResponse.json({
       success: pushResult.success && pullResult.success,
       message,
@@ -57,6 +62,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Odoo Cron] Sync failed:', error);
+    await cronLog.fail(error instanceof Error ? error.message : 'Cron sync failed');
 
     return NextResponse.json(
       {

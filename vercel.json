@@ -20,6 +20,10 @@
     {
       "path": "/api/notifications/weekly-ceo-briefing",
       "schedule": "0 3 * * 6"
+    },
+    {
+      "path": "/api/health/cron",
+      "schedule": "0 8,20 * * *"
     }
   ]
 }

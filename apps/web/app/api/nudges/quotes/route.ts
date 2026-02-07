@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { startCronLog } from "@/lib/health/cron-logger";
 import type { Lead } from "@maiyuri/shared";
 
 export const dynamic = "force-dynamic";
@@ -266,6 +267,8 @@ async function handleQuotePendingCheck(
 
   console.log("[Quote Nudge] Starting stale quote check...");
 
+  const cronLog = await startCronLog("quote-nudges");
+
   try {
     const errors: string[] = [];
     let nudgesSent = 0;
@@ -420,6 +423,8 @@ async function handleQuotePendingCheck(
 
     console.log(`[Quote Nudge] Completed: ${nudgesSent} nudges sent`);
 
+    await cronLog.success();
+
     return NextResponse.json({
       success: errors.length === 0,
       message: `Processed ${neverViewed.length + noSubmission.length} stale quotes, sent ${nudgesSent} nudges`,
@@ -433,6 +438,7 @@ async function handleQuotePendingCheck(
     });
   } catch (error) {
     console.error("[Quote Nudge] Error:", error);
+    await cronLog.fail(error instanceof Error ? error.message : "Quote check failed");
     return NextResponse.json(
       {
         success: false,

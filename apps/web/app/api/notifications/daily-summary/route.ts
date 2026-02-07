@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { services } from "@maiyuri/api";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { startCronLog } from "@/lib/health/cron-logger";
 
 // Use the working cloudcore supabase service
 const supabaseAdmin = services.supabase.supabase;
@@ -586,6 +587,8 @@ async function handleDailySummary(request: NextRequest): Promise<NextResponse> {
 
   console.log("[Daily Summary] Starting daily summary generation...");
 
+  const cronLog = await startCronLog("daily-summary");
+
   try {
     // Step 1: Gather all statistics
     console.log("[Daily Summary] Gathering statistics...");
@@ -630,6 +633,8 @@ async function handleDailySummary(request: NextRequest): Promise<NextResponse> {
 
     console.log("[Daily Summary] Completed successfully");
 
+    await cronLog.success();
+
     return NextResponse.json({
       success: true,
       message: "Daily summary sent successfully",
@@ -649,6 +654,7 @@ async function handleDailySummary(request: NextRequest): Promise<NextResponse> {
     });
   } catch (error) {
     console.error("[Daily Summary] Error:", error);
+    await cronLog.fail(error instanceof Error ? error.message : "Daily summary failed");
 
     return NextResponse.json(
       {

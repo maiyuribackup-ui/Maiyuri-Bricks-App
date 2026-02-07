@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { services } from "@maiyuri/api";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { startCronLog } from "@/lib/health/cron-logger";
 
 // Use the working cloudcore supabase service
 const supabaseAdmin = services.supabase.supabase;
@@ -886,6 +887,8 @@ async function handleWeeklyBriefing(request: NextRequest): Promise<NextResponse>
 
   console.log("[Weekly CEO Briefing] Starting weekly briefing generation...");
 
+  const cronLog = await startCronLog("weekly-ceo-briefing");
+
   try {
     // Step 1: Get date ranges
     const { thisWeek, lastWeek, weekStartDisplay, weekEndDisplay } = getWeekRanges();
@@ -977,6 +980,8 @@ async function handleWeeklyBriefing(request: NextRequest): Promise<NextResponse>
 
     console.log("[Weekly CEO Briefing] Completed successfully");
 
+    await cronLog.success();
+
     return NextResponse.json({
       success: true,
       message: "Weekly CEO briefing sent successfully",
@@ -999,6 +1004,7 @@ async function handleWeeklyBriefing(request: NextRequest): Promise<NextResponse>
     });
   } catch (error) {
     console.error("[Weekly CEO Briefing] Error:", error);
+    await cronLog.fail(error instanceof Error ? error.message : "Weekly briefing failed");
 
     return NextResponse.json(
       {

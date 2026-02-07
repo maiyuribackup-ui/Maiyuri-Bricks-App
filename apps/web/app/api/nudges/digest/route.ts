@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { startCronLog } from "@/lib/health/cron-logger";
 import {
   matchesRule,
   toDigestLead,
@@ -159,6 +160,8 @@ async function handleDigest(request: NextRequest): Promise<NextResponse> {
   console.log("[Nudge Digest] Starting morning digest processing...", {
     aiEnhancement: useAIEnhancement,
   });
+
+  const cronLog = await startCronLog("nudge-digest");
 
   try {
     // Step 1: Fetch all active nudge rules (ordered by priority)
@@ -397,6 +400,8 @@ async function handleDigest(request: NextRequest): Promise<NextResponse> {
 
     console.log("[Nudge Digest] Completed:", response);
 
+    await cronLog.success();
+
     return NextResponse.json({
       success: errors.length === 0,
       message: `Processed ${groupsProcessed} groups, sent ${nudgesSent} nudges`,
@@ -405,6 +410,7 @@ async function handleDigest(request: NextRequest): Promise<NextResponse> {
     });
   } catch (error) {
     console.error("[Nudge Digest] Error:", error);
+    await cronLog.fail(error instanceof Error ? error.message : "Digest processing failed");
 
     return NextResponse.json(
       {

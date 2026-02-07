@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { success, error } from "@/lib/api-utils";
 import { pullDeliveriesFromOdoo } from "@/lib/delivery-service";
+import { startCronLog } from "@/lib/health/cron-logger";
 
 // Vercel Cron secret for authentication
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -10,15 +11,17 @@ const CRON_SECRET = process.env.CRON_SECRET;
 // POST /api/deliveries/cron - Scheduled sync from Odoo
 // Configured in vercel.json to run every 5 minutes
 export async function POST(request: NextRequest) {
-  try {
-    // Verify cron secret if configured
-    if (CRON_SECRET) {
-      const authHeader = request.headers.get("authorization");
-      if (authHeader !== `Bearer ${CRON_SECRET}`) {
-        return error("Unauthorized", 401);
-      }
+  // Verify cron secret if configured
+  if (CRON_SECRET) {
+    const authHeader = request.headers.get("authorization");
+    if (authHeader !== `Bearer ${CRON_SECRET}`) {
+      return error("Unauthorized", 401);
     }
+  }
 
+  const cronLog = await startCronLog("delivery-sync");
+
+  try {
     // Sync deliveries from last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -28,13 +31,16 @@ export async function POST(request: NextRequest) {
 
     if (!result.success) {
       console.error("Cron sync failed:", result.error);
+      await cronLog.fail(result.message);
       return error(result.message, 500);
     }
 
     console.log("Cron sync completed:", result.data);
+    await cronLog.success();
     return success(result.data);
   } catch (err) {
     console.error("Error in POST /api/deliveries/cron:", err);
+    await cronLog.fail(err instanceof Error ? err.message : "Internal server error");
     return error("Internal server error", 500);
   }
 }
