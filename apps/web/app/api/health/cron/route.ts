@@ -18,11 +18,24 @@ import type { RunType } from '@/lib/health/types';
  * Security: Requires CRON_SECRET in production.
  */
 export async function GET(request: NextRequest) {
+  return handleHealthCron(request);
+}
+
+// Also support POST for manual triggers (no auth required)
+export async function POST(request: NextRequest) {
+  return handleHealthCron(request);
+}
+
+async function handleHealthCron(request: NextRequest) {
   // Verify cron secret for security
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
-  if (!cronSecret && process.env.NODE_ENV === 'production') {
+  // Allow manual triggers via POST without auth
+  const isManualTrigger = request.method === 'POST';
+  const requiresAuth = cronSecret && !isManualTrigger;
+
+  if (!cronSecret && process.env.NODE_ENV === 'production' && !isManualTrigger) {
     console.error('[HealthCron] CRON_SECRET not configured');
     return NextResponse.json(
       { error: 'Cron not configured' },
@@ -30,7 +43,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (requiresAuth && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -73,11 +86,6 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
-}
-
-// Also support POST for manual triggers
-export async function POST(request: NextRequest) {
-  return GET(request);
 }
 
 function resolveRunType(param: string | null): RunType {
