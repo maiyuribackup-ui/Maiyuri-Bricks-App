@@ -98,7 +98,7 @@ export async function checkStaleLeads(): Promise<HealthCheckResult> {
 
     return {
       checkName: 'stale-leads',
-      serviceName: 'Business Logic',
+      serviceName: 'Stale Leads',
       status,
       responseTimeMs,
       metadata: {
@@ -110,7 +110,7 @@ export async function checkStaleLeads(): Promise<HealthCheckResult> {
   } catch (error) {
     return {
       checkName: 'stale-leads',
-      serviceName: 'Business Logic',
+      serviceName: 'Stale Leads',
       status: 'unhealthy',
       responseTimeMs: 0,
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
@@ -193,7 +193,7 @@ export async function checkOdooSyncErrors(): Promise<HealthCheckResult> {
 
     return {
       checkName: 'odoo-sync-errors',
-      serviceName: 'Business Logic',
+      serviceName: 'Odoo Sync',
       status,
       responseTimeMs,
       metadata: {
@@ -203,7 +203,7 @@ export async function checkOdooSyncErrors(): Promise<HealthCheckResult> {
   } catch (error) {
     return {
       checkName: 'odoo-sync-errors',
-      serviceName: 'Business Logic',
+      serviceName: 'Odoo Sync',
       status: 'degraded',
       responseTimeMs: 0,
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
@@ -251,7 +251,7 @@ export async function checkStuckRecordings(): Promise<HealthCheckResult> {
 
     return {
       checkName: 'stuck-recordings',
-      serviceName: 'Business Logic',
+      serviceName: 'Call Recordings',
       status,
       responseTimeMs,
       metadata: {
@@ -262,7 +262,7 @@ export async function checkStuckRecordings(): Promise<HealthCheckResult> {
   } catch (error) {
     return {
       checkName: 'stuck-recordings',
-      serviceName: 'Business Logic',
+      serviceName: 'Call Recordings',
       status: 'degraded',
       responseTimeMs: 0,
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
@@ -281,11 +281,11 @@ export async function checkNudgeDelivery(): Promise<HealthCheckResult> {
     const [result, responseTimeMs] = await measureTime(async () => {
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-      // Count total nudges
+      // Count total nudges (nudge_history uses sent_at, not created_at)
       const { count: totalNudges, error: totalError } = await supabase
         .from('nudge_history')
         .select('*', { count: 'exact', head: true })
-        .gte('created_at', oneDayAgo);
+        .gte('sent_at', oneDayAgo);
 
       if (totalError) throw totalError;
 
@@ -294,34 +294,17 @@ export async function checkNudgeDelivery(): Promise<HealthCheckResult> {
         return { total: 0, failed: 0, failureRate: 0 };
       }
 
-      // Count failed nudges (try both status='failed' and delivered=false)
+      // Count failed nudges (delivered=false)
       let failed = 0;
 
-      try {
-        const { count: failedCount, error: failedError } = await supabase
-          .from('nudge_history')
-          .select('*', { count: 'exact', head: true })
-          .gte('created_at', oneDayAgo)
-          .eq('status', 'failed');
+      const { count: failedCount, error: failedError } = await supabase
+        .from('nudge_history')
+        .select('*', { count: 'exact', head: true })
+        .gte('sent_at', oneDayAgo)
+        .eq('delivered', false);
 
-        if (!failedError && failedCount !== null) {
-          failed = failedCount;
-        }
-      } catch {
-        // Try delivered=false approach
-        try {
-          const { count: failedCount, error: failedError } = await supabase
-            .from('nudge_history')
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', oneDayAgo)
-            .eq('delivered', false);
-
-          if (!failedError && failedCount !== null) {
-            failed = failedCount;
-          }
-        } catch {
-          // Can't determine failures, assume 0
-        }
+      if (!failedError && failedCount !== null) {
+        failed = failedCount;
       }
 
       const failureRate = (failed / total) * 100;
@@ -339,7 +322,7 @@ export async function checkNudgeDelivery(): Promise<HealthCheckResult> {
 
     return {
       checkName: 'nudge-delivery',
-      serviceName: 'Business Logic',
+      serviceName: 'Nudge Delivery',
       status,
       responseTimeMs,
       metadata: {
@@ -351,7 +334,7 @@ export async function checkNudgeDelivery(): Promise<HealthCheckResult> {
   } catch (error) {
     return {
       checkName: 'nudge-delivery',
-      serviceName: 'Business Logic',
+      serviceName: 'Nudge Delivery',
       status: 'degraded',
       responseTimeMs: 0,
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
@@ -428,7 +411,7 @@ export async function checkSmartQuoteHealth(): Promise<HealthCheckResult> {
 
     return {
       checkName: 'smart-quote-health',
-      serviceName: 'Business Logic',
+      serviceName: 'Smart Quotes',
       status,
       responseTimeMs,
       metadata: {
@@ -440,7 +423,7 @@ export async function checkSmartQuoteHealth(): Promise<HealthCheckResult> {
   } catch (error) {
     return {
       checkName: 'smart-quote-health',
-      serviceName: 'Business Logic',
+      serviceName: 'Smart Quotes',
       status: 'degraded',
       responseTimeMs: 0,
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
@@ -498,7 +481,7 @@ export async function checkKnowledgeEmbeddings(): Promise<HealthCheckResult> {
 
     return {
       checkName: 'knowledge-embeddings',
-      serviceName: 'Business Logic',
+      serviceName: 'Knowledge Embeddings',
       status,
       responseTimeMs,
       metadata: {
@@ -508,7 +491,7 @@ export async function checkKnowledgeEmbeddings(): Promise<HealthCheckResult> {
   } catch (error) {
     return {
       checkName: 'knowledge-embeddings',
-      serviceName: 'Business Logic',
+      serviceName: 'Knowledge Embeddings',
       status: 'degraded',
       responseTimeMs: 0,
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
@@ -584,7 +567,7 @@ export async function checkCronFreshness(): Promise<HealthCheckResult> {
     if (result.isEmptyLog) {
       return {
         checkName: 'cron-freshness',
-        serviceName: 'Business Logic',
+        serviceName: 'Cron Jobs',
         status: 'healthy',
         responseTimeMs,
         metadata: {
@@ -602,7 +585,7 @@ export async function checkCronFreshness(): Promise<HealthCheckResult> {
 
     return {
       checkName: 'cron-freshness',
-      serviceName: 'Business Logic',
+      serviceName: 'Cron Jobs',
       status,
       responseTimeMs,
       metadata: {
@@ -613,7 +596,7 @@ export async function checkCronFreshness(): Promise<HealthCheckResult> {
   } catch (error) {
     return {
       checkName: 'cron-freshness',
-      serviceName: 'Business Logic',
+      serviceName: 'Cron Jobs',
       status: 'degraded',
       responseTimeMs: 0,
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
