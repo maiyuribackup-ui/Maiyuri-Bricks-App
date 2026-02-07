@@ -30,7 +30,7 @@ export async function saveRunResults(result: HealthRunResult): Promise<void> {
       check_name: check.checkName,
       service_name: check.serviceName,
       status: check.status,
-      response_time_ms: check.responseTimeMs,
+      response_time_ms: Math.round(check.responseTimeMs),
       error_message: check.errorMessage ?? null,
       metadata: check.metadata ?? {},
       checked_at: result.completedAt,
