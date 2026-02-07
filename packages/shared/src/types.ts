@@ -39,6 +39,7 @@ export type LeadStage =
   | "quote_sent" // Quote/proposal sent
   | "quotation_pending" // Waiting for quotation response
   | "factory_visit" // Factory visit scheduled or done
+  | "negotiation" // Price negotiation in progress
   | "order_confirmed" // Order confirmed by customer
   | "in_production" // Order in production
   | "ready_dispatch" // Ready for dispatch

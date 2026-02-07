@@ -76,6 +76,12 @@ const stageConfig: Record<
     color:
       "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
   },
+  negotiation: {
+    label: "Negotiation",
+    icon: "🤝",
+    color:
+      "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
+  },
   order_confirmed: {
     label: "Order Confirmed",
     icon: "✅",
