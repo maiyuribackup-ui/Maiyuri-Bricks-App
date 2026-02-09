@@ -71,10 +71,22 @@ const stageConfig: Record<
       "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
   },
   factory_visit: {
-    label: "Factory Visit",
+    label: "Factory Visit Pending",
     icon: "🏭",
     color:
       "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+  },
+  factory_visit_pending: {
+    label: "Factory Visit Pending",
+    icon: "🏭",
+    color:
+      "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+  },
+  factory_visit_completed: {
+    label: "Factory Visit Completed",
+    icon: "🏭",
+    color:
+      "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
   },
   negotiation: {
     label: "Negotiation",
@@ -110,7 +122,8 @@ const stageConfig: Record<
 const stageOptions: LeadStage[] = [
   "inquiry",
   "quote_sent",
-  "factory_visit",
+  "factory_visit_pending",
+  "factory_visit_completed",
   "negotiation",
   "order_confirmed",
   "in_production",
@@ -382,9 +395,9 @@ export default function LeadDetailPage() {
       </div>
 
       {/* Enhanced Header Card - Issue #8 */}
-      <Card className="p-0 overflow-hidden">
+      <Card className="p-0 overflow-visible">
         {/* Status Color Bar */}
-        <div className={`h-2 ${getStatusColor(lead.status)}`} />
+        <div className={`h-2 rounded-t-lg ${getStatusColor(lead.status)}`} />
 
         <div className="p-6">
           {/* Top Row: Back, Name, Actions */}

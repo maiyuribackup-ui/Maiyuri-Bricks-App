@@ -88,10 +88,22 @@ const stageConfig: Record<
       "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300",
   },
   factory_visit: {
-    label: "Factory Visit",
+    label: "Factory Visit Pending",
     icon: "🏭",
     color:
       "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300",
+  },
+  factory_visit_pending: {
+    label: "Factory Visit Pending",
+    icon: "🏭",
+    color:
+      "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300",
+  },
+  factory_visit_completed: {
+    label: "Factory Visit Completed",
+    icon: "🏭",
+    color:
+      "bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300",
   },
   negotiation: {
     label: "Negotiation",
