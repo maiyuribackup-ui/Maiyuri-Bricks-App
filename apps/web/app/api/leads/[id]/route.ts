@@ -91,13 +91,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         return notFound("Lead not found");
       }
       console.error("Database error:", dbError);
-      return error("Failed to update lead", 500);
+      return error(
+        `Failed to update lead: ${dbError.message ?? dbError.code ?? "Unknown database error"}`,
+        500,
+      );
     }
 
     return success<Lead>(lead);
   } catch (err) {
     console.error("Error updating lead:", err);
-    return error("Internal server error", 500);
+    return error(
+      `Internal server error: ${err instanceof Error ? err.message : "Unknown error"}`,
+      500,
+    );
   }
 }
 
