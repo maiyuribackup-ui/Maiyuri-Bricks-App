@@ -57,7 +57,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       .eq("id", id)
       .single();
 
-    const updateData = { ...parsed.data };
+    // Clean undefined values from parsed data to prevent DB issues
+    const updateData: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(parsed.data)) {
+      if (value !== undefined) {
+        updateData[key] = value;
+      }
+    }
 
     // Handle auto-archive/unarchive on status transitions (Issue #12)
     if (updateData.status && currentLead) {
@@ -90,14 +96,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       if (dbError.code === "PGRST116") {
         return notFound("Lead not found");
       }
-      console.error("Database error:", dbError);
-      return error("Failed to update lead", 500);
+      console.error("Database error updating lead:", dbError);
+      return error(
+        `Failed to update lead: ${dbError.message ?? dbError.code ?? "Unknown database error"}`,
+        500,
+      );
     }
 
     return success<Lead>(lead);
   } catch (err) {
     console.error("Error updating lead:", err);
-    return error("Internal server error", 500);
+    return error(
+      `Internal server error: ${err instanceof Error ? err.message : "Unknown error"}`,
+      500,
+    );
   }
 }
 
