@@ -377,7 +377,10 @@ export async function processRecording(
       logProgress(id, "Triggering event nudge for call recording");
 
       // Extract objections from insights if available
-      const objections = analysis.insights?.negativeSignals || [];
+      const objections = [
+        ...(analysis.insights?.complaints || []),
+        ...(analysis.insights?.negative_feedback || []),
+      ];
 
       // Trigger call_recording_processed nudge (non-blocking)
       triggerCallRecordingNudge({
