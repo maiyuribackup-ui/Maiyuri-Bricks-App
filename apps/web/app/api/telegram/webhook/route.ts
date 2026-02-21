@@ -337,6 +337,19 @@ export async function POST(request: NextRequest) {
       `[Telegram Webhook] Recording queued: ${recording.id} for phone ${normalizedPhone}`,
     );
 
+    // Trigger processing immediately (fire-and-forget)
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL ??
+      "https://maiyuri-bricks-app.vercel.app";
+    fetch(`${appUrl}/api/recordings/process`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.CRON_SECRET}`,
+      },
+      body: JSON.stringify({ recording_id: recording.id }),
+    }).catch(() => {}); // Fire and forget
+
     return NextResponse.json({ ok: true, recording_id: recording.id });
   } catch (error) {
     // Structured error logging for debugging
@@ -505,6 +518,19 @@ async function handlePhoneInput(
   console.warn(
     `[Telegram Webhook] Recording ${pendingRecording.id} linked to phone ${normalizedPhone}, lead=${lead?.id ?? "none"}`,
   );
+
+  // Trigger processing immediately (fire-and-forget)
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    "https://maiyuri-bricks-app.vercel.app";
+  fetch(`${appUrl}/api/recordings/process`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.CRON_SECRET}`,
+    },
+    body: JSON.stringify({ recording_id: pendingRecording.id }),
+  }).catch(() => {}); // Fire and forget
 
   return NextResponse.json({ ok: true, recording_id: pendingRecording.id });
 }
