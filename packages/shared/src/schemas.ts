@@ -19,6 +19,7 @@ export const leadStageSchema = z.enum([
   "factory_visit",
   "factory_visit_pending",
   "factory_visit_completed",
+  "negotiation",
   "order_confirmed",
   "in_production",
   "ready_dispatch",
@@ -32,6 +33,9 @@ export const leadClassificationSchema = z.enum([
   "builder",
   "dealer",
   "architect",
+  // Legacy values from pre-existing DB enum (automotive). Kept for backward compatibility.
+  "walk_in",
+  "referral",
 ]);
 
 // Requirement Type Schema
@@ -40,6 +44,11 @@ export const requirementTypeSchema = z.enum([
   "commercial_building",
   "eco_friendly_building",
   "compound_wall",
+  // Legacy values from pre-existing DB enum (automotive). Kept for backward compatibility.
+  "sedan",
+  "suv",
+  "pickup",
+  "commercial",
 ]);
 
 // Product Interest Schema (multi-select)

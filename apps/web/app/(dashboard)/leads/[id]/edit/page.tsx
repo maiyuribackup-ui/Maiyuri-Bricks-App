@@ -88,22 +88,19 @@ async function fetchUsers() {
 }
 
 async function updateLead(id: string, data: UpdateLeadInput) {
-  console.log("[DEBUG] Updating lead:", id, "with data:", JSON.stringify(data, null, 2));
   const res = await fetch(`/api/leads/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  console.log("[DEBUG] Response status:", res.status, res.statusText);
   if (!res.ok) {
     const text = await res.text();
-    console.error("[DEBUG] Error response body:", text);
     let errorMessage = "Failed to update lead";
     try {
       const errorJson = JSON.parse(text);
       errorMessage = errorJson.error || errorMessage;
     } catch {
-      errorMessage = `Failed to update lead (status ${res.status}): ${text.substring(0, 200)}`;
+      errorMessage = `Failed to update lead (status ${res.status})`;
     }
     throw new Error(errorMessage);
   }
