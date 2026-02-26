@@ -95,7 +95,7 @@ export interface NotificationData {
   summary: string;
   insights: CallInsights;
   scoreImpact: number;
-  driveUrl: string;
+  driveUrl?: string;
   extractedDetails?: ExtractedLeadDetails;
   isNewlyAutoPopulated?: boolean;
 }

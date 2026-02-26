@@ -163,23 +163,34 @@ export async function processRecording(
     // ========================================
     // Stage 2: Upload to Google Drive (raw audio)
     // ========================================
-    await updateStatus(id, "uploading");
-    logProgress(id, "Uploading to Google Drive");
-
     const lead = await getLeadDetails(lead_id);
-    const driveResult = await uploadToGoogleDrive(
-      audioBuffer,
-      phone_number,
-      original_filename,
-      lead?.name,
-    );
+    let driveResult: { fileId: string; webViewLink: string; webContentLink?: string } | null = null;
 
-    logProgress(id, "Uploaded to Drive", { fileId: driveResult.fileId });
+    const hasGDriveCredentials =
+      process.env.GOOGLE_CLIENT_ID &&
+      process.env.GOOGLE_CLIENT_SECRET &&
+      process.env.GOOGLE_REFRESH_TOKEN;
 
-    await updateStatus(id, "uploading", {
-      mp3_gdrive_file_id: driveResult.fileId,
-      mp3_gdrive_url: driveResult.webViewLink,
-    });
+    if (hasGDriveCredentials) {
+      await updateStatus(id, "uploading");
+      logProgress(id, "Uploading to Google Drive");
+
+      driveResult = await uploadToGoogleDrive(
+        audioBuffer,
+        phone_number,
+        original_filename,
+        lead?.name,
+      );
+
+      logProgress(id, "Uploaded to Drive", { fileId: driveResult.fileId });
+
+      await updateStatus(id, "uploading", {
+        mp3_gdrive_file_id: driveResult.fileId,
+        mp3_gdrive_url: driveResult.webViewLink,
+      });
+    } else {
+      logProgress(id, "Skipping Google Drive upload (credentials not configured)");
+    }
 
     // ========================================
     // Stage 3: Transcribe with Gemini
@@ -331,7 +342,7 @@ export async function processRecording(
       summary: analysis.summary,
       insights: analysis.insights,
       scoreImpact: analysis.scoreImpact,
-      driveUrl: driveResult.webViewLink,
+      driveUrl: driveResult?.webViewLink,
       extractedDetails: extractedDetails ?? undefined,
       isNewlyAutoPopulated,
     });

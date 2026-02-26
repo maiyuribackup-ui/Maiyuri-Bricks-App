@@ -183,7 +183,9 @@ export async function sendCallRecordingNotification(
 
   message += `\u{1F525} *Conversion Score Impact:* ${scoreIndicator}\n\n`;
 
-  message += `\u{1F3A7} [Listen to Recording](${driveUrl})\n`;
+  if (driveUrl) {
+    message += `\u{1F3A7} [Listen to Recording](${driveUrl})\n`;
+  }
   if (leadId) {
     message += `\u{1F4CB} [View Lead](${APP_URL}/leads/${leadId})\n`;
   }

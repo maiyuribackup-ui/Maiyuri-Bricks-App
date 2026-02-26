@@ -44,6 +44,10 @@ const publicApiRoutes = [
   "/api/odoo/cron", // Odoo sync cron job
   "/api/deliveries/cron", // Delivery sync cron job
   "/api/sq/", // Smart quote public pages (customer-facing)
+  "/api/recordings/process", // Call recording processor (uses CRON_SECRET auth)
+  "/api/admin/call-recordings", // Admin call recording management (uses internal auth)
+  "/api/nudges/events", // Nudge event triggers (uses CRON_SECRET auth)
+  "/api/leads/", // Lead analysis triggers (uses CRON_SECRET auth)
 ];
 
 // Routes that need rate limiting
