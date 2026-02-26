@@ -23,7 +23,7 @@
     },
     {
       "path": "/api/health/cron",
-      "schedule": "0 8,20 * * *"
+      "schedule": "0 8 * * *"
     }
   ]
 }
