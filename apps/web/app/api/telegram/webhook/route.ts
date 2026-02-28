@@ -337,18 +337,39 @@ export async function POST(request: NextRequest) {
       `[Telegram Webhook] Recording queued: ${recording.id} for phone ${normalizedPhone}`,
     );
 
-    // Trigger processing immediately (fire-and-forget)
+    // Trigger processing reliably (awaited with timeout)
+    // AbortController ensures we don't block the webhook response indefinitely.
+    // Once the request reaches Vercel, the process endpoint runs independently
+    // even if we abort — serverless functions survive client disconnection.
     const appUrl =
       process.env.NEXT_PUBLIC_APP_URL ??
       "https://maiyuri-bricks-app.vercel.app";
-    fetch(`${appUrl}/api/recordings/process`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.CRON_SECRET}`,
-      },
-      body: JSON.stringify({ recording_id: recording.id }),
-    }).catch(() => {}); // Fire and forget
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+
+    try {
+      await fetch(`${appUrl}/api/recordings/process`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.CRON_SECRET}`,
+        },
+        body: JSON.stringify({ recording_id: recording.id }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      console.warn(`[Telegram Webhook] Processing trigger completed for ${recording.id}`);
+    } catch (triggerErr) {
+      clearTimeout(timeoutId);
+      if (triggerErr instanceof Error && triggerErr.name === "AbortError") {
+        // Timeout is expected — processing started server-side and continues independently
+        console.warn(`[Telegram Webhook] Processing trigger sent for ${recording.id} (response timeout — processing continues server-side)`);
+      } else {
+        // Real failure — backup cron will catch this recording
+        console.error(`[Telegram Webhook] Processing trigger FAILED for ${recording.id}:`, triggerErr);
+      }
+    }
 
     return NextResponse.json({ ok: true, recording_id: recording.id });
   } catch (error) {
@@ -519,18 +540,34 @@ async function handlePhoneInput(
     `[Telegram Webhook] Recording ${pendingRecording.id} linked to phone ${normalizedPhone}, lead=${lead?.id ?? "none"}`,
   );
 
-  // Trigger processing immediately (fire-and-forget)
+  // Trigger processing reliably (awaited with timeout)
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL ??
     "https://maiyuri-bricks-app.vercel.app";
-  fetch(`${appUrl}/api/recordings/process`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.CRON_SECRET}`,
-    },
-    body: JSON.stringify({ recording_id: pendingRecording.id }),
-  }).catch(() => {}); // Fire and forget
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    await fetch(`${appUrl}/api/recordings/process`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.CRON_SECRET}`,
+      },
+      body: JSON.stringify({ recording_id: pendingRecording.id }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    console.warn(`[Telegram Webhook] Processing trigger completed for ${pendingRecording.id}`);
+  } catch (triggerErr) {
+    clearTimeout(timeoutId);
+    if (triggerErr instanceof Error && triggerErr.name === "AbortError") {
+      console.warn(`[Telegram Webhook] Processing trigger sent for ${pendingRecording.id} (response timeout — processing continues server-side)`);
+    } else {
+      console.error(`[Telegram Webhook] Processing trigger FAILED for ${pendingRecording.id}:`, triggerErr);
+    }
+  }
 
   return NextResponse.json({ ok: true, recording_id: pendingRecording.id });
 }

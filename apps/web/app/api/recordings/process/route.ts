@@ -113,7 +113,35 @@ async function getNextRecording(
 }
 
 /**
+ * Get ALL pending recordings for batch processing (cron)
+ */
+async function getAllPendingRecordings(): Promise<CallRecording[]> {
+  const supabase = getSupabaseAdmin();
+
+  const { data, error } = await supabase
+    .from("call_recordings")
+    .select(
+      "id, lead_id, phone_number, telegram_file_id, telegram_chat_id, original_filename, processing_status, retry_count, file_size_bytes",
+    )
+    .in("processing_status", ["pending", "failed"])
+    .lt("retry_count", 3)
+    .neq("phone_number", "PENDING")
+    .order("created_at", { ascending: true })
+    .limit(10); // Process up to 10 per cron invocation
+
+  if (error) {
+    logError("Failed to fetch pending recordings", error);
+    return [];
+  }
+
+  return (data ?? []) as CallRecording[];
+}
+
+/**
  * Main handler for both POST and GET
+ *
+ * POST with { recording_id } → process specific recording (webhook trigger)
+ * GET → process ALL pending recordings (cron backup)
  */
 async function handleProcess(request: NextRequest): Promise<NextResponse> {
   if (!isAuthorized(request)) {
@@ -126,7 +154,7 @@ async function handleProcess(request: NextRequest): Promise<NextResponse> {
     // Step 1: Recover stale recordings
     const recovered = await recoverStaleRecordings();
 
-    // Step 2: Determine which recording to process
+    // Step 2: Determine mode — single (POST with ID) or batch (GET cron)
     let recordingId: string | undefined;
 
     if (request.method === "POST") {
@@ -134,14 +162,60 @@ async function handleProcess(request: NextRequest): Promise<NextResponse> {
         const body = await request.json();
         recordingId = body.recording_id;
       } catch {
-        // No body or invalid JSON - process oldest pending
+        // No body or invalid JSON - fall through to batch mode
       }
     }
 
-    // Step 3: Get the recording
-    const recording = await getNextRecording(recordingId);
+    // =============================================
+    // Single recording mode (webhook trigger)
+    // =============================================
+    if (recordingId) {
+      const recording = await getNextRecording(recordingId);
 
-    if (!recording) {
+      if (!recording) {
+        log(`Recording ${recordingId} not found`);
+        await cronLog.success();
+        return NextResponse.json({
+          ok: true,
+          message: "Recording not found",
+          recovered,
+        });
+      }
+
+      if (recording.processing_status === "completed") {
+        log(`Recording ${recording.id} already completed`);
+        await cronLog.success();
+        return NextResponse.json({
+          ok: true,
+          message: "Recording already completed",
+          recording_id: recording.id,
+        });
+      }
+
+      log("Processing recording (single)", {
+        id: recording.id,
+        phone: recording.phone_number,
+        status: recording.processing_status,
+        retry: recording.retry_count,
+      });
+
+      await processRecording(recording);
+      await cronLog.success();
+
+      return NextResponse.json({
+        ok: true,
+        recording_id: recording.id,
+        status: "completed",
+        recovered,
+      });
+    }
+
+    // =============================================
+    // Batch mode (cron backup) — process ALL pending
+    // =============================================
+    const pendingRecordings = await getAllPendingRecordings();
+
+    if (pendingRecordings.length === 0) {
       log("No recordings to process");
       await cronLog.success();
       return NextResponse.json({
@@ -151,33 +225,41 @@ async function handleProcess(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // Skip if already completed
-    if (recording.processing_status === "completed") {
-      log(`Recording ${recording.id} already completed`);
-      await cronLog.success();
-      return NextResponse.json({
-        ok: true,
-        message: "Recording already completed",
-        recording_id: recording.id,
-      });
+    log(`Batch processing ${pendingRecordings.length} pending recordings`);
+
+    const results: Array<{ id: string; status: string; error?: string }> = [];
+
+    for (const recording of pendingRecordings) {
+      if (recording.processing_status === "completed") {
+        results.push({ id: recording.id, status: "skipped_completed" });
+        continue;
+      }
+
+      try {
+        log("Processing recording (batch)", {
+          id: recording.id,
+          phone: recording.phone_number,
+          status: recording.processing_status,
+          retry: recording.retry_count,
+        });
+
+        await processRecording(recording);
+        results.push({ id: recording.id, status: "completed" });
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        logError(`Batch processing failed for ${recording.id}`, error);
+        results.push({ id: recording.id, status: "failed", error: errMsg });
+        // Continue processing remaining recordings — don't let one failure stop the batch
+      }
     }
-
-    // Step 4: Process the recording
-    log("Processing recording", {
-      id: recording.id,
-      phone: recording.phone_number,
-      status: recording.processing_status,
-      retry: recording.retry_count,
-    });
-
-    await processRecording(recording);
 
     await cronLog.success();
 
     return NextResponse.json({
       ok: true,
-      recording_id: recording.id,
-      status: "completed",
+      mode: "batch",
+      total: pendingRecordings.length,
+      results,
       recovered,
     });
   } catch (error) {
