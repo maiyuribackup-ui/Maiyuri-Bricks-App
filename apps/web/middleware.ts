@@ -45,6 +45,7 @@ const publicApiRoutes = [
   "/api/deliveries/cron", // Delivery sync cron job
   "/api/sq/", // Smart quote public pages (customer-facing)
   "/api/feedback/", // Factory-visit feedback (token-gated; the opaque token is the auth)
+  "/api/salespulse/", // SalesPulse digest gather + send (token-gated; SALESPULSE_TOKEN bearer is the auth)
   "/api/recordings/process", // Call recording processor (uses CRON_SECRET auth)
   "/api/admin/call-recordings", // Admin call recording management (uses internal auth)
   "/api/nudges/events", // Nudge event triggers (uses CRON_SECRET auth)
