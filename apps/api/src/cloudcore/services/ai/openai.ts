@@ -8,10 +8,20 @@
 import OpenAI from 'openai';
 import type { CloudCoreResult, TokenUsage } from '../../types';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-});
+// Lazily initialize the OpenAI client.
+// The OpenAI SDK throws "Missing credentials" in its constructor when no API
+// key is present. Constructing at module load broke `next build` (page-data
+// collection imports this module without runtime env vars set). Deferring
+// construction to first use keeps module import side-effect-free.
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY || '',
+    });
+  }
+  return _openai;
+}
 
 const DEFAULT_MODEL = 'gpt-4o';
 const DEFAULT_MAX_TOKENS = 2048;
@@ -42,7 +52,7 @@ export async function complete(
   try {
     const model = request.model || DEFAULT_MODEL;
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model,
       messages: [
         { role: 'system', content: request.systemPrompt },
