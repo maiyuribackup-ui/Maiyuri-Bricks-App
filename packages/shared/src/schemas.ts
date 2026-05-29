@@ -136,6 +136,8 @@ export const updateLeadSchema = z.object({
   archive_reason: emptyStringToNull(z.string().nullable().optional()),
   // Lost reason - mandatory when status is "lost"
   lost_reason: emptyStringToNull(z.string().nullable().optional()),
+  // Preferred language for the factory-visit feedback survey (Phase 6)
+  language_preference: z.enum(["en", "ta"]).optional(),
 });
 
 export const createNoteSchema = z.object({

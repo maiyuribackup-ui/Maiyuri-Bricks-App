@@ -130,6 +130,11 @@ export interface Lead {
   odoo_sync_status?: "pending" | "synced" | "error" | "not_synced" | null;
   // SmartQuote AI Payload - personalization data for Smart Quote generation
   smart_quote_payload?: SmartQuotePayload | null;
+  // Factory-visit feedback (Phase 6): opaque token powers the public
+  // /feedback/<token> survey URL + QR code. Auto-issued by a DB trigger on
+  // insert, so it is always present for persisted leads.
+  feedback_token?: string | null;
+  language_preference?: LanguagePreference | null;
 }
 
 // Archive Configuration Types
