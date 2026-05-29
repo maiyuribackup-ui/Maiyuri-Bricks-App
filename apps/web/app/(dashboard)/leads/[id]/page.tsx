@@ -20,6 +20,7 @@ import {
   WhatsAppButton,
   SmartQuoteCard,
   FeedbackQRCard,
+  FeedbackResultsCard,
   UnifiedAIInsights,
 } from "@/components/leads";
 import { LeadActivityTimeline } from "@/components/timeline";
@@ -773,6 +774,7 @@ export default function LeadDetailPage() {
 
           {/* Factory Visit Feedback QR / Link (Phase 6) */}
           <FeedbackQRCard lead={lead} />
+          <FeedbackResultsCard lead={lead} />
 
           {/* Odoo Sync Card */}
           <Card className="p-4">

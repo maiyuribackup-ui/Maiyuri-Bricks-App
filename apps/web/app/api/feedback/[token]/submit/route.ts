@@ -18,6 +18,10 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { created, error, notFound, handleZodError } from "@/lib/api-utils";
+import { sendAppNotification } from "@/lib/telegram";
+
+// Staff member to call out in the feedback alert.
+const STAFF_TO_ALERT = "Nithya";
 
 const TOKEN_RE = /^[A-HJ-NP-Z2-9]{10}$/;
 
@@ -129,6 +133,40 @@ function buildNoteText(p: SubmitPayload, leadName: string): string {
   return lines.join(" ");
 }
 
+function ratingStars(n: number): string {
+  const r = Math.max(0, Math.min(5, n));
+  return "⭐".repeat(r);
+}
+
+// Build the staff Telegram alert. Markdown-formatted; names go through verbatim
+// (lead names are short and safe enough for Telegram's lenient Markdown).
+function buildAlertText(
+  p: SubmitPayload,
+  lead: { id: string; name: string },
+  flags: { priority_followup: boolean; followup_reason?: string },
+  nextLabel: string | undefined,
+): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://mb.maiyuri.com";
+  const lines: string[] = [];
+  lines.push("🏭 *New factory-visit feedback*");
+  lines.push("");
+  lines.push(`*Lead:* ${lead.name}`);
+  lines.push(`*Rating:* ${ratingStars(p.visit.rating)} (${p.visit.rating}/5)`);
+  if (p.product.concerns.length) {
+    lines.push(`*Concerns:* ${p.product.concerns.join(", ")}`);
+  }
+  lines.push(`*Wants next:* ${nextLabel || p.next_step.action}`);
+  if (flags.priority_followup) {
+    lines.push(
+      `⚠️ *Priority follow-up* — ${flags.followup_reason || "needs attention"}`,
+    );
+  }
+  lines.push("");
+  lines.push(`👤 *${STAFF_TO_ALERT}*, please follow up.`);
+  lines.push(`🔗 ${appUrl}/leads/${lead.id}`);
+  return lines.join("\n");
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> },
@@ -216,11 +254,20 @@ export async function POST(
     exploring: "Keep informed — visitor exploring",
   };
   const nextLabel = NEXT_ACTION_LABELS[payload.next_step.action];
-  if (nextLabel && !lead.next_action) {
+  // Override a stale next_action when the lead has none yet, OR when this
+  // feedback raised a priority flag (a fresh, explicit request should win).
+  if (nextLabel && (!lead.next_action || flags.priority_followup)) {
     await supabaseAdmin
       .from("leads")
       .update({ next_action: nextLabel })
       .eq("id", lead.id);
+  }
+
+  // 7) Best-effort staff alert via Telegram (non-blocking; never fails the submit).
+  try {
+    await sendAppNotification(buildAlertText(payload, lead, flags, nextLabel));
+  } catch (alertErr) {
+    console.error("[feedback] alert failed:", alertErr);
   }
 
   return created({
