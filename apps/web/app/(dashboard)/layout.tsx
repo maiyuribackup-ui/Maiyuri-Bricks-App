@@ -196,20 +196,15 @@ export default function DashboardLayout({
               {/* Sidebar content */}
               <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white dark:bg-slate-800 px-6 pb-4">
                 <div className="flex h-20 shrink-0 items-center">
-                  <Link href="/dashboard" className="flex items-center gap-2">
+                  <Link href="/dashboard" className="flex items-center">
                     <Image
-                      src="/logo.png"
-                      alt="Maiyuri Bricks"
-                      width={56}
-                      height={56}
-                      className="h-14 w-14"
+                      src="/logo-wide.png"
+                      alt="Maiyuri Bricks — Smart Interlock Bricks"
+                      width={200}
+                      height={50}
+                      className="h-auto w-44"
+                      priority
                     />
-                    <span
-                      className="text-lg font-bold"
-                      style={{ color: brandColors.primary }}
-                    >
-                      Maiyuri Bricks
-                    </span>
                   </Link>
                 </div>
                 <nav className="flex flex-1 flex-col">
@@ -309,20 +304,15 @@ export default function DashboardLayout({
         >
           <MenuIcon className="h-6 w-6" />
         </button>
-        <Link href="/dashboard" className="flex-1 flex items-center gap-2">
+        <Link href="/dashboard" className="flex-1 flex items-center">
           <Image
-            src="/logo.png"
-            alt="Maiyuri Bricks"
-            width={40}
-            height={40}
-            className="h-10 w-10"
+            src="/logo-wide.png"
+            alt="Maiyuri Bricks — Smart Interlock Bricks"
+            width={180}
+            height={45}
+            className="h-auto w-40"
+            priority
           />
-          <span
-            className="text-sm font-semibold"
-            style={{ color: brandColors.primary }}
-          >
-            Maiyuri Bricks
-          </span>
         </Link>
       </header>
 
@@ -331,20 +321,15 @@ export default function DashboardLayout({
         <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 px-6 pb-4">
           {/* Logo */}
           <div className="flex h-20 shrink-0 items-center">
-            <Link href="/dashboard" className="flex items-center gap-2">
+            <Link href="/dashboard" className="flex items-center">
               <Image
-                src="/logo.png"
-                alt="Maiyuri Bricks"
-                width={56}
-                height={56}
-                className="h-14 w-14"
+                src="/logo-wide.png"
+                alt="Maiyuri Bricks — Smart Interlock Bricks"
+                width={200}
+                height={50}
+                className="h-auto w-44"
+                priority
               />
-              <span
-                className="text-lg font-bold"
-                style={{ color: brandColors.primary }}
-              >
-                Maiyuri Bricks
-              </span>
             </Link>
           </div>
 
