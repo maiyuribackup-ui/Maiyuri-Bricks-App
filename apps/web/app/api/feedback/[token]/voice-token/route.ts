@@ -10,8 +10,8 @@
  * Flow:
  *   1. Resolve `feedback_token` -> lead (same lookup as the Phase-2 GET route).
  *   2. Fetch the personalisation context (latest note + conversation chain).
- *   3. Build the locked Live config (bilingual system prompt + submit_feedback
- *      tool + warm female voice).
+ *   3. Build the locked Live config (Tamil-first system prompt + submit_feedback
+ *      tool + warm male voice).
  *   4. Call Gemini's authTokens.create with that config + a 10-minute expiry.
  *   5. Return { token, model, expires_at, language } to the client.
  *
@@ -86,7 +86,7 @@ export async function POST(
   const { data: lead, error: leadErr } = await supabaseAdmin
     .from("leads")
     .select(
-      "id, name, language_preference, lead_type, status, next_action",
+      "id, name, language_preference, lead_type, status, next_action, ai_summary",
     )
     .eq("feedback_token", token)
     .maybeSingle();
@@ -105,6 +105,26 @@ export async function POST(
 
   const latest_note_summary =
     noteRow?.ai_summary ?? (noteRow?.text ? noteRow.text.slice(0, 240) : null);
+
+  // 2b) Most recent PROCESSED phone-call recording — its AI summary is the
+  //     literal "previous call" the host should sound informed about.
+  const { data: callRow } = await supabaseAdmin
+    .from("call_recordings")
+    .select("ai_summary, processing_status, created_at")
+    .eq("lead_id", lead.id)
+    .eq("processing_status", "completed")
+    .not("ai_summary", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const previous_call_summary = callRow?.ai_summary
+    ? String(callRow.ai_summary).slice(0, 600)
+    : null;
+
+  const lead_ai_summary = lead.ai_summary
+    ? String(lead.ai_summary).slice(0, 600)
+    : null;
 
   // 3) Conversation chain — open threads.
   const { data: chainRow } = await supabaseAdmin
@@ -126,8 +146,10 @@ export async function POST(
         ]
       : null;
 
+  // Tamil is the default voice language for the factory-visit audience; only an
+  // explicit "en" preference opens the call in English.
   const language: VoiceLanguage =
-    (lead.language_preference as VoiceLanguage) ?? "en";
+    lead.language_preference === "en" ? "en" : "ta";
 
   const ctx: VoiceLeadContext = {
     first_name: firstName(lead.name),
@@ -137,6 +159,8 @@ export async function POST(
     status: lead.status ?? null,
     current_next_action: lead.next_action ?? null,
     latest_note_summary,
+    lead_ai_summary,
+    previous_call_summary,
     unresolved_objections: asStringArray(chainRow?.unresolved_objections),
     unfulfilled_promises: asStringArray(chainRow?.unfulfilled_promises),
     recent_buying_stage,

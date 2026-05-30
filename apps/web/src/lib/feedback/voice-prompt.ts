@@ -2,8 +2,8 @@
  * Voice-feedback prompt + tool builder (Phase 4).
  *
  * Produces the locked Gemini Live session configuration for a single factory-
- * visit voice conversation: the bilingual (EN / தமிழ்) system instruction, the
- * single callable tool (`submit_feedback`), and the warm-female TTS voice.
+ * visit voice conversation: the Tamil-first (EN / தமிழ்) system instruction, the
+ * single callable tool (`submit_feedback`), and the warm male TTS voice.
  *
  * The system prompt is personalised from the same lead context the Phase-2 GET
  * endpoint returns, so "Maiyuri" greets the visitor by name and can gently
@@ -21,8 +21,15 @@ import { Type, type FunctionDeclaration } from "@google/genai";
 
 export type VoiceLanguage = "en" | "ta";
 
-/** Warm, female prebuilt voice. "Aoede" is the warmest of the Live voices. */
-export const VOICE_NAME = "Aoede";
+/**
+ * Prebuilt Live voice. "Charon" is a warm, deep, calm MALE voice — the most
+ * mature/gracious of the male timbres, which suits a Tamil-speaking factory
+ * host. Gemini's prebuilt voices are NOT region-accented; they adapt their
+ * pronunciation to whatever language the session speaks, so Charon renders
+ * natural Tamil. Other male options if we want to retune: "Orus" (firm),
+ * "Puck" (upbeat/younger), "Fenrir" (energetic).
+ */
+export const VOICE_NAME = "Charon";
 
 /**
  * Live model id. Must be one the API actually serves for `bidiGenerateContent`
@@ -47,6 +54,10 @@ export interface VoiceLeadContext {
   status: string | null;
   current_next_action: string | null;
   latest_note_summary: string | null;
+  /** Lead-level AI rollup summary (leads.ai_summary). */
+  lead_ai_summary: string | null;
+  /** AI summary of the most recent processed phone call (call_recordings.ai_summary). */
+  previous_call_summary: string | null;
   unresolved_objections: string[];
   unfulfilled_promises: string[];
   recent_buying_stage: string | null;
@@ -144,8 +155,12 @@ function contextBlock(ctx: VoiceLeadContext): string {
   if (ctx.recent_buying_stage) lines.push(`Buying stage: ${ctx.recent_buying_stage}.`);
   if (ctx.current_next_action)
     lines.push(`Team's planned next step: ${ctx.current_next_action}.`);
+  if (ctx.previous_call_summary)
+    lines.push(`Summary of our previous phone call with them: ${ctx.previous_call_summary}`);
+  if (ctx.lead_ai_summary)
+    lines.push(`Overall AI summary of this lead so far: ${ctx.lead_ai_summary}`);
   if (ctx.latest_note_summary)
-    lines.push(`Last interaction summary: ${ctx.latest_note_summary}`);
+    lines.push(`Last interaction note: ${ctx.latest_note_summary}`);
   if (ctx.unresolved_objections.length)
     lines.push(`Known open objections: ${ctx.unresolved_objections.join("; ")}.`);
   if (ctx.unfulfilled_promises.length)
@@ -160,9 +175,9 @@ function contextBlock(ctx: VoiceLeadContext): string {
  */
 export function buildVoiceSystemPrompt(ctx: VoiceLeadContext): string {
   const langLine =
-    ctx.language_preference === "ta"
-      ? "Open in Tamil (தமிழ்). If the visitor replies in English or Tanglish, switch to match them immediately."
-      : "Open in English. If the visitor replies in Tamil or Tanglish, switch to match them immediately.";
+    ctx.language_preference === "en"
+      ? "Open in English. If the visitor replies in Tamil or Tanglish, switch to match them immediately."
+      : "Greet and speak in natural, conversational Tamil (தமிழ்) by default — this is the default language. Use everyday spoken Tamil (Tanglish loanwords like 'quote', 'sample', 'WhatsApp' are fine), not formal/literary Tamil. Only switch fully to English if the visitor clearly speaks to you in English.";
 
   return [
     "You are Maiyuri, the warm, friendly voice host for Maiyuri Bricks, an AAC",
