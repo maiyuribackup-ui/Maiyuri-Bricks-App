@@ -85,18 +85,27 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
 
   // Content Security Policy
   // Note: 'unsafe-eval' is only needed for Next.js HMR in development
+  // `blob:` is required so the voice-feedback mic capture can load its
+  // AudioWorklet processor, which is shipped as an inline Blob URL. Without it
+  // `audioWorklet.addModule(blob:...)` throws AbortError and the call drops.
   const scriptSrc = isDev
-    ? "'self' 'unsafe-inline' 'unsafe-eval'"
-    : "'self' 'unsafe-inline'";
+    ? "'self' 'unsafe-inline' 'unsafe-eval' blob:"
+    : "'self' 'unsafe-inline' blob:";
 
   response.headers.set(
     "Content-Security-Policy",
     [
       "default-src 'self'",
       `script-src ${scriptSrc}`,
-      "style-src 'self' 'unsafe-inline'",
+      // worker-src governs AudioWorklet/Worker module loading (falls back to
+      // script-src in some engines, but Safari/iOS needs it explicit). blob: is
+      // needed for the inline mic-capture worklet.
+      "worker-src 'self' blob:",
+      // fonts.googleapis.com serves the brand stylesheet (Cormorant + Noto Serif
+      // Tamil); fonts.gstatic.com serves the font files.
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: https: blob:",
-      "font-src 'self' data:",
+      "font-src 'self' data: https://fonts.gstatic.com",
       // Gemini Live runs over a WebSocket (wss://) — CSP treats https: and wss:
       // as distinct schemes, so the wss: origin must be listed explicitly or the
       // browser silently blocks the voice-feedback socket (onerror).
