@@ -122,6 +122,8 @@ export function VoiceFeedbackClient({
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speakIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const teardownRef = useRef<() => void>(() => {});
+  // TEMP DIAGNOSTIC: capture any CSP violation that blocks the Live socket.
+  const cspViolationRef = useRef<string>("");
 
   const teardown = useCallback(() => {
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
@@ -151,6 +153,21 @@ export function VoiceFeedbackClient({
 
   // Clean up on unmount.
   useEffect(() => () => teardownRef.current(), []);
+
+  // TEMP DIAGNOSTIC: listen for CSP violations so we can see if the wss:// Live
+  // socket is being blocked by Content-Security-Policy on the real device.
+  useEffect(() => {
+    const onViolation = (e: SecurityPolicyViolationEvent) => {
+      if (
+        e.violatedDirective?.includes("connect-src") ||
+        (e.blockedURI || "").includes("generativelanguage")
+      ) {
+        cspViolationRef.current = `CSP blocked ${e.blockedURI || "?"} (${e.violatedDirective || "?"})`;
+      }
+    };
+    document.addEventListener("securitypolicyviolation", onViolation);
+    return () => document.removeEventListener("securitypolicyviolation", onViolation);
+  }, []);
 
   const failToFallback = useCallback(
     (msg: string) => {
@@ -284,10 +301,30 @@ export function VoiceFeedbackClient({
             /* setup sent by SDK */
           },
           onmessage: handleMessage,
-          onerror: () => failToFallback("Voice connection error. Please use the tap form."),
-          onclose: () => {
+          onerror: (e: unknown) => {
+            // TEMP DIAGNOSTIC: surface the real reason.
+            const ev = e as { message?: string; type?: string } | undefined;
+            const csp = cspViolationRef.current;
+            const detail = csp || ev?.message || ev?.type || "unknown";
+            failToFallback(`Voice error: ${detail}`);
+          },
+          onclose: (e: unknown) => {
             // A close during the live phase (before a tool call) is a failure.
-            setPhase((p) => (p === "live" || p === "connecting" ? "error" : p));
+            const ev = e as { code?: number; reason?: string } | undefined;
+            const code = ev?.code;
+            const reason = ev?.reason || "";
+            const csp = cspViolationRef.current;
+            setPhase((p) => {
+              if (p === "live" || p === "connecting") {
+                setError(
+                  csp
+                    ? csp
+                    : `Closed code ${code ?? "?"}${reason ? `: ${reason}` : " (no reason)"}`,
+                );
+                return "error";
+              }
+              return p;
+            });
           },
         },
       });
