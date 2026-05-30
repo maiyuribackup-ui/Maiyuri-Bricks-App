@@ -97,7 +97,10 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https: blob:",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://generativelanguage.googleapis.com",
+      // Gemini Live runs over a WebSocket (wss://) — CSP treats https: and wss:
+      // as distinct schemes, so the wss: origin must be listed explicitly or the
+      // browser silently blocks the voice-feedback socket (onerror).
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com",
       "frame-ancestors 'none'",
     ].join("; "),
   );
