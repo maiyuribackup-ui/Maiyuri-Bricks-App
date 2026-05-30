@@ -24,8 +24,13 @@ export type VoiceLanguage = "en" | "ta";
 /** Warm, female prebuilt voice. "Aoede" is the warmest of the Live voices. */
 export const VOICE_NAME = "Aoede";
 
-/** Native-audio Live model with the best multilingual + tool-calling support. */
-export const VOICE_MODEL = "gemini-live-2.5-flash-preview-native-audio";
+/**
+ * Native-audio Live model. This exact id is the one the API actually serves for
+ * bidiGenerate — verified empirically (the older `gemini-live-2.5-flash-preview-
+ * native-audio` name 404s on the Live socket with close code 1008). Native-audio
+ * gives the best multilingual (EN/தமிழ்) + tool-calling support.
+ */
+export const VOICE_MODEL = "gemini-2.5-flash-native-audio-preview-09-2025";
 
 /** Minimal lead context needed to personalise the conversation. */
 export interface VoiceLeadContext {
