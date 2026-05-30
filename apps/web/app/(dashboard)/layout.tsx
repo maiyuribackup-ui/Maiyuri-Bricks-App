@@ -202,7 +202,7 @@ export default function DashboardLayout({
                       alt="Maiyuri Bricks — Smart Interlock Bricks"
                       width={200}
                       height={50}
-                      className="h-auto w-44"
+                      className="h-auto w-48"
                       priority
                     />
                   </Link>
@@ -310,7 +310,7 @@ export default function DashboardLayout({
             alt="Maiyuri Bricks — Smart Interlock Bricks"
             width={180}
             height={45}
-            className="h-auto w-40"
+            className="h-auto w-44"
             priority
           />
         </Link>
@@ -327,7 +327,7 @@ export default function DashboardLayout({
                 alt="Maiyuri Bricks — Smart Interlock Bricks"
                 width={200}
                 height={50}
-                className="h-auto w-44"
+                className="h-auto w-48"
                 priority
               />
             </Link>
