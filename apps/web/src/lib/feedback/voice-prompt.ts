@@ -1,0 +1,188 @@
+/**
+ * Voice-feedback prompt + tool builder (Phase 4).
+ *
+ * Produces the locked Gemini Live session configuration for a single factory-
+ * visit voice conversation: the bilingual (EN / தமிழ்) system instruction, the
+ * single callable tool (`submit_feedback`), and the warm-female TTS voice.
+ *
+ * The system prompt is personalised from the same lead context the Phase-2 GET
+ * endpoint returns, so "Maiyuri" greets the visitor by name and can gently
+ * probe the known open threads (objections, promises) without re-asking what
+ * the team already knows.
+ *
+ * NOTE: this builder is deliberately data-only — it returns plain objects so
+ * the route can drop them straight into `authTokens.create`'s
+ * `liveConnectConstraints.config`. No SDK client is constructed here.
+ *
+ * See: docs/plans/2026-05-28-voice-feedback-plan.md (Phase 4)
+ */
+
+import { Type, type FunctionDeclaration } from "@google/genai";
+
+export type VoiceLanguage = "en" | "ta";
+
+/** Warm, female prebuilt voice. "Aoede" is the warmest of the Live voices. */
+export const VOICE_NAME = "Aoede";
+
+/** Native-audio Live model with the best multilingual + tool-calling support. */
+export const VOICE_MODEL = "gemini-live-2.5-flash-preview-native-audio";
+
+/** Minimal lead context needed to personalise the conversation. */
+export interface VoiceLeadContext {
+  first_name: string;
+  full_name: string;
+  language_preference: VoiceLanguage;
+  lead_type: string | null;
+  status: string | null;
+  current_next_action: string | null;
+  latest_note_summary: string | null;
+  unresolved_objections: string[];
+  unfulfilled_promises: string[];
+  recent_buying_stage: string | null;
+}
+
+/**
+ * The ONLY tool the voice agent may call. Its shape mirrors the
+ * `/api/feedback/[token]/submit` payload (flattened for easy model filling);
+ * the browser client maps these args onto the nested submit body and injects
+ * `channel: "voice"` + the live transcript before POSTing.
+ */
+export const SUBMIT_FEEDBACK_TOOL: FunctionDeclaration = {
+  name: "submit_feedback",
+  description:
+    "Record the visitor's factory-visit feedback. Call this EXACTLY ONCE, " +
+    "only after you have confirmed the visitor's name, mobile number, their " +
+    "star rating, and what they want to happen next. Do not call it earlier.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      name: {
+        type: Type.STRING,
+        description: "Visitor's name as they said it.",
+      },
+      mobile: {
+        type: Type.STRING,
+        description: "Visitor's 10-digit Indian mobile number, digits only.",
+      },
+      build_type: {
+        type: Type.STRING,
+        description:
+          "What they are building, e.g. 'home', 'commercial', 'compound wall'. Optional.",
+      },
+      rating: {
+        type: Type.INTEGER,
+        description: "Overall factory-visit rating from 1 (poor) to 5 (excellent).",
+      },
+      impressed: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description:
+          "Short phrases for what impressed them (e.g. 'machinery', 'quality', 'team').",
+      },
+      clarity: {
+        type: Type.STRING,
+        description:
+          "How clear they are about choosing Maiyuri bricks. One of: " +
+          "very_clear, mostly_clear, need_comparison, not_clear.",
+      },
+      benefits: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: "Product benefits that matter most to them.",
+      },
+      concerns: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description:
+          "Any concerns, hesitations, or objections they raised (e.g. 'price', 'availability').",
+      },
+      timeline: {
+        type: Type.STRING,
+        description:
+          "When they plan to buy/start, e.g. 'this month', '2-3 months', 'just exploring'. Optional.",
+      },
+      next_action: {
+        type: Type.STRING,
+        description:
+          "What they want next. One of: quote, floor_plan, advisor, architect, " +
+          "visit_project, reports, sample, later, exploring.",
+      },
+      next_action_notes: {
+        type: Type.STRING,
+        description: "Any extra detail about their request, in their own words. Optional.",
+      },
+      priority_followup: {
+        type: Type.BOOLEAN,
+        description:
+          "True only if they sounded unhappy, urgent, or explicitly asked for a quick call back.",
+      },
+      followup_reason: {
+        type: Type.STRING,
+        description: "One short line on why a priority follow-up is needed. Optional.",
+      },
+    },
+    required: ["name", "mobile", "rating", "next_action"],
+  },
+};
+
+function contextBlock(ctx: VoiceLeadContext): string {
+  const lines: string[] = [];
+  lines.push(`Visitor name: ${ctx.full_name} (call them ${ctx.first_name}).`);
+  if (ctx.lead_type) lines.push(`Lead type: ${ctx.lead_type}.`);
+  if (ctx.status) lines.push(`Current status: ${ctx.status}.`);
+  if (ctx.recent_buying_stage) lines.push(`Buying stage: ${ctx.recent_buying_stage}.`);
+  if (ctx.current_next_action)
+    lines.push(`Team's planned next step: ${ctx.current_next_action}.`);
+  if (ctx.latest_note_summary)
+    lines.push(`Last interaction summary: ${ctx.latest_note_summary}`);
+  if (ctx.unresolved_objections.length)
+    lines.push(`Known open objections: ${ctx.unresolved_objections.join("; ")}.`);
+  if (ctx.unfulfilled_promises.length)
+    lines.push(`Promises we still owe them: ${ctx.unfulfilled_promises.join("; ")}.`);
+  return lines.join("\n");
+}
+
+/**
+ * Build the locked system instruction. The agent's persona is "Maiyuri", a
+ * warm, concise factory host. It speaks the visitor's preferred language by
+ * default but mirrors whatever language the visitor actually uses.
+ */
+export function buildVoiceSystemPrompt(ctx: VoiceLeadContext): string {
+  const langLine =
+    ctx.language_preference === "ta"
+      ? "Open in Tamil (தமிழ்). If the visitor replies in English or Tanglish, switch to match them immediately."
+      : "Open in English. If the visitor replies in Tamil or Tanglish, switch to match them immediately.";
+
+  return [
+    "You are Maiyuri, the warm, friendly voice host for Maiyuri Bricks, an AAC",
+    "(autoclaved aerated concrete) block manufacturer in Tamil Nadu. A customer",
+    "has just finished visiting the factory and you are collecting their feedback",
+    "over a short voice call on their phone.",
+    "",
+    "## Your personality",
+    "- Warm, respectful, and genuinely curious — like a gracious factory host, not a survey bot.",
+    "- Speak in short, natural spoken sentences. One question at a time.",
+    "- Never read out lists of options robotically. Ask conversationally.",
+    "- " + langLine,
+    "- Use the visitor's first name naturally, but don't overuse it.",
+    "",
+    "## What you already know (do NOT re-ask these; use them to sound informed)",
+    contextBlock(ctx),
+    "",
+    "## Your goal — gather, in a natural order:",
+    "1. Confirm who you're speaking to (their name) and a 10-digit mobile number to follow up on.",
+    "2. Their overall rating of the factory visit (1 to 5 stars).",
+    "3. What impressed them, and any concerns or hesitations (gently probe the known open objections above if relevant).",
+    "4. What they want to happen next (a quote, a sample, an advisor call, a project visit, or just to keep exploring).",
+    "",
+    "## Rules",
+    "- Keep the whole call under ~2 minutes. Be efficient and warm, never pushy.",
+    "- Confirm the mobile number by reading it back once.",
+    "- If they go quiet or want to stop, thank them warmly and wrap up.",
+    "- When you have their name, mobile, rating, and desired next step, call the",
+    "  `submit_feedback` tool ONCE with everything you gathered, then thank them",
+    "  warmly by name and end the conversation. Do not keep talking after submitting.",
+    "- Never invent a mobile number, rating, or request. If you didn't get the",
+    "  mobile number, ask for it before submitting.",
+  ].join("\n");
+}
