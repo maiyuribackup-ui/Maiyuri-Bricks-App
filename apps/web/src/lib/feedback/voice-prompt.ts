@@ -25,12 +25,18 @@ export type VoiceLanguage = "en" | "ta";
 export const VOICE_NAME = "Aoede";
 
 /**
- * Native-audio Live model. This exact id is the one the API actually serves for
- * bidiGenerate — verified empirically (the older `gemini-live-2.5-flash-preview-
- * native-audio` name 404s on the Live socket with close code 1008). Native-audio
- * gives the best multilingual (EN/தமிழ்) + tool-calling support.
+ * Live model id. Must be one the API actually serves for `bidiGenerateContent`
+ * (a wrong id 404s on the Live socket with close code 1008, even though the
+ * ephemeral-token mint still succeeds). Verified via ListModels + a full
+ * ephemeral mint→connect→audio round-trip with our locked config (Aoede voice +
+ * submit_feedback tool). The 3.1 Flash Live preview is the latest and handles
+ * EN/தமிழ் code-switching + tool-calling well.
+ *
+ * Other valid ids if we ever need to fall back:
+ *   gemini-2.5-flash-native-audio-latest
+ *   gemini-2.5-flash-native-audio-preview-12-2025
  */
-export const VOICE_MODEL = "gemini-2.5-flash-native-audio-preview-09-2025";
+export const VOICE_MODEL = "gemini-3.1-flash-live-preview";
 
 /** Minimal lead context needed to personalise the conversation. */
 export interface VoiceLeadContext {
