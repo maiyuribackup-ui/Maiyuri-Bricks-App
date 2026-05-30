@@ -9,11 +9,21 @@
  * next-step follow-up. Personalised landing copy comes from the GET API
  * (Phase 2). Submission goes to POST /api/feedback/[token]/submit (Phase 3a).
  *
- * Voice CTA is rendered but disabled in Phase 3; it lights up in Phase 5.
+ * Voice CTA ("Talk to Maiyuri") opens the Phase-5 live voice overlay, which is
+ * code-split via next/dynamic so the Gemini Live SDK never loads unless a
+ * visitor actually chooses voice.
  */
 
 import { useMemo, useState } from "react";
+import nextDynamic from "next/dynamic";
 import styles from "./factory-feedback.module.css";
+
+// Voice overlay is client-only and lazy — keeps the Live SDK out of the
+// initial page bundle and off the server.
+const VoiceFeedbackClient = nextDynamic(
+  () => import("./voice-feedback-client").then((m) => m.VoiceFeedbackClient),
+  { ssr: false },
+);
 
 // ---------------------------------------------------------------------------
 // Option lists — verbatim from the WordPress generator.
@@ -183,6 +193,7 @@ export function FactoryFeedbackSurvey({
   const [err, setErr] = useState("");
   const [shakeKey, setShakeKey] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
 
   function patch(p: Partial<State>) {
     setState((s) => ({ ...s, ...p }));
@@ -333,8 +344,12 @@ export function FactoryFeedbackSurvey({
           {personalNote && <p className={styles.personalNote}>{personalNote}</p>}
 
           <div className={styles.ctaStack}>
-            <button type="button" className={styles.ctaPrimary} disabled aria-disabled="true">
-              Talk to Maiyuri (voice)<span className={styles.ctaBadge}>coming soon</span>
+            <button
+              type="button"
+              className={styles.ctaPrimary}
+              onClick={() => setVoiceOpen(true)}
+            >
+              Talk to Maiyuri (voice)
             </button>
             <button type="button" className={styles.ctaSecondary} onClick={() => setStep(1)}>
               Tap form instead
@@ -800,6 +815,24 @@ export function FactoryFeedbackSurvey({
 
         <p className={styles.foot}>Maiyuri Bricks · Ponneri, Chennai</p>
       </div>
+
+      {voiceOpen && (
+        <VoiceFeedbackClient
+          token={token}
+          context={context}
+          onClose={() => setVoiceOpen(false)}
+          onSubmitted={() => {
+            setVoiceOpen(false);
+            setStep(99);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          onFallback={() => {
+            setVoiceOpen(false);
+            setStep(1);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        />
+      )}
     </div>
   );
 }
