@@ -146,10 +146,13 @@ export async function POST(
         ]
       : null;
 
-  // Tamil is the default voice language for the factory-visit audience; only an
-  // explicit "en" preference opens the call in English.
-  const language: VoiceLanguage =
-    lead.language_preference === "en" ? "en" : "ta";
+  // Tamil is the default voice language for the factory-visit audience. NOTE:
+  // leads.language_preference is currently a uniform hardcoded "en" for every
+  // row, so it carries no real signal — we deliberately ignore it here and open
+  // in Tamil. The system prompt still instructs the host to switch to English
+  // immediately if the visitor actually speaks English, so English speakers are
+  // not stranded.
+  const language: VoiceLanguage = "ta";
 
   const ctx: VoiceLeadContext = {
     first_name: firstName(lead.name),
