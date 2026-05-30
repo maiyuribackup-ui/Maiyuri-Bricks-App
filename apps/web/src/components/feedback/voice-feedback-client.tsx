@@ -83,6 +83,10 @@ const NEXT_LABELS: Record<string, string> = {
 };
 
 const SILENCE_FALLBACK_MS = 20000;
+// Hard cap on the connect phase. If token-mint + Live socket + mic don't all
+// come up within this window, we bail to the tap form instead of hanging on
+// "Connecting…" (the iOS failure mode when the AudioContext won't unlock).
+const CONNECT_TIMEOUT_MS = 15000;
 
 function toStr(v: unknown): string {
   return typeof v === "string" ? v : v == null ? "" : String(v);
@@ -251,26 +255,54 @@ export function VoiceFeedbackClient({
   const start = useCallback(async () => {
     setError("");
     setPhase("connecting");
+
+    // iOS CRITICAL: create + unlock the OUTPUT AudioContext synchronously here,
+    // inside the gesture, BEFORE any `await`. WebKit (every iOS browser) only
+    // unlocks audio if resume() runs while the page still has transient
+    // activation; doing it after an await leaves the context suspended and the
+    // call hangs on "Connecting…". See PcmPlayer.unlock.
+    let player: PcmPlayer;
+    try {
+      player = new PcmPlayer();
+      player.unlock();
+      playerRef.current = player;
+    } catch {
+      failToFallback("Could not start audio. Please use the tap form.");
+      return;
+    }
+
+    // Never strand the user on "Connecting…": if the whole connect dance doesn't
+    // finish in time, bail to the tap form. `aborted` stops the in-flight async
+    // chain from racing back to "live" after we've already given up.
+    let aborted = false;
+    const connectTimer = setTimeout(() => {
+      aborted = true;
+      failToFallback("Voice took too long to connect. Please use the tap form.");
+    }, CONNECT_TIMEOUT_MS);
+
     try {
       // 1) Mint the scoped ephemeral token.
       const res = await fetch(`/api/feedback/${token}/voice-token`, {
         method: "POST",
       });
+      if (aborted) return;
       const json = await res.json();
+      if (aborted) return;
       if (!res.ok || !json?.data?.token) {
+        clearTimeout(connectTimer);
         failToFallback("Could not start voice. Please use the tap form.");
         return;
       }
       const ephToken: string = json.data.token;
       const model: string = json.data.model;
 
-      // 2) Player must be created from a user gesture for iOS autoplay.
-      const player = new PcmPlayer();
+      // Ensure the already-unlocked context is fully running before playback.
       await player.resume();
-      playerRef.current = player;
+      if (aborted) return;
 
-      // 3) Open the Live session (SDK dynamic-imported).
+      // 2) Open the Live session (SDK dynamic-imported).
       const { GoogleGenAI, Modality } = await import("@google/genai");
+      if (aborted) return;
       const ai = new GoogleGenAI({
         apiKey: ephToken,
         httpOptions: { apiVersion: "v1alpha" },
@@ -300,9 +332,17 @@ export function VoiceFeedbackClient({
           },
         },
       });
+      if (aborted) {
+        try {
+          session.close();
+        } catch {
+          /* noop */
+        }
+        return;
+      }
       sessionRef.current = session;
 
-      // 4) Start the mic and pump PCM up.
+      // 3) Start the mic and pump PCM up.
       const mic = new MicCapture((b64) => {
         try {
           sessionRef.current?.sendRealtimeInput({
@@ -315,11 +355,21 @@ export function VoiceFeedbackClient({
       try {
         await mic.start();
       } catch {
+        clearTimeout(connectTimer);
         failToFallback("We couldn't access your microphone. Please use the tap form.");
+        return;
+      }
+      if (aborted) {
+        try {
+          mic.stop();
+        } catch {
+          /* noop */
+        }
         return;
       }
       micRef.current = mic;
 
+      clearTimeout(connectTimer);
       startedAtRef.current = Date.now();
       setPhase("live");
 
@@ -333,7 +383,8 @@ export function VoiceFeedbackClient({
         failToFallback("We didn't catch any audio. Please use the tap form.");
       }, SILENCE_FALLBACK_MS);
     } catch {
-      failToFallback("Could not start voice. Please use the tap form.");
+      clearTimeout(connectTimer);
+      if (!aborted) failToFallback("Could not start voice. Please use the tap form.");
     }
   }, [token, handleMessage, failToFallback]);
 

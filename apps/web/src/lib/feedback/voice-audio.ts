@@ -167,6 +167,29 @@ export class PcmPlayer {
     if (this.ctx.state === "suspended") await this.ctx.resume();
   }
 
+  /**
+   * iOS unlock. MUST be called synchronously inside the user-gesture handler
+   * (e.g. the button onClick), BEFORE any `await`. On WebKit/iOS an output
+   * AudioContext only unlocks if `resume()` is invoked while the page still has
+   * transient activation; doing it after an await leaves the context suspended
+   * and `resume()` can hang, stranding the call on "Connecting…". We also play a
+   * single silent frame, which is the long-standing trick to force the unlock.
+   * Fire-and-forget: the act of calling resume() during the gesture is what
+   * matters; we don't await it here.
+   */
+  unlock(): void {
+    try {
+      if (this.ctx.state === "suspended") void this.ctx.resume();
+      const buf = this.ctx.createBuffer(1, 1, MODEL_OUTPUT_RATE);
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(this.ctx.destination);
+      src.start(0);
+    } catch {
+      /* best-effort unlock */
+    }
+  }
+
   /** Returns true while audio is scheduled to keep playing in the near future. */
   get isPlaying(): boolean {
     return this.nextTime > this.ctx.currentTime + 0.02;
