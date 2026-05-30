@@ -22,19 +22,16 @@ import { Type, type FunctionDeclaration } from "@google/genai";
 export type VoiceLanguage = "en" | "ta";
 
 /**
- * Prebuilt Live voice. "Sulafat" is a WARM female timbre — sweet and gentle but
- * still grounded and professional, which suits a trusted Tamil construction
- * advisor (warm like a local elder, clear like an engineer). We moved off "Kore"
- * (firm/professional) because it read as too stiff for this caring, consultative
- * persona. Gemini's prebuilt voices are NOT region-accented; they adapt
- * pronunciation to whatever language the session speaks, so Sulafat renders
- * natural Tamil. All candidates below were empirically verified to connect to
- * VOICE_MODEL and stream audio (an invalid name silently 1008-closes the Live
- * socket). Other female options if we want to retune, sweetest→firmest:
- * "Achernar" (soft), "Vindemiatrix" (gentle), "Aoede" (breezy/warm),
- * "Leda" (youthful), "Kore" (firm).
+ * Prebuilt Live voice. "Ursa" is the selected voice for the Tamil construction-
+ * advisor persona. Gemini's prebuilt voices are NOT region-accented; they adapt
+ * pronunciation to whatever language the session speaks, so Ursa renders natural
+ * Tamil. Empirically verified to connect to VOICE_MODEL and stream audio (an
+ * invalid name silently 1008-closes the Live socket, so every voice change is
+ * connect-tested before shipping). Other female options if we want to retune,
+ * sweetest→firmest: "Achernar" (soft), "Vindemiatrix" (gentle),
+ * "Sulafat" (warm), "Aoede" (breezy/warm), "Leda" (youthful), "Kore" (firm).
  */
-export const VOICE_NAME = "Sulafat";
+export const VOICE_NAME = "Ursa";
 
 /**
  * Live model id. Must be one the API actually serves for `bidiGenerateContent`
@@ -202,7 +199,11 @@ export function buildVoiceSystemPrompt(ctx: VoiceLeadContext): string {
     "- Sweet, warm, gentle, and respectful — calm confidence, never salesy, never corporate.",
     "- Simple words any homeowner understands, yet polished enough for architects and builders.",
     "- " + langLine,
-    "- Short, gentle spoken sentences. One question at a time. Never robotic, never a list.",
+    "- Short, gentle spoken sentences. One question at a time.",
+    "- ALWAYS offer the answer choices aloud when you ask a question, so they never have to",
+    "  guess what to say — but speak them as a warm, natural spoken menu ('would you like A,",
+    "  B, or C?'), NEVER as a robotic numbered list. Give 2–4 simple options, then pause and",
+    "  let them pick (they may always answer in their own words).",
     "- Talk about their home, comfort, and family — not only price and product.",
     "- Use the visitor's first name warmly, but don't overuse it.",
     "",
@@ -215,15 +216,22 @@ export function buildVoiceSystemPrompt(ctx: VoiceLeadContext): string {
     "Reassure early: 'No pressure at all — we just want to understand your honest thoughts.'",
     "",
     "## Gently gather, in a natural, consultative order",
+    "Each question below lists the OPTIONS to offer aloud — always read them out as a warm",
+    "spoken menu so the visitor knows the choices, then let them answer freely.",
     "1. Confirm who you're speaking to, and a 10-digit WhatsApp number so you can guide them.",
     "2. How the factory visit felt, and how CONFIDENT they now feel about using Maiyuri Smart",
-    "   Interlock Bricks for their home. Capture this confidence as a 1–5 rating (5 = very confident).",
-    "3. What gave them clarity, and what was still confusing — or what extra PROOF they want",
-    "   before deciding (lab tests, cooling benefit, finish, strength). Gently address the known",
-    "   open objections above if relevant. Be honest and proof-based; never make big unsupported claims.",
+    "   Interlock Bricks for their home. Offer a simple spoken scale and let them place themselves:",
+    "   'very confident, somewhat confident, still unsure, or not yet confident?' Capture this as a",
+    "   1–5 rating (5 = very confident, 1 = not yet confident).",
+    "3. What gave them clarity, and what was still confusing — or what extra PROOF they want before",
+    "   deciding. Offer the proof options aloud: 'lab strength reports, the cooling / heat benefit,",
+    "   the finish and look, or seeing a real sample?' Gently address the known open objections above",
+    "   if relevant. Be honest and proof-based; never make big unsupported claims.",
     "4. The ONE main thing holding them back, and which soft next step would help them decide with",
-    "   confidence: a cost estimate (quote), advisor / site-visit guidance (advisor), an architect or",
-    "   builder discussion (architect), more proof or videos (reports), a sample, or just exploring.",
+    "   confidence. Offer this spoken menu of next steps and let them choose: 'a cost estimate, a",
+    "   site-visit or advisor's guidance, a chat with an architect or builder, more proof videos and",
+    "   reports, a free sample, or would you just like to keep exploring for now?' Map their choice to:",
+    "   quote, advisor, architect, reports, sample, or exploring.",
     "",
     "## Rules",
     "- Be a guide, never pushy. NEVER say 'are you ready to buy', never hard-sell, never claim",
