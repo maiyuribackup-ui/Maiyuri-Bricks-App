@@ -59,6 +59,8 @@ function getGoogleApiKey(): string | null {
   return (
     process.env.GOOGLE_AI_API_KEY ||
     process.env.GEMINI_API_KEY ||
+    // Observed casing on the Vercel project (env var names are case-sensitive).
+    process.env.Gemini_API_KEY ||
     process.env.GOOGLE_API_KEY ||
     process.env.GOOGLE_GENAI_API_KEY ||
     null
