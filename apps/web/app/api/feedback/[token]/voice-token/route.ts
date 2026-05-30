@@ -11,7 +11,7 @@
  *   1. Resolve `feedback_token` -> lead (same lookup as the Phase-2 GET route).
  *   2. Fetch the personalisation context (latest note + conversation chain).
  *   3. Build the locked Live config (Tamil-first system prompt + submit_feedback
- *      tool + warm male voice).
+ *      tool + professional female voice).
  *   4. Call Gemini's authTokens.create with that config + a 10-minute expiry.
  *   5. Return { token, model, expires_at, language } to the client.
  *

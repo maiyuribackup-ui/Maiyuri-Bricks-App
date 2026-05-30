@@ -3,7 +3,7 @@
  *
  * Produces the locked Gemini Live session configuration for a single factory-
  * visit voice conversation: the Tamil-first (EN / தமிழ்) system instruction, the
- * single callable tool (`submit_feedback`), and the warm male TTS voice.
+ * single callable tool (`submit_feedback`), and the professional female TTS voice.
  *
  * The system prompt is personalised from the same lead context the Phase-2 GET
  * endpoint returns, so "Maiyuri" greets the visitor by name and can gently
@@ -22,14 +22,14 @@ import { Type, type FunctionDeclaration } from "@google/genai";
 export type VoiceLanguage = "en" | "ta";
 
 /**
- * Prebuilt Live voice. "Charon" is a warm, deep, calm MALE voice — the most
- * mature/gracious of the male timbres, which suits a Tamil-speaking factory
- * host. Gemini's prebuilt voices are NOT region-accented; they adapt their
- * pronunciation to whatever language the session speaks, so Charon renders
- * natural Tamil. Other male options if we want to retune: "Orus" (firm),
- * "Puck" (upbeat/younger), "Fenrir" (energetic).
+ * Prebuilt Live voice. "Kore" is a composed, firm FEMALE voice — the most
+ * professional of the female timbres, which suits a polished Tamil-speaking
+ * relationship manager. Gemini's prebuilt voices are NOT region-accented; they
+ * adapt pronunciation to whatever language the session speaks, so Kore renders
+ * natural Tamil. Other female options if we want to retune: "Aoede" (warmer/
+ * breezier), "Leda" (younger), "Zephyr" (brighter).
  */
-export const VOICE_NAME = "Charon";
+export const VOICE_NAME = "Kore";
 
 /**
  * Live model id. Must be one the API actually serves for `bidiGenerateContent`
@@ -177,7 +177,7 @@ export function buildVoiceSystemPrompt(ctx: VoiceLeadContext): string {
   const langLine =
     ctx.language_preference === "en"
       ? "Open in English. If the visitor replies in Tamil or Tanglish, switch to match them immediately."
-      : "Greet and speak in natural, conversational Tamil (தமிழ்) by default — this is the default language. Use everyday spoken Tamil (Tanglish loanwords like 'quote', 'sample', 'WhatsApp' are fine), not formal/literary Tamil. Only switch fully to English if the visitor clearly speaks to you in English.";
+      : "Greet and speak in polished, courteous spoken Tamil (தமிழ்) by default — this is the default language. Always use the respectful form (நீங்கள்/உங்கள்). Keep it professional but warm and natural; everyday Tanglish loanwords like 'quote', 'sample', 'WhatsApp' are fine, but avoid stiff literary Tamil. Only switch fully to English if the visitor clearly speaks to you in English.";
 
   return [
     "You are Maiyuri, the warm, friendly voice host for Maiyuri Bricks, an AAC",
@@ -186,9 +186,9 @@ export function buildVoiceSystemPrompt(ctx: VoiceLeadContext): string {
     "over a short voice call on their phone.",
     "",
     "## Your personality",
-    "- Warm, respectful, and genuinely curious — like a gracious factory host, not a survey bot.",
-    "- Speak in short, natural spoken sentences. One question at a time.",
-    "- Never read out lists of options robotically. Ask conversationally.",
+    "- Professional, courteous, and composed — like a well-trained relationship manager, not a survey bot. Warm, but not casual or chatty.",
+    "- Speak in short, clear, polished spoken sentences. One question at a time.",
+    "- Never read out lists of options robotically. Ask conversationally but respectfully.",
     "- " + langLine,
     "- Use the visitor's first name naturally, but don't overuse it.",
     "",
