@@ -82,6 +82,65 @@ const NEXT_LABELS: Record<string, string> = {
   exploring: "Just exploring",
 };
 
+// Human-readable labels for the option tokens, so the review card never shows
+// raw machine tokens like "brick_quality" or "1_3m".
+const TOKEN_LABELS: Partial<Record<keyof Captured, Record<string, string>>> = {
+  build_type: {
+    individual_home: "Individual home / Villa",
+    farmhouse: "Farmhouse",
+    compound_wall: "Compound wall",
+    commercial: "Commercial building",
+    architect_builder: "Architect / builder",
+    exploring: "Just exploring",
+    other: "Something else",
+  },
+  impressed: {
+    brick_quality: "Quality of the bricks",
+    strength: "Strength & durability",
+    natural_soil: "Natural red-soil material",
+    wall_finish: "Beautiful wall finish",
+    cooler_home: "Cooler, comfortable homes",
+    factory_process: "The factory & process",
+    team_knowledge: "Knowledge of the team",
+    completed_homes: "Completed project photos",
+    eco: "Eco-friendly approach",
+    cost_saving: "Overall cost savings",
+  },
+  benefits: {
+    cooler: "Cooler, comfortable interiors",
+    strong: "Strength & durability",
+    lower_cost: "Lower overall cost",
+    faster: "Faster construction",
+    natural: "Natural & chemical-free",
+    less_plaster: "Less plastering needed",
+    eco: "Eco-friendly / low carbon",
+    finish: "Beautiful natural finish",
+  },
+  concerns: {
+    cost: "Cost / budget",
+    load_bearing: "Strength for load-bearing",
+    rain: "Performance in heavy rain",
+    availability: "Availability / delivery",
+    masons: "Finding skilled masons",
+    finishing: "Wall finishing options",
+    acceptance: "Family / resale acceptance",
+    none: "None — convinced",
+  },
+  timeline: {
+    within_30d: "Within 1 month",
+    "1_3m": "1 – 3 months",
+    "3_6m": "3 – 6 months",
+    "6m_plus": "6 months or later",
+    planning: "Still planning",
+    architect_future: "Architect deciding / future",
+  },
+};
+
+function labelFor(key: keyof Captured, token: string): string {
+  if (!token) return "";
+  return TOKEN_LABELS[key]?.[token] ?? token.replace(/_/g, " ");
+}
+
 const SILENCE_FALLBACK_MS = 20000;
 // Hard cap on the connect phase. If token-mint + Live socket + mic don't all
 // come up within this window, we bail to the tap form instead of hanging on
@@ -117,6 +176,11 @@ export function VoiceFeedbackClient({
   const [speaking, setSpeaking] = useState(false);
   const [captured, setCaptured] = useState<Captured>(EMPTY);
   const [editing, setEditing] = useState<string | null>(null);
+  // Live, readable transcript of the conversation (both sides), so the visitor
+  // can follow along with what Maiyuri is saying and what we heard from them.
+  const [captions, setCaptions] = useState<{ role: "maiyuri" | "you"; text: string }[]>([]);
+  const captionsRef = useRef<{ role: "maiyuri" | "you"; text: string }[]>([]);
+  const captionScrollRef = useRef<HTMLDivElement | null>(null);
 
   const sessionRef = useRef<Session | null>(null);
   const micRef = useRef<MicCapture | null>(null);
@@ -190,6 +254,18 @@ export function VoiceFeedbackClient({
     });
   }, [lead.name]);
 
+  // Append a transcript fragment to the live caption log, merging consecutive
+  // fragments from the same speaker into one bubble.
+  const appendCaption = useCallback((role: "maiyuri" | "you", text: string) => {
+    if (!text) return;
+    const arr = captionsRef.current.slice();
+    const last = arr[arr.length - 1];
+    if (last && last.role === role) last.text += text;
+    else arr.push({ role, text });
+    captionsRef.current = arr.slice(-14); // keep the log light
+    setCaptions(captionsRef.current);
+  }, []);
+
   const handleMessage = useCallback(
     (msg: LiveServerMessage) => {
       const sc = msg.serverContent;
@@ -204,11 +280,17 @@ export function VoiceFeedbackClient({
         }
       }
 
-      // Visitor speech transcript — also clears the silence-fallback timer.
+      // Maiyuri's spoken words (output transcription) → live caption log.
+      const outText = sc?.outputTranscription?.text;
+      if (outText) appendCaption("maiyuri", outText);
+
+      // Visitor speech transcript — feeds the saved transcript, the caption log,
+      // and clears the silence-fallback timer.
       const inText = sc?.inputTranscription?.text;
       if (inText) {
         transcriptRef.current += inText;
         setHeard(transcriptRef.current.slice(-160));
+        appendCaption("you", inText);
         if (silenceTimerRef.current) {
           clearTimeout(silenceTimerRef.current);
           silenceTimerRef.current = null;
@@ -249,11 +331,20 @@ export function VoiceFeedbackClient({
         setPhase("review");
       }
     },
-    [captureFromArgs],
+    [captureFromArgs, appendCaption],
   );
+
+  // Auto-scroll the caption log to the newest line as it grows.
+  useEffect(() => {
+    const el = captionScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [captions]);
 
   const start = useCallback(async () => {
     setError("");
+    captionsRef.current = [];
+    setCaptions([]);
+    transcriptRef.current = "";
     setPhase("connecting");
 
     // iOS CRITICAL: create + unlock the OUTPUT AudioContext synchronously here,
@@ -507,16 +598,31 @@ export function VoiceFeedbackClient({
   function displayValue(key: keyof Captured): string {
     const v = captured[key];
     if (key === "rating") return captured.rating ? `${captured.rating}/5 ★` : "";
-    if (Array.isArray(v)) return v.join(", ");
     if (key === "next_action") return NEXT_LABELS[captured.next_action] ?? toStr(v);
+    if (Array.isArray(v)) return v.map((t) => labelFor(key, t)).join(", ");
+    if (key === "build_type" || key === "timeline") return labelFor(key, toStr(v));
+    return toStr(v);
+  }
+
+  // Value to seed the edit box with (humanized for token fields so the visitor
+  // edits friendly text, not machine tokens).
+  function editValue(key: keyof Captured): string {
+    if (key === "rating") return captured.rating?.toString() ?? "";
+    const v = captured[key];
+    if (Array.isArray(v)) return v.map((t) => labelFor(key, t)).join(", ");
+    if (key === "build_type" || key === "timeline") return labelFor(key, toStr(v));
     return toStr(v);
   }
 
   const FIELDS: { key: keyof Captured; label: string; type: "text" | "tel" | "number" }[] = [
     { key: "name", label: "Name", type: "text" },
     { key: "mobile", label: "WhatsApp number", type: "tel" },
+    { key: "build_type", label: "Building", type: "text" },
     { key: "rating", label: "Visit rating", type: "number" },
+    { key: "impressed", label: "Impressed by", type: "text" },
+    { key: "benefits", label: "Benefits that matter", type: "text" },
     { key: "concerns", label: "Concerns", type: "text" },
+    { key: "timeline", label: "Timeline", type: "text" },
     { key: "next_action", label: "Wants next", type: "text" },
     { key: "next_action_notes", label: "Note", type: "text" },
   ];
@@ -583,7 +689,21 @@ export function VoiceFeedbackClient({
             <h2 className={styles.title}>
               {phase === "connecting" ? "Connecting…" : speaking ? "Maiyuri is speaking" : "I'm listening"}
             </h2>
-            <p className={styles.transcript}>{heard || (phase === "live" ? "Say hello to begin…" : "")}</p>
+            {phase === "live" && captions.length > 0 ? (
+              <div className={styles.captionScroll} ref={captionScrollRef} aria-live="polite">
+                {captions.map((c, i) => (
+                  <div
+                    key={i}
+                    className={`${styles.capRow} ${c.role === "maiyuri" ? styles.capMaiyuri : styles.capYou}`}
+                  >
+                    <span className={styles.capWho}>{c.role === "maiyuri" ? "Maiyuri" : "You"}</span>
+                    <span className={styles.capText}>{c.text}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className={styles.transcript}>{heard || (phase === "live" ? "Say hello to begin…" : "")}</p>
+            )}
             {phase === "live" && (
               <button type="button" className={styles.endBtn} onClick={endConversation} style={{ marginTop: 18 }}>
                 End conversation
@@ -612,13 +732,7 @@ export function VoiceFeedbackClient({
                           className={styles.fieldInput}
                           type={type}
                           inputMode={type === "tel" || type === "number" ? "numeric" : "text"}
-                          defaultValue={
-                            key === "rating"
-                              ? captured.rating?.toString() ?? ""
-                              : Array.isArray(captured[key])
-                                ? (captured[key] as string[]).join(", ")
-                                : toStr(captured[key])
-                          }
+                          defaultValue={editValue(key)}
                           autoFocus
                           onBlur={(e) => {
                             setField(key, e.target.value);
