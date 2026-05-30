@@ -90,9 +90,17 @@ export const SUBMIT_FEEDBACK_TOOL: FunctionDeclaration = {
       },
       build_type: {
         type: Type.STRING,
+        enum: [
+          "individual_home",
+          "farmhouse",
+          "compound_wall",
+          "commercial",
+          "architect_builder",
+          "exploring",
+          "other",
+        ],
         description:
-          "What they are planning to build. One of: individual_home, farmhouse, " +
-          "compound_wall, commercial, architect_builder, exploring, other.",
+          "What they are planning to build. MUST be one of the exact enum tokens.",
       },
       rating: {
         type: Type.INTEGER,
@@ -100,43 +108,88 @@ export const SUBMIT_FEEDBACK_TOOL: FunctionDeclaration = {
       },
       impressed: {
         type: Type.ARRAY,
-        items: { type: Type.STRING },
+        items: {
+          type: Type.STRING,
+          enum: [
+            "brick_quality",
+            "strength",
+            "natural_soil",
+            "wall_finish",
+            "cooler_home",
+            "factory_process",
+            "team_knowledge",
+            "completed_homes",
+            "eco",
+            "cost_saving",
+          ],
+        },
         description:
-          "What impressed them most at the visit (up to 3). Each one of: " +
-          "brick_quality, strength, natural_soil, wall_finish, cooler_home, " +
-          "factory_process, team_knowledge, completed_homes, eco, cost_saving.",
+          "What impressed them most at the visit (up to 3). Each MUST be one of the " +
+          "exact enum tokens.",
       },
       clarity: {
         type: Type.STRING,
+        enum: ["very_clear", "mostly_clear", "need_comparison", "not_clear"],
         description:
-          "How clear they are about choosing Maiyuri bricks. One of: " +
-          "very_clear, mostly_clear, need_comparison, not_clear.",
+          "How clear they are about choosing Maiyuri bricks. One of the exact enum tokens.",
       },
       benefits: {
         type: Type.ARRAY,
-        items: { type: Type.STRING },
+        items: {
+          type: Type.STRING,
+          enum: [
+            "cooler",
+            "strong",
+            "lower_cost",
+            "faster",
+            "natural",
+            "less_plaster",
+            "eco",
+            "finish",
+          ],
+        },
         description:
-          "Benefits that matter most for their home (up to 3). Each one of: " +
-          "cooler, strong, lower_cost, faster, natural, less_plaster, eco, finish.",
+          "Benefits that matter most for their home (up to 3). Each MUST be one of the " +
+          "exact enum tokens.",
       },
       concerns: {
         type: Type.ARRAY,
-        items: { type: Type.STRING },
+        items: {
+          type: Type.STRING,
+          enum: [
+            "cost",
+            "load_bearing",
+            "rain",
+            "availability",
+            "masons",
+            "finishing",
+            "acceptance",
+            "none",
+          ],
+        },
         description:
-          "Concerns they'd still like addressed. Each one of: cost, load_bearing, " +
-          "rain, availability, masons, finishing, acceptance, none.",
+          "Concerns they'd still like addressed. Each MUST be one of the exact enum tokens.",
       },
       timeline: {
         type: Type.STRING,
+        enum: ["within_30d", "1_3m", "3_6m", "6m_plus", "planning", "architect_future"],
         description:
-          "When they plan to build/purchase. One of: within_30d, 1_3m, 3_6m, " +
-          "6m_plus, planning, architect_future.",
+          "When they plan to build/purchase. MUST be one of the exact enum tokens.",
       },
       next_action: {
         type: Type.STRING,
-        description:
-          "What they want next. One of: quote, floor_plan, advisor, architect, " +
-          "visit_project, reports, sample, later, exploring.",
+        enum: [
+          "quote",
+          "floor_plan",
+          "advisor",
+          "architect",
+          "visit_project",
+          "reports",
+          "sample",
+          "later",
+          "exploring",
+        ],
+        description: "What they want next. MUST be one of the exact enum tokens.",
       },
       next_action_notes: {
         type: Type.STRING,
