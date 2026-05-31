@@ -30,6 +30,7 @@ interface NavItem {
 
 const navigation: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: HomeIcon, key: "dashboard" },
+  { name: "Business", href: "/business-health", icon: HealthIcon, key: "business-health" },
   { name: "Leads", href: "/leads", icon: UsersIcon, key: "leads" },
   {
     name: "Deliveries",
@@ -444,6 +445,24 @@ function HomeIcon({ className }: { className?: string }) {
   );
 }
 
+function HealthIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
+      />
+    </svg>
+  );
+}
+
 function UsersIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -461,6 +480,7 @@ function UsersIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
 
 function SettingsIcon({ className }: { className?: string }) {
   return (
@@ -485,6 +505,7 @@ function SettingsIcon({ className }: { className?: string }) {
   );
 }
 
+
 function MenuIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -502,6 +523,7 @@ function MenuIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
 
 function XIcon({ className }: { className?: string }) {
   return (
@@ -521,6 +543,7 @@ function XIcon({ className }: { className?: string }) {
   );
 }
 
+
 function BookIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -538,6 +561,7 @@ function BookIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
 
 function ChartIcon({ className }: { className?: string }) {
   return (
@@ -557,6 +581,7 @@ function ChartIcon({ className }: { className?: string }) {
   );
 }
 
+
 function KPIIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -574,6 +599,7 @@ function KPIIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
 
 function TasksIcon({ className }: { className?: string }) {
   return (
@@ -593,6 +619,7 @@ function TasksIcon({ className }: { className?: string }) {
   );
 }
 
+
 function LogoutIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -610,6 +637,7 @@ function LogoutIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
 
 function DesignIcon({ className }: { className?: string }) {
   return (
@@ -634,6 +662,7 @@ function DesignIcon({ className }: { className?: string }) {
   );
 }
 
+
 function ProductionIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -651,6 +680,7 @@ function ProductionIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
 
 function ApprovalsIcon({ className }: { className?: string }) {
   return (
@@ -670,6 +700,7 @@ function ApprovalsIcon({ className }: { className?: string }) {
   );
 }
 
+
 function DeliveriesIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -687,3 +718,4 @@ function DeliveriesIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
