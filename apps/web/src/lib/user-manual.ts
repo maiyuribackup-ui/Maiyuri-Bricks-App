@@ -21,7 +21,8 @@ export type ManualSection =
   | "settings"
   | "production"
   | "deliveries"
-  | "smart-quote";
+  | "smart-quote"
+  | "business-health";
 
 export interface ManualStep {
   action: string;
@@ -721,6 +722,37 @@ export const manualContent: Record<ManualSection, ManualContent> = {
       "Update quote if prices change",
     ],
   },
+
+  "business-health": {
+    id: "business-health",
+    title: "Business Health",
+    description: "Monitor production, revenue, and lead KPIs at a glance.",
+    path: "/business-health",
+    quickStart: [
+      "Check production output trend",
+      "Review revenue vs target",
+      "Track lead pipeline movement",
+      "Spot KPIs trending the wrong way",
+    ],
+    steps: [
+      {
+        action: "Open Business Health dashboard",
+        result: "See production, revenue, and leads KPIs side by side",
+      },
+      {
+        action: "Hover or tap a KPI tile",
+        result: "View period-over-period trend",
+      },
+      {
+        action: "Click into a metric to drill down",
+        result: "Jump to the underlying page (production, leads, etc.)",
+      },
+    ],
+    tips: [
+      "Check this dashboard at the start of each day",
+      "Investigate any KPI flagged red before midday",
+    ],
+  },
 };
 
 // ============================================================================
@@ -776,4 +808,5 @@ export const pageToSection: Record<string, ManualSection> = {
   "/settings": "settings",
   "/production": "production",
   "/deliveries": "deliveries",
+  "/business-health": "business-health",
 };
