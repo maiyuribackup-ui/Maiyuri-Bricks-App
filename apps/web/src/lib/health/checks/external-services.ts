@@ -135,7 +135,7 @@ export async function checkAnthropic(): Promise<HealthCheckResult> {
     const anthropic = new Anthropic({ apiKey });
 
     const checkPromise = anthropic.messages.create({
-      model: 'claude-3-5-haiku-latest',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 1,
       messages: [{ role: 'user', content: 'hi' }],
     });
