@@ -9,13 +9,27 @@
                 "^build"
             ],
             "env": [
-                "NEXT_PUBLIC_SUPABASE_URL",
-                "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-                "SUPABASE_SERVICE_ROLE_KEY",
+                "NODE_ENV",
+                "NEXT_PUBLIC_*",
+                "SUPABASE_*",
+                "TELEGRAM_*",
+                "CEO_TELEGRAM_CHAT_ID",
+                "GOOGLE_*",
                 "GEMINI_API_KEY",
-                "Gemini_API_KEY",
-                "GOOGLE_AI_API_KEY",
-                "ANTHROPIC_API_KEY"
+                "ANTHROPIC_API_KEY",
+                "OPENAI_API_KEY",
+                "ODOO_*",
+                "RESEND_*",
+                "LANGFUSE_*",
+                "CRON_SECRET",
+                "PROCESSING_WEBHOOK_SECRET",
+                "SALESPULSE_TOKEN",
+                "CAD_ENGINE_URL",
+                "LOG_LEVEL",
+                "AUTO_TRIGGER_ANALYSIS",
+                "POST_PROCESSING_NUDGE_ENABLED",
+                "NUDGE_AI_ENHANCEMENT_ENABLED",
+                "ENABLE_FLOOR_PLAN_PERSISTENCE"
             ],
             "outputs": [
                 ".next/**",
