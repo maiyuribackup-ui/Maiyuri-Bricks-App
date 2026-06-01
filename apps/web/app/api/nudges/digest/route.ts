@@ -200,7 +200,7 @@ async function handleDigest(request: NextRequest): Promise<NextResponse> {
     const { data: leads, error: leadsError } = await supabaseAdmin
       .from("leads")
       .select("*")
-      .in("status", ["new", "follow_up", "hot", "cold"])
+      .not("pipeline_stage", "in", "(order_won,closed_lost)")
       .eq("is_archived", false)
       .order("follow_up_date", { ascending: true, nullsFirst: false });
 

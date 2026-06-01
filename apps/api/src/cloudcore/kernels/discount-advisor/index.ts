@@ -165,16 +165,19 @@ function calculateMetrics(
   const priceKeywords = ['expensive', 'costly', 'budget', 'cheaper', 'discount', 'price', 'negotiate', 'competitor'];
   const hasPriceSensitivity = priceKeywords.some(keyword => notesText.includes(keyword));
 
-  // Estimate conversion probability based on status
-  const statusConversionMap: Record<string, number> = {
+  // Estimate conversion probability from pipeline terminal stage + temperature (V2)
+  const temperatureConversionMap: Record<string, number> = {
     hot: 0.85,
-    follow_up: 0.6,
-    new: 0.4,
+    warm: 0.5,
     cold: 0.2,
-    converted: 1.0,
-    lost: 0.0,
   };
-  const conversionProbability = lead.ai_score ?? statusConversionMap[lead.status] ?? 0.5;
+  const conversionProbability =
+    lead.ai_score ??
+    (lead.pipeline_stage === "order_won"
+      ? 1.0
+      : lead.pipeline_stage === "closed_lost"
+        ? 0.0
+        : (temperatureConversionMap[lead.lead_temperature] ?? 0.5));
 
   return {
     leadScore: lead.ai_score ?? 0.5,
@@ -284,7 +287,9 @@ function formatLeadContext(lead: Lead): string {
 Contact: ${lead.contact}
 Source: ${lead.source}
 Type: ${lead.lead_type}
-Status: ${lead.status}
+Status: ${lead.lead_status}
+Pipeline stage: ${lead.pipeline_stage}
+Temperature: ${lead.lead_temperature}
 Created: ${lead.created_at}
 AI Score: ${lead.ai_score ?? 'Not scored'}
 Current Summary: ${lead.ai_summary ?? 'No summary'}`;

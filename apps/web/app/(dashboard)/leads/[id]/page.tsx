@@ -12,9 +12,25 @@ import {
   type Lead,
   type Note,
   type LeadStatus,
-  type LeadStage,
+  type PipelineStage,
+  type LeadTemperature,
+  type FactoryVisitStatus,
+  type LostReasonCode,
   type CallRecording,
 } from "@maiyuri/shared";
+import {
+  PIPELINE_STAGES,
+  PIPELINE_STAGE_MAP,
+  LEAD_STATUSES,
+  LEAD_STATUS_MAP,
+  LEAD_TEMPERATURES,
+  LEAD_TEMPERATURE_MAP,
+  FACTORY_VISIT_STATUSES,
+  FACTORY_VISIT_STATUS_MAP,
+  LOST_REASON_CODES,
+  FIELD_GUIDANCE,
+} from "@/lib/lead-taxonomy";
+import { InfoHint } from "@/components/InfoHint";
 import {
   AudioUpload,
   WhatsAppButton,
@@ -33,105 +49,15 @@ import {
 import Link from "next/link";
 import { Toaster, toast } from "sonner";
 
-const statusLabels: Record<LeadStatus, string> = {
-  new: "New",
-  follow_up: "Follow Up",
-  hot: "Hot",
-  cold: "Cold",
-  converted: "Converted",
-  lost: "Lost",
-};
-
-const statusOptions: LeadStatus[] = [
-  "new",
-  "follow_up",
-  "hot",
-  "cold",
-  "converted",
-  "lost",
-];
-
-// Stage configuration with labels and icons (Issue #19)
-const stageConfig: Record<
-  LeadStage,
-  { label: string; icon: string; color: string }
-> = {
-  inquiry: {
-    label: "Inquiry",
-    icon: "💬",
-    color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300",
-  },
-  quote_sent: {
-    label: "Quote Sent",
-    icon: "📧",
-    color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-  },
-  quotation_pending: {
-    label: "Quotation Pending",
-    icon: "⏳",
-    color:
-      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-  },
-  factory_visit: {
-    label: "Factory Visit Pending",
-    icon: "🏭",
-    color:
-      "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-  },
-  factory_visit_pending: {
-    label: "Factory Visit Pending",
-    icon: "🏭",
-    color:
-      "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-  },
-  factory_visit_completed: {
-    label: "Factory Visit Completed",
-    icon: "🏭",
-    color:
-      "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
-  },
-  negotiation: {
-    label: "Negotiation",
-    icon: "🤝",
-    color:
-      "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
-  },
-  order_confirmed: {
-    label: "Order Confirmed",
-    icon: "✅",
-    color:
-      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
-  },
-  in_production: {
-    label: "In Production",
-    icon: "⚙️",
-    color:
-      "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
-  },
-  ready_dispatch: {
-    label: "Ready for Dispatch",
-    icon: "📦",
-    color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300",
-  },
-  delivered: {
-    label: "Delivered",
-    icon: "🚚",
-    color:
-      "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-  },
-};
-
-const stageOptions: LeadStage[] = [
-  "inquiry",
-  "quote_sent",
-  "factory_visit_pending",
-  "factory_visit_completed",
-  "negotiation",
-  "order_confirmed",
-  "in_production",
-  "ready_dispatch",
-  "delivered",
-];
+// V2 taxonomy-derived option lists (single source of truth in lead-taxonomy.ts)
+const statusOptions: LeadStatus[] = LEAD_STATUSES.map((o) => o.value);
+const stageOptions: PipelineStage[] = PIPELINE_STAGES.map((o) => o.value);
+const temperatureOptions: LeadTemperature[] = LEAD_TEMPERATURES.map(
+  (o) => o.value,
+);
+const factoryVisitOptions: FactoryVisitStatus[] = FACTORY_VISIT_STATUSES.map(
+  (o) => o.value,
+);
 
 async function fetchLead(id: string) {
   const res = await fetch(`/api/leads/${id}`);
@@ -151,28 +77,53 @@ async function fetchCallRecordings(leadId: string) {
   return res.json();
 }
 
-async function updateLeadStatus(id: string, status: LeadStatus, lostReason?: string) {
-  const body: { status: LeadStatus; lost_reason?: string } = { status };
-  if (status === "lost" && lostReason) {
-    body.lost_reason = lostReason;
-  }
+async function updateLeadStatus(id: string, lead_status: LeadStatus) {
   const res = await fetch(`/api/leads/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ lead_status }),
   });
   if (!res.ok) throw new Error("Failed to update status");
   return res.json();
 }
 
-async function updateLeadStage(id: string, stage: LeadStage) {
+async function updateLeadTemperature(id: string, lead_temperature: LeadTemperature) {
   const res = await fetch(`/api/leads/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      stage,
-      stage_updated_at: new Date().toISOString(),
-    }),
+    body: JSON.stringify({ lead_temperature }),
+  });
+  if (!res.ok) throw new Error("Failed to update temperature");
+  return res.json();
+}
+
+async function updateFactoryVisit(id: string, factory_visit_status: FactoryVisitStatus) {
+  const res = await fetch(`/api/leads/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ factory_visit_status }),
+  });
+  if (!res.ok) throw new Error("Failed to update factory visit status");
+  return res.json();
+}
+
+async function updatePipelineStage(
+  id: string,
+  pipeline_stage: PipelineStage,
+  lostReasonCode?: LostReasonCode,
+) {
+  const body: {
+    pipeline_stage: PipelineStage;
+    stage_updated_at: string;
+    lost_reason_code?: LostReasonCode;
+  } = { pipeline_stage, stage_updated_at: new Date().toISOString() };
+  if (pipeline_stage === "closed_lost" && lostReasonCode) {
+    body.lost_reason_code = lostReasonCode;
+  }
+  const res = await fetch(`/api/leads/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error("Failed to update stage");
   return res.json();
@@ -233,12 +184,12 @@ export default function LeadDetailPage() {
   const [showAudioUpload, setShowAudioUpload] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showEstimator, setShowEstimator] = useState(false);
-  // Issue #20: Quick status/stage dropdowns
+  // Quick status/stage dropdowns
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showStageDropdown, setShowStageDropdown] = useState(false);
-  // Lost reason modal state
+  // Lost reason modal state (triggered when pipeline -> closed_lost)
   const [showLostReasonModal, setShowLostReasonModal] = useState(false);
-  const [lostReason, setLostReason] = useState("");
+  const [lostReasonCode, setLostReasonCode] = useState<LostReasonCode | "">("");
 
   const { data: leadData, isLoading: leadLoading } = useQuery({
     queryKey: ["lead", leadId],
@@ -261,13 +212,10 @@ export default function LeadDetailPage() {
   const callRecordings: CallRecording[] = callRecordingsData?.data || [];
 
   const statusMutation = useMutation({
-    mutationFn: ({ status, lostReason }: { status: LeadStatus; lostReason?: string }) =>
-      updateLeadStatus(leadId, status, lostReason),
+    mutationFn: (lead_status: LeadStatus) => updateLeadStatus(leadId, lead_status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
       queryClient.invalidateQueries({ queryKey: ["leads"] });
-      setShowLostReasonModal(false);
-      setLostReason("");
       toast.success("Status updated successfully");
     },
     onError: () => {
@@ -275,36 +223,67 @@ export default function LeadDetailPage() {
     },
   });
 
-  // Handler for status change - shows modal if "lost" is selected
   const handleStatusChange = (status: LeadStatus) => {
-    if (status === "lost") {
-      setShowLostReasonModal(true);
-    } else {
-      statusMutation.mutate({ status });
-    }
+    statusMutation.mutate(status);
     setShowStatusDropdown(false);
   };
 
-  // Handler for confirming lost status with reason
-  const handleConfirmLost = () => {
-    if (!lostReason.trim()) {
-      toast.error("Please enter a reason for marking this lead as lost");
-      return;
-    }
-    statusMutation.mutate({ status: "lost", lostReason });
-  };
-
-  const stageMutation = useMutation({
-    mutationFn: (stage: LeadStage) => updateLeadStage(leadId, stage),
+  const temperatureMutation = useMutation({
+    mutationFn: (t: LeadTemperature) => updateLeadTemperature(leadId, t),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
       queryClient.invalidateQueries({ queryKey: ["leads"] });
-      toast.success("Stage updated successfully");
+      toast.success("Temperature updated");
+    },
+    onError: () => toast.error("Failed to update temperature"),
+  });
+
+  const factoryVisitMutation = useMutation({
+    mutationFn: (s: FactoryVisitStatus) => updateFactoryVisit(leadId, s),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
+      toast.success("Factory visit status updated");
+    },
+    onError: () => toast.error("Failed to update factory visit status"),
+  });
+
+  const stageMutation = useMutation({
+    mutationFn: ({
+      stage,
+      lostReasonCode,
+    }: {
+      stage: PipelineStage;
+      lostReasonCode?: LostReasonCode;
+    }) => updatePipelineStage(leadId, stage, lostReasonCode),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead", leadId] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      setShowLostReasonModal(false);
+      setLostReasonCode("");
+      toast.success("Pipeline stage updated");
     },
     onError: () => {
       toast.error("Failed to update stage");
     },
   });
+
+  // Stage change - shows lost-reason modal when moving to closed_lost
+  const handleStageChange = (stage: PipelineStage) => {
+    if (stage === "closed_lost") {
+      setShowLostReasonModal(true);
+    } else {
+      stageMutation.mutate({ stage });
+    }
+    setShowStageDropdown(false);
+  };
+
+  const handleConfirmLost = () => {
+    if (!lostReasonCode) {
+      toast.error("Please choose a reason for marking this lead as lost");
+      return;
+    }
+    stageMutation.mutate({ stage: "closed_lost", lostReasonCode });
+  };
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteLead(leadId),
@@ -399,7 +378,7 @@ export default function LeadDetailPage() {
       {/* Enhanced Header Card - Issue #8 */}
       <Card className="p-0 overflow-visible">
         {/* Status Color Bar */}
-        <div className={`h-2 rounded-t-lg ${getStatusColor(lead.status)}`} />
+        <div className={`h-2 rounded-t-lg ${getStatusColor(lead.pipeline_stage)}`} />
 
         <div className="p-6">
           {/* Top Row: Back, Name, Actions */}
@@ -416,106 +395,114 @@ export default function LeadDetailPage() {
                   <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
                     {lead.name}
                   </h1>
-                  {/* Issue #20: Clickable Status Badge with Dropdown */}
-                  <div className="relative">
-                    <button
-                      onClick={() => {
-                        setShowStatusDropdown(!showStatusDropdown);
-                        setShowStageDropdown(false);
-                      }}
-                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-blue-400 transition-all ${
-                        lead.status === "hot"
-                          ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                          : lead.status === "converted"
-                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                            : lead.status === "follow_up"
-                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                              : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
-                      }`}
-                    >
-                      {statusLabels[lead.status]}
-                      <ChevronDownIcon className="h-3 w-3" />
-                    </button>
-                    {showStatusDropdown && (
-                      <div className="absolute top-full left-0 mt-1 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50">
-                        {statusOptions.map((status) => (
-                          <button
-                            key={status}
-                            onClick={() => handleStatusChange(status)}
-                            className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-between ${
-                              lead.status === status
-                                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                                : "text-slate-700 dark:text-slate-300"
-                            }`}
-                          >
-                            {statusLabels[status]}
-                            {lead.status === status && (
-                              <span className="text-blue-600">✓</span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Issue #20: Clickable Stage Badge with Dropdown */}
+                  {/* Pipeline Stage badge with dropdown (sales journey) */}
                   <div className="relative">
                     <button
                       onClick={() => {
                         setShowStageDropdown(!showStageDropdown);
                         setShowStatusDropdown(false);
                       }}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-blue-400 transition-all ${
-                        lead.stage
-                          ? stageConfig[lead.stage].color
-                          : "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400"
-                      }`}
+                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-blue-400 transition-all ${PIPELINE_STAGE_MAP[lead.pipeline_stage].bg} ${PIPELINE_STAGE_MAP[lead.pipeline_stage].color}`}
                     >
-                      <span>
-                        {lead.stage ? stageConfig[lead.stage].icon : "📋"}
-                      </span>
-                      <span>
-                        {lead.stage
-                          ? stageConfig[lead.stage].label
-                          : "Set Stage"}
-                      </span>
+                      <span>{PIPELINE_STAGE_MAP[lead.pipeline_stage].emoji}</span>
+                      <span>{PIPELINE_STAGE_MAP[lead.pipeline_stage].label}</span>
                       <ChevronDownIcon className="h-3 w-3" />
                     </button>
                     {showStageDropdown && (
-                      <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50 max-h-72 overflow-y-auto">
+                      <div className="absolute top-full left-0 mt-1 w-72 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50 max-h-96 overflow-y-auto">
+                        <div className="px-3 py-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700">
+                          {FIELD_GUIDANCE.pipeline_stage}
+                        </div>
                         {stageOptions.map((stage) => {
-                          const config = stageConfig[stage];
+                          const config = PIPELINE_STAGE_MAP[stage];
                           return (
                             <button
                               key={stage}
-                              onClick={() => {
-                                stageMutation.mutate(stage);
-                                setShowStageDropdown(false);
-                              }}
-                              className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 ${
-                                lead.stage === stage
-                                  ? "bg-blue-50 dark:bg-blue-900/20"
-                                  : ""
+                              onClick={() => handleStageChange(stage)}
+                              className={`w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 ${
+                                lead.pipeline_stage === stage ? "bg-blue-50 dark:bg-blue-900/20" : ""
                               }`}
                             >
-                              <span>{config.icon}</span>
-                              <span
-                                className={
-                                  lead.stage === stage
-                                    ? "text-blue-700 dark:text-blue-300"
-                                    : "text-slate-700 dark:text-slate-300"
-                                }
-                              >
-                                {config.label}
-                              </span>
-                              {lead.stage === stage && (
-                                <span className="ml-auto text-blue-600">✓</span>
-                              )}
+                              <div className="flex items-center gap-2 text-sm">
+                                <span>{config.emoji}</span>
+                                <span className={lead.pipeline_stage === stage ? "text-blue-700 dark:text-blue-300 font-medium" : "text-slate-700 dark:text-slate-300"}>
+                                  {config.label}
+                                </span>
+                                {lead.pipeline_stage === stage && (
+                                  <span className="ml-auto text-blue-600">✓</span>
+                                )}
+                              </div>
+                              <p className="mt-0.5 ml-6 text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+                                {config.hint}
+                              </p>
                             </button>
                           );
                         })}
                       </div>
                     )}
+                  </div>
+
+                  {/* Lead Status badge with dropdown (action state) */}
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setShowStatusDropdown(!showStatusDropdown);
+                        setShowStageDropdown(false);
+                      }}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-blue-400 transition-all ${LEAD_STATUS_MAP[lead.lead_status].bg} ${LEAD_STATUS_MAP[lead.lead_status].color}`}
+                    >
+                      <span>{LEAD_STATUS_MAP[lead.lead_status].emoji}</span>
+                      <span>{LEAD_STATUS_MAP[lead.lead_status].label}</span>
+                      <ChevronDownIcon className="h-3 w-3" />
+                    </button>
+                    {showStatusDropdown && (
+                      <div className="absolute top-full left-0 mt-1 w-72 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50 max-h-96 overflow-y-auto">
+                        <div className="px-3 py-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700">
+                          {FIELD_GUIDANCE.lead_status}
+                        </div>
+                        {statusOptions.map((status) => (
+                          <button
+                            key={status}
+                            onClick={() => handleStatusChange(status)}
+                            className={`w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 ${
+                              lead.lead_status === status ? "bg-blue-50 dark:bg-blue-900/20" : ""
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 text-sm">
+                              <span>{LEAD_STATUS_MAP[status].emoji}</span>
+                              <span className={lead.lead_status === status ? "text-blue-700 dark:text-blue-300 font-medium" : "text-slate-700 dark:text-slate-300"}>
+                                {LEAD_STATUS_MAP[status].label}
+                              </span>
+                              {lead.lead_status === status && (
+                                <span className="ml-auto text-blue-600">✓</span>
+                              )}
+                            </div>
+                            <p className="mt-0.5 ml-6 text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+                              {LEAD_STATUS_MAP[status].hint}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Temperature badge with quick selector */}
+                  <div className="inline-flex items-center gap-1">
+                    {temperatureOptions.map((t) => (
+                      <button
+                        key={t}
+                        title={`${LEAD_TEMPERATURE_MAP[t].label} — ${LEAD_TEMPERATURE_MAP[t].hint}`}
+                        onClick={() => temperatureMutation.mutate(t)}
+                        className={`px-2 py-1 rounded-full text-xs transition-all ${
+                          lead.lead_temperature === t
+                            ? `${LEAD_TEMPERATURE_MAP[t].bg} ${LEAD_TEMPERATURE_MAP[t].color} ring-1 ring-offset-1`
+                            : "opacity-40 hover:opacity-100"
+                        }`}
+                      >
+                        {LEAD_TEMPERATURE_MAP[t].emoji}
+                      </button>
+                    ))}
+                    <InfoHint text={FIELD_GUIDANCE.lead_temperature} className="ml-0.5" />
                   </div>
                 </div>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -550,9 +537,9 @@ export default function LeadDetailPage() {
                 Status
               </div>
               <div
-                className={`text-lg font-semibold ${getStatusTextColor(lead.status)}`}
+                className={`text-lg font-semibold ${getStatusTextColor(lead.pipeline_stage)}`}
               >
-                {statusLabels[lead.status]}
+                {LEAD_STATUS_MAP[lead.lead_status].label}
               </div>
               {lead.urgency && (
                 <div className="text-xs text-slate-500 mt-1">
@@ -960,8 +947,9 @@ export default function LeadDetailPage() {
 
           {/* Status Card */}
           <Card className="p-6">
-            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-1.5">
               Update Status
+              <InfoHint text={FIELD_GUIDANCE.lead_status} />
             </h3>
             <div className="grid grid-cols-2 gap-2">
               {statusOptions.map((status) => (
@@ -970,38 +958,59 @@ export default function LeadDetailPage() {
                   onClick={() => handleStatusChange(status)}
                   disabled={statusMutation.isPending}
                   className={`px-3 py-2 text-xs font-medium rounded-md transition-colors ${
-                    lead.status === status
+                    lead.lead_status === status
                       ? "bg-blue-600 text-white"
                       : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
                   }`}
                 >
-                  {statusLabels[status]}
+                  {LEAD_STATUS_MAP[status].emoji} {LEAD_STATUS_MAP[status].label}
                 </button>
               ))}
             </div>
           </Card>
 
+          {/* Factory Visit Card (V2) */}
+          <Card className="p-6">
+            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-1.5">
+              Factory Visit
+              <InfoHint text={FIELD_GUIDANCE.factory_visit_status} />
+            </h3>
+            <select
+              value={lead.factory_visit_status}
+              onChange={(e) =>
+                factoryVisitMutation.mutate(e.target.value as FactoryVisitStatus)
+              }
+              disabled={factoryVisitMutation.isPending}
+              className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {factoryVisitOptions.map((s) => (
+                <option key={s} value={s}>
+                  {FACTORY_VISIT_STATUS_MAP[s].emoji} {FACTORY_VISIT_STATUS_MAP[s].label}
+                </option>
+              ))}
+            </select>
+          </Card>
+
           {/* Stage Card - Issue #19 */}
           <Card className="p-6">
-            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-1.5">
               Pipeline Stage
+              <InfoHint text={FIELD_GUIDANCE.pipeline_stage} />
             </h3>
             <div className="space-y-2">
               {stageOptions.map((stage) => {
-                const config = stageConfig[stage];
-                const isActive = lead.stage === stage;
+                const config = PIPELINE_STAGE_MAP[stage];
+                const isActive = lead.pipeline_stage === stage;
                 return (
                   <button
                     key={stage}
-                    onClick={() => stageMutation.mutate(stage)}
+                    onClick={() => handleStageChange(stage)}
                     disabled={stageMutation.isPending}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
-                      isActive
-                        ? "ring-2 ring-blue-500 " + config.color
-                        : config.color + " opacity-60 hover:opacity-100"
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-md transition-colors ${config.bg} ${config.color} ${
+                      isActive ? "ring-2 ring-blue-500" : "opacity-60 hover:opacity-100"
                     }`}
                   >
-                    <span className="text-base">{config.icon}</span>
+                    <span className="text-base">{config.emoji}</span>
                     <span>{config.label}</span>
                     {isActive && (
                       <span className="ml-auto text-blue-600 dark:text-blue-400">
@@ -1095,33 +1104,39 @@ export default function LeadDetailPage() {
         </div>
       </Modal>
 
-      {/* Lost Reason Modal */}
+      {/* Lost Reason Modal (shown when moving pipeline -> Closed Lost) */}
       <Modal
         isOpen={showLostReasonModal}
         onClose={() => {
           setShowLostReasonModal(false);
-          setLostReason("");
+          setLostReasonCode("");
         }}
         title="Reason for Lost"
         size="sm"
       >
         <p className="text-slate-600 dark:text-slate-300 mb-4">
-          Please provide a reason for marking <strong>{lead.name}</strong> as lost.
+          Please choose a reason for marking <strong>{lead.name}</strong> as lost.
           This helps with post-mortem analysis.
         </p>
-        <textarea
-          value={lostReason}
-          onChange={(e) => setLostReason(e.target.value)}
-          placeholder="Enter reason for lost (e.g., chose competitor, budget constraints, no response...)"
-          className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm min-h-[100px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <select
+          value={lostReasonCode}
+          onChange={(e) => setLostReasonCode(e.target.value as LostReasonCode)}
+          className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           autoFocus
-        />
+        >
+          <option value="">Select a reason…</option>
+          {LOST_REASON_CODES.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.emoji} {r.label}
+            </option>
+          ))}
+        </select>
         <div className="mt-6 flex justify-end gap-3">
           <Button
             variant="secondary"
             onClick={() => {
               setShowLostReasonModal(false);
-              setLostReason("");
+              setLostReasonCode("");
             }}
           >
             Cancel
@@ -1129,9 +1144,9 @@ export default function LeadDetailPage() {
           <Button
             variant="danger"
             onClick={handleConfirmLost}
-            disabled={statusMutation.isPending || !lostReason.trim()}
+            disabled={stageMutation.isPending || !lostReasonCode}
           >
-            {statusMutation.isPending ? "Updating..." : "Mark as Lost"}
+            {stageMutation.isPending ? "Updating..." : "Mark as Lost"}
           </Button>
         </div>
       </Modal>
@@ -1266,40 +1281,48 @@ function PhoneIcon({ className }: { className?: string }) {
   );
 }
 
-// Helper functions for Issue #8 - Enhanced Header Layout
-function getStatusColor(status: string): string {
-  switch (status) {
-    case "hot":
-      return "bg-red-500";
-    case "converted":
+// Helper functions for Enhanced Header Layout — keyed by pipeline_stage (V2)
+function getStatusColor(stage: string): string {
+  switch (stage) {
+    case "order_won":
       return "bg-emerald-500";
-    case "follow_up":
+    case "finalisation":
+      return "bg-purple-500";
+    case "factory_visit_proof":
       return "bg-amber-500";
-    case "new":
+    case "quote_shared":
+      return "bg-indigo-500";
+    case "qualified_lead":
+      return "bg-cyan-500";
+    case "new_inquiry":
       return "bg-blue-500";
-    case "cold":
-      return "bg-slate-400";
-    case "lost":
-      return "bg-slate-600";
+    case "decision_pending":
+      return "bg-orange-500";
+    case "closed_lost":
+      return "bg-stone-500";
     default:
       return "bg-slate-400";
   }
 }
 
-function getStatusTextColor(status: string): string {
-  switch (status) {
-    case "hot":
-      return "text-red-600 dark:text-red-400";
-    case "converted":
+function getStatusTextColor(stage: string): string {
+  switch (stage) {
+    case "order_won":
       return "text-emerald-600 dark:text-emerald-400";
-    case "follow_up":
+    case "finalisation":
+      return "text-purple-600 dark:text-purple-400";
+    case "factory_visit_proof":
       return "text-amber-600 dark:text-amber-400";
-    case "new":
+    case "quote_shared":
+      return "text-indigo-600 dark:text-indigo-400";
+    case "qualified_lead":
+      return "text-cyan-600 dark:text-cyan-400";
+    case "new_inquiry":
       return "text-blue-600 dark:text-blue-400";
-    case "cold":
-      return "text-slate-500 dark:text-slate-400";
-    case "lost":
-      return "text-slate-600 dark:text-slate-500";
+    case "decision_pending":
+      return "text-orange-600 dark:text-orange-400";
+    case "closed_lost":
+      return "text-stone-600 dark:text-stone-500";
     default:
       return "text-slate-600 dark:text-slate-400";
   }

@@ -125,7 +125,9 @@ Guidelines:
 LEAD:
 - Name: ${lead.name}
 - Contact: ${lead.contact}
-- Status: ${lead.status}
+- Status: ${lead.lead_status}
+- Pipeline stage: ${lead.pipeline_stage}
+- Temperature: ${lead.lead_temperature}
 - AI Score: ${lead.ai_score ? Math.round(lead.ai_score * 100) : "N/A"}%
 - Lead Type: ${lead.lead_type || "Unknown"}
 - Classification: ${lead.classification || "Unknown"}
@@ -199,7 +201,9 @@ LEAD:
 - Name: ${lead.name}
 - Lead Type: ${lead.lead_type || "Unknown"}
 - Classification: ${lead.classification || "direct_customer"}
-- Status: ${lead.status}
+- Status: ${lead.lead_status}
+- Pipeline stage: ${lead.pipeline_stage}
+- Temperature: ${lead.lead_temperature}
 
 INTERACTION HISTORY:
 ${historyContext || "No previous interaction data available"}
@@ -250,7 +254,9 @@ Guidelines:
 LEAD:
 - Name: ${lead.name}
 - Phone: ${lead.contact}
-- Status: ${lead.status}
+- Status: ${lead.lead_status}
+- Pipeline stage: ${lead.pipeline_stage}
+- Temperature: ${lead.lead_temperature}
 - Score: ${lead.ai_score ? Math.round(lead.ai_score * 100) : "N/A"}%
 - Next Action: ${lead.next_action || "Not specified"}
 

@@ -2,28 +2,54 @@
 
 import { z } from "zod";
 
+// Lead Status (V2) - current action state
 export const leadStatusSchema = z.enum([
-  "new",
-  "follow_up",
-  "hot",
-  "cold",
-  "converted",
-  "lost",
+  "new_contact_pending",
+  "contact_attempted",
+  "connected",
+  "follow_up_scheduled",
+  "waiting_for_customer",
+  "nurture_later",
+  "closed",
 ]);
 
-// Lead Stage Schema - Sales pipeline progression (Issue #19)
-export const leadStageSchema = z.enum([
-  "inquiry",
-  "quote_sent",
-  "quotation_pending",
-  "factory_visit",
-  "factory_visit_pending",
-  "factory_visit_completed",
-  "negotiation",
-  "order_confirmed",
-  "in_production",
-  "ready_dispatch",
-  "delivered",
+// Pipeline Stage (V2) - sales conversion journey (was leadStageSchema)
+export const pipelineStageSchema = z.enum([
+  "new_inquiry",
+  "qualified_lead",
+  "quote_shared",
+  "factory_visit_proof",
+  "decision_pending",
+  "finalisation",
+  "order_won",
+  "closed_lost",
+]);
+
+// Lead Temperature (V2) - priority
+export const leadTemperatureSchema = z.enum(["hot", "warm", "cold"]);
+
+// Factory Visit Status (V2)
+export const factoryVisitStatusSchema = z.enum([
+  "not_discussed",
+  "invited",
+  "scheduled",
+  "visited",
+  "no_show",
+  "not_required",
+]);
+
+// Lost Reason Code (V2) - structured; free-text lost_reason kept for notes
+export const lostReasonCodeSchema = z.enum([
+  "price_too_high",
+  "chose_kerala_competitor",
+  "chose_conventional_aac",
+  "project_delayed",
+  "customer_not_reachable",
+  "no_genuine_requirement",
+  "transport_delivery_cost",
+  "engineer_mason_not_convinced",
+  "family_decision_delayed",
+  "other",
 ]);
 
 // Lead Classification Schema
@@ -76,9 +102,20 @@ export const optionalRequirementTypeSchema = emptyStringToNull(
   requirementTypeSchema.nullable().optional(),
 );
 
-// Optional lead stage that accepts empty string from form selects (Issue #19)
-export const optionalLeadStageSchema = emptyStringToNull(
-  leadStageSchema.nullable().optional(),
+// Optional pipeline stage that accepts empty string from form selects
+export const optionalPipelineStageSchema = emptyStringToNull(
+  pipelineStageSchema.nullable().optional(),
+);
+
+// Optional V2 categorical fields (coerce empty string from selects to null)
+export const optionalLeadTemperatureSchema = emptyStringToNull(
+  leadTemperatureSchema.nullable().optional(),
+);
+export const optionalFactoryVisitStatusSchema = emptyStringToNull(
+  factoryVisitStatusSchema.nullable().optional(),
+);
+export const optionalLostReasonCodeSchema = emptyStringToNull(
+  lostReasonCodeSchema.nullable().optional(),
 );
 
 export const userRoleSchema = z.enum([
@@ -95,9 +132,12 @@ export const createLeadSchema = z.object({
   source: z.string().min(1, "Source is required"),
   lead_type: z.string().min(1, "Lead type is required"),
   assigned_staff: z.string().uuid("Invalid staff ID").nullable().optional(),
-  status: leadStatusSchema.default("new"),
-  // Sales pipeline stage (Issue #19)
-  stage: optionalLeadStageSchema,
+  // V2 taxonomy
+  lead_status: leadStatusSchema.default("new_contact_pending"),
+  pipeline_stage: optionalPipelineStageSchema,
+  lead_temperature: optionalLeadTemperatureSchema,
+  factory_visit_status: optionalFactoryVisitStatusSchema,
+  lost_reason_code: optionalLostReasonCodeSchema,
   // New classification and location fields (coerce empty string to null)
   classification: optionalClassificationSchema,
   requirement_type: optionalRequirementTypeSchema,
@@ -116,9 +156,12 @@ export const updateLeadSchema = z.object({
   source: z.string().min(1).optional(),
   lead_type: z.string().min(1).optional(),
   assigned_staff: emptyStringToNull(z.string().uuid().nullable().optional()),
-  status: leadStatusSchema.optional(),
-  // Sales pipeline stage (Issue #19)
-  stage: optionalLeadStageSchema,
+  // V2 taxonomy
+  lead_status: leadStatusSchema.optional(),
+  pipeline_stage: optionalPipelineStageSchema,
+  lead_temperature: optionalLeadTemperatureSchema,
+  factory_visit_status: optionalFactoryVisitStatusSchema,
+  lost_reason_code: optionalLostReasonCodeSchema,
   stage_updated_at: emptyStringToNull(z.string().nullable().optional()),
   stage_updated_by: emptyStringToNull(z.string().nullable().optional()),
   // New classification and location fields (coerce empty string to null)
@@ -146,27 +189,37 @@ export const createNoteSchema = z.object({
   audio_url: z.string().url().optional(),
 });
 
+// Update lead status (V2 action state)
 export const updateLeadStatusSchema = z.object({
-  status: leadStatusSchema,
-  lost_reason: z.string().optional(),
-}).refine(
-  (data) => {
-    // If status is "lost", lost_reason is required
-    if (data.status === "lost") {
-      return !!data.lost_reason && data.lost_reason.trim().length > 0;
-    }
-    return true;
-  },
-  {
-    message: "Reason for lost is required when marking a lead as lost",
-    path: ["lost_reason"],
-  }
-);
-
-// Update lead stage (Issue #19)
-export const updateLeadStageSchema = z.object({
-  stage: leadStageSchema,
+  lead_status: leadStatusSchema,
 });
+
+// Update lead temperature (V2 priority)
+export const updateLeadTemperatureSchema = z.object({
+  lead_temperature: leadTemperatureSchema,
+});
+
+// Update factory visit status (V2)
+export const updateFactoryVisitStatusSchema = z.object({
+  factory_visit_status: factoryVisitStatusSchema,
+});
+
+// Update pipeline stage (V2). When moving to closed_lost, a structured
+// lost_reason_code is required.
+export const updatePipelineStageSchema = z
+  .object({
+    pipeline_stage: pipelineStageSchema,
+    lost_reason_code: lostReasonCodeSchema.optional(),
+    lost_reason: z.string().optional(),
+  })
+  .refine(
+    (data) =>
+      data.pipeline_stage !== "closed_lost" || !!data.lost_reason_code,
+    {
+      message: "A lost reason is required when marking a lead as Closed Lost",
+      path: ["lost_reason_code"],
+    },
+  );
 
 export const updateNoteSchema = z.object({
   text: z.string().min(1).optional(),
@@ -189,8 +242,10 @@ export const paginationSchema = z.object({
 });
 
 export const leadFiltersSchema = z.object({
-  status: leadStatusSchema.optional(),
-  stage: leadStageSchema.optional(), // Issue #19
+  lead_status: leadStatusSchema.optional(),
+  pipeline_stage: pipelineStageSchema.optional(),
+  lead_temperature: leadTemperatureSchema.optional(),
+  factory_visit_status: factoryVisitStatusSchema.optional(),
   assigned_staff: z.string().uuid().optional(),
   search: z.string().optional(),
   from_date: z.string().optional(),
@@ -264,7 +319,15 @@ export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
 export type CreateNoteInput = z.infer<typeof createNoteSchema>;
 export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;
 export type UpdateLeadStatusInput = z.infer<typeof updateLeadStatusSchema>;
-export type UpdateLeadStageInput = z.infer<typeof updateLeadStageSchema>;
+export type UpdateLeadTemperatureInput = z.infer<
+  typeof updateLeadTemperatureSchema
+>;
+export type UpdateFactoryVisitStatusInput = z.infer<
+  typeof updateFactoryVisitStatusSchema
+>;
+export type UpdatePipelineStageInput = z.infer<
+  typeof updatePipelineStageSchema
+>;
 export type CreateKnowledgebaseInput = z.infer<
   typeof createKnowledgebaseSchema
 >;

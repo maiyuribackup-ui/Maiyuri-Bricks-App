@@ -124,7 +124,7 @@ export function useUpdateLeadStatus() {
 
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: LeadStatus }) =>
-      updateLead(id, { status }),
+      updateLead(id, { lead_status: status }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['lead', variables.id] });

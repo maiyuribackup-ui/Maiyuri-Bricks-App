@@ -12,6 +12,11 @@ import type {
   LeadUrgency,
   ConversionLever,
   SmartQuotePayload,
+  LeadStatus,
+  PipelineStage,
+  LeadTemperature,
+  FactoryVisitStatus,
+  LostReasonCode,
 } from "@maiyuri/shared";
 
 // Re-export shared types
@@ -25,6 +30,11 @@ export type {
   LeadUrgency,
   ConversionLever,
   SmartQuotePayload,
+  LeadStatus,
+  PipelineStage,
+  LeadTemperature,
+  FactoryVisitStatus,
+  LostReasonCode,
 };
 
 // ============================================

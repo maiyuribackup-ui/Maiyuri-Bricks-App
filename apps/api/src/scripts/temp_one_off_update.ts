@@ -221,7 +221,7 @@ function formatLeadContext(lead: Lead): string {
 Contact: ${lead.contact}
 Source: ${lead.source}
 Type: ${lead.lead_type}
-Status: ${lead.status}
+Status: ${lead.lead_status}
 Created: ${lead.created_at}`;
 }
 

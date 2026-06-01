@@ -14,7 +14,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { data: note, error: dbError } = await supabaseAdmin
       .from("notes")
-      .select("*, leads(name, status)")
+      .select("*, leads(name, lead_status)")
       .eq("id", id)
       .single();
 

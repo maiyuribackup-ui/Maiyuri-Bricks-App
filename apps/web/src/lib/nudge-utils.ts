@@ -21,12 +21,13 @@ const APP_URL =
  * Status emoji mapping
  */
 const STATUS_EMOJI: Record<LeadStatus, string> = {
-  new: "🆕",
-  follow_up: "⏰",
-  hot: "🔥",
-  cold: "❄️",
-  converted: "✅",
-  lost: "❌",
+  new_contact_pending: "🆕",
+  contact_attempted: "📞",
+  connected: "✅",
+  follow_up_scheduled: "🔁",
+  waiting_for_customer: "⏳",
+  nurture_later: "🌱",
+  closed: "🔒",
 };
 
 /**
@@ -80,7 +81,7 @@ export function matchesRule(lead: Lead, rule: NudgeRule): boolean {
 
   // Check statuses filter
   if (conditions.statuses && conditions.statuses.length > 0) {
-    if (!conditions.statuses.includes(lead.status)) {
+    if (!conditions.statuses.includes(lead.lead_status)) {
       return false;
     }
   }
@@ -170,7 +171,7 @@ export function toDigestLead(lead: Lead, rule: NudgeRule): NudgeDigestLead {
     id: lead.id,
     name: lead.name,
     contact: lead.contact,
-    status: lead.status,
+    status: lead.lead_status,
     ai_score: lead.ai_score ?? null,
     follow_up_date: lead.follow_up_date ?? null,
     next_action: lead.next_action ?? null,
@@ -251,7 +252,15 @@ export function formatDigestMessage(group: NudgeDigestGroup): string {
   lines.push(``);
 
   // Group leads by status for better readability
-  const statusOrder: LeadStatus[] = ["hot", "follow_up", "new", "cold"];
+  const statusOrder: LeadStatus[] = [
+    "follow_up_scheduled",
+    "contact_attempted",
+    "connected",
+    "new_contact_pending",
+    "waiting_for_customer",
+    "nurture_later",
+    "closed",
+  ];
   const sortedLeads = [...leads].sort((a, b) => {
     const aIndex = statusOrder.indexOf(a.status);
     const bIndex = statusOrder.indexOf(b.status);
@@ -288,14 +297,14 @@ export function formatManualNudgeMessage(
   nudgeType: string,
   customMessage?: string,
 ): string {
-  const emoji = STATUS_EMOJI[lead.status] || "📌";
+  const emoji = STATUS_EMOJI[lead.lead_status] || "📌";
   const lines: string[] = [];
 
   lines.push(`⚡ *Lead Nudge*`);
   lines.push(``);
   lines.push(`${emoji} *Lead:* ${lead.name}`);
   lines.push(`📱 *Phone:* ${lead.contact}`);
-  lines.push(`📋 *Status:* ${(lead?.status ?? "unknown").toUpperCase()}`);
+  lines.push(`📋 *Status:* ${(lead?.lead_status ?? "unknown").toUpperCase()}`);
 
   if (lead.ai_score !== null && lead.ai_score !== undefined) {
     lines.push(`🎯 *Score:* ${formatScore(lead.ai_score)}`);

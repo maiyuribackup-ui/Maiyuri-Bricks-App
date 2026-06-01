@@ -102,7 +102,7 @@ export async function getLeads(options?: {
     let query = supabase.from("leads").select("*");
 
     if (options?.status) {
-      query = query.eq("status", options.status);
+      query = query.eq("lead_status", options.status);
     }
     if (options?.assignedStaff) {
       query = query.eq("assigned_staff", options.assignedStaff);
@@ -700,7 +700,7 @@ export async function getSimilarLeads(
       .select("*")
       .eq("lead_type", leadType)
       .eq("source", source)
-      .in("status", ["converted", "lost"])
+      .in("pipeline_stage", ["order_won", "closed_lost"])
       .limit(limit);
 
     if (error) {
@@ -738,7 +738,7 @@ export async function getConversionRate(
       .from("leads")
       .select("id", { count: "exact" })
       .eq("lead_type", leadType)
-      .in("status", ["converted", "lost"]);
+      .in("pipeline_stage", ["order_won", "closed_lost"]);
 
     if (totalError) {
       throw totalError;
@@ -748,7 +748,7 @@ export async function getConversionRate(
       .from("leads")
       .select("id", { count: "exact" })
       .eq("lead_type", leadType)
-      .eq("status", "converted");
+      .eq("pipeline_stage", "order_won");
 
     if (convertedError) {
       throw convertedError;
@@ -794,7 +794,7 @@ export async function getLeadStats(): Promise<
     // Get all leads
     const { data: leads, error } = await supabase
       .from("leads")
-      .select("status, follow_up_date");
+      .select("lead_status, follow_up_date");
 
     if (error) {
       throw error;
@@ -808,8 +808,8 @@ export async function getLeadStats(): Promise<
     };
 
     for (const lead of leads || []) {
-      // Count by status
-      stats.byStatus[lead.status] = (stats.byStatus[lead.status] || 0) + 1;
+      // Count by lead status
+      stats.byStatus[lead.lead_status] = (stats.byStatus[lead.lead_status] || 0) + 1;
 
       // Check follow-up dates
       if (lead.follow_up_date) {
@@ -877,7 +877,7 @@ export async function getStaffMetrics(
     // Get leads for staff
     const { data: leads, error: leadsError } = await supabase
       .from("leads")
-      .select("status")
+      .select("pipeline_stage")
       .eq("assigned_staff", staffId);
 
     if (leadsError) {
@@ -897,10 +897,11 @@ export async function getStaffMetrics(
 
     const totalLeads = leads?.length || 0;
     const convertedLeads =
-      leads?.filter((l) => l.status === "converted").length || 0;
+      leads?.filter((l) => l.pipeline_stage === "order_won").length || 0;
     const activeLeads =
-      leads?.filter((l) => !["converted", "lost"].includes(l.status)).length ||
-      0;
+      leads?.filter(
+        (l) => !["order_won", "closed_lost"].includes(l.pipeline_stage),
+      ).length || 0;
 
     return {
       success: true,

@@ -207,7 +207,7 @@ async function getWeeklyPerformance(
       .from("leads")
       .select("id, budget")
       .eq("is_archived", false)
-      .in("status", ["new", "follow_up", "hot", "cold"]),
+      .not("pipeline_stage", "in", "(order_won,closed_lost)"),
 
     // New leads this week
     supabaseAdmin
@@ -220,7 +220,7 @@ async function getWeeklyPerformance(
     supabaseAdmin
       .from("leads")
       .select("id, updated_at, created_at")
-      .eq("status", "converted")
+      .eq("pipeline_stage", "order_won")
       .gte("updated_at", startDate)
       .lte("updated_at", endDate),
 
@@ -228,18 +228,18 @@ async function getWeeklyPerformance(
     supabaseAdmin
       .from("leads")
       .select("id")
-      .eq("status", "lost")
+      .eq("pipeline_stage", "closed_lost")
       .gte("updated_at", startDate)
       .lte("updated_at", endDate),
 
     // Hot leads currently
-    supabaseAdmin.from("leads").select("id").eq("status", "hot").eq("is_archived", false),
+    supabaseAdmin.from("leads").select("id").eq("lead_temperature", "hot").eq("is_archived", false),
 
     // Pending follow-ups
     supabaseAdmin
       .from("leads")
       .select("id")
-      .eq("status", "follow_up")
+      .eq("lead_status", "follow_up_scheduled")
       .eq("is_archived", false),
 
     // Quotes created this week
@@ -330,7 +330,7 @@ async function getSalesExecPerformance(
           .from("leads")
           .select("id")
           .eq("assigned_staff", user.id)
-          .eq("status", "converted")
+          .eq("pipeline_stage", "order_won")
           .gte("updated_at", startDate)
           .lte("updated_at", endDate),
 

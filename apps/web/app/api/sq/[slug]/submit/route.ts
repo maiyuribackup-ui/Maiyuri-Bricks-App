@@ -66,7 +66,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Get lead details
     const { data: lead } = await supabaseAdmin
       .from("leads")
-      .select("id, name, contact, status")
+      .select("id, name, contact, lead_status")
       .eq("id", quote.lead_id)
       .single();
 

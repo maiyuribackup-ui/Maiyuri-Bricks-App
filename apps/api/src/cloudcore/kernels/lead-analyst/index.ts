@@ -237,7 +237,7 @@ async function runFullAnalysis(
       type: s.type,
       content: s.content,
     })),
-    status: lead.status,
+    status: lead.lead_status,
     nextAction: suggestions?.nextBestAction,
   };
 
@@ -353,7 +353,7 @@ Respond with JSON:
 
   // Fallback
   return {
-    text: `Lead ${lead.name} - ${lead.status}`,
+    text: `Lead ${lead.name} - ${lead.lead_status}`,
     highlights: [],
     actionItems: [],
   };
@@ -491,7 +491,9 @@ function formatLeadContext(lead: Lead): string {
 Contact: ${lead.contact}
 Source: ${lead.source}
 Type: ${lead.lead_type}
-Status: ${lead.status}
+Status: ${lead.lead_status}
+Pipeline stage: ${lead.pipeline_stage}
+Temperature: ${lead.lead_temperature}
 Created: ${lead.created_at}
 ${lead.ai_summary ? `Current Summary: ${lead.ai_summary}` : ""}
 ${lead.ai_score ? `Current Score: ${lead.ai_score}` : ""}
@@ -648,18 +650,20 @@ function calculateBasicScore(
   const factors: LeadScore["factors"] = [];
   let baseScore = 0.5;
 
-  const statusScores: Record<string, number> = {
+  // Score from pipeline terminal stage + temperature (V2)
+  const temperatureScores: Record<string, number> = {
     hot: 0.8,
-    follow_up: 0.6,
-    new: 0.5,
+    warm: 0.55,
     cold: 0.3,
-    converted: 1.0,
-    lost: 0.0,
   };
-
-  const statusScore = statusScores[lead.status] || 0.5;
+  const statusScore =
+    lead.pipeline_stage === "order_won"
+      ? 1.0
+      : lead.pipeline_stage === "closed_lost"
+        ? 0.0
+        : (temperatureScores[lead.lead_temperature] ?? 0.5);
   factors.push({
-    name: `Lead status: ${lead.status}`,
+    name: `Pipeline ${lead.pipeline_stage} / ${lead.lead_temperature}`,
     impact:
       statusScore > 0.5
         ? "positive"
@@ -715,15 +719,23 @@ function calculateBasicScore(
  * Generate basic next action
  */
 function generateBasicNextAction(lead: Lead): string {
-  switch (lead.status) {
-    case "hot":
+  switch (lead.pipeline_stage) {
+    case "finalisation":
       return "Schedule a closing meeting";
-    case "new":
+    case "new_inquiry":
       return "Make initial contact";
-    case "cold":
-      return "Consider re-engagement campaign";
-    case "follow_up":
-      return "Continue nurturing with follow-ups";
+    case "decision_pending":
+      return "Follow up on the pending decision";
+    case "factory_visit_proof":
+      return "Arrange or follow up on the factory visit";
+    case "quote_shared":
+      return "Confirm the quote was received and handle objections";
+    case "qualified_lead":
+      return "Share a quote / proposal";
+    case "order_won":
+      return "Coordinate advance and delivery";
+    case "closed_lost":
+      return "Consider a re-engagement campaign";
     default:
       return "Review lead status";
   }
@@ -745,8 +757,9 @@ function determinePriority(
     ),
   );
 
-  if (lead.status === "hot" || hasUrgentCall) return "high";
-  if (lead.status === "follow_up" || callRecordings.length > 0) return "medium";
+  if (lead.lead_temperature === "hot" || hasUrgentCall) return "high";
+  if (lead.lead_status === "follow_up_scheduled" || callRecordings.length > 0)
+    return "medium";
   return "low";
 }
 

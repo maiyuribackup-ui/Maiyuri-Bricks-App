@@ -142,9 +142,9 @@ function calculateBasicScore(
     converted: 1.0,
     lost: 0.0,
   };
-  const statusScore = statusScores[lead.status] || 0.5;
+  const statusScore = statusScores[lead.lead_status] || 0.5;
   factors.push({
-    factor: `Lead status: ${lead.status}`,
+    factor: `Lead status: ${lead.lead_status}`,
     impact: statusScore > 0.5 ? 'positive' : statusScore < 0.5 ? 'negative' : 'neutral',
     weight: 0.3,
   });
@@ -202,13 +202,13 @@ function generateBasicRecommendation(
   lead: ScoringInput['lead'],
   notes: ScoringInput['notes']
 ): string {
-  if (lead.status === 'hot') {
+  if (lead.lead_temperature === 'hot') {
     return 'High priority - schedule a closing meeting';
   }
-  if (lead.status === 'new' && notes.length === 0) {
+  if (lead.lead_status === 'new_contact_pending' && notes.length === 0) {
     return 'Make initial contact to qualify the lead';
   }
-  if (lead.status === 'cold') {
+  if (lead.lead_temperature === 'cold') {
     return 'Consider re-engagement with special offer';
   }
   if (lead.follow_up_date) {

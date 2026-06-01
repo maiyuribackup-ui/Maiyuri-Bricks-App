@@ -50,10 +50,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // Get current lead state to detect status transitions
+    // Get current lead state to detect pipeline transitions
     const { data: currentLead } = await supabaseAdmin
       .from("leads")
-      .select("status, is_archived")
+      .select("pipeline_stage, is_archived")
       .eq("id", id)
       .single();
 
@@ -65,10 +65,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Handle auto-archive/unarchive on status transitions (Issue #12)
-    if (updateData.status && currentLead) {
-      const wasLost = currentLead.status === "lost";
-      const becomingLost = updateData.status === "lost";
+    // Handle auto-archive/unarchive on pipeline transitions (Issue #12)
+    if (updateData.pipeline_stage && currentLead) {
+      const wasLost = currentLead.pipeline_stage === "closed_lost";
+      const becomingLost = updateData.pipeline_stage === "closed_lost";
 
       if (!wasLost && becomingLost) {
         // Transitioning TO lost: auto-archive

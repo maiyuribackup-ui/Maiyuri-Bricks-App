@@ -102,7 +102,8 @@ export default function NewLeadPage() {
   } = useForm<CreateLeadInput>({
     resolver: zodResolver(createLeadSchema),
     defaultValues: {
-      status: "new",
+      lead_status: "new_contact_pending",
+      lead_temperature: "warm",
     },
   });
 

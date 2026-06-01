@@ -2,20 +2,18 @@ import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, error } from "@/lib/api-utils";
 import * as XLSX from "xlsx";
-import type { LeadStatus } from "@maiyuri/shared";
+import type {
+  LeadStatus,
+  PipelineStage,
+  LeadTemperature,
+} from "@maiyuri/shared";
 
-// Valid lead statuses
-const VALID_STATUSES: LeadStatus[] = [
-  "new",
-  "follow_up",
-  "hot",
-  "cold",
-  "converted",
-  "lost",
-];
+// Legacy buckets used only to interpret free-text import values, then expanded
+// into the V2 taxonomy (lead_status + pipeline_stage + lead_temperature).
+type LegacyBucket = "new" | "follow_up" | "hot" | "cold" | "converted" | "lost";
 
 // Smart status mapping for Maiyuri Bricks legacy values
-const STATUS_MAP: Record<string, LeadStatus> = {
+const STATUS_MAP: Record<string, LegacyBucket> = {
   // Standard mappings
   new: "new",
   "follow up": "follow_up",
@@ -48,11 +46,37 @@ const STATUS_MAP: Record<string, LeadStatus> = {
   "hot lead": "hot",
 };
 
-// Normalize status to valid LeadStatus
-function normalizeStatus(value: string | undefined): LeadStatus {
+// Normalize free-text to a legacy bucket
+function normalizeBucket(value: string | undefined): LegacyBucket {
   if (!value) return "new";
   const normalized = value.toLowerCase().trim();
   return STATUS_MAP[normalized] || "new";
+}
+
+interface V2Taxonomy {
+  lead_status: LeadStatus;
+  pipeline_stage: PipelineStage;
+  lead_temperature: LeadTemperature;
+}
+
+// Expand a legacy bucket into the V2 taxonomy (imports have no stage signal, so
+// pipeline defaults to new_inquiry except for won/lost terminal buckets).
+function bucketToV2(bucket: LegacyBucket): V2Taxonomy {
+  switch (bucket) {
+    case "converted":
+      return { lead_status: "closed", pipeline_stage: "order_won", lead_temperature: "warm" };
+    case "lost":
+      return { lead_status: "closed", pipeline_stage: "closed_lost", lead_temperature: "cold" };
+    case "hot":
+      return { lead_status: "follow_up_scheduled", pipeline_stage: "new_inquiry", lead_temperature: "hot" };
+    case "cold":
+      return { lead_status: "nurture_later", pipeline_stage: "new_inquiry", lead_temperature: "cold" };
+    case "follow_up":
+      return { lead_status: "follow_up_scheduled", pipeline_stage: "new_inquiry", lead_temperature: "warm" };
+    case "new":
+    default:
+      return { lead_status: "new_contact_pending", pipeline_stage: "new_inquiry", lead_temperature: "warm" };
+  }
 }
 
 // Convert Excel serial date to ISO string
@@ -213,7 +237,9 @@ export async function POST(request: NextRequest) {
       contact: string;
       source: string;
       lead_type: string;
-      status: LeadStatus;
+      lead_status: LeadStatus;
+      pipeline_stage: PipelineStage;
+      lead_temperature: LeadTemperature;
       staff_notes?: string;
       follow_up_date?: string;
       created_at?: string;
@@ -308,8 +334,8 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Normalize status
-      const status = normalizeStatus(statusRaw);
+      // Normalize free-text status into the V2 taxonomy
+      const v2 = bucketToV2(normalizeBucket(statusRaw));
 
       // Parse dates using Excel serial date converter
       const parsedFollowUpDate = excelDateToISO(followUpDateRaw);
@@ -324,7 +350,9 @@ export async function POST(request: NextRequest) {
         contact: contact.trim(),
         source: source.trim(),
         lead_type: leadType.trim(),
-        status,
+        lead_status: v2.lead_status,
+        pipeline_stage: v2.pipeline_stage,
+        lead_temperature: v2.lead_temperature,
         ...(staffNotes && { staff_notes: staffNotes.trim() }),
         ...(parsedFollowUpDate && { follow_up_date: parsedFollowUpDate }),
         // Use parsed dates or current time as fallback

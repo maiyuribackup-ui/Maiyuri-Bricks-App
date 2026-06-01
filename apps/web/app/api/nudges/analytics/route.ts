@@ -245,7 +245,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Get current lead state
     const { data: lead } = await supabaseAdmin
       .from("leads")
-      .select("status, ai_score")
+      .select("lead_status, ai_score")
       .eq("id", lead_id)
       .single();
 
@@ -271,7 +271,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           acted_at: actedAt.toISOString(),
           action_taken,
           time_to_action_minutes: timeToActionMinutes,
-          lead_status_after: lead?.status || null,
+          lead_status_after: lead?.lead_status || null,
           lead_score_after: lead?.ai_score || null,
           metadata: {
             ...(existingAnalytics as Record<string, unknown>),
@@ -303,7 +303,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           action_taken,
           time_to_action_minutes: timeToActionMinutes,
           lead_status_before: nudgeHistory.metadata?.lead_status || null,
-          lead_status_after: lead?.status || null,
+          lead_status_after: lead?.lead_status || null,
           lead_score_before: nudgeHistory.metadata?.lead_score || null,
           lead_score_after: lead?.ai_score || null,
           metadata,

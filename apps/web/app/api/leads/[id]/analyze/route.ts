@@ -325,7 +325,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         leadName: updatedLead.name,
         phone: updatedLead.contact,
         source: updatedLead.source,
-        status: updatedLead.status,
+        status: updatedLead.lead_status,
         summary: result.data.summary?.text,
         score: result.data.score?.value,
         nextAction: result.data.suggestions?.nextBestAction,

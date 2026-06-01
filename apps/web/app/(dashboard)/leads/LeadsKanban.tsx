@@ -20,8 +20,8 @@ import {
     useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Card } from '@maiyuri/ui';
-import { type Lead, type LeadStatus } from '@maiyuri/shared';
+import { type Lead, type PipelineStage } from '@maiyuri/shared';
+import { PIPELINE_STAGES, LEAD_TEMPERATURE_MAP } from '@/lib/lead-taxonomy';
 
 // Format date as DD/MM/YYYY
 function formatDate(dateStr: string): string {
@@ -36,22 +36,21 @@ function formatDate(dateStr: string): string {
 // CONSTANTS
 // ============================================================================
 
-const COLUMNS: { id: LeadStatus; title: string; color: string }[] = [
-    { id: 'new', title: 'New', color: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' },
-    { id: 'follow_up', title: 'Follow Up', color: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' },
-    { id: 'hot', title: 'Hot', color: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' },
-    { id: 'cold', title: 'Cold', color: 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700' },
-    { id: 'converted', title: 'Converted', color: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' },
-    { id: 'lost', title: 'Lost', color: 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800' },
-];
+// Kanban columns = the V2 sales pipeline (8 stages)
+const COLUMNS: { id: PipelineStage; title: string; color: string }[] =
+    PIPELINE_STAGES.map((s) => ({
+        id: s.value,
+        title: `${s.emoji} ${s.label}`,
+        color: `${s.bg} border-slate-200 dark:border-slate-700`,
+    }));
 
 interface LeadsKanbanProps {
     leads: Lead[];
-    onStatusChange: (leadId: string, newStatus: LeadStatus) => void;
+    onStageChange: (leadId: string, newStage: PipelineStage) => void;
     onLeadClick: (id: string) => void;
 }
 
-export function LeadsKanban({ leads, onStatusChange, onLeadClick }: LeadsKanbanProps) {
+export function LeadsKanban({ leads, onStageChange, onLeadClick }: LeadsKanbanProps) {
     const [activeId, setActiveId] = React.useState<string | null>(null);
 
     const sensors = useSensors(
@@ -62,7 +61,7 @@ export function LeadsKanban({ leads, onStatusChange, onLeadClick }: LeadsKanbanP
     const columns = useMemo(() => {
         const cols = COLUMNS.map(c => ({ ...c, leads: [] as Lead[] }));
         leads.forEach(lead => {
-            const col = cols.find(c => c.id === lead.status);
+            const col = cols.find(c => c.id === lead.pipeline_stage);
             if (col) col.leads.push(lead);
         });
         return cols;
@@ -83,23 +82,20 @@ export function LeadsKanban({ leads, onStatusChange, onLeadClick }: LeadsKanbanP
         const leadId = active.id as string;
         const overId = over.id as string;
 
-        // Determine target column
-        // 'over.id' could be a column ID (e.g., 'new') or a lead ID in that column
-        let newStatus: LeadStatus | null = null;
+        // Determine target column ('over.id' is a column ID or a lead ID within it)
+        let newStage: PipelineStage | null = null;
 
-        // Check if dropped directly on a column
         if (COLUMNS.some(c => c.id === overId)) {
-            newStatus = overId as LeadStatus;
+            newStage = overId as PipelineStage;
         } else {
-            // Dropped on another card, find that card's status
             const overLead = leads.find(l => l.id === overId);
             if (overLead) {
-                newStatus = overLead.status;
+                newStage = overLead.pipeline_stage;
             }
         }
 
-        if (newStatus && activeLead && activeLead.status !== newStatus) {
-            onStatusChange(leadId, newStatus);
+        if (newStage && activeLead && activeLead.pipeline_stage !== newStage) {
+            onStageChange(leadId, newStage);
         }
     };
 
@@ -195,7 +191,12 @@ function KanbanCard({ lead, isOverlay, onClick }: { lead: Lead; isOverlay?: bool
       `}
         >
             <div className="flex justify-between items-start mb-2">
-                <h4 className="font-medium text-slate-900 dark:text-white truncate pr-2">{lead.name}</h4>
+                <h4 className="font-medium text-slate-900 dark:text-white truncate pr-2">
+                    <span title={LEAD_TEMPERATURE_MAP[lead.lead_temperature].label} className="mr-1">
+                        {LEAD_TEMPERATURE_MAP[lead.lead_temperature].emoji}
+                    </span>
+                    {lead.name}
+                </h4>
                 {lead.ai_score && (
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lead.ai_score >= 0.7 ? 'bg-green-100 text-green-700' :
                             lead.ai_score >= 0.4 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'

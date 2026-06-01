@@ -222,11 +222,11 @@ function buildStaffPerformanceContext(
     : notes;
 
   return `ASSIGNED LEADS: ${staffLeads.length}
-CONVERTED LEADS: ${staffLeads.filter((l) => l.status === 'converted').length}
+CONVERTED LEADS: ${staffLeads.filter((l) => l.pipeline_stage === 'order_won').length}
 TOTAL NOTES: ${staffNotes.length}
 
 LEAD DETAILS:
-${staffLeads.slice(0, 10).map((l) => `- ${l.name} (${l.status})`).join('\n')}`;
+${staffLeads.slice(0, 10).map((l) => `- ${l.name} (${l.lead_status})`).join('\n')}`;
 }
 
 function buildPipelineContext(leads: ScoringInput['lead'][]): string {
@@ -241,8 +241,8 @@ TOTAL VALUE: ${leads.length} leads in pipeline`;
 }
 
 function buildConversionContext(leads: ScoringInput['lead'][]): string {
-  const converted = leads.filter((l) => l.status === 'converted');
-  const lost = leads.filter((l) => l.status === 'lost');
+  const converted = leads.filter((l) => l.pipeline_stage === 'order_won');
+  const lost = leads.filter((l) => l.pipeline_stage === 'closed_lost');
 
   return `CONVERSION ANALYSIS:
 Total Leads: ${leads.length}
@@ -258,9 +258,9 @@ ${getSourceBreakdown(lost)}`;
 }
 
 function calculateMetrics(leads: ScoringInput['lead'][]): ReportMetrics {
-  const converted = leads.filter((l) => l.status === 'converted').length;
-  const hot = leads.filter((l) => l.status === 'hot').length;
-  const cold = leads.filter((l) => l.status === 'cold').length;
+  const converted = leads.filter((l) => l.pipeline_stage === 'order_won').length;
+  const hot = leads.filter((l) => l.lead_temperature === 'hot').length;
+  const cold = leads.filter((l) => l.lead_temperature === 'cold').length;
   const scores = leads
     .map((l) => l.ai_score)
     .filter((s): s is number => s !== null && s !== undefined);
@@ -280,7 +280,7 @@ function calculateMetrics(leads: ScoringInput['lead'][]): ReportMetrics {
 function getStatusBreakdown(leads: ScoringInput['lead'][]): Record<string, number> {
   return leads.reduce(
     (acc, lead) => {
-      acc[lead.status] = (acc[lead.status] || 0) + 1;
+      acc[lead.lead_status] = (acc[lead.lead_status] || 0) + 1;
       return acc;
     },
     {} as Record<string, number>

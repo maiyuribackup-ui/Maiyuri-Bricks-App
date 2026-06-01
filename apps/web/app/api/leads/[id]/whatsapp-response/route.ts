@@ -90,40 +90,47 @@ function getStatusBasedMessage(lead: Lead): {
 } {
   const requirementType = lead.requirement_type;
 
-  switch (lead.status) {
-    case "new":
+  switch (lead.pipeline_stage) {
+    case "new_inquiry":
+    case "qualified_lead":
       return {
         greeting: `Thank you for your interest in Maiyuri Bricks! We're excited to help you with your ${getRequirementLabel(requirementType)} project.`,
         callToAction: `\n\nWould you like to schedule a free consultation to discuss your requirements? We can also arrange a visit to our manufacturing facility.`,
       };
 
-    case "follow_up":
+    case "quote_shared":
       return {
-        greeting: `Following up on our previous conversation about your ${getRequirementLabel(requirementType)} project.`,
+        greeting: `Following up on the quotation we shared for your ${getRequirementLabel(requirementType)} project.`,
         callToAction: lead.next_action
           ? `\n\nAs discussed, the next step is: ${lead.next_action}\n\nPlease let us know a convenient time to proceed.`
-          : `\n\nPlease let us know if you have any questions or if you're ready to move forward.`,
+          : `\n\nPlease let us know if you have any questions on the quote or if you're ready to move forward.`,
       };
 
-    case "hot":
+    case "factory_visit_proof":
+      return {
+        greeting: `We'd love to show you the quality of our ${getRequirementLabel(requirementType)} products first-hand.`,
+        callToAction: `\n\nCan we schedule a visit to our manufacturing facility? We can also share samples and lab reports to give you full confidence.`,
+      };
+
+    case "finalisation":
       return {
         greeting: `Great news! We're ready to move forward with your ${getRequirementLabel(requirementType)} project.`,
-        callToAction: `\n\nWe can prepare a detailed quotation for you right away. Our team is standing by to ensure quick delivery and installation.`,
+        callToAction: `\n\nWe can finalise quantity, pricing and delivery right away. Our team is standing by to ensure quick delivery and installation.`,
       };
 
-    case "cold":
+    case "decision_pending":
       return {
-        greeting: `We hope you're doing well! We wanted to check in regarding your ${getRequirementLabel(requirementType)} project inquiry.`,
+        greeting: `We hope you're doing well! We wanted to check in regarding your ${getRequirementLabel(requirementType)} project.`,
         callToAction: `\n\nWe understand timing is important. Please feel free to reach out whenever you're ready - we'll be happy to assist you.`,
       };
 
-    case "converted":
+    case "order_won":
       return {
         greeting: `Thank you for choosing Maiyuri Bricks for your ${getRequirementLabel(requirementType)} project!`,
         callToAction: `\n\nWe're committed to delivering the best quality products. Please don't hesitate to contact us for any support or future requirements.`,
       };
 
-    case "lost":
+    case "closed_lost":
       return {
         greeting: `We appreciate you considering Maiyuri Bricks for your project.`,
         callToAction: `\n\nIf your requirements change or you need any assistance in the future, we'd be happy to help. Wishing you success with your project!`,

@@ -15,6 +15,8 @@ import {
 } from "@maiyuri/shared";
 import Link from "next/link";
 import { HelpButton } from "@/components/help";
+import { LEAD_STATUSES, FIELD_GUIDANCE } from "@/lib/lead-taxonomy";
+import { InfoHint } from "@/components/InfoHint";
 
 // Source options (Issue #6)
 const sourceOptions = [
@@ -66,14 +68,9 @@ const productInterestOptions = [
   { value: "laying_services", label: "Laying Services" },
 ];
 
-const statusOptions: { value: LeadStatus; label: string }[] = [
-  { value: "new", label: "New" },
-  { value: "follow_up", label: "Follow Up" },
-  { value: "hot", label: "Hot" },
-  { value: "cold", label: "Cold" },
-  { value: "converted", label: "Converted" },
-  { value: "lost", label: "Lost" },
-];
+const statusOptions: { value: LeadStatus; label: string }[] = LEAD_STATUSES.map(
+  (o) => ({ value: o.value, label: `${o.emoji} ${o.label}` }),
+);
 
 async function fetchLead(id: string) {
   const res = await fetch(`/api/leads/${id}`);
@@ -144,7 +141,7 @@ export default function EditLeadPage() {
         contact: lead.contact,
         source: lead.source,
         lead_type: lead.lead_type,
-        status: lead.status,
+        lead_status: lead.lead_status,
         assigned_staff: lead.assigned_staff,
         classification: lead.classification,
         requirement_type: lead.requirement_type,
@@ -304,11 +301,12 @@ export default function EditLeadPage() {
 
           {/* Status */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
               Status
+              <InfoHint text={FIELD_GUIDANCE.lead_status} />
             </label>
             <select
-              {...register("status")}
+              {...register("lead_status")}
               className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {statusOptions.map((option) => (

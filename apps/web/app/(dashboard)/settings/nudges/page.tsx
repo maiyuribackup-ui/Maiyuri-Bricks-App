@@ -22,6 +22,7 @@ import type {
   CreateNudgeRuleInput,
   LeadStatus,
 } from "@maiyuri/shared";
+import { LEAD_STATUSES } from "@/lib/lead-taxonomy";
 
 // Fetch nudge rules
 async function fetchRules(): Promise<{ data: NudgeRule[] }> {
@@ -387,7 +388,7 @@ function RuleFormModal({
       days_idle: rule?.conditions.days_idle ?? 3,
       days_since_created: rule?.conditions.days_since_created ?? 2,
       min_score: rule?.conditions.min_score ?? undefined,
-      statuses: rule?.conditions.statuses ?? ["hot", "follow_up"],
+      statuses: rule?.conditions.statuses ?? ([] as LeadStatus[]),
     },
   });
   const [error, setError] = useState<string | null>(null);
@@ -597,8 +598,9 @@ function RuleFormModal({
                 Apply to statuses
               </label>
               <div className="flex flex-wrap gap-2">
-                {(["new", "follow_up", "hot", "cold"] as LeadStatus[]).map(
-                  (status) => (
+                {LEAD_STATUSES.map((opt) => {
+                  const status = opt.value;
+                  return (
                     <label key={status} className="flex items-center gap-1">
                       <input
                         type="checkbox"
@@ -620,12 +622,12 @@ function RuleFormModal({
                         }}
                         className="rounded border-slate-300"
                       />
-                      <span className="text-xs capitalize">
-                        {status.replace("_", " ")}
+                      <span className="text-xs">
+                        {opt.emoji} {opt.label}
                       </span>
                     </label>
-                  ),
-                )}
+                  );
+                })}
               </div>
             </div>
           </div>

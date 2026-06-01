@@ -147,8 +147,8 @@ export async function generateSuggestions(
 
       const { data: convertedLeads, error } = await supabase
         .from('leads')
-        .select('id, name, status, updated_at')
-        .eq('status', 'converted')
+        .select('id, name, updated_at')
+        .eq('pipeline_stage', 'order_won')
         .eq('is_archived', false)
         .lt('updated_at', thresholdDate.toISOString());
 
@@ -177,8 +177,8 @@ export async function generateSuggestions(
 
       const { data: lostLeads, error } = await supabase
         .from('leads')
-        .select('id, name, status, updated_at')
-        .eq('status', 'lost')
+        .select('id, name, updated_at')
+        .eq('pipeline_stage', 'closed_lost')
         .eq('is_archived', false)
         .lt('updated_at', thresholdDate.toISOString());
 
@@ -208,8 +208,8 @@ export async function generateSuggestions(
       // Get cold leads
       const { data: coldLeads, error: coldError } = await supabase
         .from('leads')
-        .select('id, name, status, updated_at')
-        .eq('status', 'cold')
+        .select('id, name, updated_at')
+        .eq('lead_temperature', 'cold')
         .eq('is_archived', false);
 
       if (!coldError && coldLeads) {

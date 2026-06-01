@@ -69,7 +69,7 @@ export async function checkStaleLeads(): Promise<HealthCheckResult> {
       const { count: hotStale, error: hotError } = await supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'hot')
+        .eq('lead_temperature', 'hot')
         .lt('updated_at', threeDaysAgo);
 
       if (hotError) throw hotError;
@@ -78,7 +78,7 @@ export async function checkStaleLeads(): Promise<HealthCheckResult> {
       const { count: followupStale, error: followupError } = await supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'follow_up')
+        .eq('lead_status', 'follow_up_scheduled')
         .lt('updated_at', sevenDaysAgo);
 
       if (followupError) throw followupError;

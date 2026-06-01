@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from("notes")
-      .select("*, leads(name, status)", { count: "exact" })
+      .select("*, leads(name, lead_status)", { count: "exact" })
       .order("date", { ascending: false })
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);

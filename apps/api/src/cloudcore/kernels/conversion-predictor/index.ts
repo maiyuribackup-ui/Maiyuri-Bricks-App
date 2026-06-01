@@ -156,7 +156,7 @@ async function getHistoricalComparison(lead: Lead): Promise<HistoricalComparison
     }
 
     const similarLeads = similarLeadsResult.data;
-    const convertedLeads = similarLeads.filter((l) => l.status === 'converted');
+    const convertedLeads = similarLeads.filter((l) => l.pipeline_stage === 'order_won');
 
     // Calculate average time to conversion
     const conversionTimes = convertedLeads
@@ -211,7 +211,9 @@ async function generatePrediction(
 Contact: ${lead.contact}
 Source: ${lead.source}
 Type: ${lead.lead_type}
-Status: ${lead.status}
+Status: ${lead.lead_status}
+Pipeline stage: ${lead.pipeline_stage}
+Temperature: ${lead.lead_temperature}
 Created: ${lead.created_at}`;
 
   const metricsContext = `Days since created: ${metrics.daysSinceCreated}
@@ -321,16 +323,15 @@ function generateRuleBasedPrediction(
   const factors: PredictionFactor[] = [];
   let baseProbability = 0.5;
 
-  // Status factor
-  const statusScores: Record<string, number> = {
+  // Temperature factor (priority signal, V2)
+  const temperatureScores: Record<string, number> = {
     hot: 0.8,
-    follow_up: 0.6,
-    new: 0.5,
+    warm: 0.55,
     cold: 0.3,
   };
-  const statusScore = statusScores[lead.status] || 0.5;
+  const statusScore = temperatureScores[lead.lead_temperature] || 0.5;
   factors.push({
-    name: `Lead status: ${lead.status}`,
+    name: `Lead temperature: ${lead.lead_temperature}`,
     value: statusScore,
     impact: statusScore > 0.5 ? 'positive' : statusScore < 0.5 ? 'negative' : 'neutral',
     weight: 0.25,

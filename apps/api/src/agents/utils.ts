@@ -95,7 +95,9 @@ export function formatLeadForContext(lead: {
   contact: string;
   source: string;
   lead_type: string;
-  status: string;
+  lead_status: string;
+  pipeline_stage?: string;
+  lead_temperature?: string;
   ai_summary?: string | null;
   ai_score?: number | null;
   next_action?: string | null;
@@ -106,7 +108,9 @@ Lead Name: ${lead.name}
 Contact: ${lead.contact}
 Source: ${lead.source}
 Type: ${lead.lead_type}
-Status: ${lead.status}
+Status: ${lead.lead_status}
+Pipeline stage: ${lead.pipeline_stage ?? 'unknown'}
+Temperature: ${lead.lead_temperature ?? 'unknown'}
 ${lead.ai_score ? `Current AI Score: ${Math.round(lead.ai_score * 100)}%` : ''}
 ${lead.ai_summary ? `Current Summary: ${lead.ai_summary}` : ''}
 ${lead.next_action ? `Pending Action: ${lead.next_action}` : ''}

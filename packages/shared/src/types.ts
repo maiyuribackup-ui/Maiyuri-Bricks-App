@@ -1,12 +1,39 @@
 // Lead Management Types
 
+// Lead Status (V2) - current action state (what is happening now)
 export type LeadStatus =
-  | "new"
-  | "follow_up"
-  | "hot"
-  | "cold"
-  | "converted"
-  | "lost";
+  | "new_contact_pending"
+  | "contact_attempted"
+  | "connected"
+  | "follow_up_scheduled"
+  | "waiting_for_customer"
+  | "nurture_later"
+  | "closed";
+
+// Lead Temperature (V2) - priority, kept separate from status
+export type LeadTemperature = "hot" | "warm" | "cold";
+
+// Factory Visit Status (V2) - proof-stage funnel tracking
+export type FactoryVisitStatus =
+  | "not_discussed"
+  | "invited"
+  | "scheduled"
+  | "visited"
+  | "no_show"
+  | "not_required";
+
+// Structured lost reason (V2) - free-text `lost_reason` kept for notes
+export type LostReasonCode =
+  | "price_too_high"
+  | "chose_kerala_competitor"
+  | "chose_conventional_aac"
+  | "project_delayed"
+  | "customer_not_reachable"
+  | "no_genuine_requirement"
+  | "transport_delivery_cost"
+  | "engineer_mason_not_convinced"
+  | "family_decision_delayed"
+  | "other";
 
 // Lead Classification Types
 export type LeadClassification =
@@ -33,19 +60,16 @@ export type ProductInterest =
   | "residential_project"
   | "laying_services";
 
-// Lead Stage - Sales pipeline progression (Issue #19)
-export type LeadStage =
-  | "inquiry" // Initial inquiry received
-  | "quote_sent" // Quote/proposal sent
-  | "quotation_pending" // Waiting for quotation response
-  | "factory_visit" // Legacy - maps to factory_visit_pending
-  | "factory_visit_pending" // Factory visit scheduled/pending
-  | "factory_visit_completed" // Factory visit completed
-  | "negotiation" // Price negotiation in progress
-  | "order_confirmed" // Order confirmed by customer
-  | "in_production" // Order in production
-  | "ready_dispatch" // Ready for dispatch
-  | "delivered"; // Delivered to customer
+// Pipeline Stage (V2) - sales conversion journey (was `LeadStage`/`stage`)
+export type PipelineStage =
+  | "new_inquiry" // Lead came in, basic interest shown
+  | "qualified_lead" // Genuine requirement identified
+  | "quote_shared" // Price/estimate shared
+  | "factory_visit_proof" // Proof stage: factory visit / sample / lab report
+  | "decision_pending" // Customer thinking / comparing / discussing
+  | "finalisation" // Discussing quantity, final price, delivery, advance
+  | "order_won" // Advance/confirmed order received
+  | "closed_lost"; // Not proceeding
 
 export type UserRole =
   | "founder"
@@ -85,9 +109,13 @@ export interface Lead {
   source: string;
   lead_type: string;
   assigned_staff: string | null;
-  status: LeadStatus;
-  // Sales pipeline stage (Issue #19) - distinct from status
-  stage?: LeadStage | null;
+  // V2 lead taxonomy: status = action state, pipeline_stage = sales journey,
+  // temperature = priority (kept separate from status)
+  lead_status: LeadStatus;
+  pipeline_stage: PipelineStage;
+  lead_temperature: LeadTemperature;
+  factory_visit_status: FactoryVisitStatus;
+  lost_reason_code?: LostReasonCode | null;
   stage_updated_at?: string | null;
   stage_updated_by?: string | null;
   // Classification and requirement fields

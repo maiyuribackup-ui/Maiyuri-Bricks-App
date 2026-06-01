@@ -9,132 +9,45 @@ import {
   buildWhatsAppUrl,
   type Lead,
   type LeadStatus,
-  type LeadStage,
+  type PipelineStage,
 } from "@maiyuri/shared";
 import { Toaster, toast } from "sonner";
 import { HelpButton } from "@/components/help";
+import {
+  PIPELINE_STAGES,
+  PIPELINE_STAGE_MAP,
+  LEAD_STATUS_MAP,
+  LEAD_TEMPERATURE_MAP,
+} from "@/lib/lead-taxonomy";
 
 // ============================================================================
-// CONSTANTS & HELPERS
+// CONSTANTS & HELPERS (derived from the V2 lead taxonomy)
 // ============================================================================
 
-const statusConfig: Record<
+// Lead-status display config (action state), shape kept stable for the row UI
+const statusConfig = Object.fromEntries(
+  Object.values(LEAD_STATUS_MAP).map((o) => [
+    o.value,
+    {
+      label: o.label,
+      color: o.color,
+      bg: o.bg,
+      border: "border-slate-200 dark:border-slate-700",
+      rowBg: o.bg,
+    },
+  ]),
+) as Record<
   LeadStatus,
   { label: string; color: string; bg: string; border: string; rowBg: string }
-> = {
-  new: {
-    label: "New",
-    color: "text-blue-700 dark:text-blue-300",
-    bg: "bg-blue-50 dark:bg-blue-900/30",
-    border: "border-blue-200 dark:border-blue-800",
-    rowBg: "bg-blue-50/30 dark:bg-blue-950/20",
-  },
-  follow_up: {
-    label: "Follow Up",
-    color: "text-amber-700 dark:text-amber-300",
-    bg: "bg-amber-50 dark:bg-amber-900/30",
-    border: "border-amber-200 dark:border-amber-800",
-    rowBg: "bg-amber-50/40 dark:bg-amber-950/20",
-  },
-  hot: {
-    label: "Hot",
-    color: "text-red-700 dark:text-red-300",
-    bg: "bg-red-50 dark:bg-red-900/30",
-    border: "border-red-200 dark:border-red-800",
-    rowBg: "bg-red-50/50 dark:bg-red-950/30",
-  },
-  cold: {
-    label: "Cold",
-    color: "text-slate-600 dark:text-slate-400",
-    bg: "bg-slate-100 dark:bg-slate-800",
-    border: "border-slate-300 dark:border-slate-700",
-    rowBg: "bg-slate-100/50 dark:bg-slate-900/30",
-  },
-  converted: {
-    label: "Converted",
-    color: "text-emerald-700 dark:text-emerald-300",
-    bg: "bg-emerald-50 dark:bg-emerald-900/30",
-    border: "border-emerald-200 dark:border-emerald-800",
-    rowBg: "bg-emerald-50/40 dark:bg-emerald-950/20",
-  },
-  lost: {
-    label: "Lost",
-    color: "text-rose-700 dark:text-rose-400",
-    bg: "bg-rose-50 dark:bg-rose-900/30",
-    border: "border-rose-200 dark:border-rose-800",
-    rowBg: "bg-rose-50/30 dark:bg-rose-950/20",
-  },
-};
+>;
 
-// Stage configuration with icons (Issue #19)
-const stageConfig: Record<
-  LeadStage,
-  { label: string; icon: string; color: string }
-> = {
-  inquiry: {
-    label: "Inquiry",
-    icon: "💬",
-    color: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
-  },
-  quote_sent: {
-    label: "Quote Sent",
-    icon: "📧",
-    color: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300",
-  },
-  quotation_pending: {
-    label: "Quotation Pending",
-    icon: "⏳",
-    color:
-      "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300",
-  },
-  factory_visit: {
-    label: "Factory Visit Pending",
-    icon: "🏭",
-    color:
-      "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300",
-  },
-  factory_visit_pending: {
-    label: "Factory Visit Pending",
-    icon: "🏭",
-    color:
-      "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300",
-  },
-  factory_visit_completed: {
-    label: "Factory Visit Completed",
-    icon: "🏭",
-    color:
-      "bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300",
-  },
-  negotiation: {
-    label: "Negotiation",
-    icon: "🤝",
-    color:
-      "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-300",
-  },
-  order_confirmed: {
-    label: "Confirmed",
-    icon: "✅",
-    color:
-      "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300",
-  },
-  in_production: {
-    label: "Production",
-    icon: "⚙️",
-    color:
-      "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300",
-  },
-  ready_dispatch: {
-    label: "Dispatch",
-    icon: "📦",
-    color: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300",
-  },
-  delivered: {
-    label: "Delivered",
-    icon: "🚚",
-    color:
-      "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-300",
-  },
-};
+// Pipeline-stage display config (sales journey)
+const stageConfig = Object.fromEntries(
+  PIPELINE_STAGES.map((o) => [
+    o.value,
+    { label: o.label, icon: o.emoji, color: `${o.bg} ${o.color}` },
+  ]),
+) as Record<PipelineStage, { label: string; icon: string; color: string }>;
 
 type ViewType =
   | "all"
@@ -227,13 +140,16 @@ async function updateLeadArchiveStatus(id: string, isArchived: boolean) {
 
 type ViewMode = "list" | "kanban";
 
-async function updateLeadStatus(id: string, status: LeadStatus) {
+async function updateLeadStage(id: string, pipeline_stage: PipelineStage) {
   const res = await fetch(`/api/leads/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({
+      pipeline_stage,
+      stage_updated_at: new Date().toISOString(),
+    }),
   });
-  if (!res.ok) throw new Error("Failed to update status");
+  if (!res.ok) throw new Error("Failed to update stage");
   return res.json();
 }
 
@@ -243,14 +159,14 @@ export default function LeadsPage() {
   const queryClient = useQueryClient();
 
   // Status Mutation
-  const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: LeadStatus }) =>
-      updateLeadStatus(id, status),
+  const stageMutation = useMutation({
+    mutationFn: ({ id, stage }: { id: string; stage: PipelineStage }) =>
+      updateLeadStage(id, stage),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
-      toast.success("Lead status updated");
+      toast.success("Pipeline stage updated");
     },
-    onError: () => toast.error("Failed to update status"),
+    onError: () => toast.error("Failed to update stage"),
   });
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [classificationFilter, setClassificationFilter] = useState<string>("");
@@ -335,7 +251,7 @@ export default function LeadsPage() {
         filtered = filtered.filter((l) => l.follow_up_date);
         break;
       case "hot":
-        filtered = filtered.filter((l) => l.status === "hot");
+        filtered = filtered.filter((l) => l.lead_temperature === "hot");
         break;
       case "needs_attention":
         filtered = filtered.filter((l) => {
@@ -345,8 +261,8 @@ export default function LeadsPage() {
           );
           return (
             daysSinceUpdate > 7 &&
-            l.status !== "converted" &&
-            l.status !== "lost"
+            l.pipeline_stage !== "order_won" &&
+            l.pipeline_stage !== "closed_lost"
           );
         });
         break;
@@ -563,9 +479,7 @@ export default function LeadsPage() {
         <div className="h-[calc(100vh-14rem)]">
           <LeadsKanban
             leads={filteredLeads}
-            onStatusChange={(id, status) =>
-              statusMutation.mutate({ id, status })
-            }
+            onStageChange={(id, stage) => stageMutation.mutate({ id, stage })}
             onLeadClick={(id) => (window.location.href = `/leads/${id}`)}
           />
         </div>
@@ -713,11 +627,12 @@ function LeadRow({
   onWhatsApp: (e: React.MouseEvent) => void;
   onCall: (e: React.MouseEvent) => void;
 }) {
-  const status = statusConfig[lead.status];
+  const status = statusConfig[lead.lead_status];
   const isCreatedToday = isToday(lead.created_at);
   const isUpdatedToday = isToday(lead.updated_at) && !isCreatedToday;
 
-  const stage = lead.stage ? stageConfig[lead.stage] : null;
+  const stage = stageConfig[lead.pipeline_stage];
+  const temp = LEAD_TEMPERATURE_MAP[lead.lead_temperature];
 
   return (
     <Link
@@ -764,18 +679,24 @@ function LeadRow({
       <div className="col-span-1 flex items-center">
         <span
           className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium ${status.bg} ${status.color} border ${status.border}`}
+          title={`${LEAD_STATUS_MAP[lead.lead_status].label} — ${LEAD_STATUS_MAP[lead.lead_status].hint}`}
         >
-          {lead.status === "hot" && "🔥"}
+          <span
+            className="mr-1"
+            title={`${temp.label} — ${temp.hint}`}
+          >
+            {temp.emoji}
+          </span>
           {status.label}
         </span>
       </div>
 
-      {/* Stage Column - Issue #19 */}
+      {/* Pipeline Stage Column */}
       <div className="col-span-1 flex items-center">
         {stage ? (
           <span
             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium ${stage.color}`}
-            title={stage.label}
+            title={`${PIPELINE_STAGE_MAP[lead.pipeline_stage].label} — ${PIPELINE_STAGE_MAP[lead.pipeline_stage].hint}`}
           >
             <span>{stage.icon}</span>
             <span className="hidden xl:inline truncate">{stage.label}</span>
@@ -838,7 +759,7 @@ function LeadRow({
 }
 
 function LeadHoverCard({ lead }: { lead: Lead }) {
-  const stage = lead.stage ? stageConfig[lead.stage] : null;
+  const stage = stageConfig[lead.pipeline_stage];
 
   return (
     <div className="fixed bottom-4 right-4 w-80 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-4 z-50 hidden lg:block animate-in slide-in-from-bottom-2">
@@ -855,8 +776,8 @@ function LeadHoverCard({ lead }: { lead: Lead }) {
       <div className="space-y-2 text-sm">
         <div className="flex justify-between">
           <span className="text-slate-500">Status</span>
-          <span className={statusConfig[lead.status].color}>
-            {statusConfig[lead.status].label}
+          <span className={statusConfig[lead.lead_status].color}>
+            {statusConfig[lead.lead_status].label}
           </span>
         </div>
         <div className="flex justify-between">

@@ -83,7 +83,7 @@ export async function GET() {
 
       supabaseAdmin
         .from("leads")
-        .select("id, name, status, created_at, follow_up_date")
+        .select("id, name, pipeline_stage, created_at, follow_up_date")
         .eq("is_archived", false),
 
       supabaseAdmin
@@ -144,9 +144,9 @@ export async function GET() {
 
     // --- Leads ---
     const leads = leadsData.data || [];
-    const activeLeads = leads.filter((l) => !["converted", "lost"].includes(l.status));
-    const wonLeads = leads.filter((l) => l.status === "converted").length;
-    const closedLeads = leads.filter((l) => ["converted", "lost"].includes(l.status)).length;
+    const activeLeads = leads.filter((l) => !["order_won", "closed_lost"].includes(l.pipeline_stage));
+    const wonLeads = leads.filter((l) => l.pipeline_stage === "order_won").length;
+    const closedLeads = leads.filter((l) => ["order_won", "closed_lost"].includes(l.pipeline_stage)).length;
     const conversionRate = closedLeads > 0 ? Math.round((wonLeads / closedLeads) * 100) : 0;
 
     // Today's calls
@@ -160,11 +160,20 @@ export async function GET() {
     const tasksData = upcomingTasks.data || [];
     const pendingFollowUps = tasksData.length;
 
-    // Pipeline funnel
-    const statuses = ["new", "follow_up", "hot", "cold", "converted", "lost"];
-    const pipeline = statuses.map((status) => ({
+    // Pipeline funnel (by V2 pipeline_stage)
+    const stages = [
+      "new_inquiry",
+      "qualified_lead",
+      "quote_shared",
+      "factory_visit_proof",
+      "decision_pending",
+      "finalisation",
+      "order_won",
+      "closed_lost",
+    ];
+    const pipeline = stages.map((status) => ({
       status,
-      count: leads.filter((l) => l.status === status).length,
+      count: leads.filter((l) => l.pipeline_stage === status).length,
     }));
 
     // --- Recent Activity ---

@@ -166,7 +166,7 @@ export function checkDueNotifications(
   });
 
   // Check for hot leads
-  const hotLeads = leads.filter((lead) => lead.status === 'hot');
+  const hotLeads = leads.filter((lead) => lead.lead_temperature === 'hot');
   if (hotLeads.length > 0) {
     notifications.push({
       id: generateNotificationId(),
@@ -181,7 +181,7 @@ export function checkDueNotifications(
 
   // Check for conversion opportunities (high AI score leads)
   const highScoreLeads = leads.filter(
-    (lead) => lead.ai_score && lead.ai_score >= 0.8 && lead.status !== 'converted'
+    (lead) => lead.ai_score && lead.ai_score >= 0.8 && lead.pipeline_stage !== 'order_won'
   );
   highScoreLeads.forEach((lead) => {
     notifications.push({
@@ -233,8 +233,8 @@ export function generateDailyDigest(
   const staffLeads = staffId ? leads.filter((l) => l.assigned_staff === staffId) : leads;
   const todayNotes = notes.filter((n) => daysSince(n.created_at) === 0);
 
-  const hotCount = staffLeads.filter((l) => l.status === 'hot').length;
-  const newCount = staffLeads.filter((l) => l.status === 'new').length;
+  const hotCount = staffLeads.filter((l) => l.lead_temperature === 'hot').length;
+  const newCount = staffLeads.filter((l) => l.lead_status === 'new_contact_pending').length;
   const followUpCount = staffLeads.filter(
     (l) => l.follow_up_date && daysSince(l.follow_up_date) <= 0
   ).length;
@@ -276,8 +276,8 @@ export function generateWeeklySummary(
   const staffLeads = staffId ? leads.filter((l) => l.assigned_staff === staffId) : leads;
   const weekNotes = notes.filter((n) => daysSince(n.created_at) <= 7);
 
-  const converted = staffLeads.filter((l) => l.status === 'converted').length;
-  const lost = staffLeads.filter((l) => l.status === 'lost').length;
+  const converted = staffLeads.filter((l) => l.pipeline_stage === 'order_won').length;
+  const lost = staffLeads.filter((l) => l.pipeline_stage === 'closed_lost').length;
   const conversionRate = staffLeads.length > 0
     ? Math.round((converted / staffLeads.length) * 100)
     : 0;
@@ -324,7 +324,7 @@ function buildNotificationContext(
 
     case 'hot_lead_alert':
       return leads
-        .filter((l) => l.status === 'hot')
+        .filter((l) => l.lead_temperature === 'hot')
         .slice(0, 5)
         .map((l) => `${l.name} - ${l.contact} - Score: ${l.ai_score || 'N/A'}`)
         .join('\n');
@@ -332,9 +332,9 @@ function buildNotificationContext(
     case 'daily_digest':
     case 'weekly_summary':
       return `Total Leads: ${leads.length}
-Hot: ${leads.filter((l) => l.status === 'hot').length}
-New: ${leads.filter((l) => l.status === 'new').length}
-Converted: ${leads.filter((l) => l.status === 'converted').length}
+Hot: ${leads.filter((l) => l.lead_temperature === 'hot').length}
+New: ${leads.filter((l) => l.lead_status === 'new_contact_pending').length}
+Converted: ${leads.filter((l) => l.pipeline_stage === 'order_won').length}
 Recent Notes: ${notes.slice(0, 5).length}`;
 
     default:

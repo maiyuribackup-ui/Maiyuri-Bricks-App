@@ -4,7 +4,35 @@
 
 import * as db from '../services/supabase';
 import * as contracts from '../contracts';
-import type { CloudCoreResult, Lead } from '../types';
+import type {
+  CloudCoreResult,
+  Lead,
+  LeadStatus,
+  PipelineStage,
+  LeadTemperature,
+} from '../types';
+
+// Map a legacy status value (cloudcore contract) into the V2 taxonomy.
+function legacyStatusToV2(status: string): {
+  lead_status: LeadStatus;
+  pipeline_stage: PipelineStage;
+  lead_temperature: LeadTemperature;
+} {
+  switch (status) {
+    case 'converted':
+      return { lead_status: 'closed', pipeline_stage: 'order_won', lead_temperature: 'warm' };
+    case 'lost':
+      return { lead_status: 'closed', pipeline_stage: 'closed_lost', lead_temperature: 'cold' };
+    case 'hot':
+      return { lead_status: 'follow_up_scheduled', pipeline_stage: 'new_inquiry', lead_temperature: 'hot' };
+    case 'cold':
+      return { lead_status: 'nurture_later', pipeline_stage: 'new_inquiry', lead_temperature: 'cold' };
+    case 'follow_up':
+      return { lead_status: 'follow_up_scheduled', pipeline_stage: 'new_inquiry', lead_temperature: 'warm' };
+    default:
+      return { lead_status: 'new_contact_pending', pipeline_stage: 'new_inquiry', lead_temperature: 'warm' };
+  }
+}
 
 /**
  * Get all leads with optional filters
@@ -67,13 +95,17 @@ export async function createLead(
     };
   }
 
+  const v2 = legacyStatusToV2(parsed.data.status);
   return db.createLead({
     name: parsed.data.name,
     contact: parsed.data.contact,
     source: parsed.data.source,
     lead_type: parsed.data.leadType,
     assigned_staff: parsed.data.assignedStaff || null,
-    status: parsed.data.status,
+    lead_status: v2.lead_status,
+    pipeline_stage: v2.pipeline_stage,
+    lead_temperature: v2.lead_temperature,
+    factory_visit_status: "not_discussed",
   });
 }
 
@@ -117,7 +149,11 @@ export async function updateLead(
   if (parsed.data.source) updates.source = parsed.data.source;
   if (parsed.data.leadType) updates.lead_type = parsed.data.leadType;
   if (parsed.data.assignedStaff !== undefined) updates.assigned_staff = parsed.data.assignedStaff;
-  if (parsed.data.status) updates.status = parsed.data.status;
+  if (parsed.data.status) {
+    const v2 = legacyStatusToV2(parsed.data.status);
+    updates.lead_status = v2.lead_status;
+    updates.lead_temperature = v2.lead_temperature;
+  }
   if (parsed.data.followUpDate) updates.follow_up_date = parsed.data.followUpDate;
 
   return db.updateLead(id, updates);

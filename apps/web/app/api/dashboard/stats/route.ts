@@ -38,54 +38,54 @@ export async function GET() {
         .select("id", { count: "exact", head: true })
         .eq("is_archived", false),
 
-      // Hot leads
+      // Hot leads (by temperature)
       supabaseAdmin
         .from("leads")
         .select("id", { count: "exact", head: true })
-        .eq("status", "hot")
+        .eq("lead_temperature", "hot")
         .eq("is_archived", false),
 
-      // Due today (follow_up_date is today)
+      // Due today (follow_up_date is today, open pipeline)
       supabaseAdmin
         .from("leads")
         .select("id", { count: "exact", head: true })
         .eq("follow_up_date", todayStr)
-        .in("status", ["new", "follow_up", "hot"])
+        .not("pipeline_stage", "in", "(order_won,closed_lost)")
         .eq("is_archived", false),
 
-      // Converted
+      // Converted (won)
       supabaseAdmin
         .from("leads")
         .select("id", { count: "exact", head: true })
-        .eq("status", "converted")
+        .eq("pipeline_stage", "order_won")
         .eq("is_archived", false),
 
-      // New
+      // New (contact pending)
       supabaseAdmin
         .from("leads")
         .select("id", { count: "exact", head: true })
-        .eq("status", "new")
+        .eq("lead_status", "new_contact_pending")
         .eq("is_archived", false),
 
-      // Follow up
+      // Follow up scheduled
       supabaseAdmin
         .from("leads")
         .select("id", { count: "exact", head: true })
-        .eq("status", "follow_up")
+        .eq("lead_status", "follow_up_scheduled")
         .eq("is_archived", false),
 
-      // Cold
+      // Cold (by temperature)
       supabaseAdmin
         .from("leads")
         .select("id", { count: "exact", head: true })
-        .eq("status", "cold")
+        .eq("lead_temperature", "cold")
         .eq("is_archived", false),
 
       // Lost
       supabaseAdmin
         .from("leads")
         .select("id", { count: "exact", head: true })
-        .eq("status", "lost")
+        .eq("pipeline_stage", "closed_lost")
         .eq("is_archived", false),
     ]);
 

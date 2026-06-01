@@ -124,7 +124,7 @@ export async function getSimilarLeads(
     .from('leads')
     .select('*')
     .eq('lead_type', leadType)
-    .in('status', ['converted', 'lost'])
+    .in('pipeline_stage', ['order_won', 'closed_lost'])
     .order('updated_at', { ascending: false })
     .limit(limit);
 
@@ -144,13 +144,13 @@ export async function getConversionRate(leadType: string): Promise<number> {
     .from('leads')
     .select('id', { count: 'exact' })
     .eq('lead_type', leadType)
-    .eq('status', 'converted');
+    .eq('pipeline_stage', 'order_won');
 
   const { data: total, error: totalError } = await supabase
     .from('leads')
     .select('id', { count: 'exact' })
     .eq('lead_type', leadType)
-    .in('status', ['converted', 'lost']);
+    .in('pipeline_stage', ['order_won', 'closed_lost']);
 
   if (convertedError || totalError) {
     console.error('Error calculating conversion rate');
@@ -188,7 +188,7 @@ export async function getPendingLeads(staffId?: string): Promise<Lead[]> {
   let query = supabase
     .from('leads')
     .select('*')
-    .in('status', ['new', 'follow_up', 'hot'])
+    .not('pipeline_stage', 'in', '(order_won,closed_lost)')
     .order('follow_up_date', { ascending: true });
 
   if (staffId) {

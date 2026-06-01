@@ -175,7 +175,7 @@ async function getAdditionalMetrics(
     // Get leads for more detailed analysis
     const { data: leads } = await db.supabase
       .from("leads")
-      .select("id, status, follow_up_date, created_at, updated_at")
+      .select("id, pipeline_stage, lead_temperature, follow_up_date, created_at, updated_at")
       .eq("assigned_staff", staffId)
       .gte("updated_at", startDate.toISOString());
 
@@ -235,8 +235,8 @@ async function getAdditionalMetrics(
     );
     const completedFollowUps = pastFollowUps.filter(
       (l) =>
-        l.status === "converted" ||
-        l.status === "lost" ||
+        l.pipeline_stage === "order_won" ||
+        l.pipeline_stage === "closed_lost" ||
         new Date(l.updated_at) >= new Date(l.follow_up_date),
     );
 
@@ -247,10 +247,10 @@ async function getAdditionalMetrics(
 
     // Hot leads analysis
     const hotLeads = leads.filter(
-      (l) => l.status === "hot" || l.status === "converted",
+      (l) => l.lead_temperature === "hot" || l.pipeline_stage === "order_won",
     );
     const hotLeadsConverted = leads.filter(
-      (l) => l.status === "converted",
+      (l) => l.pipeline_stage === "order_won",
     ).length;
 
     return {

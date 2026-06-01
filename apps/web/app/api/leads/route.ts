@@ -38,8 +38,14 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + limit - 1);
 
     // Apply filters
-    if (filters.status) {
-      query = query.eq("status", filters.status);
+    if (filters.lead_status) {
+      query = query.eq("lead_status", filters.lead_status);
+    }
+    if (filters.pipeline_stage) {
+      query = query.eq("pipeline_stage", filters.pipeline_stage);
+    }
+    if (filters.lead_temperature) {
+      query = query.eq("lead_temperature", filters.lead_temperature);
     }
     if (filters.assigned_staff) {
       query = query.eq("assigned_staff", filters.assigned_staff);

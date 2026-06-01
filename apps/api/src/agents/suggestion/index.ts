@@ -85,7 +85,7 @@ Based on this information:
 2. Identify the single next best action
 3. Recommend a follow-up date
 
-Consider the lead's status (${lead.status}) and prioritize accordingly.
+Consider the lead's status (${lead.lead_status}) and prioritize accordingly.
 Respond ONLY with the JSON object, no other text.`;
 
     const response = await anthropic.messages.create({
@@ -140,49 +140,44 @@ function generateBasicSuggestions(
   const followUpDate = new Date(today);
   followUpDate.setDate(followUpDate.getDate() + 3);
 
-  // Status-based suggestions
-  switch (lead.status) {
-    case 'new':
-      suggestions.push({
-        id: generateId(),
-        type: 'action',
-        content: 'Make initial contact to understand requirements',
-        priority: 'high',
-        reasoning: 'New lead needs qualification',
-      });
-      break;
+  // Status-based suggestions (action state)
+  if (lead.lead_status === 'new_contact_pending') {
+    suggestions.push({
+      id: generateId(),
+      type: 'action',
+      content: 'Make initial contact to understand requirements',
+      priority: 'high',
+      reasoning: 'New lead needs qualification',
+    });
+  } else if (lead.lead_status === 'follow_up_scheduled') {
+    suggestions.push({
+      id: generateId(),
+      type: 'action',
+      content: 'Follow up on previous discussion',
+      priority: 'medium',
+      reasoning: 'Lead needs continued nurturing',
+    });
+  }
 
-    case 'hot':
-      suggestions.push({
-        id: generateId(),
-        type: 'action',
-        content: 'Send quotation or schedule closing meeting',
-        priority: 'high',
-        reasoning: 'Hot lead ready for conversion',
-      });
-      followUpDate.setDate(today.getDate() + 1); // Follow up sooner
-      break;
-
-    case 'follow_up':
-      suggestions.push({
-        id: generateId(),
-        type: 'action',
-        content: 'Follow up on previous discussion',
-        priority: 'medium',
-        reasoning: 'Lead needs continued nurturing',
-      });
-      break;
-
-    case 'cold':
-      suggestions.push({
-        id: generateId(),
-        type: 'action',
-        content: 'Consider re-engagement with special offer or new product info',
-        priority: 'low',
-        reasoning: 'Cold lead may need incentive to re-engage',
-      });
-      followUpDate.setDate(today.getDate() + 7); // Follow up later
-      break;
+  // Temperature-based suggestions (priority)
+  if (lead.lead_temperature === 'hot') {
+    suggestions.push({
+      id: generateId(),
+      type: 'action',
+      content: 'Send quotation or schedule closing meeting',
+      priority: 'high',
+      reasoning: 'Hot lead ready for conversion',
+    });
+    followUpDate.setDate(today.getDate() + 1); // Follow up sooner
+  } else if (lead.lead_temperature === 'cold') {
+    suggestions.push({
+      id: generateId(),
+      type: 'action',
+      content: 'Consider re-engagement with special offer or new product info',
+      priority: 'low',
+      reasoning: 'Cold lead may need incentive to re-engage',
+    });
+    followUpDate.setDate(today.getDate() + 7); // Follow up later
   }
 
   // Engagement-based suggestions

@@ -178,7 +178,7 @@ async function gatherStats(): Promise<DailySummaryStats> {
     // Leads updated yesterday (status changes, etc.)
     supabaseAdmin
       .from("leads")
-      .select("id, status")
+      .select("id, lead_status")
       .gte("updated_at", yesterdayStart)
       .lte("updated_at", yesterdayEnd)
       .neq("created_at", "updated_at"), // Exclude just-created leads
@@ -216,8 +216,8 @@ async function gatherStats(): Promise<DailySummaryStats> {
     // Hot leads needing attention
     supabaseAdmin
       .from("leads")
-      .select("id, name, status, ai_summary, budget, updated_at")
-      .eq("status", "hot")
+      .select("id, name, lead_status, ai_summary, budget, updated_at")
+      .eq("lead_temperature", "hot")
       .eq("is_archived", false)
       .order("updated_at", { ascending: true })
       .limit(5),
@@ -228,14 +228,14 @@ async function gatherStats(): Promise<DailySummaryStats> {
       .select("id, name, follow_up_date, next_action")
       .eq("follow_up_date", todayDubai)
       .eq("is_archived", false)
-      .in("status", ["new", "follow_up", "hot"])
+      .not("pipeline_stage", "in", "(order_won,closed_lost)")
       .limit(10),
 
     // Stale leads (no activity in 7+ days)
     supabaseAdmin
       .from("leads")
       .select("id, name, updated_at")
-      .in("status", ["new", "follow_up"])
+      .not("pipeline_stage", "in", "(order_won,closed_lost)")
       .eq("is_archived", false)
       .lt("updated_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
       .limit(5),

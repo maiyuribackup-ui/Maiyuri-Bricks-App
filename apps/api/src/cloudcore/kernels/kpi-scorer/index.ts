@@ -201,7 +201,7 @@ async function calculateSingleLeadKPI(
 
     if (recentNotes.length > 0) {
       const noteTexts = recentNotes.slice(0, 5).map(n => n.text).join('\n---\n');
-      const aiResult = await analyzeLeadWithAI(lead.name, lead.status, noteTexts);
+      const aiResult = await analyzeLeadWithAI(lead.name, lead.lead_status, noteTexts);
       if (aiResult.success && aiResult.data) {
         aiScore = aiResult.data.score;
         recommendation = aiResult.data.recommendation;
@@ -264,7 +264,7 @@ async function calculateSingleLeadKPI(
       category: 'lead',
       leadId,
       leadName: lead.name,
-      status: lead.status,
+      status: lead.lead_status,
       value: finalScore,
       trend: 'stable', // Would need historical data to calculate
       confidence: recentNotes.length >= 3 ? 0.85 : 0.6,
@@ -390,8 +390,8 @@ export async function calculateLeadKPI(
       .from('leads')
       .select('id')
       .eq('is_archived', false)
-      .not('status', 'eq', 'converted')
-      .not('status', 'eq', 'lost')
+      .not('pipeline_stage', 'eq', 'order_won')
+      .not('pipeline_stage', 'eq', 'closed_lost')
       .limit(50);
 
     if (error || !leads) {
@@ -484,14 +484,14 @@ async function calculateSingleStaffKPI(
     // Get leads assigned to this staff (excluding archived)
     const { data: leads } = await db.supabase
       .from('leads')
-      .select('id, status, created_at, updated_at, follow_up_date')
+      .select('id, lead_status, pipeline_stage, lead_temperature, created_at, updated_at, follow_up_date')
       .eq('assigned_staff', staffId)
       .eq('is_archived', false)
       .gte('updated_at', start.toISOString());
 
     const staffLeads = leads || [];
     const leadsHandled = staffLeads.length;
-    const convertedLeads = staffLeads.filter(l => l.status === 'converted').length;
+    const convertedLeads = staffLeads.filter(l => l.pipeline_stage === 'order_won').length;
     const conversionRate = leadsHandled > 0 ? convertedLeads / leadsHandled : 0;
 
     // Get notes by this staff
@@ -558,7 +558,7 @@ async function calculateSingleStaffKPI(
     totalScore += engagementScore * STAFF_WEIGHTS.leadEngagement;
 
     // 5. Hot Lead Handling
-    const hotLeads = staffLeads.filter(l => l.status === 'hot' || l.status === 'converted');
+    const hotLeads = staffLeads.filter(l => l.lead_temperature === 'hot' || l.pipeline_stage === 'order_won');
     const hotLeadScore = leadsHandled > 0 ? Math.min(100, (hotLeads.length / leadsHandled) * 200) : 50;
     factors.push({
       name: 'Hot Lead Handling',
@@ -749,21 +749,23 @@ export async function calculateBusinessKPI(
 
     const periodLeads = leads || [];
     const newLeads = periodLeads.length;
-    const convertedLeads = periodLeads.filter(l => l.status === 'converted').length;
-    const lostLeads = periodLeads.filter(l => l.status === 'lost').length;
-    const hotLeads = periodLeads.filter(l => l.status === 'hot').length;
+    const convertedLeads = periodLeads.filter(l => l.pipeline_stage === 'order_won').length;
+    const lostLeads = periodLeads.filter(l => l.pipeline_stage === 'closed_lost').length;
+    const hotLeads = periodLeads.filter(l => l.lead_temperature === 'hot').length;
 
-    // Pipeline value (weighted by status)
-    const statusWeights: Record<string, number> = {
-      new: 0.1,
-      follow_up: 0.3,
-      hot: 0.7,
-      converted: 1.0,
-      cold: 0.05,
-      lost: 0,
+    // Pipeline value (weighted by pipeline stage)
+    const stageWeights: Record<string, number> = {
+      new_inquiry: 0.1,
+      qualified_lead: 0.2,
+      quote_shared: 0.4,
+      factory_visit_proof: 0.5,
+      decision_pending: 0.6,
+      finalisation: 0.8,
+      order_won: 1.0,
+      closed_lost: 0,
     };
     const pipelineValue = periodLeads.reduce((sum, lead) => {
-      return sum + (statusWeights[lead.status] || 0.1);
+      return sum + (stageWeights[lead.pipeline_stage] || 0.1);
     }, 0);
 
     // Get staff metrics

@@ -21,14 +21,22 @@ import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { error, unauthorized } from "@/lib/api-utils";
 
 const FUNNEL_STAGES = [
-  "inquiry",
-  "quote_sent",
-  "factory_visit_pending",
-  "factory_visit_completed",
-  "negotiation",
-  "order_confirmed",
+  "new_inquiry",
+  "qualified_lead",
+  "quote_shared",
+  "factory_visit_proof",
+  "decision_pending",
+  "finalisation",
+  "order_won",
 ] as const;
-const ACTIVE_STATUSES = ["new", "follow_up", "hot", "cold"] as const;
+const ACTIVE_STATUSES = [
+  "new_contact_pending",
+  "contact_attempted",
+  "connected",
+  "follow_up_scheduled",
+  "waiting_for_customer",
+  "nurture_later",
+] as const;
 
 function avg(xs: number[]): number | null {
   return xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100) / 100 : null;
@@ -76,24 +84,24 @@ export async function GET(request: NextRequest) {
   // ---- Pipeline funnel (active snapshot) ----
   const { data: stageRows } = await sb
     .from("leads")
-    .select("stage")
+    .select("pipeline_stage")
     .eq("is_archived", false);
   const funnelOut: Record<string, number> = {};
   for (const s of FUNNEL_STAGES) funnelOut[s] = 0;
   for (const r of stageRows ?? []) {
-    const s = (r as any).stage;
+    const s = (r as any).pipeline_stage;
     if (s in funnelOut) funnelOut[s] += 1;
   }
 
   // ---- Status snapshot (active) ----
   const { data: statusRows } = await sb
     .from("leads")
-    .select("status")
+    .select("lead_status")
     .eq("is_archived", false);
   const statusOut: Record<string, number> = {};
   for (const s of ACTIVE_STATUSES) statusOut[s] = 0;
   for (const r of statusRows ?? []) {
-    const s = (r as any).status;
+    const s = (r as any).lead_status;
     if (s in statusOut) statusOut[s] += 1;
   }
 
@@ -108,19 +116,19 @@ export async function GET(request: NextRequest) {
   // ---- Conversions (stage->order_confirmed in window) ----
   const convCur = await countRows((q) =>
     (q.select("id", { count: "exact", head: true }) as any)
-      .eq("stage", "order_confirmed")
+      .eq("pipeline_stage", "order_won")
       .gte("stage_updated_at", curS)
       .lte("stage_updated_at", curE)
   );
   const convPrev = await countRows((q) =>
     (q.select("id", { count: "exact", head: true }) as any)
-      .eq("stage", "order_confirmed")
+      .eq("pipeline_stage", "order_won")
       .gte("stage_updated_at", prevS)
       .lte("stage_updated_at", prevE)
   );
   const lostCur = await countRows((q) =>
     (q.select("id", { count: "exact", head: true }) as any)
-      .eq("status", "lost")
+      .eq("pipeline_stage", "closed_lost")
       .gte("updated_at", curS)
       .lte("updated_at", curE)
   );
@@ -137,7 +145,7 @@ export async function GET(request: NextRequest) {
   const { data: wonRows } = await sb
     .from("leads")
     .select("odoo_order_amount")
-    .eq("stage", "order_confirmed")
+    .eq("pipeline_stage", "order_won")
     .gte("stage_updated_at", curS)
     .lte("stage_updated_at", curE);
   const wonValue = (wonRows ?? []).reduce((acc: number, r: any) => {
@@ -149,7 +157,7 @@ export async function GET(request: NextRequest) {
   const { data: hot } = await sb
     .from("leads")
     .select("name,last_interaction_at,next_action,assigned_staff")
-    .eq("status", "hot")
+    .eq("lead_temperature", "hot")
     .eq("is_archived", false)
     .order("last_interaction_at", { ascending: true, nullsFirst: true })
     .limit(8);
@@ -158,7 +166,7 @@ export async function GET(request: NextRequest) {
   const { data: overdue } = await sb
     .from("leads")
     .select("name,follow_up_date,next_action,assigned_staff")
-    .eq("status", "follow_up")
+    .eq("lead_status", "follow_up_scheduled")
     .eq("is_archived", false)
     .lt("follow_up_date", today)
     .order("follow_up_date", { ascending: true })
@@ -265,12 +273,12 @@ export async function GET(request: NextRequest) {
       (q.select("id", { count: "exact", head: true }) as any)
         .eq("assigned_staff", uid)
         .eq("is_archived", false)
-        .in("status", ACTIVE_STATUSES as unknown as string[])
+        .in("lead_status", ACTIVE_STATUSES as unknown as string[])
     );
     const converted = await countRows((q) =>
       (q.select("id", { count: "exact", head: true }) as any)
         .eq("assigned_staff", uid)
-        .eq("stage", "order_confirmed")
+        .eq("pipeline_stage", "order_won")
         .gte("stage_updated_at", curS)
         .lte("stage_updated_at", curE)
     );
