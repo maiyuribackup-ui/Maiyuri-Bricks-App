@@ -82,17 +82,44 @@ interface TaskItem {
   leadName?: string;
 }
 
-function getFallbackAiScore(temperature: string): number {
-  switch (temperature) {
-    case "hot":
-      return 0.75;
-    case "warm":
-      return 0.45;
-    case "cold":
-      return 0.2;
-    default:
-      return 0.4;
+/**
+ * Transparent, additive lead score from real signals on the lead (mirrors the
+ * sales-doc scoring table). Returns a 0..1 normalized score so it slots into
+ * the existing `ai_score` shape. Used as a fallback when no AI score exists.
+ */
+function computeLeadScore(lead: any, today: Date): number {
+  let pts = 0;
+  // Source quality
+  if (["referral", "website"].includes(lead.source)) pts += 15;
+  else if (lead.source === "phone") pts += 8;
+  // Pipeline progression
+  const stagePts: Record<string, number> = {
+    new_inquiry: 0,
+    qualified_lead: 10,
+    quote_shared: 20,
+    factory_visit_proof: 25,
+    decision_pending: 25,
+    finalisation: 35,
+  };
+  pts += stagePts[lead.pipeline_stage] ?? 0;
+  // Factory visit is a strong trust signal
+  if (lead.factory_visit_status === "visited") pts += 35;
+  else if (lead.factory_visit_status === "scheduled") pts += 20;
+  // Commercial intent
+  if (Number(lead.estimated_value) > 0) pts += 10;
+  // Temperature nudge
+  if (lead.lead_temperature === "hot") pts += 15;
+  else if (lead.lead_temperature === "warm") pts += 5;
+  // Recency penalty — stale leads lose points
+  const ref = lead.last_interaction_at || lead.updated_at || lead.created_at;
+  if (ref) {
+    const days =
+      (today.getTime() - new Date(ref).getTime()) / (1000 * 60 * 60 * 24);
+    if (days > 14) pts -= 20;
+    else if (days > 7) pts -= 10;
   }
+  // Normalize to 0..1 (cap at ~120 raw points)
+  return Math.max(0, Math.min(1, pts / 120));
 }
 
 interface StatusCounts {
@@ -152,6 +179,42 @@ interface ProductInterest {
   trend: "up" | "down" | "stable";
 }
 
+interface RevenueKpis {
+  revenueWon: number;
+  pipelineValue: number;
+  avgOrderValue: number;
+  leadToOrderRate: number;
+  quoteToOrderRate: number;
+}
+
+interface FactoryVisitStats {
+  invited: number;
+  scheduled: number;
+  visited: number;
+  noShow: number;
+  notRequired: number;
+  attendanceRate: number; // visited / (scheduled + visited + no_show)
+  visitToOrderRate: number; // won-after-visit / visited
+  postVisitLostRate: number; // lost-after-visit / visited
+  avgDaysVisitToWon: number | null;
+  wonAfterVisit: number;
+  lostAfterVisit: number;
+}
+
+interface LostReasonStat {
+  code: string;
+  label: string;
+  count: number;
+}
+
+interface Recommendation {
+  id: string;
+  icon: string;
+  title: string;
+  detail: string;
+  tone: "critical" | "warning" | "info" | "success";
+}
+
 interface DashboardAnalytics {
   kpis: {
     conversionRate: number;
@@ -162,6 +225,10 @@ interface DashboardAnalytics {
     hotLeadsChange: number;
     followUpsDue: number;
   };
+  revenue: RevenueKpis;
+  factoryVisit: FactoryVisitStats;
+  lostReasons: LostReasonStat[];
+  recommendations: Recommendation[];
   statusCounts: StatusCounts;
   totalLeads: number;
   conversionTrend: ConversionDataPoint[];
@@ -357,7 +424,7 @@ export async function GET(request: Request) {
     const priorityLeads: PriorityLead[] = leads
       .filter((l) => !["order_won", "closed_lost"].includes(l.pipeline_stage))
       .map((l) => {
-        const normalizedScore = l.ai_score ?? getFallbackAiScore(l.lead_temperature);
+        const normalizedScore = l.ai_score ?? computeLeadScore(l, today);
         const aiScore = Math.round(normalizedScore * 100);
         let priority: "critical" | "high" | "medium" = "medium";
         let reason = "";
@@ -445,9 +512,15 @@ export async function GET(request: Request) {
     const leaderboard: SalesPerson[] = users
       .map((user, index) => {
         const userLeads = leads.filter((l) => l.assigned_staff === user.id);
-        const converted = userLeads.filter(
+        const wonLeads = userLeads.filter(
           (l) => l.pipeline_stage === "order_won",
-        ).length;
+        );
+        const converted = wonLeads.length;
+        // Real revenue: sum of confirmed final_order_value on won leads
+        const revenue = wonLeads.reduce(
+          (sum, l) => sum + (Number(l.final_order_value) || 0),
+          0,
+        );
 
         return {
           id: user.id,
@@ -455,7 +528,7 @@ export async function GET(request: Request) {
           role: user.role,
           leadsConverted: converted,
           totalLeads: userLeads.length,
-          revenue: Math.floor(Math.random() * 500000 + 100000), // Placeholder
+          revenue,
           rank: index + 1,
         };
       })
@@ -716,47 +789,12 @@ export async function GET(request: Request) {
       bucket.leads.sort((a, b) => b.daysInStatus - a.daysInStatus);
     });
 
-    // 4. Geographic Heat Map (by area/locality)
-    // Tamil Nadu localities for brick business
-    const tamilNaduAreas = [
-      "Chennai",
-      "Coimbatore",
-      "Madurai",
-      "Tiruchirappalli",
-      "Salem",
-      "Tirunelveli",
-      "Erode",
-      "Vellore",
-      "Thoothukudi",
-      "Dindigul",
-      "Thanjavur",
-      "Kanchipuram",
-      "Tiruppur",
-      "Nagercoil",
-      "Karur",
-    ];
-
-    // Hash function to deterministically assign area based on lead ID
-    const hashString = (str: string): number => {
-      let hash = 0;
-      for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = (hash << 5) - hash + char;
-        hash = hash & hash;
-      }
-      return Math.abs(hash);
-    };
-
+    // 4. Geographic breakdown (by real area / locality). No fabrication:
+    // leads without an area are bucketed as "Unknown" so the chart is honest.
     const areaMap = new Map<string, { count: number; converted: number }>();
     leads.forEach((l) => {
-      // Use existing area field if available, otherwise derive from ID
-      let area = l.area || l.locality || l.city;
-      if (!area) {
-        // Deterministically assign area based on lead ID hash
-        const areaIndex = hashString(l.id) % tamilNaduAreas.length;
-        area = tamilNaduAreas[areaIndex];
-      }
-
+      const area =
+        (l.area || l.site_location || l.site_region || "").trim() || "Unknown";
       const existing = areaMap.get(area) || { count: 0, converted: 0 };
       existing.count++;
       if (l.pipeline_stage === "order_won") existing.converted++;
@@ -834,6 +872,205 @@ export async function GET(request: Request) {
       .sort((a, b) => b.inquiries - a.inquiries)
       .slice(0, 6);
 
+    // ==========================================
+    // REVENUE KPIs (real money — native deal-value fields)
+    // ==========================================
+    const wonLeadsAll = leads.filter((l) => l.pipeline_stage === "order_won");
+    const revenueWon = wonLeadsAll.reduce(
+      (sum, l) => sum + (Number(l.final_order_value) || 0),
+      0,
+    );
+    const activeStageKeys = [
+      "new_inquiry",
+      "qualified_lead",
+      "quote_shared",
+      "factory_visit_proof",
+      "decision_pending",
+      "finalisation",
+    ];
+    const pipelineValue = leads
+      .filter((l) => activeStageKeys.includes(l.pipeline_stage))
+      .reduce((sum, l) => sum + (Number(l.estimated_value) || 0), 0);
+    const ordersWithValue = wonLeadsAll.filter(
+      (l) => Number(l.final_order_value) > 0,
+    ).length;
+    const avgOrderValue =
+      ordersWithValue > 0 ? Math.round(revenueWon / ordersWithValue) : 0;
+    const quotePlusReached = leads.filter(
+      (l) => (stageRank[l.pipeline_stage] ?? -1) >= 2,
+    ).length;
+    const revenue: RevenueKpis = {
+      revenueWon,
+      pipelineValue,
+      avgOrderValue,
+      leadToOrderRate:
+        totalLeads > 0
+          ? Math.round((wonLeadsAll.length / totalLeads) * 100)
+          : 0,
+      quoteToOrderRate:
+        quotePlusReached > 0
+          ? Math.round((wonLeadsAll.length / quotePlusReached) * 100)
+          : 0,
+    };
+
+    // ==========================================
+    // FACTORY-VISIT CONVERSION
+    // ==========================================
+    const fvCount = (s: string) =>
+      leads.filter((l) => l.factory_visit_status === s).length;
+    const visitedLeads = leads.filter(
+      (l) => l.factory_visit_status === "visited",
+    );
+    const wonAfterVisit = visitedLeads.filter(
+      (l) => l.pipeline_stage === "order_won",
+    ).length;
+    const lostAfterVisit = visitedLeads.filter(
+      (l) => l.pipeline_stage === "closed_lost",
+    ).length;
+    const scheduledCount = fvCount("scheduled");
+    const noShowCount = fvCount("no_show");
+    const attendanceDenom = scheduledCount + visitedLeads.length + noShowCount;
+    // avg days from factory_visit_at -> won_at (only where both present)
+    const visitToWonDurations = visitedLeads
+      .filter((l) => l.factory_visit_at && l.won_at)
+      .map(
+        (l) =>
+          (new Date(l.won_at).getTime() -
+            new Date(l.factory_visit_at).getTime()) /
+          (1000 * 60 * 60 * 24),
+      )
+      .filter((d) => d >= 0);
+    const factoryVisit: FactoryVisitStats = {
+      invited: fvCount("invited"),
+      scheduled: scheduledCount,
+      visited: visitedLeads.length,
+      noShow: noShowCount,
+      notRequired: fvCount("not_required"),
+      attendanceRate:
+        attendanceDenom > 0
+          ? Math.round((visitedLeads.length / attendanceDenom) * 100)
+          : 0,
+      visitToOrderRate:
+        visitedLeads.length > 0
+          ? Math.round((wonAfterVisit / visitedLeads.length) * 100)
+          : 0,
+      postVisitLostRate:
+        visitedLeads.length > 0
+          ? Math.round((lostAfterVisit / visitedLeads.length) * 100)
+          : 0,
+      avgDaysVisitToWon:
+        visitToWonDurations.length > 0
+          ? Math.round(
+              visitToWonDurations.reduce((a, b) => a + b, 0) /
+                visitToWonDurations.length,
+            )
+          : null,
+      wonAfterVisit,
+      lostAfterVisit,
+    };
+
+    // ==========================================
+    // LOST-REASON INTELLIGENCE
+    // ==========================================
+    const lostReasonLabels: Record<string, string> = {
+      price_too_high: "Price too high",
+      chose_kerala_competitor: "Chose Kerala competitor",
+      chose_conventional_aac: "Chose conventional / AAC",
+      project_delayed: "Project delayed",
+      customer_not_reachable: "Not reachable",
+      no_genuine_requirement: "No genuine requirement",
+      transport_delivery_cost: "Transport / delivery cost",
+      engineer_mason_not_convinced: "Engineer/mason not convinced",
+      family_decision_delayed: "Family decision delayed",
+      other: "Other",
+    };
+    const lostLeads = leads.filter((l) => l.pipeline_stage === "closed_lost");
+    const lostReasonMap = new Map<string, number>();
+    lostLeads.forEach((l) => {
+      const code = l.lost_reason_code || "other";
+      lostReasonMap.set(code, (lostReasonMap.get(code) || 0) + 1);
+    });
+    const lostReasons: LostReasonStat[] = Array.from(lostReasonMap.entries())
+      .map(([code, count]) => ({
+        code,
+        label: lostReasonLabels[code] || code,
+        count,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // ==========================================
+    // RECOMMENDATION ENGINE (rule-based v1)
+    // ==========================================
+    const recommendations: Recommendation[] = [];
+    // 1. Hot leads with no follow-up scheduled
+    const hotNoFollowUp = leads.filter(
+      (l) =>
+        l.lead_temperature === "hot" &&
+        !["order_won", "closed_lost"].includes(l.pipeline_stage) &&
+        !l.follow_up_date,
+    ).length;
+    if (hotNoFollowUp > 0) {
+      recommendations.push({
+        id: "hot-no-followup",
+        icon: "🔥",
+        title: `${hotNoFollowUp} hot lead${hotNoFollowUp === 1 ? "" : "s"} with no follow-up scheduled`,
+        detail: "Assign a call today before they cool off.",
+        tone: "critical",
+      });
+    }
+    // 2. Overdue follow-ups
+    if (responseMetrics.leadsOverdue > 0) {
+      recommendations.push({
+        id: "overdue",
+        icon: "⏰",
+        title: `${responseMetrics.leadsOverdue} overdue follow-up${responseMetrics.leadsOverdue === 1 ? "" : "s"}`,
+        detail: "These are leaking from the pipeline — clear them first.",
+        tone: "warning",
+      });
+    }
+    // 3. Factory visits not converting
+    if (factoryVisit.visited >= 3 && factoryVisit.visitToOrderRate < 30) {
+      const topLost = lostReasons[0];
+      recommendations.push({
+        id: "factory-conv",
+        icon: "🏭",
+        title: `Only ${factoryVisit.visitToOrderRate}% of factory visitors convert`,
+        detail: topLost
+          ? `Top lost reason: ${topLost.label}. Add a post-visit value follow-up.`
+          : "Add a structured post-visit follow-up sequence.",
+        tone: "warning",
+      });
+    }
+    // 4. Best source — lean in
+    const rankedSources = [...leadSources]
+      .filter((s) => s.count >= 3)
+      .sort((a, b) => b.conversionRate - a.conversionRate);
+    if (rankedSources.length >= 2) {
+      const best = rankedSources[0];
+      const worst = rankedSources[rankedSources.length - 1];
+      if (best.conversionRate >= worst.conversionRate * 2 && best.conversionRate > 0) {
+        recommendations.push({
+          id: "best-source",
+          icon: "🎯",
+          title: `${best.label} converts best (${best.conversionRate}%)`,
+          detail: `vs ${worst.label} at ${worst.conversionRate}%. Shift effort toward ${best.label}.`,
+          tone: "success",
+        });
+      }
+    }
+    // 5. Stale leads
+    const staleCount =
+      agingBuckets.find((b) => b.range === "30+")?.count ?? 0;
+    if (staleCount > 0) {
+      recommendations.push({
+        id: "stale",
+        icon: "🧹",
+        title: `${staleCount} active lead${staleCount === 1 ? "" : "s"} are 30+ days old`,
+        detail: "Re-engage or move to nurture/closed to keep the pipeline clean.",
+        tone: "info",
+      });
+    }
+
     const analytics: DashboardAnalytics = {
       kpis: {
         conversionRate,
@@ -848,6 +1085,10 @@ export async function GET(request: Request) {
         hotLeadsChange,
         followUpsDue,
       },
+      revenue,
+      factoryVisit,
+      lostReasons,
+      recommendations,
       statusCounts,
       totalLeads,
       conversionTrend,

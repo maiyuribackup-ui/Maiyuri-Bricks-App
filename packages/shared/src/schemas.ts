@@ -92,6 +92,15 @@ export const productInterestSchema = z.enum([
 const emptyStringToNull = <T extends z.ZodTypeAny>(schema: T) =>
   z.preprocess((val) => (val === "" ? null : val), schema);
 
+// Helper for optional numeric form fields: "" / null / undefined -> null,
+// numeric strings -> number. Used for deal-value/quantity inputs.
+const optionalNumber = () =>
+  z.preprocess(
+    (val) =>
+      val === "" || val === null || val === undefined ? null : Number(val),
+    z.number().nonnegative().nullable().optional(),
+  );
+
 // Optional classification that accepts empty string from form selects
 export const optionalClassificationSchema = emptyStringToNull(
   leadClassificationSchema.nullable().optional(),
@@ -145,8 +154,13 @@ export const createLeadSchema = z.object({
   product_interests: z.array(productInterestSchema).default([]).optional(),
   site_region: emptyStringToNull(z.string().nullable().optional()),
   site_location: emptyStringToNull(z.string().nullable().optional()),
+  area: emptyStringToNull(z.string().nullable().optional()),
   next_action: emptyStringToNull(z.string().nullable().optional()),
   follow_up_date: emptyStringToNull(z.string().nullable().optional()),
+  // Commercial fields (Phase 1: real deal value drives revenue/pipeline KPIs)
+  estimated_value: optionalNumber(),
+  estimated_quantity: optionalNumber(),
+  final_order_value: optionalNumber(),
   is_archived: z.boolean().default(false).optional(),
 });
 
@@ -171,8 +185,18 @@ export const updateLeadSchema = z.object({
   product_interests: z.array(productInterestSchema).optional(),
   site_region: emptyStringToNull(z.string().nullable().optional()),
   site_location: emptyStringToNull(z.string().nullable().optional()),
+  area: emptyStringToNull(z.string().nullable().optional()),
   next_action: emptyStringToNull(z.string().nullable().optional()),
   follow_up_date: emptyStringToNull(z.string().nullable().optional()),
+  // Commercial fields (Phase 1: real deal value drives revenue/pipeline KPIs)
+  estimated_value: optionalNumber(),
+  estimated_quantity: optionalNumber(),
+  final_order_value: optionalNumber(),
+  // Event timestamps — normally set server-side on stage transition, but
+  // accepted here so manual corrections are possible.
+  factory_visit_at: emptyStringToNull(z.string().nullable().optional()),
+  won_at: emptyStringToNull(z.string().nullable().optional()),
+  lost_at: emptyStringToNull(z.string().nullable().optional()),
   is_archived: z.boolean().optional(),
   archived_at: emptyStringToNull(z.string().nullable().optional()),
   archived_by: emptyStringToNull(z.string().uuid().nullable().optional()),

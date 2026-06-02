@@ -16,3 +16,9 @@ export { ResponseTimeMetrics, getDefaultResponseMetrics } from './ResponseTimeMe
 export { LeadAgingReport, getDefaultAgingBuckets } from './LeadAgingReport';
 export { GeographicHeatMap, getDefaultLocations } from './GeographicHeatMap';
 export { ProductInterestBreakdown, getDefaultProductInterests } from './ProductInterestBreakdown';
+
+// Marketing & Sales Command Center (Phase 1)
+export { RevenueKPIs } from './RevenueKPIs';
+export { FactoryVisitAnalytics } from './FactoryVisitAnalytics';
+export { LostReasonIntelligence } from './LostReasonIntelligence';
+export { RecommendationCards } from './RecommendationCards';

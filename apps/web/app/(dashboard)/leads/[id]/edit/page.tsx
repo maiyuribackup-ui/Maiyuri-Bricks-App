@@ -148,6 +148,10 @@ export default function EditLeadPage() {
         product_interests: lead.product_interests || [],
         site_region: lead.site_region,
         site_location: lead.site_location,
+        area: lead.area,
+        estimated_value: lead.estimated_value,
+        estimated_quantity: lead.estimated_quantity,
+        final_order_value: lead.final_order_value,
         next_action: lead.next_action,
         follow_up_date: lead.follow_up_date?.split("T")[0] || null,
       });
@@ -401,6 +405,57 @@ export default function EditLeadPage() {
                 {...register("site_location")}
                 type="text"
                 placeholder="e.g., T Nagar, Anna Nagar"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* Commercials — real deal value powers dashboard revenue/pipeline */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Area / Locality
+              </label>
+              <input
+                {...register("area")}
+                type="text"
+                placeholder="e.g., Redhills"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Estimated Value (₹)
+              </label>
+              <input
+                {...register("estimated_value")}
+                type="number"
+                min={0}
+                placeholder="e.g., 550000"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Estimated Quantity
+              </label>
+              <input
+                {...register("estimated_quantity")}
+                type="number"
+                min={0}
+                placeholder="e.g., 10000"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Final Order Value (₹)
+              </label>
+              <input
+                {...register("final_order_value")}
+                type="number"
+                min={0}
+                placeholder="set when order is won"
                 className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>

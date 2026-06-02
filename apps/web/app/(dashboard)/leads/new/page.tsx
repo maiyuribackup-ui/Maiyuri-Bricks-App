@@ -325,6 +325,45 @@ export default function NewLeadPage() {
             </div>
           </div>
 
+          {/* Commercials — feed real revenue/pipeline KPIs from the start */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Area / Locality
+              </label>
+              <input
+                {...register("area")}
+                type="text"
+                placeholder="e.g., Redhills"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Estimated Value (₹)
+              </label>
+              <input
+                {...register("estimated_value")}
+                type="number"
+                min={0}
+                placeholder="e.g., 550000"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Estimated Qty
+              </label>
+              <input
+                {...register("estimated_quantity")}
+                type="number"
+                min={0}
+                placeholder="e.g., 10000"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
           {/* Assigned Staff */}
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">

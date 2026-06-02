@@ -22,6 +22,10 @@ import {
   LeadAgingReport,
   GeographicHeatMap,
   ProductInterestBreakdown,
+  RevenueKPIs,
+  FactoryVisitAnalytics,
+  LostReasonIntelligence,
+  RecommendationCards,
 } from "@/components/dashboard";
 import { HelpButton } from "@/components/help";
 
@@ -44,6 +48,34 @@ interface DashboardAnalytics {
     hotLeadsChange: number;
     followUpsDue: number;
   };
+  revenue: {
+    revenueWon: number;
+    pipelineValue: number;
+    avgOrderValue: number;
+    leadToOrderRate: number;
+    quoteToOrderRate: number;
+  };
+  factoryVisit: {
+    invited: number;
+    scheduled: number;
+    visited: number;
+    noShow: number;
+    notRequired: number;
+    attendanceRate: number;
+    visitToOrderRate: number;
+    postVisitLostRate: number;
+    avgDaysVisitToWon: number | null;
+    wonAfterVisit: number;
+    lostAfterVisit: number;
+  };
+  lostReasons: Array<{ code: string; label: string; count: number }>;
+  recommendations: Array<{
+    id: string;
+    icon: string;
+    title: string;
+    detail: string;
+    tone: "critical" | "warning" | "info" | "success";
+  }>;
   statusCounts: StatusCounts;
   totalLeads: number;
   conversionTrend: Array<{ name: string; current: number; previous?: number }>;
@@ -297,6 +329,26 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Revenue KPIs — real money from native deal-value fields */}
+      <RevenueKPIs
+        revenue={
+          analytics?.revenue ?? {
+            revenueWon: 0,
+            pipelineValue: 0,
+            avgOrderValue: 0,
+            leadToOrderRate: 0,
+            quoteToOrderRate: 0,
+          }
+        }
+        loading={isLoading}
+      />
+
+      {/* Decision system — what to do next */}
+      <RecommendationCards
+        recommendations={analytics?.recommendations || []}
+        loading={isLoading}
+      />
+
       {/* Status-wise Lead Counts - Full Width */}
       <LeadStatusBreakdown
         statusCounts={statusCountsData}
@@ -405,6 +457,32 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* Factory-visit conversion + lost-reason intelligence */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <FactoryVisitAnalytics
+          stats={
+            analytics?.factoryVisit ?? {
+              invited: 0,
+              scheduled: 0,
+              visited: 0,
+              noShow: 0,
+              notRequired: 0,
+              attendanceRate: 0,
+              visitToOrderRate: 0,
+              postVisitLostRate: 0,
+              avgDaysVisitToWon: null,
+              wonAfterVisit: 0,
+              lostAfterVisit: 0,
+            }
+          }
+          loading={isLoading}
+        />
+        <LostReasonIntelligence
+          reasons={analytics?.lostReasons || []}
+          loading={isLoading}
+        />
+      </div>
+
       {/* Geographic Heat Map - Full Width */}
       <GeographicHeatMap
         locations={analytics?.locationData || []}
@@ -416,7 +494,7 @@ export default function DashboardPage() {
         <SalesLeaderboard
           salespeople={analytics?.leaderboard || []}
           loading={isLoading}
-          showRevenue={false}
+          showRevenue={true}
         />
         <RecentActivity
           activities={analytics?.recentActivity || []}

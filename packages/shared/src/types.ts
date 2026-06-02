@@ -156,6 +156,15 @@ export interface Lead {
   odoo_order_date?: string | null;
   odoo_synced_at?: string | null;
   odoo_sync_status?: "pending" | "synced" | "error" | "not_synced" | null;
+  // Commercial fields (Phase 1: real deal value powers revenue/pipeline KPIs)
+  estimated_value?: number | null;
+  estimated_quantity?: number | null;
+  final_order_value?: number | null;
+  area?: string | null;
+  // Event timestamps for funnel-duration analytics (set on stage transitions)
+  factory_visit_at?: string | null;
+  won_at?: string | null;
+  lost_at?: string | null;
   // SmartQuote AI Payload - personalization data for Smart Quote generation
   smart_quote_payload?: SmartQuotePayload | null;
   // Factory-visit feedback (Phase 6): opaque token powers the public

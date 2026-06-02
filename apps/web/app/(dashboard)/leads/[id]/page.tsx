@@ -38,6 +38,7 @@ import {
   FeedbackQRCard,
   FeedbackResultsCard,
   UnifiedAIInsights,
+  LeadCommercials,
 } from "@/components/leads";
 import { LeadActivityTimeline } from "@/components/timeline";
 import { PriceEstimatorPanel } from "@/components/estimates";
@@ -628,6 +629,9 @@ export default function LeadDetailPage() {
           )}
         </div>
       </Card>
+
+      {/* Commercials — real deal value powers dashboard revenue/pipeline KPIs */}
+      <LeadCommercials lead={lead} />
 
       {/* Unified AI Insights - Issue #24 */}
       <UnifiedAIInsights

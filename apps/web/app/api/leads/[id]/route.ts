@@ -53,7 +53,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Get current lead state to detect pipeline transitions
     const { data: currentLead } = await supabaseAdmin
       .from("leads")
-      .select("pipeline_stage, is_archived")
+      .select(
+        "pipeline_stage, is_archived, factory_visit_status, factory_visit_at, won_at, lost_at",
+      )
       .eq("id", id)
       .single();
 
@@ -82,6 +84,40 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         updateData.archived_at = null;
         updateData.archived_by = null;
         updateData.archive_reason = null;
+      }
+    }
+
+    // Stamp funnel-event timestamps the first time a lead reaches each
+    // milestone — powers factory-visit conversion + time-to-win analytics.
+    // Only set when not already set, and don't clobber an explicit value.
+    const nowIso = new Date().toISOString();
+    if (currentLead) {
+      // Factory visited
+      if (
+        updateData.factory_visit_status === "visited" &&
+        currentLead.factory_visit_status !== "visited" &&
+        !currentLead.factory_visit_at &&
+        updateData.factory_visit_at === undefined
+      ) {
+        updateData.factory_visit_at = nowIso;
+      }
+      // Order won
+      if (
+        updateData.pipeline_stage === "order_won" &&
+        currentLead.pipeline_stage !== "order_won" &&
+        !currentLead.won_at &&
+        updateData.won_at === undefined
+      ) {
+        updateData.won_at = nowIso;
+      }
+      // Closed lost
+      if (
+        updateData.pipeline_stage === "closed_lost" &&
+        currentLead.pipeline_stage !== "closed_lost" &&
+        !currentLead.lost_at &&
+        updateData.lost_at === undefined
+      ) {
+        updateData.lost_at = nowIso;
       }
     }
 
