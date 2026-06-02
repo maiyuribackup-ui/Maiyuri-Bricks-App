@@ -33,7 +33,7 @@ function asStringArray(jsonb: unknown): string[] {
 async function loadContext(token: string): Promise<LeadContext | null> {
   const { data: lead } = await supabaseAdmin
     .from("leads")
-    .select("id, name, contact, language_preference, lead_type, status, next_action")
+    .select("id, name, contact, language_preference, lead_type, lead_status, next_action")
     .eq("feedback_token", token)
     .maybeSingle();
 
@@ -69,7 +69,7 @@ async function loadContext(token: string): Promise<LeadContext | null> {
       contact: lead.contact,
       language_preference: (lead.language_preference as "en" | "ta") ?? "en",
       lead_type: lead.lead_type ?? null,
-      status: lead.status ?? null,
+      status: lead.lead_status ?? null,
       current_next_action: lead.next_action ?? null,
     },
     context: {

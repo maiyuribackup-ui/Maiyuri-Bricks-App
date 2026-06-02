@@ -62,7 +62,7 @@ export async function GET(
   const { data: lead, error: leadErr } = await supabaseAdmin
     .from("leads")
     .select(
-      "id, name, contact, language_preference, lead_type, status, next_action",
+      "id, name, contact, language_preference, lead_type, lead_status, next_action",
     )
     .eq("feedback_token", token)
     .maybeSingle();
@@ -117,7 +117,7 @@ export async function GET(
       contact: lead.contact,
       language_preference: (lead.language_preference as "en" | "ta") ?? "en",
       lead_type: lead.lead_type ?? null,
-      status: lead.status ?? null,
+      status: lead.lead_status ?? null,
       current_next_action: lead.next_action ?? null,
     },
     context: {

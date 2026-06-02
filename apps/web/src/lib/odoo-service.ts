@@ -348,19 +348,20 @@ async function execute(
 }
 
 /**
- * Map app status to Odoo stage
+ * Map app pipeline_stage (V2) to Odoo CRM stage
  */
-function mapStatusToStage(status: string): string {
+function mapPipelineToOdooStage(pipelineStage: string): string {
   const stageMap: Record<string, string> = {
-    new: "New",
-    follow_up: "Qualified",
-    hot: "Proposition",
-    warm: "Qualified",
-    cold: "New",
-    converted: "Won",
-    lost: "New", // Keep in pipeline, mark in notes
+    new_inquiry: "New",
+    qualified_lead: "Qualified",
+    quote_shared: "Proposition",
+    factory_visit_proof: "Proposition",
+    decision_pending: "Proposition",
+    finalisation: "Proposition",
+    order_won: "Won",
+    closed_lost: "New", // Keep in pipeline, mark in notes
   };
-  return stageMap[status] || "New";
+  return stageMap[pipelineStage] || "New";
 }
 
 /**
@@ -399,7 +400,7 @@ export async function pushLeadToOdoo(leadId: string): Promise<SyncResult> {
         const stageMap = Object.fromEntries(
           stages.map((s) => [s.name?.toLowerCase?.() || "", s.id]),
         );
-        const targetStage = mapStatusToStage(lead.status);
+        const targetStage = mapPipelineToOdooStage(lead.pipeline_stage);
         stageId =
           stageMap[targetStage.toLowerCase()] ||
           stageMap["new"] ||
@@ -414,7 +415,7 @@ export async function pushLeadToOdoo(leadId: string): Promise<SyncResult> {
     const description = [
       `Lead Type: ${lead.lead_type}`,
       `Source: ${lead.source}`,
-      `App Status: ${lead.status}`,
+      `App Pipeline: ${lead.pipeline_stage}`,
       lead.ai_summary ? `\nAI Summary: ${lead.ai_summary}` : "",
       lead.staff_notes ? `\nStaff Notes:\n${lead.staff_notes}` : "",
     ]
@@ -581,15 +582,15 @@ export async function pullQuotesFromOdoo(leadId: string): Promise<SyncResult> {
       updateData.odoo_order_amount = latestOrder.amount_total;
       updateData.odoo_order_date = latestOrder.date_order;
 
-      // If order exists and lead not converted, update status
+      // If order exists and lead not yet won, advance pipeline to Order Won
       const { data: currentLead } = await getSupabase()
         .from("leads")
-        .select("status")
+        .select("pipeline_stage")
         .eq("id", leadId)
         .single();
 
-      if (currentLead?.status !== "converted") {
-        updateData.status = "converted";
+      if (currentLead?.pipeline_stage !== "order_won") {
+        updateData.pipeline_stage = "order_won";
       }
     }
 

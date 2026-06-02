@@ -86,7 +86,7 @@ export async function POST(
   const { data: lead, error: leadErr } = await supabaseAdmin
     .from("leads")
     .select(
-      "id, name, language_preference, lead_type, status, next_action, ai_summary",
+      "id, name, language_preference, lead_type, lead_status, next_action, ai_summary",
     )
     .eq("feedback_token", token)
     .maybeSingle();
@@ -159,7 +159,7 @@ export async function POST(
     full_name: lead.name,
     language_preference: language,
     lead_type: lead.lead_type ?? null,
-    status: lead.status ?? null,
+    status: lead.lead_status ?? null,
     current_next_action: lead.next_action ?? null,
     latest_note_summary,
     lead_ai_summary,
