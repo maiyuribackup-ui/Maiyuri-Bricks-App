@@ -553,6 +553,18 @@ export interface SmartQuoteCopyMap {
   ta: Record<string, string>;
 }
 
+// Smart Quote 2.0 — interactive instant-estimate config (staff-reviewed)
+export interface SmartQuotePricingConfig {
+  allowed_products: string[]; // product ids offered on the quote
+  default_product: string | null; // product id pre-selected
+  default_area_sqft: number | null; // default quantity in the product's unit
+  default_distance_km: number | null; // delivery distance for transport calc
+  locality_label: string | null; // human label for the delivery area
+  show_transport: boolean; // include delivery in the headline total
+  price_note: string | null; // optional caveat shown under the estimate
+  rep_phone: string | null; // WhatsApp number for the CTA (E.164-ish digits)
+}
+
 export interface SmartQuote {
   id: string;
   lead_id: string;
@@ -568,6 +580,7 @@ export interface SmartQuote {
   scores: SmartQuoteScores;
   page_config: SmartQuotePageConfig;
   copy_map: SmartQuoteCopyMap;
+  pricing_config?: SmartQuotePricingConfig | null;
   created_at: string;
   updated_at: string;
   // Joined fields

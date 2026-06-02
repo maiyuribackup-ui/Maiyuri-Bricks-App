@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, Button, Badge, Spinner } from "@maiyuri/ui";
 import { cn } from "@maiyuri/ui";
 import type { Lead, SmartQuote } from "@maiyuri/shared";
+import { SmartQuoteReview } from "./SmartQuoteReview";
 
 interface SmartQuoteCardProps {
   lead: Lead;
@@ -210,6 +211,9 @@ export function SmartQuoteCard({ lead, hasTranscripts }: SmartQuoteCardProps) {
               </Button>
             )}
           </div>
+
+          {/* Engagement + review/tweak pricing before sharing */}
+          <SmartQuoteReview quote={quote} />
 
           {/* Regenerate option */}
           <div className="pt-2 border-t border-slate-200 dark:border-slate-700">

@@ -87,13 +87,30 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    // Resolve the offered products for the interactive estimate (display info
+    // only — name/unit; the priced totals come from /sq/[slug]/estimate).
+    const allowedProductIds: string[] =
+      (quote.pricing_config?.allowed_products as string[] | undefined) ?? [];
+    let products: Array<{ id: string; name: string; unit: string }> = [];
+    if (allowedProductIds.length > 0) {
+      const { data: prods } = await supabaseAdmin
+        .from("products")
+        .select("id, name, unit")
+        .in("id", allowedProductIds)
+        .eq("is_active", true);
+      products = prods ?? [];
+    }
+
     // Track view event (fire and forget)
     trackViewEvent(quote.id).catch(console.error);
 
-    // Return quote with resolved images
-    const result: SmartQuoteWithImages = {
+    // Return quote with resolved images + offered products
+    const result: SmartQuoteWithImages & {
+      products: Array<{ id: string; name: string; unit: string }>;
+    } = {
       ...(quote as SmartQuote),
       images,
+      products,
     };
 
     return success(result);

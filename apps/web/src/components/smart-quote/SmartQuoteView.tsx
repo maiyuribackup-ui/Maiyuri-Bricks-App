@@ -7,19 +7,22 @@ import { HeroSection } from "./ui/HeroSection";
 import { PersonalizationCard } from "./ui/PersonalizationCard";
 import { WhyChennaiWorksSection } from "./ui/WhyChennaiWorksSection";
 import { ProofSection } from "./ui/ProofSection";
-import { PriceSection } from "./ui/PriceSection";
 import { ObjectionAnswerSection } from "./ui/ObjectionAnswerSection";
-import { RoutedCtaSection } from "./ui/RoutedCtaSection";
+import { InteractiveEstimate } from "./ui/InteractiveEstimate";
 import type {
   SmartQuoteLanguage,
   SmartQuoteWithImages,
-  SmartQuoteCtaSubmission,
-  SmartQuoteRoute,
   SmartQuotePersonalizationSnippets,
 } from "@maiyuri/shared";
 
+interface OfferedProduct {
+  id: string;
+  name: string;
+  unit: string;
+}
+
 interface SmartQuoteViewProps {
-  quote: SmartQuoteWithImages;
+  quote: SmartQuoteWithImages & { products?: OfferedProduct[] };
   slug: string;
 }
 
@@ -88,11 +91,6 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
     quote.lead?.smart_quote_payload?.personalization_snippets ??
     defaultSnippets;
 
-  // Get route decision (from payload or default based on stage)
-  const routeDecision: SmartQuoteRoute =
-    quote.route_decision ??
-    (quote.stage === "hot" ? "cost_estimate" : "site_visit");
-
   // Get top objections (max 2)
   const topObjections =
     quote.top_objections.length > 0
@@ -157,20 +155,9 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
     return () => observer.disconnect();
   }, [trackEvent]);
 
-  // Handle form submission
-  const handleSubmit = async (data: SmartQuoteCtaSubmission) => {
-    const response = await fetch(`/api/sq/${slug}/submit`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      throw new Error("Submission failed");
-    }
-
-    trackEvent("form_submit", "cta", { ...data });
-  };
+  // Quote URL (for prefilled WhatsApp message)
+  const quoteUrl =
+    typeof window !== "undefined" ? window.location.href : `/sq/${slug}`;
 
   const { colors, typography } = smartQuoteTokens;
 
@@ -212,16 +199,7 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
         <ProofSection language={language} />
       </section>
 
-      {/* === SECTION 5: SMART RANGE === */}
-      {/* Cost as range with "what affects it" chips */}
-      <section data-section="smart_range">
-        <PriceSection
-          priceRange={getCopy("cost.range_placeholder", "₹45–₹55")}
-          language={language}
-        />
-      </section>
-
-      {/* === SECTION 6: OBJECTION HANDLING === */}
+      {/* === SECTION 5: OBJECTION HANDLING === */}
       {/* Max 2 objections, accordion style */}
       {topObjections.length > 0 && (
         <section data-section="objection_handling">
@@ -232,13 +210,15 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
         </section>
       )}
 
-      {/* === SECTION 7: FINAL CTA === */}
-      {/* Single button that changes by route_decision */}
-      <section data-section="final_cta">
-        <RoutedCtaSection
-          routeDecision={routeDecision}
+      {/* === SECTION 6: INTERACTIVE ESTIMATE + WHATSAPP CTA (finale) === */}
+      <section data-section="instant_estimate">
+        <InteractiveEstimate
+          slug={slug}
           language={language}
-          onSubmit={handleSubmit}
+          products={quote.products ?? []}
+          pricing={quote.pricing_config}
+          quoteUrl={quoteUrl}
+          onCtaTrack={(payload) => trackEvent("cta_click", "instant_estimate", payload)}
         />
       </section>
 

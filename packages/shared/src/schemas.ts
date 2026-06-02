@@ -560,6 +560,36 @@ export const smartQuoteObjectionSeveritySchema = z.enum([
 ]);
 export const smartQuoteImageScopeSchema = z.enum(["template", "lead_override"]);
 
+// Smart Quote 2.0 — interactive pricing config (staff-editable)
+export const smartQuotePricingConfigSchema = z.object({
+  allowed_products: z.array(z.string().uuid()).default([]),
+  default_product: z.string().uuid().nullable().optional(),
+  default_area_sqft: z.number().positive().nullable().optional(),
+  default_distance_km: z.number().min(0).nullable().optional(),
+  locality_label: z.string().nullable().optional(),
+  show_transport: z.boolean().default(true),
+  price_note: z.string().nullable().optional(),
+  rep_phone: z.string().nullable().optional(),
+});
+
+// Public instant-estimate request (slug-gated, from the customer page)
+export const smartQuoteEstimateRequestSchema = z.object({
+  product_id: z.string().uuid(),
+  quantity: z.number().positive().max(10_000_000),
+  distance_km: z.number().min(0).max(2000).nullable().optional(),
+});
+
+// Staff "review & tweak before share" PATCH
+export const updateSmartQuoteSchema = z.object({
+  pricing_config: smartQuotePricingConfigSchema.partial().optional(),
+  copy_overrides: z
+    .object({
+      en: z.record(z.string()).optional(),
+      ta: z.record(z.string()).optional(),
+    })
+    .optional(),
+});
+
 // Objection object schema
 export const smartQuoteObjectionSchema = z.object({
   type: smartQuoteObjectionTypeSchema,

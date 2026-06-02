@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, created, error, notFound, parseBody } from "@/lib/api-utils";
 import { createEstimateSchema, type Estimate } from "@maiyuri/shared";
+import { computeTransport } from "@/lib/pricing/compute-estimate";
 
 // GET /api/leads/[id]/estimates - List all estimates for a lead
 export async function GET(
@@ -110,14 +111,10 @@ export async function POST(
       .limit(1)
       .single();
 
-    let transportCost = 0;
-    if (estimateData.distance_km && factorySettings) {
-      transportCost = Math.max(
-        estimateData.distance_km *
-          (factorySettings.transport_rate_per_km || 15),
-        factorySettings.min_transport_charge || 500,
-      );
-    }
+    const transportCost = computeTransport(
+      estimateData.distance_km,
+      factorySettings,
+    );
 
     // Calculate discount
     const discountPercentage = estimateData.discount_percentage || 0;

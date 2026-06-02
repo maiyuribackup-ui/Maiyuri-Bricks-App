@@ -15,6 +15,7 @@ import {
   generateSmartQuoteContent,
   generateLinkSlug,
 } from "@/lib/smart-quote-ai";
+import { buildPricingConfig } from "@/lib/pricing/seed-pricing-config";
 
 /**
  * POST /api/smart-quotes/generate
@@ -60,7 +61,9 @@ export async function POST(request: NextRequest) {
     // Verify lead exists and user has access
     const { data: lead, error: leadError } = await supabaseAdmin
       .from("leads")
-      .select("id, name, assigned_staff, created_by")
+      .select(
+        "id, name, assigned_staff, created_by, product_interests, site_location",
+      )
       .eq("id", lead_id)
       .single();
 
@@ -140,6 +143,28 @@ export async function POST(request: NextRequest) {
     // Generate unique slug
     const linkSlug = generateLinkSlug(12);
 
+    // Seed the interactive-estimate pricing config from the lead's product
+    // interests + live catalog + assigned rep's WhatsApp number.
+    const { data: products } = await supabaseAdmin
+      .from("products")
+      .select("id, name, category, size, unit, base_price, is_active")
+      .eq("is_active", true);
+    let repPhone: string | null = null;
+    if (lead.assigned_staff) {
+      const { data: rep } = await supabaseAdmin
+        .from("users")
+        .select("phone")
+        .eq("id", lead.assigned_staff)
+        .single();
+      repPhone = rep?.phone ?? null;
+    }
+    const pricingConfig = buildPricingConfig({
+      products: products ?? [],
+      interests: lead.product_interests,
+      siteLocation: lead.site_location,
+      repPhone,
+    });
+
     // Insert smart quote
     const { data: smartQuote, error: insertError } = await supabaseAdmin
       .from("smart_quotes")
@@ -157,6 +182,7 @@ export async function POST(request: NextRequest) {
         scores: aiResult.insights.scores,
         page_config: aiResult.strategy.page_config,
         copy_map: aiResult.copyMap,
+        pricing_config: pricingConfig,
       })
       .select()
       .single();
