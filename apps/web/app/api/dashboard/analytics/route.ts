@@ -34,6 +34,14 @@ interface FunnelStage {
   color: string;
 }
 
+interface PipelineStageCount {
+  key: string;
+  label: string;
+  emoji: string;
+  color: string;
+  count: number;
+}
+
 interface SalesPerson {
   id: string;
   name: string;
@@ -74,20 +82,14 @@ interface TaskItem {
   leadName?: string;
 }
 
-function getFallbackAiScore(status: string): number {
-  switch (status) {
+function getFallbackAiScore(temperature: string): number {
+  switch (temperature) {
     case "hot":
       return 0.75;
-    case "follow_up":
-      return 0.5;
-    case "new":
-      return 0.35;
+    case "warm":
+      return 0.45;
     case "cold":
       return 0.2;
-    case "converted":
-      return 0.9;
-    case "lost":
-      return 0.05;
     default:
       return 0.4;
   }
@@ -165,6 +167,7 @@ interface DashboardAnalytics {
   conversionTrend: ConversionDataPoint[];
   priorityLeads: PriorityLead[];
   funnel: FunnelStage[];
+  pipeline: PipelineStageCount[];
   leaderboard: SalesPerson[];
   recentActivity: Activity[];
   upcomingTasks: TaskItem[];
@@ -259,23 +262,40 @@ export async function GET(request: Request) {
     const tasks = tasksData.data || [];
     const users = usersData.data || [];
 
-    // Calculate status counts
+    // Calculate status counts (V2: keep the legacy keys for the existing
+    // status-breakdown widget, but source them from the new taxonomy columns)
     const statusCounts: StatusCounts = {
-      new: leads.filter((l) => l.status === "new").length,
-      follow_up: leads.filter((l) => l.status === "follow_up").length,
-      hot: leads.filter((l) => l.status === "hot").length,
-      cold: leads.filter((l) => l.status === "cold").length,
-      converted: leads.filter((l) => l.status === "converted").length,
-      lost: leads.filter((l) => l.status === "lost").length,
+      new: leads.filter((l) => l.lead_status === "new_contact_pending").length,
+      follow_up: leads.filter((l) => l.lead_status === "follow_up_scheduled").length,
+      hot: leads.filter((l) => l.lead_temperature === "hot").length,
+      cold: leads.filter((l) => l.lead_temperature === "cold").length,
+      converted: leads.filter((l) => l.pipeline_stage === "order_won").length,
+      lost: leads.filter((l) => l.pipeline_stage === "closed_lost").length,
     };
     const totalLeads = leads.length;
 
+    // V2 pipeline-stage breakdown (ordered sales journey) for the funnel + chart
+    const PIPELINE_ORDER: Array<{ key: string; label: string; emoji: string; color: string }> = [
+      { key: "new_inquiry", label: "New Inquiry", emoji: "💬", color: "#3b82f6" },
+      { key: "qualified_lead", label: "Qualified Lead", emoji: "✅", color: "#06b6d4" },
+      { key: "quote_shared", label: "Quote Shared", emoji: "📄", color: "#6366f1" },
+      { key: "factory_visit_proof", label: "Factory Visit / Proof", emoji: "🏭", color: "#f59e0b" },
+      { key: "decision_pending", label: "Decision Pending", emoji: "⏳", color: "#f97316" },
+      { key: "finalisation", label: "Finalisation", emoji: "🤝", color: "#a855f7" },
+      { key: "order_won", label: "Order Won", emoji: "🎉", color: "#22c55e" },
+      { key: "closed_lost", label: "Closed Lost", emoji: "❌", color: "#94a3b8" },
+    ];
+    const pipeline = PIPELINE_ORDER.map((s) => ({
+      ...s,
+      count: leads.filter((l) => l.pipeline_stage === s.key).length,
+    }));
+
     // Calculate KPIs
     const convertedCurrent = currentLeads.filter(
-      (l) => l.status === "converted",
+      (l) => l.pipeline_stage === "order_won",
     ).length;
     const convertedPrevious = previousLeads.filter(
-      (l) => l.status === "converted",
+      (l) => l.pipeline_stage === "order_won",
     ).length;
     const conversionRate =
       currentLeads.length > 0
@@ -287,12 +307,12 @@ export async function GET(request: Request) {
         : 0;
     const conversionChange = conversionRate - previousConversionRate;
 
-    const activeLeads = leads.filter((l) =>
-      ["new", "follow_up", "hot"].includes(l.status),
+    const activeLeads = leads.filter(
+      (l) => !["order_won", "closed_lost"].includes(l.pipeline_stage),
     ).length;
     const hotLeads = statusCounts.hot;
     const previousHotLeads = previousLeads.filter(
-      (l) => l.status === "hot",
+      (l) => l.lead_temperature === "hot",
     ).length;
     const hotLeadsChange = hotLeads - previousHotLeads;
 
@@ -301,7 +321,10 @@ export async function GET(request: Request) {
       if (!l.follow_up_date) return false;
       const followUpDate = new Date(l.follow_up_date);
       followUpDate.setHours(0, 0, 0, 0);
-      return followUpDate <= today && !["converted", "lost"].includes(l.status);
+      return (
+        followUpDate <= today &&
+        !["order_won", "closed_lost"].includes(l.pipeline_stage)
+      );
     }).length;
 
     // Calculate conversion trend (weekly for the period)
@@ -317,7 +340,7 @@ export async function GET(request: Request) {
         return created >= weekStart && created < weekEnd;
       });
       const weekConverted = weekLeads.filter(
-        (l) => l.status === "converted",
+        (l) => l.pipeline_stage === "order_won",
       ).length;
       const weekRate =
         weekLeads.length > 0
@@ -332,16 +355,16 @@ export async function GET(request: Request) {
 
     // Priority leads (AI-determined priorities)
     const priorityLeads: PriorityLead[] = leads
-      .filter((l) => ["new", "follow_up", "hot"].includes(l.status))
+      .filter((l) => !["order_won", "closed_lost"].includes(l.pipeline_stage))
       .map((l) => {
-        const normalizedScore = l.ai_score ?? getFallbackAiScore(l.status);
+        const normalizedScore = l.ai_score ?? getFallbackAiScore(l.lead_temperature);
         const aiScore = Math.round(normalizedScore * 100);
         let priority: "critical" | "high" | "medium" = "medium";
         let reason = "";
         let suggestedAction = "";
 
-        // Determine priority based on status and other factors
-        if (l.status === "hot" && aiScore >= 70) {
+        // Determine priority based on temperature and other factors
+        if (l.lead_temperature === "hot" && aiScore >= 70) {
           priority = "critical";
           reason = `High conversion probability (${aiScore}%). Ready to close.`;
           suggestedAction = "Schedule final call";
@@ -365,7 +388,7 @@ export async function GET(request: Request) {
           id: l.id,
           name: l.name,
           contact: l.contact,
-          status: l.status,
+          status: l.lead_status,
           aiScore,
           reason,
           suggestedAction,
@@ -381,45 +404,49 @@ export async function GET(request: Request) {
       })
       .slice(0, 5);
 
-    // Sales funnel
-    const totalActive = leads.filter(
-      (l) => !["converted", "lost"].includes(l.status),
-    ).length;
-    const qualified = leads.filter((l) =>
-      ["follow_up", "hot"].includes(l.status),
-    ).length;
-    const proposal = estimates.length;
-    const closed = leads.filter((l) => l.status === "converted").length;
-
-    const funnel: FunnelStage[] = [
-      { name: "Lead", value: 100, count: totalActive, color: "#3b82f6" },
-      {
-        name: "Qualified",
-        value:
-          totalActive > 0 ? Math.round((qualified / totalActive) * 100) : 0,
-        count: qualified,
-        color: "#8b5cf6",
-      },
-      {
-        name: "Proposal",
-        value: totalActive > 0 ? Math.round((proposal / totalActive) * 100) : 0,
-        count: proposal,
-        color: "#f59e0b",
-      },
-      {
-        name: "Closed",
-        value: totalActive > 0 ? Math.round((closed / totalActive) * 100) : 0,
-        count: closed,
-        color: "#22c55e",
-      },
+    // Sales funnel (V2): cumulative "reached at least this stage" along the
+    // sales journey, so it forms a proper descending funnel. closed_lost is
+    // excluded (it is not a progression stage).
+    const stageRank: Record<string, number> = {
+      new_inquiry: 0,
+      qualified_lead: 1,
+      quote_shared: 2,
+      factory_visit_proof: 3,
+      decision_pending: 4,
+      finalisation: 5,
+      order_won: 6,
+    };
+    const funnelDefs = [
+      { name: "All Leads", minRank: 0, color: "#3b82f6" },
+      { name: "Qualified+", minRank: 1, color: "#06b6d4" },
+      { name: "Quote+", minRank: 2, color: "#6366f1" },
+      { name: "Factory Visit+", minRank: 3, color: "#f59e0b" },
+      { name: "Finalisation+", minRank: 5, color: "#a855f7" },
+      { name: "Won", minRank: 6, color: "#22c55e" },
     ];
+    // Count active (non-lost) leads at or beyond each stage rank
+    const activeNonLost = leads.filter(
+      (l) => l.pipeline_stage !== "closed_lost",
+    );
+    const topCount = activeNonLost.length || 1;
+    const funnel: FunnelStage[] = funnelDefs.map((d) => {
+      const count = activeNonLost.filter(
+        (l) => (stageRank[l.pipeline_stage] ?? -1) >= d.minRank,
+      ).length;
+      return {
+        name: d.name,
+        value: Math.round((count / topCount) * 100),
+        count,
+        color: d.color,
+      };
+    });
 
     // Sales leaderboard
     const leaderboard: SalesPerson[] = users
       .map((user, index) => {
         const userLeads = leads.filter((l) => l.assigned_staff === user.id);
         const converted = userLeads.filter(
-          (l) => l.status === "converted",
+          (l) => l.pipeline_stage === "order_won",
         ).length;
 
         return {
@@ -511,7 +538,7 @@ export async function GET(request: Request) {
       const source = l.source || "other";
       const existing = sourceMap.get(source) || { count: 0, converted: 0 };
       existing.count++;
-      if (l.status === "converted") existing.converted++;
+      if (l.pipeline_stage === "order_won") existing.converted++;
       sourceMap.set(source, existing);
     });
 
@@ -529,7 +556,7 @@ export async function GET(request: Request) {
 
     // 2. Response Time Metrics
     const activeNonContactedLeads = leads.filter(
-      (l) => l.status === "new" && !l.first_contact_at,
+      (l) => l.lead_status === "new_contact_pending" && !l.first_contact_at,
     );
     const leadsWithFirstContact = leads.filter(
       (l) => l.first_contact_at && l.created_at,
@@ -549,7 +576,10 @@ export async function GET(request: Request) {
     }
 
     const qualifiedLeads = leads.filter(
-      (l) => l.status !== "new" && l.status_changed_at && l.created_at,
+      (l) =>
+        l.lead_status !== "new_contact_pending" &&
+        l.status_changed_at &&
+        l.created_at,
     );
     let avgTimeToQualify = 0;
     if (qualifiedLeads.length > 0) {
@@ -565,7 +595,7 @@ export async function GET(request: Request) {
     }
 
     const convertedLeads = leads.filter(
-      (l) => l.status === "converted" && l.converted_at && l.created_at,
+      (l) => l.pipeline_stage === "order_won" && l.converted_at && l.created_at,
     );
     let avgTimeToConvert = 0;
     if (convertedLeads.length > 0) {
@@ -581,7 +611,10 @@ export async function GET(request: Request) {
     }
 
     const overdueLeads = leads.filter((l) => {
-      if (!l.follow_up_date || ["converted", "lost"].includes(l.status))
+      if (
+        !l.follow_up_date ||
+        ["order_won", "closed_lost"].includes(l.pipeline_stage)
+      )
         return false;
       const followUp = new Date(l.follow_up_date);
       followUp.setHours(0, 0, 0, 0);
@@ -605,7 +638,7 @@ export async function GET(request: Request) {
     };
 
     const activeLeadsForAging = leads.filter(
-      (l) => !["converted", "lost"].includes(l.status),
+      (l) => !["order_won", "closed_lost"].includes(l.pipeline_stage),
     );
 
     const agingBuckets: AgingBucket[] = [
@@ -726,7 +759,7 @@ export async function GET(request: Request) {
 
       const existing = areaMap.get(area) || { count: 0, converted: 0 };
       existing.count++;
-      if (l.status === "converted") existing.converted++;
+      if (l.pipeline_stage === "order_won") existing.converted++;
       areaMap.set(area, existing);
     });
 
@@ -764,7 +797,7 @@ export async function GET(request: Request) {
         totalQuantity: 0,
       };
       existing.inquiries++;
-      if (l.status === "converted") existing.converted++;
+      if (l.pipeline_stage === "order_won") existing.converted++;
       if (l.quantity) existing.totalQuantity += Number(l.quantity) || 0;
       productMap.set(product, existing);
     });
@@ -808,8 +841,8 @@ export async function GET(request: Request) {
         activeLeads,
         activeLeadsChange:
           activeLeads -
-          previousLeads.filter((l) =>
-            ["new", "follow_up", "hot"].includes(l.status),
+          previousLeads.filter(
+            (l) => !["order_won", "closed_lost"].includes(l.pipeline_stage),
           ).length,
         hotLeads,
         hotLeadsChange,
@@ -820,6 +853,7 @@ export async function GET(request: Request) {
       conversionTrend,
       priorityLeads,
       funnel,
+      pipeline,
       leaderboard,
       recentActivity: recentActivity.slice(0, 10),
       upcomingTasks,

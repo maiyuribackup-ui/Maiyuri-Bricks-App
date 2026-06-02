@@ -10,7 +10,8 @@ import {
   KPICard,
   ConversionChart,
   AIPriorityActions,
-  SalesFunnel,
+  PipelineFunnel,
+  PipelineDistribution,
   SalesLeaderboard,
   RecentActivity,
   UpcomingTasks,
@@ -61,6 +62,13 @@ interface DashboardAnalytics {
     value: number;
     count: number;
     color: string;
+  }>;
+  pipeline: Array<{
+    key: string;
+    label: string;
+    emoji: string;
+    color: string;
+    count: number;
   }>;
   leaderboard: Array<{
     id: string;
@@ -171,6 +179,20 @@ export default function DashboardPage() {
     ? getDefaultStatusCounts(analytics.statusCounts)
     : [];
 
+  // One-line "what matters today" headline for the hero band
+  const heroInsight = (() => {
+    if (isLoading) return "Loading your latest sales picture…";
+    const hot = analytics?.kpis.hotLeads ?? 0;
+    const due = analytics?.kpis.followUpsDue ?? 0;
+    if (due > 0 && hot > 0)
+      return `You have ${hot} hot lead${hot === 1 ? "" : "s"} and ${due} follow-up${due === 1 ? "" : "s"} due — prioritise these to keep the pipeline moving.`;
+    if (due > 0)
+      return `${due} follow-up${due === 1 ? "" : "s"} due today. Clear them before they go cold.`;
+    if (hot > 0)
+      return `${hot} hot lead${hot === 1 ? "" : "s"} ready to close — make the call.`;
+    return "Pipeline is under control. Great time to qualify new inquiries.";
+  })();
+
   // Handle call/message actions for priority leads
   const handleLeadAction = useCallback(
     (leadId: string, action: string) => {
@@ -220,32 +242,58 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Sales Analytics Dashboard
-          </h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Track performance, conversions, and AI-powered insights
-          </p>
+      {/* Hero command band */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-6 py-6 shadow-xl ring-1 ring-white/10">
+        {/* decorative glow blobs */}
+        <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-amber-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-1/4 h-56 w-56 rounded-full bg-blue-500/20 blur-3xl" />
+
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">🧱</span>
+              <h1 className="text-2xl font-bold tracking-tight text-white">
+                Sales Command Center
+              </h1>
+            </div>
+            <p className="mt-1.5 text-sm text-slate-300">{heroInsight}</p>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-3">
+            <HelpButton section="dashboard" variant="icon" />
+            <Select
+              options={periodOptions}
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              className="w-36"
+            />
+            <Link
+              href="/leads/new"
+              className="inline-flex items-center gap-x-2 rounded-lg bg-amber-500 px-3.5 py-2.5 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-amber-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
+            >
+              <PlusIcon className="h-5 w-5" />
+              New Lead
+            </Link>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <HelpButton section="dashboard" variant="icon" />
-          <Select
-            options={periodOptions}
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-            className="w-40"
-          />
-          <Link
-            href="/leads/new"
-            className="inline-flex items-center gap-x-2 rounded-md bg-blue-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-          >
-            <PlusIcon className="h-5 w-5" />
-            New Lead
-          </Link>
+        {/* glanceable command chips */}
+        <div className="relative mt-5 flex flex-wrap gap-2.5">
+          {[
+            { emoji: "🔥", label: "Hot leads", value: analytics?.kpis.hotLeads ?? 0, tone: "text-red-300 ring-red-400/30 bg-red-500/10" },
+            { emoji: "⏰", label: "Follow-ups due", value: analytics?.kpis.followUpsDue ?? 0, tone: "text-amber-300 ring-amber-400/30 bg-amber-500/10" },
+            { emoji: "🎯", label: "Win rate", value: `${analytics?.kpis.conversionRate ?? 0}%`, tone: "text-emerald-300 ring-emerald-400/30 bg-emerald-500/10" },
+            { emoji: "📊", label: "Active pipeline", value: analytics?.kpis.activeLeads ?? 0, tone: "text-blue-300 ring-blue-400/30 bg-blue-500/10" },
+          ].map((c) => (
+            <div
+              key={c.label}
+              className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ${c.tone}`}
+            >
+              <span>{c.emoji}</span>
+              <span className="font-bold tabular-nums">{c.value}</span>
+              <span className="text-slate-300">{c.label}</span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -295,16 +343,25 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Charts Row */}
+      {/* Pipeline Overview: funnel + full stage distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <PipelineFunnel
+          stages={analytics?.funnel || []}
+          title="Sales Funnel"
+          loading={isLoading}
+        />
+        <PipelineDistribution
+          stages={analytics?.pipeline || []}
+          title="Sales Pipeline"
+          loading={isLoading}
+        />
+      </div>
+
+      {/* Conversion trend */}
+      <div className="grid grid-cols-1 gap-6">
         <ConversionChart
           data={analytics?.conversionTrend || []}
           title="Conversion Over Time"
-          loading={isLoading}
-        />
-        <SalesFunnel
-          stages={analytics?.funnel || []}
-          title="Sales Funnel"
           loading={isLoading}
         />
       </div>
