@@ -22,7 +22,8 @@ export type ManualSection =
   | "production"
   | "deliveries"
   | "smart-quote"
-  | "business-health";
+  | "business-health"
+  | "website-analytics";
 
 export interface ManualStep {
   action: string;
@@ -46,6 +47,37 @@ export interface ManualContent {
 // ============================================================================
 
 export const manualContent: Record<ManualSection, ManualContent> = {
+  "website-analytics": {
+    id: "website-analytics",
+    title: "Website Behaviour",
+    description:
+      "See how visitors find and engage with maiyuri.com, powered by Google Analytics.",
+    path: "/analytics/website",
+    quickStart: [
+      "Pick a time range (7 / 28 / 90 days)",
+      "Check visitors and traffic channels",
+      "Review top pages and high-intent events",
+    ],
+    steps: [
+      {
+        action: "Read the KPI band for visitors, sessions, page views and engagement",
+        result: "A quick health check of website traffic",
+      },
+      {
+        action: "Look at Traffic channels to see where visitors come from",
+        result: "Organic, Direct, Social and more — your best acquisition mix",
+      },
+      {
+        action: "Scan Top pages and High-intent events",
+        result:
+          "Find which pages drive WhatsApp clicks, calculator use and brochure downloads",
+      },
+    ],
+    tips: [
+      "High-intent events (WhatsApp click, calculator, brochure) predict serious buyers",
+      "If a channel sends lots of visitors but few events, the landing page or targeting needs work",
+    ],
+  },
   "getting-started": {
     id: "getting-started",
     title: "Getting Started",
@@ -809,4 +841,5 @@ export const pageToSection: Record<string, ManualSection> = {
   "/production": "production",
   "/deliveries": "deliveries",
   "/business-health": "business-health",
+  "/analytics/website": "website-analytics",
 };

@@ -55,6 +55,7 @@ const navigation: NavItem[] = [
   { name: "Knowledge", href: "/knowledge", icon: BookIcon, key: "knowledge" },
   { name: "Tasks", href: "/tasks", icon: TasksIcon, key: "tasks" },
   { name: "Coaching", href: "/coaching", icon: ChartIcon, key: "coaching" },
+  { name: "Marketing", href: "/analytics/website", icon: ChartIcon, key: "analytics" },
   { name: "KPI", href: "/kpi", icon: KPIIcon, key: "kpi" },
   { name: "Settings", href: "/settings", icon: SettingsIcon, key: "settings" },
 ];
