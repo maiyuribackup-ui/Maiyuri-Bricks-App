@@ -4,13 +4,16 @@
  * Reads the maiyuri.com GA4 property server-side via a service account, using
  * the `googleapis` dependency already in the app (no extra package needed).
  *
- * Configured via two env vars:
- *   - GA4_PROPERTY_ID          numeric property id, e.g. "410138430"
- *   - GA4_SERVICE_ACCOUNT_JSON full service-account key JSON (string)
+ * Requires GA4_PROPERTY_ID (numeric, e.g. "410138430") plus EITHER auth mode:
+ *   A) Service account:  GA4_SERVICE_ACCOUNT_JSON (full key JSON string)
+ *   B) User OAuth:        GA4_OAUTH_CLIENT_ID + GA4_OAUTH_CLIENT_SECRET +
+ *                         GA4_OAUTH_REFRESH_TOKEN (refresh token minted for a
+ *                         Google user that already has GA4 access, scoped to
+ *                         analytics.readonly).
  *
- * Everything degrades gracefully: when the env is absent the route returns
- * { configured: false } instead of throwing, so the feature can ship before
- * the credential is provisioned.
+ * Everything degrades gracefully: when neither mode is configured the route
+ * returns { configured: false } instead of throwing, so the feature can ship
+ * before the credential is provisioned.
  */
 import { google } from "googleapis";
 
@@ -49,32 +52,60 @@ export interface WebsiteAnalyticsUnconfigured {
   reason: string;
 }
 
+function hasServiceAccount(): boolean {
+  return Boolean(process.env.GA4_SERVICE_ACCOUNT_JSON);
+}
+
+function hasOAuth(): boolean {
+  return Boolean(
+    process.env.GA4_OAUTH_CLIENT_ID &&
+      process.env.GA4_OAUTH_CLIENT_SECRET &&
+      process.env.GA4_OAUTH_REFRESH_TOKEN,
+  );
+}
+
 export function isGa4Configured(): boolean {
   return Boolean(
-    process.env.GA4_PROPERTY_ID && process.env.GA4_SERVICE_ACCOUNT_JSON,
+    process.env.GA4_PROPERTY_ID && (hasServiceAccount() || hasOAuth()),
   );
+}
+
+// Build the appropriate google-auth client. Service account takes precedence
+// when present; otherwise fall back to a user OAuth refresh token.
+function buildAuth() {
+  if (hasServiceAccount()) {
+    let creds: { client_email?: string; private_key?: string };
+    try {
+      creds = JSON.parse(process.env.GA4_SERVICE_ACCOUNT_JSON!);
+    } catch {
+      throw new Error("GA4_SERVICE_ACCOUNT_JSON is not valid JSON");
+    }
+    if (!creds.client_email || !creds.private_key) {
+      throw new Error(
+        "GA4_SERVICE_ACCOUNT_JSON missing client_email / private_key",
+      );
+    }
+    return new google.auth.JWT({
+      email: creds.client_email,
+      // Env-stored keys often have escaped newlines — normalize to real ones.
+      key: creds.private_key.replace(/\\n/g, "\n"),
+      scopes: [ANALYTICS_SCOPE],
+    });
+  }
+  // User OAuth (refresh token)
+  const oauth = new google.auth.OAuth2(
+    process.env.GA4_OAUTH_CLIENT_ID,
+    process.env.GA4_OAUTH_CLIENT_SECRET,
+  );
+  oauth.setCredentials({
+    refresh_token: process.env.GA4_OAUTH_REFRESH_TOKEN,
+  });
+  return oauth;
 }
 
 function getClient() {
   const propertyId = process.env.GA4_PROPERTY_ID!;
-  const raw = process.env.GA4_SERVICE_ACCOUNT_JSON!;
-  let creds: { client_email?: string; private_key?: string };
-  try {
-    creds = JSON.parse(raw);
-  } catch {
-    throw new Error("GA4_SERVICE_ACCOUNT_JSON is not valid JSON");
-  }
-  if (!creds.client_email || !creds.private_key) {
-    throw new Error(
-      "GA4_SERVICE_ACCOUNT_JSON missing client_email / private_key",
-    );
-  }
-  const auth = new google.auth.JWT({
-    email: creds.client_email,
-    // Env-stored keys often have escaped newlines — normalize to real ones.
-    key: creds.private_key.replace(/\\n/g, "\n"),
-    scopes: [ANALYTICS_SCOPE],
-  });
+  const auth = buildAuth();
   const analyticsdata = google.analyticsdata({ version: "v1beta", auth });
   return { analyticsdata, property: `properties/${propertyId}` };
 }
