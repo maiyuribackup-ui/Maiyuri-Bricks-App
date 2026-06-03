@@ -28,7 +28,7 @@ interface Bundle {
 interface Warning { type: string; message: string; severity: "low" | "medium" | "high"; }
 
 const inr = (n: number | null | undefined) => (n == null ? "—" : "₹" + Math.round(n).toLocaleString("en-IN"));
-const tabs = ["Overview", "Estimate / BOQ", "WBS"] as const;
+const tabs = ["Overview", "Estimate / BOQ", "WBS", "Daily Progress", "Costs", "AI Insights"] as const;
 type Tab = (typeof tabs)[number];
 
 export default function ProjectDetailPage() {
@@ -78,6 +78,171 @@ export default function ProjectDetailPage() {
       {tab === "Overview" && <OverviewTab project={project} budget={budget} />}
       {tab === "Estimate / BOQ" && <EstimateTab projectId={id} onChanged={() => qc.invalidateQueries({ queryKey: ["project", id] })} />}
       {tab === "WBS" && <WbsTab projectId={id} wbs={data.wbsItems} onChanged={() => qc.invalidateQueries({ queryKey: ["project", id] })} />}
+      {tab === "Daily Progress" && <ProgressTab projectId={id} wbs={data.wbsItems} onChanged={() => qc.invalidateQueries({ queryKey: ["project", id] })} />}
+      {tab === "Costs" && <CostsTab projectId={id} wbs={data.wbsItems} onChanged={() => qc.invalidateQueries({ queryKey: ["project", id] })} />}
+      {tab === "AI Insights" && <InsightsTab projectId={id} />}
+    </div>
+  );
+}
+
+function ProgressTab({ projectId, wbs, onChanged }: { projectId: string; wbs: WbsItem[]; onChanged: () => void }) {
+  const qc = useQueryClient();
+  const [wbsCode, setWbsCode] = useState("");
+  const [qty, setQty] = useState("");
+  const [labour, setLabour] = useState("");
+  const [machine, setMachine] = useState("");
+  const [issue, setIssue] = useState("");
+  const [plan, setPlan] = useState("");
+
+  const { data: entries } = useQuery({
+    queryKey: ["progress", projectId],
+    queryFn: async (): Promise<any[]> => (await (await fetch(`/api/projects/${projectId}/progress`)).json()).data,
+  });
+
+  const add = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/progress`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wbs_code: wbsCode || null, actual_quantity: qty, labour_count: labour, machine_hours: machine, issue, tomorrow_plan: plan }),
+      });
+      if (!res.ok) throw new Error("save failed");
+    },
+    onSuccess: () => { toast.success("Progress logged"); setQty(""); setLabour(""); setMachine(""); setIssue(""); setPlan(""); qc.invalidateQueries({ queryKey: ["progress", projectId] }); onChanged(); },
+    onError: () => toast.error("Save failed"),
+  });
+  const cls = "w-full rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm";
+
+  return (
+    <div className="space-y-4">
+      <Card className="space-y-3 p-4">
+        <p className="text-sm font-semibold text-slate-900 dark:text-white">Log today&apos;s progress</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <select className={cls} value={wbsCode} onChange={(e) => setWbsCode(e.target.value)}>
+            <option value="">WBS step…</option>
+            {wbs.map((w) => <option key={w.id} value={w.code}>{w.code} {w.name}</option>)}
+          </select>
+          <input className={cls} type="number" placeholder="Qty done" value={qty} onChange={(e) => setQty(e.target.value)} />
+          <input className={cls} type="number" placeholder="Labour" value={labour} onChange={(e) => setLabour(e.target.value)} />
+          <input className={cls} type="number" placeholder="Machine hrs" value={machine} onChange={(e) => setMachine(e.target.value)} />
+          <input className={cls + " col-span-2"} placeholder="Issue / delay (optional)" value={issue} onChange={(e) => setIssue(e.target.value)} />
+          <input className={cls + " col-span-2 sm:col-span-3"} placeholder="Tomorrow's plan" value={plan} onChange={(e) => setPlan(e.target.value)} />
+        </div>
+        <Button onClick={() => add.mutate()} disabled={add.isPending || !qty}>{add.isPending ? "Saving…" : "Log progress"}</Button>
+      </Card>
+      <div className="space-y-2">
+        {(entries || []).map((e) => (
+          <Card key={e.id} className="p-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="font-medium">{e.progress_date} {e.wbs_code ? `· ${e.wbs_code}` : ""}</span>
+              <span className="text-[11px] uppercase text-slate-400">{e.source}</span>
+            </div>
+            <div className="mt-1 text-slate-600 dark:text-slate-300">
+              {e.actual_quantity != null && <>Qty {e.actual_quantity} · </>}{e.labour_count != null && <>{e.labour_count} labour · </>}{e.machine_hours != null && <>{e.machine_hours} machine hrs</>}
+            </div>
+            {e.issue && <div className="mt-1 text-rose-600 dark:text-rose-400">⚠ {e.issue}</div>}
+            {e.tomorrow_plan && <div className="mt-1 text-slate-500">→ {e.tomorrow_plan}</div>}
+          </Card>
+        ))}
+        {(entries || []).length === 0 && <p className="py-4 text-center text-sm text-slate-400">No updates yet.</p>}
+      </div>
+    </div>
+  );
+}
+
+function CostsTab({ projectId, wbs, onChanged }: { projectId: string; wbs: WbsItem[]; onChanged: () => void }) {
+  const qc = useQueryClient();
+  const [wbsCode, setWbsCode] = useState("");
+  const [cat, setCat] = useState("material");
+  const [desc, setDesc] = useState("");
+  const [amount, setAmount] = useState("");
+  const [vendor, setVendor] = useState("");
+
+  const { data: entries } = useQuery({
+    queryKey: ["costs", projectId],
+    queryFn: async (): Promise<any[]> => (await (await fetch(`/api/projects/${projectId}/costs`)).json()).data,
+  });
+
+  const add = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/costs`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wbs_code: wbsCode || null, cost_category: cat, description: desc, amount, vendor }),
+      });
+      if (!res.ok) throw new Error("save failed");
+    },
+    onSuccess: () => { toast.success("Cost recorded"); setDesc(""); setAmount(""); setVendor(""); qc.invalidateQueries({ queryKey: ["costs", projectId] }); onChanged(); },
+    onError: () => toast.error("Save failed"),
+  });
+  const cls = "w-full rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm";
+  const cats = ["material","labour","machine","transport","fuel","loading","unloading","subcontract","repair","overhead","miscellaneous"];
+  const total = (entries || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+  return (
+    <div className="space-y-4">
+      <Card className="space-y-3 p-4">
+        <p className="text-sm font-semibold text-slate-900 dark:text-white">Record a cost</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <select className={cls} value={wbsCode} onChange={(e) => setWbsCode(e.target.value)}>
+            <option value="">WBS (optional)…</option>
+            {wbs.map((w) => <option key={w.id} value={w.code}>{w.code} {w.name}</option>)}
+          </select>
+          <select className={cls} value={cat} onChange={(e) => setCat(e.target.value)}>
+            {cats.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <input className={cls} type="number" placeholder="Amount ₹" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <input className={cls + " col-span-2"} placeholder="Description" value={desc} onChange={(e) => setDesc(e.target.value)} />
+          <input className={cls} placeholder="Vendor" value={vendor} onChange={(e) => setVendor(e.target.value)} />
+        </div>
+        <Button onClick={() => add.mutate()} disabled={add.isPending || !amount}>{add.isPending ? "Saving…" : "Add cost"}</Button>
+      </Card>
+      <Card className="p-3">
+        <div className="mb-2 flex items-center justify-between text-sm font-semibold"><span>Total recorded</span><span className="tabular-nums">{inr(total)}</span></div>
+        <div className="space-y-1.5">
+          {(entries || []).map((e) => (
+            <div key={e.id} className="flex items-center justify-between border-b border-slate-100 py-1.5 text-sm dark:border-slate-800">
+              <div><span className="font-medium">{inr(e.amount)}</span> <span className="text-xs text-slate-400">{e.cost_category}{e.wbs_code ? ` · ${e.wbs_code}` : ""}{e.vendor ? ` · ${e.vendor}` : ""}</span><div className="text-xs text-slate-500">{e.description}</div></div>
+              <span className="text-[11px] uppercase text-slate-400">{e.payment_status}</span>
+            </div>
+          ))}
+          {(entries || []).length === 0 && <p className="py-4 text-center text-sm text-slate-400">No costs yet.</p>}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function InsightsTab({ projectId }: { projectId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["insights", projectId],
+    queryFn: async () => (await (await fetch(`/api/projects/${projectId}/insights`)).json()).data as { health: string; summary: string; risks: { severity: string; message: string }[]; recommendations: string[]; tomorrowPlan: string | null; source: string },
+  });
+  if (isLoading) return <Card className="p-6 text-center text-sm text-slate-400">Analysing…</Card>;
+  if (!data) return <Card className="p-6 text-center text-sm text-slate-400">No insights.</Card>;
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <div className="mb-1 flex items-center gap-2">
+          <span className="text-lg">🧠</span>
+          <p className="font-semibold text-slate-900 dark:text-white">Project health</p>
+          <span className="text-[10px] uppercase text-slate-400">({data.source})</span>
+        </div>
+        <p className="text-sm text-slate-600 dark:text-slate-300">{data.summary}</p>
+      </Card>
+      <Card className="p-5">
+        <p className="mb-2 font-semibold text-slate-900 dark:text-white">⚠️ Risks</p>
+        {data.risks.length === 0 ? <p className="text-sm text-emerald-600 dark:text-emerald-400">No active risks. 🎉</p> : (
+          <ul className="space-y-1 text-sm">
+            {data.risks.map((r, i) => <li key={i} className={r.severity === "high" ? "text-rose-600 dark:text-rose-400" : r.severity === "medium" ? "text-amber-600 dark:text-amber-400" : "text-slate-500"}>• {r.message}</li>)}
+          </ul>
+        )}
+      </Card>
+      {data.recommendations.length > 0 && (
+        <Card className="p-5">
+          <p className="mb-2 font-semibold text-slate-900 dark:text-white">💡 Recommended actions</p>
+          <ul className="space-y-1 text-sm text-slate-600 dark:text-slate-300">{data.recommendations.map((r, i) => <li key={i}>• {r}</li>)}</ul>
+          {data.tomorrowPlan && <p className="mt-3 rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">Tomorrow: {data.tomorrowPlan}</p>}
+        </Card>
+      )}
     </div>
   );
 }
