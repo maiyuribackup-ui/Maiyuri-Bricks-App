@@ -16,6 +16,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { sendPushToUser } from "@/lib/push/fcm";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { error, unauthorized, handleZodError, success } from "@/lib/api-utils";
 
 const TG_LIMIT = 4000;
@@ -23,6 +25,17 @@ const TG_LIMIT = 4000;
 const bodySchema = z.object({
   text: z.string().trim().min(1).max(20000),
   chat_id: z.string().trim().optional(),
+  // Opt-in native push to leadership alongside the Telegram relay. The relay is
+  // generic (ad-hoc messages too), so push only fires when the caller asks for
+  // it — e.g. the daily owner summary sets this.
+  push: z
+    .object({
+      title: z.string().trim().min(1).max(100),
+      body: z.string().trim().min(1).max(240),
+      url: z.string().trim().optional(),
+      roles: z.array(z.string().trim()).optional(),
+    })
+    .optional(),
 });
 
 function chunk(text: string, size: number): string[] {
@@ -81,5 +94,38 @@ export async function POST(request: NextRequest) {
   if (!allOk) {
     return error(`Telegram send failed: ${JSON.stringify(results)}`, 502);
   }
-  return success({ sent: true, parts: parts.length, chat_id: targetChatId });
+
+  // Opt-in native push to leadership (best-effort; never fails the relay).
+  let pushSent = 0;
+  if (parsed.data.push) {
+    const { title, body, url, roles } = parsed.data.push;
+    const targetRoles = roles && roles.length > 0 ? roles : ["founder", "owner"];
+    try {
+      const { data: recipients } = await supabaseAdmin
+        .from("users")
+        .select("id")
+        .in("role", targetRoles);
+      for (const u of recipients ?? []) {
+        try {
+          const r = await sendPushToUser(u.id, {
+            title,
+            body,
+            data: { url: url || "/dashboard" },
+          });
+          pushSent += r.sent;
+        } catch {
+          /* per-user best-effort */
+        }
+      }
+    } catch (err) {
+      console.error("[SalesPulse] Push dispatch failed:", err);
+    }
+  }
+
+  return success({
+    sent: true,
+    parts: parts.length,
+    chat_id: targetChatId,
+    push_sent: pushSent,
+  });
 }

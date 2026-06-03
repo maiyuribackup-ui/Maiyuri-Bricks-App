@@ -14,6 +14,7 @@ import { uploadToGoogleDrive } from "./gdrive-storage";
 import { transcribeAudio } from "./transcription";
 import { analyzeTranscript, extractLeadDetails } from "./analysis";
 import { sendCallRecordingNotification, sendErrorNotification } from "./notifications";
+import { sendPushToUser } from "@/lib/push/fcm";
 import { logError, logProgress } from "./logger";
 import {
   triggerLeadAnalysis,
@@ -103,13 +104,13 @@ function estimateDuration(fileSizeBytes: number, filename: string): number {
  */
 async function getLeadDetails(
   leadId: string | null,
-): Promise<{ name: string; id: string } | null> {
+): Promise<{ name: string; id: string; assigned_staff: string | null } | null> {
   if (!leadId) return null;
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("leads")
-    .select("id, name")
+    .select("id, name, assigned_staff")
     .eq("id", leadId)
     .single();
 
@@ -346,6 +347,20 @@ export async function processRecording(
       extractedDetails: extractedDetails ?? undefined,
       isNewlyAutoPopulated,
     });
+
+    // Native push to the rep who owns this lead (best-effort, non-blocking).
+    if (lead?.assigned_staff && lead?.id) {
+      try {
+        await sendPushToUser(lead.assigned_staff, {
+          title: lead.name ? `📞 Call logged: ${lead.name}` : "📞 New call logged",
+          body:
+            (analysis.summary || "A new call recording was processed.").slice(0, 160),
+          data: { url: `/leads/${lead.id}` },
+        });
+      } catch (err) {
+        logError(`Failed to push call notification for lead ${lead.id}`, err);
+      }
+    }
 
     // ========================================
     // Stage 6: Trigger Lead Analysis (awaited in serverless)

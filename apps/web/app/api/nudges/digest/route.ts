@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { sendPushToUser } from "@/lib/push/fcm";
 import { startCronLog } from "@/lib/health/cron-logger";
 import {
   matchesRule,
@@ -347,6 +348,27 @@ async function handleDigest(request: NextRequest): Promise<NextResponse> {
         message = formatDigestMessage(group);
       }
       const result = await sendTelegramMessage(message, chatId);
+
+      // Native push to the assigned rep (independent of Telegram; best-effort).
+      if (staffId !== "unassigned") {
+        const count = digestLeads.length;
+        const names = digestLeads
+          .slice(0, 3)
+          .map((l) => l.name)
+          .filter(Boolean)
+          .join(", ");
+        try {
+          await sendPushToUser(staffId, {
+            title: `🔔 ${count} lead${count > 1 ? "s" : ""} need follow-up today`,
+            body: names
+              ? `${names}${count > 3 ? ` +${count - 3} more` : ""}`
+              : "Open your leads to see today's follow-ups.",
+            data: { url: "/leads" },
+          });
+        } catch (err) {
+          console.error(`[Nudge Digest] Push failed for ${staffName}:`, err);
+        }
+      }
 
       if (result.success) {
         groupsProcessed++;
