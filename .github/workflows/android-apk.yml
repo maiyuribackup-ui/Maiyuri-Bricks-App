@@ -1,0 +1,113 @@
+name: Android APK
+
+# Builds the Maiyuri Bricks Android app (Capacitor shell around mb.maiyuri.com)
+# and publishes the .apk as a downloadable artifact for sideloading.
+#
+# This repo has no Android toolchain locally — the SDK is installed here in the
+# runner. apps/mobile is intentionally NOT an npm workspace member (avoids an
+# arborist dedupe bug), so it installs standalone with its own lockfile.
+#
+# Phase 1 ships a DEBUG-signed APK (Android's universal debug key) — directly
+# installable/sideloadable. A release-signed build activates automatically once
+# the ANDROID_KEYSTORE_BASE64 secret is added (see the release job below).
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/android-apk.yml"
+
+defaults:
+  run:
+    working-directory: apps/mobile
+
+jobs:
+  debug-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Capacitor deps (standalone, not workspace)
+        run: npm ci
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Sync web assets + native config into android/
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: apps/mobile/android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: maiyuri-bricks-debug-apk
+          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  # Release-signed APK — runs only after you add the signing secrets:
+  #   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
+  #   ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+  release-apk:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Check for signing secret
+        id: gate
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "No ANDROID_KEYSTORE_BASE64 secret — skipping release build."
+          fi
+      - name: Install deps
+        if: steps.gate.outputs.signed == 'true'
+        run: npm ci
+      - uses: actions/setup-java@v4
+        if: steps.gate.outputs.signed == 'true'
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        if: steps.gate.outputs.signed == 'true'
+      - name: Decode keystore
+        if: steps.gate.outputs.signed == 'true'
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+      - name: Sync + build signed release
+        if: steps.gate.outputs.signed == 'true'
+        env:
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          npx cap sync android
+          cd android
+          ./gradlew --no-daemon assembleRelease \
+            -Pandroid.injected.signing.store.file=app/release.keystore \
+            -Pandroid.injected.signing.store.password="$KS_PASS" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASS"
+      - name: Upload signed APK
+        if: steps.gate.outputs.signed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: maiyuri-bricks-release-apk
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error

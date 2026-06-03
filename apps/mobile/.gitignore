@@ -1,0 +1,14 @@
+# Standalone Capacitor project (not an npm workspace member)
+node_modules/
+.DS_Store
+
+# Capacitor copies the web build here on sync; keep only the source fallback
+# (www/index.html is committed; generated copies are not)
+android/app/src/main/assets/public/
+
+# Android build outputs / local config (android/.gitignore also covers these)
+android/local.properties
+android/.gradle/
+android/app/build/
+android/build/
+android/capacitor-cordova-android-plugins/build/
