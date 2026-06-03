@@ -240,7 +240,10 @@ export async function POST(request: NextRequest) {
           name: extractedName,
           contact: normalizedPhone,
           source: "Telegram",
-          status: "new",
+          // V2 lead taxonomy (the legacy `status` column was removed in the
+          // leads-V2 migration — sending it made this insert silently fail).
+          lead_status: "new_contact_pending",
+          pipeline_stage: "new_inquiry",
           // These will be updated after transcription analysis
           lead_type: "Other",
           classification: "direct_customer",
@@ -476,7 +479,8 @@ async function handlePhoneInput(
         name: extractedName,
         contact: normalizedPhone,
         source: "Telegram",
-        status: "new",
+        lead_status: "new_contact_pending",
+        pipeline_stage: "new_inquiry",
         lead_type: "Other",
         classification: "direct_customer",
       })
@@ -725,7 +729,8 @@ async function handleTextMessage(
       contact: pendingRecording.phone_number,
       source: "Telegram",
       lead_type: leadType,
-      status: "new",
+      lead_status: "new_contact_pending",
+      pipeline_stage: "new_inquiry",
       classification: classification,
       requirement_type: requirementType,
       site_region: siteRegion,
