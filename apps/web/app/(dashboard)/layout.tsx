@@ -5,7 +5,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@maiyuri/ui";
-import { AskMaiyuri } from "../../components/AskMaiyuri";
 import { useAuthStore } from "@/stores/authStore";
 import { getSupabase } from "@/lib/supabase";
 import { useApprovalQueue } from "@/hooks/useTickets";
@@ -430,9 +429,6 @@ export default function DashboardLayout({
       <main className="lg:pl-64">
         <div className="px-4 py-6 sm:px-6 lg:px-8">{children}</div>
       </main>
-
-      {/* Global Ask Maiyuri Chatbot */}
-      <AskMaiyuri />
     </div>
   );
 }
