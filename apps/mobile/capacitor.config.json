@@ -1,0 +1,13 @@
+{
+  "appId": "com.maiyuri.app",
+  "appName": "Maiyuri Bricks",
+  "webDir": "www",
+  "server": {
+    "url": "https://mb.maiyuri.com",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
