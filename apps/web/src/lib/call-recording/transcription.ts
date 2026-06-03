@@ -25,7 +25,7 @@ export async function transcribeAudio(
   filename: string,
 ): Promise<TranscriptionResult> {
   const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const base64Audio = audioBuffer.toString("base64");
   const mimeType = getMimeType(filename);
