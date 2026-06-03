@@ -6,6 +6,7 @@
  */
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
 import { log, logError } from "./logger";
 import type { TranscriptionResult } from "./types";
 
@@ -25,7 +26,7 @@ export async function transcribeAudio(
   filename: string,
 ): Promise<TranscriptionResult> {
   const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+  const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
 
   const base64Audio = audioBuffer.toString("base64");
   const mimeType = getMimeType(filename);

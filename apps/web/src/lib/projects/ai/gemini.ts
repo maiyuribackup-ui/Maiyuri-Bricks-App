@@ -5,6 +5,7 @@
  * so callers can fall back to deterministic heuristics.
  */
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
 
 export function isGeminiConfigured(): boolean {
   return Boolean(process.env.GOOGLE_AI_API_KEY);
@@ -15,7 +16,7 @@ export async function runGeminiJson<T>(prompt: string): Promise<T | null> {
   if (!apiKey) return null;
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
     const result = await model.generateContent(prompt);
     const text = result.response.text();
     // Extract JSON (fenced ```json block or first {...} / [...] span)

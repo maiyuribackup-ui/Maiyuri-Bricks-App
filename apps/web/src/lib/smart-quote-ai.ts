@@ -10,6 +10,7 @@
  */
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
 import type {
   SmartQuoteLanguage,
   SmartQuoteStage,
@@ -78,7 +79,7 @@ async function extractLeadInsights(
   leadName?: string | null,
 ): Promise<LeadInsights> {
   const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+  const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
 
   const prompt = `${PROMPT_A_SYSTEM}
 
@@ -174,7 +175,7 @@ async function generateStrategy(
   insights: LeadInsights,
 ): Promise<StrategyResult> {
   const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+  const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
 
   const prompt = `${PROMPT_B_SYSTEM}
 
@@ -338,7 +339,7 @@ async function generateBilingualCopy(
   strategy: StrategyResult,
 ): Promise<SmartQuoteCopyMap> {
   const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+  const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
 
   const topObjectionStr =
     insights.top_objections.length > 0
