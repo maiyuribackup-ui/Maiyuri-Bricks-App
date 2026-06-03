@@ -9,6 +9,7 @@ import { AskMaiyuri } from "../../components/AskMaiyuri";
 import { useAuthStore } from "@/stores/authStore";
 import { getSupabase } from "@/lib/supabase";
 import { useApprovalQueue } from "@/hooks/useTickets";
+import { initPushNotifications } from "@/lib/native/capacitor";
 import type { UserRole } from "@maiyuri/shared";
 
 // Brand colors from Brandguidelines.md
@@ -118,6 +119,13 @@ export default function DashboardLayout({
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { user, setUser, logout: clearAuthState } = useAuthStore();
   const { data: approvalQueueData } = useApprovalQueue();
+
+  // Register for native push once a user is loaded. No-op on web/desktop —
+  // only runs inside the Capacitor Android app (via the injected bridge).
+  useEffect(() => {
+    if (!user?.id) return;
+    initPushNotifications((url) => router.push(url));
+  }, [user?.id, router]);
 
   // Get navigation filtered by user role
   const userRole = user?.role as UserRole | undefined;

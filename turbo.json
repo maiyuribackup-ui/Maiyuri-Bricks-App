@@ -18,6 +18,7 @@
                 "GOOGLE_*",
                 "GEMINI_API_KEY",
                 "GA4_*",
+                "FCM_*",
                 "ANTHROPIC_API_KEY",
                 "OPENAI_API_KEY",
                 "ODOO_*",
