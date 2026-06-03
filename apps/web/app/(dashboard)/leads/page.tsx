@@ -49,6 +49,95 @@ const stageConfig = Object.fromEntries(
   ]),
 ) as Record<PipelineStage, { label: string; icon: string; color: string }>;
 
+type GroupKey =
+  | "temperature"
+  | "lead_status"
+  | "pipeline_stage"
+  | "source"
+  | "none";
+
+const groupByOptions: { value: GroupKey; label: string }[] = [
+  { value: "temperature", label: "Temperature" },
+  { value: "lead_status", label: "Status" },
+  { value: "pipeline_stage", label: "Stage" },
+  { value: "source", label: "Source" },
+  { value: "none", label: "No grouping" },
+];
+
+interface LeadGroup {
+  key: string;
+  label: string;
+  emoji?: string;
+  leads: Lead[];
+}
+
+// Partition an already-sorted list into ordered groups. The incoming `leads`
+// keep their sort (default: last-updated desc), so within each group the order
+// is preserved — we only bucket + order the buckets themselves.
+function buildGroups(leads: Lead[], groupBy: GroupKey): LeadGroup[] {
+  if (groupBy === "none") {
+    return [{ key: "all", label: "", leads }];
+  }
+
+  const buckets = new Map<string, Lead[]>();
+  const getKey = (l: Lead): string => {
+    if (groupBy === "temperature") return l.lead_temperature || "unknown";
+    if (groupBy === "lead_status") return l.lead_status || "unknown";
+    if (groupBy === "pipeline_stage") return l.pipeline_stage || "unknown";
+    return l.source || "Unknown";
+  };
+
+  for (const lead of leads) {
+    const k = getKey(lead);
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k)!.push(lead);
+  }
+
+  // Define a stable display order + labels per group type.
+  let order: string[];
+  let labelFor: (k: string) => { label: string; emoji?: string };
+
+  if (groupBy === "temperature") {
+    order = ["hot", "warm", "cold"];
+    labelFor = (k) => {
+      const t = LEAD_TEMPERATURE_MAP[k as keyof typeof LEAD_TEMPERATURE_MAP];
+      return t ? { label: t.label, emoji: t.emoji } : { label: k };
+    };
+  } else if (groupBy === "lead_status") {
+    order = Object.values(LEAD_STATUS_MAP).map((o) => o.value);
+    labelFor = (k) => ({ label: statusConfig[k as LeadStatus]?.label ?? k });
+  } else if (groupBy === "pipeline_stage") {
+    order = PIPELINE_STAGES.map((o) => o.value);
+    labelFor = (k) => {
+      const s = stageConfig[k as PipelineStage];
+      return s ? { label: s.label, emoji: s.icon } : { label: k };
+    };
+  } else {
+    // source: order by bucket size (largest first)
+    order = Array.from(buckets.keys()).sort(
+      (a, b) => (buckets.get(b)?.length ?? 0) - (buckets.get(a)?.length ?? 0),
+    );
+    labelFor = (k) => ({ label: k });
+  }
+
+  const groups: LeadGroup[] = [];
+  const seen = new Set<string>();
+  for (const k of order) {
+    const list = buckets.get(k);
+    if (list && list.length > 0) {
+      groups.push({ key: k, ...labelFor(k), leads: list });
+      seen.add(k);
+    }
+  }
+  // Append any buckets not covered by the predefined order (e.g. "unknown").
+  for (const [k, list] of buckets) {
+    if (!seen.has(k) && list.length > 0) {
+      groups.push({ key: k, ...labelFor(k), leads: list });
+    }
+  }
+  return groups;
+}
+
 type ViewType =
   | "all"
   | "today"
@@ -181,6 +270,7 @@ export default function LeadsPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [hoveredLead, setHoveredLead] = useState<Lead | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [groupBy, setGroupBy] = useState<GroupKey>("temperature");
 
   const activeFilterCount =
     (statusFilter ? 1 : 0) +
@@ -334,6 +424,13 @@ export default function LeadsPage() {
     requirementTypeFilter,
     locationFilter,
   ]);
+
+  // Ordered groups for the list view (default: by temperature, last-updated
+  // order preserved within each group via the sort above).
+  const groups = useMemo(
+    () => buildGroups(filteredLeads, groupBy),
+    [filteredLeads, groupBy],
+  );
 
   return (
     <div className="space-y-6">
@@ -499,6 +596,32 @@ export default function LeadsPage() {
         </div>
       </Card>
 
+      {/* GROUP-BY TOOLBAR (list view) */}
+      {viewMode === "list" && (
+        <div className="flex items-center justify-between gap-3 -mb-2">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {filteredLeads.length}{" "}
+            {filteredLeads.length === 1 ? "lead" : "leads"}
+          </p>
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-slate-500 dark:text-slate-400 hidden sm:inline">
+              Group by
+            </span>
+            <select
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value as GroupKey)}
+              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {groupByOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+
       {/* CONTENT */}
       {viewMode === "kanban" ? (
         <div className="h-[calc(100vh-14rem)]">
@@ -571,18 +694,33 @@ export default function LeadsPage() {
                 <div className="col-span-2 text-center">Actions</div>
               </div>
 
-              {/* Table Rows */}
-              <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredLeads.map((lead) => (
-                  <LeadRow
-                    key={lead.id}
-                    lead={lead}
-                    onHover={setHoveredLead}
-                    isHovered={hoveredLead?.id === lead.id}
-                    onArchive={(e) => handleArchiveToggle(e, lead)}
-                    onWhatsApp={(e) => handleWhatsApp(e, lead.contact)}
-                    onCall={(e) => handleCall(e, lead.contact)}
-                  />
+              {/* Table Rows (grouped) */}
+              <div>
+                {groups.map((group) => (
+                  <div key={group.key}>
+                    {groupBy !== "none" && (
+                      <div className="sticky top-0 z-10 flex items-center gap-2 px-4 lg:px-6 py-2 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur border-y border-slate-200 dark:border-slate-700 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                        {group.emoji && <span>{group.emoji}</span>}
+                        <span>{group.label || "Other"}</span>
+                        <span className="ml-1 px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 normal-case">
+                          {group.leads.length}
+                        </span>
+                      </div>
+                    )}
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {group.leads.map((lead) => (
+                        <LeadRow
+                          key={lead.id}
+                          lead={lead}
+                          onHover={setHoveredLead}
+                          isHovered={hoveredLead?.id === lead.id}
+                          onArchive={(e) => handleArchiveToggle(e, lead)}
+                          onWhatsApp={(e) => handleWhatsApp(e, lead.contact)}
+                          onCall={(e) => handleCall(e, lead.contact)}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
 
