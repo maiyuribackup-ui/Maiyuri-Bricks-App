@@ -953,3 +953,139 @@ export type RequestChangesData = z.infer<typeof requestChangesSchema>;
 export type AddTicketCommentData = z.infer<typeof addTicketCommentSchema>;
 export type TicketFiltersData = z.infer<typeof ticketFiltersSchema>;
 export type SubmitForApprovalData = z.infer<typeof submitForApprovalSchema>;
+
+// ============================================================================
+// PROJECTS MODULE (Core Value Loop V1)
+// ============================================================================
+
+export const costCategorySchema = z.enum([
+  "material","labour","machine","transport","fuel","loading",
+  "unloading","subcontract","repair","overhead","miscellaneous",
+]);
+
+export const projectStatusSchema = z.enum([
+  "draft_estimate","estimate_under_review","budget_approved","not_started",
+  "in_progress","at_risk","delayed","on_hold","completed","closed","cancelled",
+]);
+
+export const wbsStatusSchema = z.enum([
+  "not_started","in_progress","blocked","at_risk","delayed","completed","cancelled",
+]);
+
+export const createProjectSchema = z.object({
+  name: z.string().min(1, "Project name is required"),
+  lead_id: emptyStringToNull(z.string().uuid().nullable().optional()),
+  template_id: emptyStringToNull(z.string().uuid().nullable().optional()),
+  customer_name: emptyStringToNull(z.string().nullable().optional()),
+  customer_phone: emptyStringToNull(z.string().nullable().optional()),
+  location: emptyStringToNull(z.string().nullable().optional()),
+  project_type: emptyStringToNull(z.string().nullable().optional()),
+  project_manager: emptyStringToNull(z.string().nullable().optional()),
+  supervisor: emptyStringToNull(z.string().nullable().optional()),
+  start_date: emptyStringToNull(z.string().nullable().optional()),
+  planned_end_date: emptyStringToNull(z.string().nullable().optional()),
+  telegram_chat_id: emptyStringToNull(z.string().nullable().optional()),
+  notes: emptyStringToNull(z.string().nullable().optional()),
+});
+
+export const updateProjectSchema = z.object({
+  name: z.string().min(1).optional(),
+  status: projectStatusSchema.optional(),
+  customer_name: emptyStringToNull(z.string().nullable().optional()),
+  customer_phone: emptyStringToNull(z.string().nullable().optional()),
+  location: emptyStringToNull(z.string().nullable().optional()),
+  project_type: emptyStringToNull(z.string().nullable().optional()),
+  project_manager: emptyStringToNull(z.string().nullable().optional()),
+  supervisor: emptyStringToNull(z.string().nullable().optional()),
+  start_date: emptyStringToNull(z.string().nullable().optional()),
+  planned_end_date: emptyStringToNull(z.string().nullable().optional()),
+  actual_start_date: emptyStringToNull(z.string().nullable().optional()),
+  actual_end_date: emptyStringToNull(z.string().nullable().optional()),
+  telegram_chat_id: emptyStringToNull(z.string().nullable().optional()),
+  notes: emptyStringToNull(z.string().nullable().optional()),
+});
+
+export const boqItemSchema = z.object({
+  id: z.string().uuid().optional(),
+  code: emptyStringToNull(z.string().nullable().optional()),
+  name: z.string().min(1),
+  description: emptyStringToNull(z.string().nullable().optional()),
+  quantity: optionalNumber(),
+  unit: emptyStringToNull(z.string().nullable().optional()),
+  cost_category: costCategorySchema.default("material"),
+  cost_rate: optionalNumber(),
+  selling_rate: optionalNumber(),
+  linked_wbs_code: emptyStringToNull(z.string().nullable().optional()),
+  notes: emptyStringToNull(z.string().nullable().optional()),
+});
+
+export const updateProjectEstimateSchema = z.object({
+  notes: emptyStringToNull(z.string().nullable().optional()),
+  items: z.array(boqItemSchema).optional(),
+});
+
+export const updateWbsItemSchema = z.object({
+  name: z.string().min(1).optional(),
+  planned_start: emptyStringToNull(z.string().nullable().optional()),
+  planned_end: emptyStringToNull(z.string().nullable().optional()),
+  actual_start: emptyStringToNull(z.string().nullable().optional()),
+  actual_end: emptyStringToNull(z.string().nullable().optional()),
+  planned_quantity: optionalNumber(),
+  completed_quantity: optionalNumber(),
+  progress_pct: optionalNumber(),
+  responsible: emptyStringToNull(z.string().nullable().optional()),
+  status: wbsStatusSchema.optional(),
+  delay_reason: emptyStringToNull(z.string().nullable().optional()),
+  notes: emptyStringToNull(z.string().nullable().optional()),
+});
+
+export const createDailyProgressSchema = z.object({
+  wbs_code: emptyStringToNull(z.string().nullable().optional()),
+  progress_date: emptyStringToNull(z.string().nullable().optional()),
+  planned_quantity: optionalNumber(),
+  actual_quantity: optionalNumber(),
+  unit: emptyStringToNull(z.string().nullable().optional()),
+  labour_count: optionalNumber(),
+  labour_hours: optionalNumber(),
+  machine_hours: optionalNumber(),
+  material_used: emptyStringToNull(z.string().nullable().optional()),
+  cost_mentioned: optionalNumber(),
+  issue: emptyStringToNull(z.string().nullable().optional()),
+  delay_reason: emptyStringToNull(z.string().nullable().optional()),
+  tomorrow_plan: emptyStringToNull(z.string().nullable().optional()),
+  photos: z.array(z.string()).optional(),
+  supervisor_notes: emptyStringToNull(z.string().nullable().optional()),
+});
+
+export const createCostEntrySchema = z.object({
+  wbs_code: emptyStringToNull(z.string().nullable().optional()),
+  entry_date: emptyStringToNull(z.string().nullable().optional()),
+  cost_category: costCategorySchema.default("material"),
+  description: emptyStringToNull(z.string().nullable().optional()),
+  quantity: optionalNumber(),
+  unit: emptyStringToNull(z.string().nullable().optional()),
+  rate: optionalNumber(),
+  amount: optionalNumber(),
+  vendor: emptyStringToNull(z.string().nullable().optional()),
+  payment_status: z.enum(["paid","payable","advance_paid","pending_verification"]).default("payable"),
+  bill_number: emptyStringToNull(z.string().nullable().optional()),
+  attachment_url: emptyStringToNull(z.string().nullable().optional()),
+});
+
+export const setupAssistantSchema = z.object({
+  customer_name: z.string().optional(),
+  location: z.string().optional(),
+  project_type: z.string().optional(),
+  quantity: z.union([z.string(), z.number()]).optional(),
+  expected_delivery_date: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+export type CreateProjectInput = z.infer<typeof createProjectSchema>;
+export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
+export type BoqItemInput = z.infer<typeof boqItemSchema>;
+export type UpdateProjectEstimateInput = z.infer<typeof updateProjectEstimateSchema>;
+export type UpdateWbsItemInput = z.infer<typeof updateWbsItemSchema>;
+export type CreateDailyProgressInput = z.infer<typeof createDailyProgressSchema>;
+export type CreateCostEntryInput = z.infer<typeof createCostEntrySchema>;
+export type SetupAssistantInput = z.infer<typeof setupAssistantSchema>;

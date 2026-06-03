@@ -1595,3 +1595,208 @@ export interface CompleteDeliveryInput {
   recipient_name?: string;
   notes?: string;
 }
+
+// ============================================================================
+// PROJECTS MODULE (Core Value Loop V1)
+// ============================================================================
+
+export type CostCategory =
+  | "material" | "labour" | "machine" | "transport" | "fuel" | "loading"
+  | "unloading" | "subcontract" | "repair" | "overhead" | "miscellaneous";
+
+export type ProjectStatus =
+  | "draft_estimate" | "estimate_under_review" | "budget_approved"
+  | "not_started" | "in_progress" | "at_risk" | "delayed" | "on_hold"
+  | "completed" | "closed" | "cancelled";
+
+export type ProjectHealth = "on_track" | "at_risk" | "delayed" | "over_budget";
+export type ProjectEstimateStatus = "draft" | "under_review" | "approved" | "superseded";
+export type WbsStatus =
+  | "not_started" | "in_progress" | "blocked" | "at_risk" | "delayed"
+  | "completed" | "cancelled";
+export type ProgressSource = "app" | "telegram" | "ai";
+export type CostPaymentStatus = "paid" | "payable" | "advance_paid" | "pending_verification";
+export type CostSource = "manual" | "telegram" | "ai";
+
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  project_type: string;
+  version: number;
+  is_active: boolean;
+  description?: string | null;
+  default_daily_questions: string[];
+  closure_checklist: string[];
+  default_risks: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TemplateWbsItem {
+  id: string;
+  template_id: string;
+  seq: number;
+  code: string;
+  name: string;
+  parent_code?: string | null;
+  default_unit?: string | null;
+}
+
+export interface TemplateBoqItem {
+  id: string;
+  template_id: string;
+  name: string;
+  description?: string | null;
+  unit?: string | null;
+  cost_category: CostCategory;
+  default_cost_rate: number;
+  default_selling_rate: number;
+  linked_wbs_code?: string | null;
+}
+
+export interface RateMaster {
+  id: string;
+  name: string;
+  description?: string | null;
+  unit?: string | null;
+  cost_category: CostCategory;
+  standard_cost_rate: number;
+  standard_selling_rate: number;
+  min_selling_rate?: number | null;
+  route?: string | null;
+  active: boolean;
+}
+
+export interface Project {
+  id: string;
+  lead_id?: string | null;
+  template_id?: string | null;
+  name: string;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  location?: string | null;
+  project_type?: string | null;
+  project_manager?: string | null;
+  supervisor?: string | null;
+  start_date?: string | null;
+  planned_end_date?: string | null;
+  actual_start_date?: string | null;
+  actual_end_date?: string | null;
+  status: ProjectStatus;
+  health_status: ProjectHealth;
+  approved_budget?: number | null;
+  expected_revenue?: number | null;
+  expected_margin?: number | null;
+  forecast_cost?: number | null;
+  forecast_margin?: number | null;
+  progress_pct: number;
+  telegram_chat_id?: string | null;
+  notes?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectEstimate {
+  id: string;
+  project_id: string;
+  version: number;
+  status: ProjectEstimateStatus;
+  total_cost: number;
+  total_revenue: number;
+  margin_amount: number;
+  margin_pct: number;
+  notes?: string | null;
+  created_by?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BoqItem {
+  id: string;
+  project_id: string;
+  estimate_id?: string | null;
+  code?: string | null;
+  name: string;
+  description?: string | null;
+  quantity: number;
+  unit?: string | null;
+  cost_category: CostCategory;
+  cost_rate: number;
+  selling_rate: number;
+  cost_amount: number;
+  revenue_amount: number;
+  margin_amount: number;
+  linked_wbs_code?: string | null;
+  notes?: string | null;
+}
+
+export interface WbsItem {
+  id: string;
+  project_id: string;
+  seq: number;
+  code: string;
+  name: string;
+  parent_code?: string | null;
+  linked_boq_code?: string | null;
+  planned_start?: string | null;
+  planned_end?: string | null;
+  actual_start?: string | null;
+  actual_end?: string | null;
+  planned_quantity?: number | null;
+  completed_quantity: number;
+  unit?: string | null;
+  planned_budget: number;
+  actual_cost: number;
+  progress_pct: number;
+  responsible?: string | null;
+  status: WbsStatus;
+  delay_reason?: string | null;
+  notes?: string | null;
+}
+
+export interface DailyProgress {
+  id: string;
+  project_id: string;
+  wbs_code?: string | null;
+  progress_date: string;
+  planned_quantity?: number | null;
+  actual_quantity?: number | null;
+  unit?: string | null;
+  labour_count?: number | null;
+  labour_hours?: number | null;
+  machine_hours?: number | null;
+  material_used?: string | null;
+  cost_mentioned?: number | null;
+  issue?: string | null;
+  delay_reason?: string | null;
+  tomorrow_plan?: string | null;
+  photos: string[];
+  supervisor_notes?: string | null;
+  source: ProgressSource;
+  ai_confidence?: number | null;
+  created_by?: string | null;
+  created_at: string;
+}
+
+export interface CostEntry {
+  id: string;
+  project_id: string;
+  wbs_code?: string | null;
+  entry_date: string;
+  cost_category: CostCategory;
+  description?: string | null;
+  quantity?: number | null;
+  unit?: string | null;
+  rate?: number | null;
+  amount: number;
+  vendor?: string | null;
+  payment_status: CostPaymentStatus;
+  bill_number?: string | null;
+  attachment_url?: string | null;
+  source: CostSource;
+  created_by?: string | null;
+  created_at: string;
+}

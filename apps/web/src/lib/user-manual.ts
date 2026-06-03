@@ -23,7 +23,8 @@ export type ManualSection =
   | "deliveries"
   | "smart-quote"
   | "business-health"
-  | "website-analytics";
+  | "website-analytics"
+  | "projects";
 
 export interface ManualStep {
   action: string;
@@ -47,6 +48,41 @@ export interface ManualContent {
 // ============================================================================
 
 export const manualContent: Record<ManualSection, ManualContent> = {
+  projects: {
+    id: "projects",
+    title: "Projects",
+    description:
+      "Plan, execute and control projects: estimate → approve budget → track progress, cost and profitability.",
+    path: "/projects",
+    quickStart: [
+      "Create a project from a won lead or standalone",
+      "Pick a template to auto-fill WBS + BOQ",
+      "Review the AI estimate checks, then approve the budget",
+      "Track daily progress and costs against the baseline",
+    ],
+    steps: [
+      {
+        action: "Click 'New Project', optionally pick a won lead, and choose a template",
+        result: "WBS and BOQ are auto-populated from the template",
+      },
+      {
+        action: "Fill BOQ quantities and rates on the Estimate tab",
+        result: "Cost, revenue and margin compute automatically; AI flags gaps",
+      },
+      {
+        action: "Owner approves the estimate",
+        result: "It becomes the frozen baseline budget; changes go via change orders",
+      },
+      {
+        action: "Track WBS progress and log costs as work happens",
+        result: "Budget-vs-actual, forecast margin and project health update live",
+      },
+    ],
+    tips: [
+      "Quantity-based progress is most accurate (e.g. bricks produced ÷ planned)",
+      "Approved budgets are frozen — use change orders for scope changes",
+    ],
+  },
   "website-analytics": {
     id: "website-analytics",
     title: "Website Behaviour",
@@ -842,4 +878,5 @@ export const pageToSection: Record<string, ManualSection> = {
   "/deliveries": "deliveries",
   "/business-health": "business-health",
   "/analytics/website": "website-analytics",
+  "/projects": "projects",
 };
