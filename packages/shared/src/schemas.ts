@@ -96,8 +96,15 @@ const emptyStringToNull = <T extends z.ZodTypeAny>(schema: T) =>
 // numeric strings -> number. Used for deal-value/quantity inputs.
 const optionalNumber = () =>
   z.preprocess(
+    // Omitted (undefined) → leave unchanged; "" / null → explicit clear;
+    // anything else → number. Avoids partial-update PATCHes nulling fields
+    // they never mentioned (and NOT NULL columns like progress_pct).
     (val) =>
-      val === "" || val === null || val === undefined ? null : Number(val),
+      val === undefined
+        ? undefined
+        : val === "" || val === null
+          ? null
+          : Number(val),
     z.number().nonnegative().nullable().optional(),
   );
 
