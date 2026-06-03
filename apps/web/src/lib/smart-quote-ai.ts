@@ -78,7 +78,7 @@ async function extractLeadInsights(
   leadName?: string | null,
 ): Promise<LeadInsights> {
   const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
   const prompt = `${PROMPT_A_SYSTEM}
 
@@ -174,7 +174,7 @@ async function generateStrategy(
   insights: LeadInsights,
 ): Promise<StrategyResult> {
   const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
   const prompt = `${PROMPT_B_SYSTEM}
 
@@ -338,7 +338,7 @@ async function generateBilingualCopy(
   strategy: StrategyResult,
 ): Promise<SmartQuoteCopyMap> {
   const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
   const topObjectionStr =
     insights.top_objections.length > 0
