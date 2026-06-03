@@ -180,6 +180,13 @@ export default function LeadsPage() {
   >("updated_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [hoveredLead, setHoveredLead] = useState<Lead | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+
+  const activeFilterCount =
+    (statusFilter ? 1 : 0) +
+    (classificationFilter ? 1 : 0) +
+    (requirementTypeFilter ? 1 : 0) +
+    (locationFilter ? 1 : 0);
 
   const isArchivedView = activeView === "archived";
 
@@ -332,22 +339,21 @@ export default function LeadsPage() {
     <div className="space-y-6">
       <Toaster position="top-right" />
       {/* HEADER */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+          <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
             <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
               Lead Management
             </span>
-            <span className="text-sm font-normal bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-3 py-1 rounded-full">
-              {total.toLocaleString()} total
+            <span className="text-xs lg:text-sm font-normal bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-full">
+              {total.toLocaleString()}
             </span>
           </h1>
-          <p className="mt-1 text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-sm lg:text-base text-slate-500 dark:text-slate-400 hidden sm:block">
             Track, manage, and convert your leads with AI-powered insights
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <HelpButton section="leads" variant="icon" />
+        <div className="flex items-center gap-2 lg:gap-3">
           <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg flex text-sm font-medium">
             <button
               onClick={() => setViewMode("list")}
@@ -362,9 +368,12 @@ export default function LeadsPage() {
               Kanban
             </button>
           </div>
-          <Link href="/leads/new">
-            <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
-              <PlusIcon className="h-4 w-4 mr-2" />
+          <div className="hidden lg:block">
+            <HelpButton section="leads" variant="icon" />
+          </div>
+          <Link href="/leads/new" className="flex-1 lg:flex-none">
+            <Button className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
+              <PlusIcon className="h-4 w-4 mr-1" />
               New Lead
             </Button>
           </Link>
@@ -393,22 +402,38 @@ export default function LeadsPage() {
       </div>
 
       {/* FILTERS BAR */}
-      <Card className="p-4">
-        <div className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1 relative">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search by name, phone, or notes..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+      <Card className="p-3 lg:p-4">
+        <div className="flex flex-col lg:flex-row gap-3 lg:gap-4">
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search name or phone..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            {/* Mobile-only filter toggle */}
+            <button
+              onClick={() => setShowFilters((v) => !v)}
+              className="lg:hidden relative flex items-center gap-1.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-600 dark:text-slate-300"
+            >
+              ⚙️
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center text-[10px] font-bold text-white bg-blue-600 rounded-full">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
           </div>
-          <div className="flex gap-2 flex-wrap">
+          <div
+            className={`${showFilters ? "grid" : "hidden"} grid-cols-2 gap-2 lg:flex lg:flex-wrap`}
+          >
             <select
               value={statusFilter}
               onChange={(e) => {
@@ -462,13 +487,13 @@ export default function LeadsPage() {
             {/* Location Filter - Issue #5 */}
             <input
               type="text"
-              placeholder="Filter by region/location..."
+              placeholder="Region/location..."
               value={locationFilter}
               onChange={(e) => {
                 setLocationFilter(e.target.value);
                 setPage(1);
               }}
-              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
+              className="col-span-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full lg:w-48"
             />
           </div>
         </div>
@@ -612,6 +637,40 @@ export default function LeadsPage() {
 // SUBCOMPONENTS
 // ============================================================================
 
+// Compact circular AI-score gauge, shared by the mobile card + desktop row.
+function ScoreRing({ score, size = 32 }: { score: number; size?: number }) {
+  const pct = Math.round(score * 100);
+  const ringColor =
+    score >= 0.7 ? "#22c55e" : score >= 0.4 ? "#f59e0b" : "#ef4444";
+  const inner = size - 8;
+  return (
+    <div
+      className="rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+      style={{
+        width: size,
+        height: size,
+        background: `conic-gradient(${ringColor} ${score * 360}deg, #e5e7eb 0deg)`,
+      }}
+    >
+      <span
+        className="bg-white dark:bg-slate-900 rounded-full flex items-center justify-center text-slate-900 dark:text-white"
+        style={{ width: inner, height: inner }}
+      >
+        {pct}
+      </span>
+    </div>
+  );
+}
+
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
 function LeadRow({
   lead,
   onHover,
@@ -637,12 +696,97 @@ function LeadRow({
   return (
     <Link
       href={`/leads/${lead.id}`}
-      className={`block lg:grid lg:grid-cols-12 gap-4 px-6 py-4 hover:brightness-95 dark:hover:brightness-110 transition-all relative group
+      className={`block relative group transition-all active:brightness-95 lg:hover:brightness-95 dark:lg:hover:brightness-110
         ${status.rowBg}
         ${isCreatedToday ? "border-l-4 border-l-green-500" : ""} ${isUpdatedToday ? "border-l-4 border-l-blue-500" : ""}`}
       onMouseEnter={() => onHover(lead)}
       onMouseLeave={() => onHover(null)}
     >
+      {/* ===================== MOBILE CARD (< lg) ===================== */}
+      <div className="lg:hidden p-4">
+        <div className="flex items-start gap-3">
+          <div className="relative flex-shrink-0">
+            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-600 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-semibold">
+              {initials(lead.name)}
+            </div>
+            <span className="absolute -bottom-0.5 -right-0.5 text-base leading-none">
+              {temp.emoji}
+            </span>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="font-semibold text-slate-900 dark:text-white truncate text-[15px]">
+                {lead.name}
+              </h3>
+              {lead.ai_score ? <ScoreRing score={lead.ai_score} size={34} /> : null}
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+              {lead.contact}
+            </p>
+
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${status.bg} ${status.color} border ${status.border}`}
+              >
+                {status.label}
+              </span>
+              {stage && (
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${stage.color}`}
+                >
+                  <span>{stage.icon}</span>
+                  {stage.label}
+                </span>
+              )}
+              {lead.source && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800">
+                  {lead.source}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-200/60 dark:border-slate-700/60 pt-2.5">
+          <div className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-2 min-w-0">
+            <span className="truncate">
+              {isCreatedToday ? "🆕 Added today" : `Updated ${formatDate(lead.updated_at)}`}
+            </span>
+            {lead.follow_up_date && (
+              <span className="flex items-center gap-0.5 whitespace-nowrap">
+                📞 {formatDate(lead.follow_up_date)}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              onClick={onCall}
+              aria-label="Call"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-green-50 dark:bg-green-900/30 text-green-600 active:bg-green-100"
+            >
+              📞
+            </button>
+            <button
+              onClick={onWhatsApp}
+              aria-label="WhatsApp"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 active:bg-emerald-100"
+            >
+              💬
+            </button>
+            <button
+              onClick={onArchive}
+              aria-label={lead.is_archived ? "Unarchive" : "Archive"}
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 active:bg-slate-200"
+            >
+              {lead.is_archived ? "↩️" : "🗄️"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ===================== DESKTOP ROW (lg+) ===================== */}
+      <div className="hidden lg:grid lg:grid-cols-12 gap-4 px-6 py-4">
       <div className="col-span-2 flex items-start gap-3">
         <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-600 dark:to-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-medium text-sm">
           {lead.name
@@ -753,6 +897,7 @@ function LeadRow({
         >
           {lead.is_archived ? "↩️" : "🗄️"}
         </button>
+      </div>
       </div>
     </Link>
   );

@@ -11,12 +11,28 @@ import {
   sanitizeSearchTerm,
 } from "@/lib/api-utils";
 import { notifyNewLeadDetailed } from "@/lib/telegram";
+import { sendPushToUser } from "@/lib/push/fcm";
 import {
   createLeadSchema,
   paginationSchema,
   leadFiltersSchema,
   type Lead,
 } from "@maiyuri/shared";
+
+/**
+ * Resolve which users should receive a "new lead" push:
+ * the assigned rep if set, otherwise leadership (founder/owner).
+ */
+async function resolveNewLeadRecipients(
+  assignedStaff: string | null,
+): Promise<string[]> {
+  if (assignedStaff) return [assignedStaff];
+  const { data } = await supabaseAdmin
+    .from("users")
+    .select("id")
+    .in("role", ["founder", "owner"]);
+  return (data ?? []).map((u) => u.id);
+}
 
 // GET /api/leads - List all leads with filtering and pagination
 export async function GET(request: NextRequest) {
@@ -114,6 +130,27 @@ export async function POST(request: NextRequest) {
       assignedStaff: lead.assigned_staff,
     }).catch((err) => {
       console.error("Failed to send Telegram notification:", err);
+    });
+
+    // Native push for the new lead (best-effort, non-blocking).
+    (async () => {
+      const recipients = await resolveNewLeadRecipients(
+        lead.assigned_staff ?? null,
+      );
+      const detail = [lead.source, lead.location, lead.requirements]
+        .filter(Boolean)
+        .join(" · ");
+      await Promise.all(
+        recipients.map((uid) =>
+          sendPushToUser(uid, {
+            title: `🆕 New lead: ${lead.name}`,
+            body: detail || lead.contact || "Tap to view the new lead.",
+            data: { url: `/leads/${lead.id}` },
+          }),
+        ),
+      );
+    })().catch((err) => {
+      console.error("Failed to send new-lead push:", err);
     });
 
     return created<Lead>(lead);
