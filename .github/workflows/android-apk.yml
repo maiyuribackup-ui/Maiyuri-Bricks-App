@@ -46,9 +46,28 @@ jobs:
       - name: Sync web assets + native config into android/
         run: npx cap sync android
 
-      - name: Build debug APK
+      - name: Decode stable signing keystore (if configured)
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/mb.keystore"
+            echo "MB_KEYSTORE=$RUNNER_TEMP/mb.keystore" >> "$GITHUB_ENV"
+            echo "Using stable signing key — updates will install over each other."
+          else
+            echo "No ANDROID_KEYSTORE_BASE64 — falling back to ephemeral debug key (updates won't install over a differently-signed build)."
+          fi
+
+      - name: Build debug APK (signed with the stable key when available)
         working-directory: apps/mobile/android
-        run: ./gradlew --no-daemon assembleDebug
+        run: |
+          if [ -n "$MB_KEYSTORE" ]; then
+            ./gradlew --no-daemon assembleDebug \
+              -Pandroid.injected.signing.store.file="$MB_KEYSTORE" \
+              -Pandroid.injected.signing.store.password="${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+              -Pandroid.injected.signing.key.alias="${{ secrets.ANDROID_KEY_ALIAS }}" \
+              -Pandroid.injected.signing.key.password="${{ secrets.ANDROID_KEY_PASSWORD }}"
+          else
+            ./gradlew --no-daemon assembleDebug
+          fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
