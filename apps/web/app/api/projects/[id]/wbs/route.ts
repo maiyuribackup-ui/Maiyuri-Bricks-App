@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, error, parseBody } from "@/lib/api-utils";
 import { updateWbsItemSchema } from "@maiyuri/shared";
+import { recomputeProject } from "@/lib/projects/recompute";
 import { z } from "zod";
 
 interface RouteParams {
@@ -62,6 +63,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .select()
       .single();
     if (dbErr) return error(`Failed to update WBS: ${dbErr.message}`, 500);
+    // Re-roll project progress/forecast/health so the list view stays fresh.
+    await recomputeProject(id);
     return success(data);
   } catch {
     return error("Internal server error", 500);
