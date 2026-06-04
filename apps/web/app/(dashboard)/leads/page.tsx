@@ -19,6 +19,13 @@ import {
   LEAD_STATUS_MAP,
   LEAD_TEMPERATURE_MAP,
 } from "@/lib/lead-taxonomy";
+import {
+  getAging,
+  getNextAction,
+  triageScore,
+  URGENCY_STYLES,
+} from "@/lib/lead-insights";
+import { LeadQuickActions } from "@/components/leads/LeadQuickActions";
 
 // ============================================================================
 // CONSTANTS & HELPERS (derived from the V2 lead taxonomy)
@@ -213,6 +220,16 @@ async function fetchLeads(
   return res.json();
 }
 
+async function patchLead(id: string, body: Record<string, unknown>) {
+  const res = await fetch(`/api/leads/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error("Failed to update lead");
+  return res.json();
+}
+
 async function updateLeadArchiveStatus(id: string, isArchived: boolean) {
   const res = await fetch(`/api/leads/${id}`, {
     method: "PUT",
@@ -271,6 +288,7 @@ export default function LeadsPage() {
   const [hoveredLead, setHoveredLead] = useState<Lead | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupKey>("temperature");
+  const [actionLead, setActionLead] = useState<Lead | null>(null);
 
   const activeFilterCount =
     (statusFilter ? 1 : 0) +
@@ -301,6 +319,59 @@ export default function LeadsPage() {
     onError: () => toast.error("Failed to update lead"),
   });
 
+  // Staff list for the reassign action (cached; any authenticated user can read)
+  const { data: usersData } = useQuery({
+    queryKey: ["users"],
+    queryFn: async () => {
+      const res = await fetch("/api/users");
+      if (!res.ok) throw new Error("Failed to fetch users");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const staffUsers: { id: string; name: string; role?: string }[] =
+    usersData?.data ?? [];
+
+  // Inline quick-action patch (stage / temperature / follow-up / reassign).
+  const quickPatch = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
+      patchLead(id, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      toast.success("Lead updated");
+      setActionLead(null);
+    },
+    onError: () => toast.error("Update failed"),
+  });
+
+  // One-tap Smart Quote generation from the list.
+  const generateQuote = useMutation({
+    mutationFn: async (leadId: string) => {
+      const res = await fetch("/api/smart-quotes/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lead_id: leadId }),
+      });
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        throw new Error(t || "Failed to generate quote");
+      }
+      return res.json();
+    },
+    onSuccess: (json) => {
+      const slug = json?.data?.link_slug;
+      setActionLead(null);
+      if (slug) {
+        toast.success("Smart Quote ready — opening…");
+        window.open(`${window.location.origin}/sq/${slug}`, "_blank");
+      } else {
+        toast.success("Smart Quote generated");
+      }
+    },
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Failed to generate quote"),
+  });
+
   const handleArchiveToggle = (e: React.MouseEvent, lead: Lead) => {
     e.preventDefault(); // Prevent row click
     e.stopPropagation();
@@ -317,6 +388,12 @@ export default function LeadsPage() {
     e.preventDefault();
     e.stopPropagation();
     window.open(`tel:${contact}`, "_self");
+  };
+
+  const handleMore = (e: React.MouseEvent, lead: Lead) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setActionLead(lead);
   };
 
   const toggleSort = (field: typeof sortBy) => {
@@ -431,6 +508,19 @@ export default function LeadsPage() {
     () => buildGroups(filteredLeads, groupBy),
     [filteredLeads, groupBy],
   );
+
+  // "Call next" triage — the most urgent leads to action right now, ranked by
+  // overdue follow-ups, temperature, decay and AI score. Drawn from the full
+  // loaded set so priorities surface regardless of the active view tab.
+  const callNextLeads = useMemo(() => {
+    if (isArchivedView) return [];
+    return allLeads
+      .map((l) => ({ lead: l, score: triageScore(l) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8)
+      .map((x) => x.lead);
+  }, [allLeads, isArchivedView]);
 
   return (
     <div className="space-y-6">
@@ -596,6 +686,57 @@ export default function LeadsPage() {
         </div>
       </Card>
 
+      {/* CALL-NEXT TRIAGE STRIP */}
+      {viewMode === "list" && callNextLeads.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm font-semibold text-slate-900 dark:text-white">
+              ⚡ Call next
+            </span>
+            <span className="text-xs text-slate-400 dark:text-slate-500">
+              {callNextLeads.length} most urgent
+            </span>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x">
+            {callNextLeads.map((lead) => {
+              const action = getNextAction(lead);
+              return (
+                <Link
+                  key={lead.id}
+                  href={`/leads/${lead.id}`}
+                  className="snap-start flex-shrink-0 w-60 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-900 dark:text-white truncate text-sm">
+                        {lead.name}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                        {lead.contact}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => handleCall(e, lead.contact)}
+                      aria-label="Call"
+                      className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-full bg-green-500 text-white active:bg-green-600"
+                    >
+                      📞
+                    </button>
+                  </div>
+                  {action && (
+                    <p
+                      className={`mt-2 text-xs font-medium ${URGENCY_STYLES[action.urgency]}`}
+                    >
+                      {action.text}
+                    </p>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* GROUP-BY TOOLBAR (list view) */}
       {viewMode === "list" && (
         <div className="flex items-center justify-between gap-3 -mb-2">
@@ -717,6 +858,7 @@ export default function LeadsPage() {
                           onArchive={(e) => handleArchiveToggle(e, lead)}
                           onWhatsApp={(e) => handleWhatsApp(e, lead.contact)}
                           onCall={(e) => handleCall(e, lead.contact)}
+                          onMore={(e) => handleMore(e, lead)}
                         />
                       ))}
                     </div>
@@ -767,6 +909,19 @@ export default function LeadsPage() {
       ) : null}
 
       {hoveredLead && <LeadHoverCard lead={hoveredLead} />}
+
+      {actionLead && (
+        <LeadQuickActions
+          lead={actionLead}
+          users={staffUsers}
+          busy={quickPatch.isPending || generateQuote.isPending}
+          onClose={() => setActionLead(null)}
+          onPatch={(body) =>
+            quickPatch.mutate({ id: actionLead.id, body })
+          }
+          onGenerateQuote={() => generateQuote.mutate(actionLead.id)}
+        />
+      )}
     </div>
   );
 }
@@ -816,6 +971,7 @@ function LeadRow({
   onArchive,
   onWhatsApp,
   onCall,
+  onMore,
 }: {
   lead: Lead;
   onHover: (lead: Lead | null) => void;
@@ -823,6 +979,7 @@ function LeadRow({
   onArchive: (e: React.MouseEvent) => void;
   onWhatsApp: (e: React.MouseEvent) => void;
   onCall: (e: React.MouseEvent) => void;
+  onMore: (e: React.MouseEvent) => void;
 }) {
   const status = statusConfig[lead.lead_status];
   const isCreatedToday = isToday(lead.created_at);
@@ -831,12 +988,24 @@ function LeadRow({
   const stage = stageConfig[lead.pipeline_stage];
   const temp = LEAD_TEMPERATURE_MAP[lead.lead_temperature];
 
+  const aging = getAging(lead);
+  const nextAction = getNextAction(lead);
+
+  // Accent rail priority: stale (red) > created today (green) > updated (blue).
+  const rail = aging.stale
+    ? "border-l-4 border-l-red-500"
+    : isCreatedToday
+      ? "border-l-4 border-l-green-500"
+      : isUpdatedToday
+        ? "border-l-4 border-l-blue-500"
+        : "";
+
   return (
     <Link
       href={`/leads/${lead.id}`}
       className={`block relative group transition-all active:brightness-95 lg:hover:brightness-95 dark:lg:hover:brightness-110
         ${status.rowBg}
-        ${isCreatedToday ? "border-l-4 border-l-green-500" : ""} ${isUpdatedToday ? "border-l-4 border-l-blue-500" : ""}`}
+        ${rail}`}
       onMouseEnter={() => onHover(lead)}
       onMouseLeave={() => onHover(null)}
     >
@@ -882,7 +1051,21 @@ function LeadRow({
                   {lead.source}
                 </span>
               )}
+              {aging.stale && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30">
+                  ⏳ {aging.label}
+                </span>
+              )}
             </div>
+
+            {nextAction && (
+              <p
+                className={`mt-1.5 text-xs font-medium flex items-center gap-1 ${URGENCY_STYLES[nextAction.urgency]}`}
+              >
+                <span>→</span>
+                {nextAction.text}
+              </p>
+            )}
           </div>
         </div>
 
@@ -919,6 +1102,13 @@ function LeadRow({
             >
               {lead.is_archived ? "↩️" : "🗄️"}
             </button>
+            <button
+              onClick={onMore}
+              aria-label="Quick actions"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 active:bg-blue-100 text-lg font-bold"
+            >
+              ⋯
+            </button>
           </div>
         </div>
       </div>
@@ -938,11 +1128,18 @@ function LeadRow({
           <div className="font-medium text-slate-900 dark:text-white truncate flex items-center gap-2">
             {lead.name}
           </div>
-          {lead.staff_notes && (
+          {nextAction ? (
+            <p
+              className={`text-xs truncate mt-0.5 font-medium ${URGENCY_STYLES[nextAction.urgency]}`}
+              title={nextAction.text}
+            >
+              → {nextAction.text}
+            </p>
+          ) : lead.staff_notes ? (
             <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
               {lead.staff_notes.slice(0, 30)}...
             </p>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -1009,8 +1206,13 @@ function LeadRow({
         {formatDate(lead.created_at)}
       </div>
 
-      <div className="col-span-1 flex items-center text-sm text-slate-500">
-        {formatDate(lead.updated_at)}
+      <div className="col-span-1 flex flex-col justify-center text-sm text-slate-500">
+        <span>{formatDate(lead.updated_at)}</span>
+        {aging.stale && (
+          <span className="text-xs font-semibold text-red-600 dark:text-red-400">
+            ⏳ {aging.label}
+          </span>
+        )}
       </div>
 
       <div className="col-span-2 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1034,6 +1236,13 @@ function LeadRow({
           className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded"
         >
           {lead.is_archived ? "↩️" : "🗄️"}
+        </button>
+        <button
+          onClick={onMore}
+          title="Quick actions"
+          className="p-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 rounded font-bold"
+        >
+          ⋯
         </button>
       </div>
       </div>
