@@ -523,7 +523,16 @@ export default function LeadsPage() {
   }, [allLeads, isArchivedView]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Decorative gradient backdrop — gives the glass cards colour to blur */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+      >
+        <div className="absolute -top-24 -left-24 w-[28rem] h-[28rem] rounded-full bg-indigo-300/30 dark:bg-indigo-600/15 blur-3xl" />
+        <div className="absolute top-1/3 -right-24 w-[26rem] h-[26rem] rounded-full bg-cyan-300/25 dark:bg-cyan-500/10 blur-3xl" />
+        <div className="absolute bottom-0 left-1/4 w-[24rem] h-[24rem] rounded-full bg-violet-300/25 dark:bg-fuchsia-600/10 blur-3xl" />
+      </div>
       <Toaster position="top-right" />
       {/* HEADER */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
@@ -704,7 +713,7 @@ export default function LeadsPage() {
                 <Link
                   key={lead.id}
                   href={`/leads/${lead.id}`}
-                  className="snap-start flex-shrink-0 w-60 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 shadow-sm hover:shadow-md transition-shadow"
+                  className="snap-start flex-shrink-0 w-60 bg-white/75 dark:bg-slate-900/55 backdrop-blur-xl rounded-2xl ring-1 ring-black/5 dark:ring-white/10 p-3 shadow-lg shadow-slate-900/5 hover:shadow-xl hover:-translate-y-0.5 transition-all"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -776,7 +785,7 @@ export default function LeadsPage() {
 
       {/* LEADS TABLE */}
       {viewMode === "list" ? (
-        <Card className="overflow-hidden">
+        <Card className="border-0 bg-transparent p-0 shadow-none overflow-visible lg:border lg:bg-card lg:p-6 lg:shadow-sm lg:overflow-hidden">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-16">
               <Spinner size="lg" />
@@ -838,17 +847,17 @@ export default function LeadsPage() {
               {/* Table Rows (grouped) */}
               <div>
                 {groups.map((group) => (
-                  <div key={group.key}>
+                  <div key={group.key} className="mb-4 lg:mb-0">
                     {groupBy !== "none" && (
-                      <div className="sticky top-0 z-10 flex items-center gap-2 px-4 lg:px-6 py-2 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur border-y border-slate-200 dark:border-slate-700 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                        {group.emoji && <span>{group.emoji}</span>}
+                      <div className="sticky top-0 z-10 flex items-center gap-2 mb-2 lg:mb-0 px-3 py-2 rounded-xl lg:rounded-none bg-white/70 dark:bg-slate-900/70 backdrop-blur-md lg:bg-slate-100/95 dark:lg:bg-slate-800/95 lg:px-6 lg:border-y lg:border-slate-200 dark:lg:border-slate-700 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 ring-1 ring-black/5 dark:ring-white/10 lg:ring-0">
+                        {group.emoji && <span className="text-sm">{group.emoji}</span>}
                         <span>{group.label || "Other"}</span>
-                        <span className="ml-1 px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 normal-case">
+                        <span className="ml-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 text-white text-[10px] normal-case font-bold shadow-sm">
                           {group.leads.length}
                         </span>
                       </div>
                     )}
-                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                    <div className="space-y-3 lg:space-y-0 lg:divide-y lg:divide-slate-100 dark:lg:divide-slate-800">
                       {group.leads.map((lead) => (
                         <LeadRow
                           key={lead.id}
@@ -1000,11 +1009,21 @@ function LeadRow({
         ? "border-l-4 border-l-blue-500"
         : "";
 
+  // Temperature-coded avatar gradient — meaningful colour at a glance.
+  const avatarGradient =
+    lead.lead_temperature === "hot"
+      ? "from-rose-400 to-red-500"
+      : lead.lead_temperature === "warm"
+        ? "from-amber-400 to-orange-500"
+        : "from-sky-400 to-blue-500";
+
   return (
     <Link
       href={`/leads/${lead.id}`}
-      className={`block relative group transition-all active:brightness-95 lg:hover:brightness-95 dark:lg:hover:brightness-110
-        ${status.rowBg}
+      className={`block relative group transition-all
+        rounded-2xl bg-white/75 dark:bg-slate-900/55 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10 shadow-lg shadow-slate-900/5 active:scale-[0.99]
+        lg:rounded-none lg:bg-transparent lg:backdrop-blur-none lg:ring-0 lg:shadow-none lg:hover:brightness-95 dark:lg:hover:brightness-110
+        overflow-hidden
         ${rail}`}
       onMouseEnter={() => onHover(lead)}
       onMouseLeave={() => onHover(null)}
@@ -1013,10 +1032,12 @@ function LeadRow({
       <div className="lg:hidden p-4">
         <div className="flex items-start gap-3">
           <div className="relative flex-shrink-0">
-            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-600 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-semibold">
+            <div
+              className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${avatarGradient} flex items-center justify-center text-white font-bold text-sm shadow-md`}
+            >
               {initials(lead.name)}
             </div>
-            <span className="absolute -bottom-0.5 -right-0.5 text-base leading-none">
+            <span className="absolute -bottom-1 -right-1 text-base leading-none drop-shadow">
               {temp.emoji}
             </span>
           </div>
@@ -1114,7 +1135,7 @@ function LeadRow({
       </div>
 
       {/* ===================== DESKTOP ROW (lg+) ===================== */}
-      <div className="hidden lg:grid lg:grid-cols-12 gap-4 px-6 py-4">
+      <div className={`hidden lg:grid lg:grid-cols-12 gap-4 px-6 py-4 ${status.rowBg}`}>
       <div className="col-span-2 flex items-start gap-3">
         <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-600 dark:to-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-medium text-sm">
           {lead.name
