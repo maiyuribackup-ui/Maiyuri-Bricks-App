@@ -638,6 +638,8 @@ export const updateSmartQuoteSchema = z.object({
       ta: z.record(z.string()).optional(),
     })
     .optional(),
+  // Per-quote wall-cost personalization (full config from the staff editor).
+  wall_cost_config: wallCostConfigSchema.optional(),
 });
 
 // Objection object schema

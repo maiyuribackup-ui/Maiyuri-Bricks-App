@@ -9,6 +9,8 @@ import { WhyChennaiWorksSection } from "./ui/WhyChennaiWorksSection";
 import { ProofSection } from "./ui/ProofSection";
 import { ObjectionAnswerSection } from "./ui/ObjectionAnswerSection";
 import { InteractiveEstimate } from "./ui/InteractiveEstimate";
+import { WallCostComparison } from "@/components/wall-cost/WallCostComparison";
+import { computeWallComparison } from "@/lib/pricing/wall-cost";
 import type {
   SmartQuoteLanguage,
   SmartQuoteWithImages,
@@ -221,6 +223,20 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
           onCtaTrack={(payload) => trackEvent("cta_click", "instant_estimate", payload)}
         />
       </section>
+
+      {/* === SECTION 7: TOTAL-COST-OF-CONSTRUCTION COMPARISON === */}
+      {(() => {
+        const comparison = computeWallComparison(
+          quote.wall_cost_config,
+          quote.pricing_config?.default_area_sqft ?? null,
+        );
+        if (!comparison) return null;
+        return (
+          <section data-section="cost_comparison" className="max-w-2xl mx-auto px-4">
+            <WallCostComparison comparison={comparison} language={language} />
+          </section>
+        );
+      })()}
 
       {/* Footer */}
       <footer className={cn("py-10 text-center", colors.background.secondary)}>

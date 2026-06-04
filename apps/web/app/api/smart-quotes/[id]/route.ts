@@ -67,6 +67,16 @@ export async function PATCH(
       };
     }
 
+    // Per-quote wall-cost personalization (full config from the staff editor).
+    if (parsed.data.wall_cost_config) {
+      updates.wall_cost_config = {
+        ...parsed.data.wall_cost_config,
+        is_seeded_placeholder: false,
+        updated_at: new Date().toISOString(),
+        updated_by: user.id,
+      };
+    }
+
     const { data: updated, error: updErr } = await supabaseAdmin
       .from("smart_quotes")
       .update(updates)

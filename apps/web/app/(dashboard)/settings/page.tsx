@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, Button, Spinner } from "@maiyuri/ui";
 import { SmartQuoteImagesTab } from "@/components/settings/SmartQuoteImagesTab";
+import { WallCostSettingsTab } from "@/components/settings/WallCostSettingsTab";
 import { HelpButton } from "@/components/help";
 
 interface UserProfile {
@@ -49,7 +50,13 @@ async function fetchTeamMembers(): Promise<{ data: TeamMember[] }> {
   return res.json();
 }
 
-type TabId = "profile" | "notifications" | "team" | "smart-quotes" | "nudges";
+type TabId =
+  | "profile"
+  | "notifications"
+  | "team"
+  | "smart-quotes"
+  | "wall-costs"
+  | "nudges";
 
 interface Tab {
   id: TabId;
@@ -62,6 +69,7 @@ const TABS: Tab[] = [
   { id: "notifications", label: "Notifications" },
   { id: "team", label: "Team", roles: ["founder", "owner"] },
   { id: "smart-quotes", label: "Smart Quotes", roles: ["founder"] },
+  { id: "wall-costs", label: "Wall Costs", roles: ["founder", "owner"] },
   { id: "nudges", label: "Nudges", roles: ["founder", "owner", "admin"] },
 ];
 
@@ -120,6 +128,7 @@ export default function SettingsPage() {
       {activeTab === "notifications" && <NotificationSettings />}
       {activeTab === "team" && <TeamSettings />}
       {activeTab === "smart-quotes" && <SmartQuoteImagesTab />}
+      {activeTab === "wall-costs" && <WallCostSettingsTab />}
       {activeTab === "nudges" && <NudgesSettings />}
     </div>
   );

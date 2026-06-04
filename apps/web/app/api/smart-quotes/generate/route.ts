@@ -165,6 +165,15 @@ export async function POST(request: NextRequest) {
       repPhone,
     });
 
+    // Snapshot the founder's global wall-cost template onto this quote so the
+    // rep can personalize it and the shared numbers stay frozen.
+    const { data: factory } = await supabaseAdmin
+      .from("factory_settings")
+      .select("wall_cost_config")
+      .limit(1)
+      .single();
+    const wallCostSnapshot = factory?.wall_cost_config ?? null;
+
     // Insert smart quote
     const { data: smartQuote, error: insertError } = await supabaseAdmin
       .from("smart_quotes")
@@ -183,6 +192,7 @@ export async function POST(request: NextRequest) {
         page_config: aiResult.strategy.page_config,
         copy_map: aiResult.copyMap,
         pricing_config: pricingConfig,
+        wall_cost_config: wallCostSnapshot,
       })
       .select()
       .single();

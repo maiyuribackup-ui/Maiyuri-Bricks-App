@@ -3,7 +3,14 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@maiyuri/ui";
-import type { SmartQuote, SmartQuotePricingConfig } from "@maiyuri/shared";
+import type {
+  SmartQuote,
+  SmartQuotePricingConfig,
+  WallCostConfig,
+} from "@maiyuri/shared";
+import { WallCostComparison } from "@/components/wall-cost/WallCostComparison";
+import { WallCostSettings } from "@/components/wall-cost/WallCostSettings";
+import { computeWallComparison } from "@/lib/pricing/wall-cost";
 
 interface Engagement {
   viewed: boolean;
@@ -48,6 +55,26 @@ export function SmartQuoteReview({ quote }: { quote: SmartQuote }) {
   const [repPhone, setRepPhone] = useState<string>(pricing.rep_phone ?? "");
   const [note, setNote] = useState<string>(pricing.price_note ?? "");
   const [saved, setSaved] = useState(false);
+  const [editWall, setEditWall] = useState(false);
+
+  const wallSave = useMutation({
+    mutationFn: async (cfg: WallCostConfig) => {
+      const res = await fetch(`/api/smart-quotes/${quote.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wall_cost_config: cfg }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      setEditWall(false);
+      queryClient.invalidateQueries({ queryKey: ["smart-quote", quote.lead_id] });
+    },
+  });
+
+  const wallArea = area ? Number(area) : pricing.default_area_sqft ?? null;
+  const wallComparison = computeWallComparison(quote.wall_cost_config, wallArea);
 
   // Engagement
   const { data: engagement } = useQuery<Engagement | null>({
@@ -184,6 +211,34 @@ export function SmartQuoteReview({ quote }: { quote: SmartQuote }) {
           >
             {saveMutation.isPending ? "Saving…" : saved ? "✓ Saved" : "Save defaults"}
           </Button>
+
+          {/* Personalize the build-cost comparison for this customer */}
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                🧱 Build-cost comparison
+              </span>
+              <button
+                onClick={() => setEditWall((v) => !v)}
+                className="text-xs font-medium text-blue-600 dark:text-blue-400"
+              >
+                {editWall ? "Close" : "Personalize ₹"}
+              </button>
+            </div>
+            {editWall ? (
+              <WallCostSettings
+                initial={quote.wall_cost_config}
+                saving={wallSave.isPending}
+                onSave={(cfg) => wallSave.mutate(cfg)}
+              />
+            ) : wallComparison ? (
+              <WallCostComparison comparison={wallComparison} language="en" />
+            ) : (
+              <p className="text-xs text-slate-400">
+                Set a default area above to preview the build-cost comparison.
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>
