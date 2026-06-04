@@ -108,7 +108,7 @@ jobs:
         if: steps.gate.outputs.signed == 'true'
       - name: Decode keystore
         if: steps.gate.outputs.signed == 'true'
-        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
       - name: Sync + build signed release
         if: steps.gate.outputs.signed == 'true'
         env:
@@ -118,8 +118,10 @@ jobs:
         run: |
           npx cap sync android
           cd android
+          # store.file must be ABSOLUTE — Gradle resolves a relative path against
+          # the :app module dir, which produced app/app/release.keystore (404).
           ./gradlew --no-daemon assembleRelease \
-            -Pandroid.injected.signing.store.file=app/release.keystore \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.keystore" \
             -Pandroid.injected.signing.store.password="$KS_PASS" \
             -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
             -Pandroid.injected.signing.key.password="$KEY_PASS"
