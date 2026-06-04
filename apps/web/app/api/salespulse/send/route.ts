@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { sendTelegramMessage } from "@/lib/telegram";
-import { sendPushToUser } from "@/lib/push/fcm";
+import { sendPushToUsers } from "@/lib/push/fcm";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { error, unauthorized, handleZodError, success } from "@/lib/api-utils";
 
@@ -105,18 +105,9 @@ export async function POST(request: NextRequest) {
         .from("users")
         .select("id")
         .in("role", targetRoles);
-      for (const u of recipients ?? []) {
-        try {
-          const r = await sendPushToUser(u.id, {
-            title,
-            body,
-            data: { url: url || "/dashboard" },
-          });
-          pushSent += r.sent;
-        } catch {
-          /* per-user best-effort */
-        }
-      }
+      const recipientIds = (recipients ?? []).map((u) => u.id);
+      const r = await sendPushToUsers(recipientIds, { title, body, data: { url: url || "/dashboard" } });
+      pushSent = r.sent;
     } catch (err) {
       console.error("[SalesPulse] Push dispatch failed:", err);
     }

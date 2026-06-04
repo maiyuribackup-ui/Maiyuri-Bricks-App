@@ -509,18 +509,33 @@ export default function LeadsPage() {
     [filteredLeads, groupBy],
   );
 
+  // Dedicated triage query — fetches active non-archived leads independently of
+  // the current view/filter/page so the most urgent lead is never hidden behind
+  // a pagination boundary or an active status filter.
+  const { data: triageData } = useQuery({
+    queryKey: ["leads-triage"],
+    queryFn: async () => {
+      const res = await fetch(`/api/leads?is_archived=false&limit=100`);
+      if (!res.ok) throw new Error("Failed to fetch triage leads");
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+  const triagePool: Lead[] = triageData?.data ?? [];
+
   // "Call next" triage — the most urgent leads to action right now, ranked by
-  // overdue follow-ups, temperature, decay and AI score. Drawn from the full
-  // loaded set so priorities surface regardless of the active view tab.
+  // overdue follow-ups, temperature, decay and AI score. Drawn from triagePool
+  // (independent broad fetch) so priorities surface regardless of the active
+  // view tab, status filter, search term, or current page.
   const callNextLeads = useMemo(() => {
     if (isArchivedView) return [];
-    return allLeads
+    return triagePool
       .map((l) => ({ lead: l, score: triageScore(l) }))
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score)
       .slice(0, 8)
       .map((x) => x.lead);
-  }, [allLeads, isArchivedView]);
+  }, [triagePool, isArchivedView]);
 
   return (
     <div className="space-y-6 relative">

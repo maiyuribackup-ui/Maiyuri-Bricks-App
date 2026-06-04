@@ -11,7 +11,7 @@ import {
   sanitizeSearchTerm,
 } from "@/lib/api-utils";
 import { notifyNewLeadDetailed } from "@/lib/telegram";
-import { sendPushToUser } from "@/lib/push/fcm";
+import { sendPushToUsers } from "@/lib/push/fcm";
 import {
   createLeadSchema,
   paginationSchema,
@@ -124,34 +124,35 @@ export async function POST(request: NextRequest) {
       name: lead.name,
       phone: lead.contact,
       source: lead.source,
-      location: lead.location,
-      requirements: lead.requirements,
+      location: lead.site_location,
+      requirements: lead.requirement_type
+        ? String(lead.requirement_type).replace(/_/g, " ")
+        : undefined,
       budget: lead.budget,
       assignedStaff: lead.assigned_staff,
     }).catch((err) => {
       console.error("Failed to send Telegram notification:", err);
     });
 
-    // Native push for the new lead (best-effort, non-blocking).
-    (async () => {
+    // Native push for the new lead (awaited before response so Vercel doesn't kill it).
+    try {
       const recipients = await resolveNewLeadRecipients(
         lead.assigned_staff ?? null,
       );
-      const detail = [lead.source, lead.location, lead.requirements]
+      const requirement = lead.requirement_type
+        ? String(lead.requirement_type).replace(/_/g, " ")
+        : null;
+      const detail = [lead.source, lead.site_location, requirement]
         .filter(Boolean)
         .join(" · ");
-      await Promise.all(
-        recipients.map((uid) =>
-          sendPushToUser(uid, {
-            title: `🆕 New lead: ${lead.name}`,
-            body: detail || lead.contact || "Tap to view the new lead.",
-            data: { url: `/leads/${lead.id}` },
-          }),
-        ),
-      );
-    })().catch((err) => {
+      await sendPushToUsers(recipients, {
+        title: `🆕 New lead: ${lead.name}`,
+        body: detail || lead.contact || "Tap to view the new lead.",
+        data: { url: `/leads/${lead.id}` },
+      });
+    } catch (err) {
       console.error("Failed to send new-lead push:", err);
-    });
+    }
 
     return created<Lead>(lead);
   } catch (err) {

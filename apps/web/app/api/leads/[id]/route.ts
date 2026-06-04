@@ -147,63 +147,68 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // Native push on meaningful updates (best-effort, non-blocking).
     // Two cases:
-    //  1) Reassignment → always ping the NEW owner ("a lead was assigned to you").
+    //  1) Reassignment → ping the NEW owner ("a lead was assigned to you"),
+    //     unless the editor is assigning the lead to themselves.
     //  2) Status/stage/temperature/follow-up change → ping the assigned rep,
-    //     but skip when the editor is updating their own lead (no self-pings).
-    (async () => {
-      const editorId = user?.id ?? null;
-      const prevAssignee = (currentLead?.assigned_staff as string | null) ?? null;
-      const newAssignee = (lead.assigned_staff as string | null) ?? null;
-      const leadName = lead.name || "Lead";
-      const url = `/leads/${lead.id}`;
+    //     but only when there is a known session editor and it isn't the owner
+    //     themselves (no self-pings, no cron/unauthenticated spam).
+    try {
+      if (currentLead) {
+        const editorId = user?.id ?? null;
+        const prevAssignee = (currentLead.assigned_staff as string | null) ?? null;
+        const newAssignee = (lead.assigned_staff as string | null) ?? null;
+        const leadName = lead.name || "Lead";
+        const url = `/leads/${lead.id}`;
 
-      // Case 1: reassignment.
-      if (newAssignee && newAssignee !== prevAssignee) {
-        await sendPushToUser(newAssignee, {
-          title: "📋 A lead was assigned to you",
-          body: leadName,
-          data: { url },
-        });
-      }
-
-      // Case 2: meaningful field change → notify the (unchanged) owner.
-      if (newAssignee && newAssignee === prevAssignee && newAssignee !== editorId) {
-        const changes: string[] = [];
-        if (
-          updateData.pipeline_stage &&
-          updateData.pipeline_stage !== currentLead?.pipeline_stage
-        ) {
-          changes.push(`Stage → ${prettyLabel(updateData.pipeline_stage)}`);
-        }
-        if (
-          updateData.lead_status &&
-          updateData.lead_status !== currentLead?.lead_status
-        ) {
-          changes.push(`Status → ${prettyLabel(updateData.lead_status)}`);
-        }
-        if (
-          updateData.lead_temperature &&
-          updateData.lead_temperature !== currentLead?.lead_temperature
-        ) {
-          changes.push(`${prettyLabel(updateData.lead_temperature)} lead`);
-        }
-        if (
-          updateData.follow_up_date &&
-          updateData.follow_up_date !== currentLead?.follow_up_date
-        ) {
-          changes.push("Follow-up rescheduled");
-        }
-        if (changes.length > 0) {
+        // Case 1: reassignment (skip self-assignment ping).
+        if (newAssignee && newAssignee !== prevAssignee && newAssignee !== editorId) {
           await sendPushToUser(newAssignee, {
-            title: `✏️ ${leadName} updated`,
-            body: changes.join(" · "),
+            title: "📋 A lead was assigned to you",
+            body: leadName,
             data: { url },
           });
         }
+
+        // Case 2: meaningful field change → notify the (unchanged) owner.
+        // Require a known editor and skip if the editor IS the owner.
+        if (newAssignee && newAssignee === prevAssignee && editorId && newAssignee !== editorId) {
+          const changes: string[] = [];
+          if (
+            updateData.pipeline_stage &&
+            updateData.pipeline_stage !== currentLead.pipeline_stage
+          ) {
+            changes.push(`Stage → ${prettyLabel(updateData.pipeline_stage)}`);
+          }
+          if (
+            updateData.lead_status &&
+            updateData.lead_status !== currentLead.lead_status
+          ) {
+            changes.push(`Status → ${prettyLabel(updateData.lead_status)}`);
+          }
+          if (
+            updateData.lead_temperature &&
+            updateData.lead_temperature !== currentLead.lead_temperature
+          ) {
+            changes.push(`${prettyLabel(updateData.lead_temperature)} lead`);
+          }
+          if (
+            updateData.follow_up_date &&
+            updateData.follow_up_date !== currentLead.follow_up_date
+          ) {
+            changes.push("Follow-up rescheduled");
+          }
+          if (changes.length > 0) {
+            await sendPushToUser(newAssignee, {
+              title: `✏️ ${leadName} updated`,
+              body: changes.join(" · "),
+              data: { url },
+            });
+          }
+        }
       }
-    })().catch((err) => {
-      console.error("Failed to send lead-update push:", err);
-    });
+    } catch (pushErr) {
+      console.error("Failed to send lead-update push:", pushErr);
+    }
 
     return success<Lead>(lead);
   } catch (err) {

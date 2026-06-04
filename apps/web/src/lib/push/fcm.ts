@@ -81,22 +81,25 @@ async function sendToToken(
 }
 
 /**
- * Send a push to every device a user has registered. Prunes tokens FCM
- * reports as unregistered. Safe to call from any server flow.
+ * Send a push to every device registered across a set of users. Mints ONE
+ * OAuth access token and reuses it for all sends. Prunes stale tokens in a
+ * single bulk delete. Safe to call from any server flow.
  */
-export async function sendPushToUser(
-  userId: string,
+export async function sendPushToUsers(
+  userIds: string[],
   payload: PushPayload,
 ): Promise<{ sent: number; failed: number }> {
-  if (!userId || !isFcmConfigured()) return { sent: 0, failed: 0 };
+  const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
+  if (uniqueUserIds.length === 0 || !isFcmConfigured()) return { sent: 0, failed: 0 };
+
   const accessToken = await getAccessToken();
-  const projectId = process.env.FCM_PROJECT_ID!;
   if (!accessToken) return { sent: 0, failed: 0 };
+  const projectId = process.env.FCM_PROJECT_ID!;
 
   const { data: tokens } = await supabaseAdmin
     .from("device_tokens")
     .select("token")
-    .eq("user_id", userId);
+    .in("user_id", uniqueUserIds);
   if (!tokens || tokens.length === 0) return { sent: 0, failed: 0 };
 
   let sent = 0;
@@ -114,4 +117,16 @@ export async function sendPushToUser(
     await supabaseAdmin.from("device_tokens").delete().in("token", stale);
   }
   return { sent, failed };
+}
+
+/**
+ * Send a push to every device a user has registered. Prunes tokens FCM
+ * reports as unregistered. Safe to call from any server flow.
+ */
+export async function sendPushToUser(
+  userId: string,
+  payload: PushPayload,
+): Promise<{ sent: number; failed: number }> {
+  if (!userId) return { sent: 0, failed: 0 };
+  return sendPushToUsers([userId], payload);
 }
