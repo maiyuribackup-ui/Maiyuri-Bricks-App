@@ -415,6 +415,25 @@ export const factorySettingsSchema = z.object({
 
 export const updateFactorySettingsSchema = factorySettingsSchema.partial();
 
+// Wall-system cost comparison (Total-Cost-of-Construction)
+export const wallCostLineItemsSchema = z.object({
+  masonry_units: z.number().min(0),
+  mortar_cement: z.number().min(0),
+  plastering: z.number().min(0),
+  labour: z.number().min(0),
+});
+
+export const wallCostConfigSchema = z.object({
+  interlock: wallCostLineItemsSchema,
+  red_brick: wallCostLineItemsSchema,
+  aac: wallCostLineItemsSchema,
+  is_seeded_placeholder: z.boolean().optional(),
+  updated_at: z.string().nullable().optional(),
+  updated_by: z.string().nullable().optional(),
+});
+
+export type WallCostConfigInput = z.infer<typeof wallCostConfigSchema>;
+
 export const estimateItemSchema = z.object({
   product_id: z.string().uuid("Invalid product ID"),
   quantity: z.number().positive("Quantity must be positive"),

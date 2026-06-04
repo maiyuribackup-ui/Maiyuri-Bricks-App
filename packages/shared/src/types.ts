@@ -337,6 +337,8 @@ export interface FactorySettings {
   address: string | null;
   transport_rate_per_km: number;
   min_transport_charge: number;
+  /** Founder-owned global template for the wall-cost comparison. */
+  wall_cost_config?: WallCostConfig | null;
   updated_at: string;
   updated_by?: string | null;
 }
@@ -574,6 +576,48 @@ export interface SmartQuotePricingConfig {
   rep_phone: string | null; // WhatsApp number for the CTA (E.164-ish digits)
 }
 
+// ============================================================================
+// Wall-system cost comparison (Total-Cost-of-Construction)
+// ============================================================================
+
+export type WallSystem = "interlock" | "red_brick" | "aac";
+
+/** Per-sq.ft-of-wall cost line items for one wall system (₹). */
+export interface WallCostLineItems {
+  masonry_units: number;
+  mortar_cement: number;
+  plastering: number;
+  labour: number;
+}
+
+/** Founder-owned template (global) or per-quote snapshot of wall costs. */
+export interface WallCostConfig {
+  interlock: WallCostLineItems;
+  red_brick: WallCostLineItems;
+  aac: WallCostLineItems;
+  /** True until the founder replaces the seeded placeholder values. */
+  is_seeded_placeholder?: boolean;
+  updated_at?: string | null;
+  updated_by?: string | null;
+}
+
+/** Computed comparison result for one wall system. */
+export interface WallSystemResult {
+  system: WallSystem;
+  perSqft: number;
+  buildTotal: number;
+  /** How much MORE this system costs vs interlock (>= 0 means pricier). */
+  deltaPctVsInterlock: number;
+  deltaRupeesVsInterlock: number;
+}
+
+export interface WallCostComparison {
+  areaSqft: number;
+  systems: WallSystemResult[];
+  /** True when interlock is the cheapest total build — gate the "cheaper" claim. */
+  interlockIsCheapest: boolean;
+}
+
 export interface SmartQuote {
   id: string;
   lead_id: string;
@@ -590,6 +634,8 @@ export interface SmartQuote {
   page_config: SmartQuotePageConfig;
   copy_map: SmartQuoteCopyMap;
   pricing_config?: SmartQuotePricingConfig | null;
+  /** Per-quote snapshot of wall-system costs (personalizable; frozen on share). */
+  wall_cost_config?: WallCostConfig | null;
   created_at: string;
   updated_at: string;
   // Joined fields
