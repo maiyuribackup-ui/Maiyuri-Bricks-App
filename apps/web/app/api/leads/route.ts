@@ -11,7 +11,7 @@ import {
   sanitizeSearchTerm,
 } from "@/lib/api-utils";
 import { notifyNewLeadDetailed } from "@/lib/telegram";
-import { sendPushToUsers } from "@/lib/push/fcm";
+import { notifyLeadPush } from "@/lib/push/fcm";
 import {
   createLeadSchema,
   paginationSchema,
@@ -135,24 +135,20 @@ export async function POST(request: NextRequest) {
     });
 
     // Native push for the new lead (awaited before response so Vercel doesn't kill it).
-    try {
-      const recipients = await resolveNewLeadRecipients(
-        lead.assigned_staff ?? null,
-      );
-      const requirement = lead.requirement_type
-        ? String(lead.requirement_type).replace(/_/g, " ")
-        : null;
-      const detail = [lead.source, lead.site_location, requirement]
-        .filter(Boolean)
-        .join(" · ");
-      await sendPushToUsers(recipients, {
-        title: `🆕 New lead: ${lead.name}`,
-        body: detail || lead.contact || "Tap to view the new lead.",
-        data: { url: `/leads/${lead.id}` },
-      });
-    } catch (err) {
-      console.error("Failed to send new-lead push:", err);
-    }
+    const recipients = await resolveNewLeadRecipients(
+      lead.assigned_staff ?? null,
+    );
+    const requirement = lead.requirement_type
+      ? String(lead.requirement_type).replace(/_/g, " ")
+      : null;
+    const detail = [lead.source, lead.site_location, requirement]
+      .filter(Boolean)
+      .join(" · ");
+    await notifyLeadPush(recipients, {
+      title: `🆕 New lead: ${lead.name}`,
+      body: detail || lead.contact || "Tap to view the new lead.",
+      leadId: lead.id,
+    });
 
     return created<Lead>(lead);
   } catch (err) {

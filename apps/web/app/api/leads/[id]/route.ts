@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createSupabaseRouteClient } from "@/lib/supabase-server";
 import { success, error, notFound, parseBody } from "@/lib/api-utils";
-import { sendPushToUser } from "@/lib/push/fcm";
+import { notifyLeadPush } from "@/lib/push/fcm";
 import { updateLeadSchema, type Lead } from "@maiyuri/shared";
 
 function prettyLabel(value: unknown): string {
@@ -158,14 +158,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         const prevAssignee = (currentLead.assigned_staff as string | null) ?? null;
         const newAssignee = (lead.assigned_staff as string | null) ?? null;
         const leadName = lead.name || "Lead";
-        const url = `/leads/${lead.id}`;
 
         // Case 1: reassignment (skip self-assignment ping).
         if (newAssignee && newAssignee !== prevAssignee && newAssignee !== editorId) {
-          await sendPushToUser(newAssignee, {
+          await notifyLeadPush([newAssignee], {
             title: "📋 A lead was assigned to you",
             body: leadName,
-            data: { url },
+            leadId: lead.id,
           });
         }
 
@@ -198,10 +197,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             changes.push("Follow-up rescheduled");
           }
           if (changes.length > 0) {
-            await sendPushToUser(newAssignee, {
+            await notifyLeadPush([newAssignee], {
               title: `✏️ ${leadName} updated`,
               body: changes.join(" · "),
-              data: { url },
+              leadId: lead.id,
             });
           }
         }

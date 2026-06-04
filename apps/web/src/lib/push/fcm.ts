@@ -130,3 +130,25 @@ export async function sendPushToUser(
   if (!userId) return { sent: 0, failed: 0 };
   return sendPushToUsers([userId], payload);
 }
+
+/**
+ * Convenience wrapper for lead-related pushes: centralizes the `/leads/[id]`
+ * deep-link convention and the best-effort (swallow + log) discipline every
+ * lead trigger needs, so call sites only decide recipients + copy. Never
+ * throws — safe to await inline in a request handler.
+ */
+export async function notifyLeadPush(
+  recipientIds: string[],
+  opts: { title: string; body: string; leadId: string },
+): Promise<void> {
+  if (!recipientIds.length || !opts.leadId) return;
+  try {
+    await sendPushToUsers(recipientIds, {
+      title: opts.title,
+      body: opts.body,
+      data: { url: `/leads/${opts.leadId}` },
+    });
+  } catch (err) {
+    console.error("notifyLeadPush failed:", err);
+  }
+}
