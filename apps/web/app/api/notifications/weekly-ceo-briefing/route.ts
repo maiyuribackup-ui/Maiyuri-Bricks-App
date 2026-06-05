@@ -525,7 +525,7 @@ async function assessLeadHandlingQuality(
 
   let positiveCount = 0;
   let negativeCount = 0;
-  let totalCalls = recordings?.length || 0;
+  const totalCalls = recordings?.length || 0;
 
   const issues: Record<string, number> = {};
   const goodPractices: Set<string> = new Set();
