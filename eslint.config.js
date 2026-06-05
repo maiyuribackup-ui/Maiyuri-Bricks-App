@@ -45,20 +45,6 @@ export default tseslint.config(
     },
   },
   {
-    // Test files and scripts (Node.js environment)
-    files: ['**/test*.mjs', '**/test*.js', '**/scripts/**/*.ts', '**/scripts/**/*.mjs'],
-    languageOptions: {
-      globals: {
-        ...globals.node,
-        ...globals.es2021,
-      },
-    },
-    rules: {
-      'no-console': 'off',
-      '@typescript-eslint/no-unused-vars': 'off',
-    },
-  },
-  {
     // JavaScript files (browser environment)
     files: ['**/*.js', '**/*.mjs'],
     languageOptions: {
@@ -74,6 +60,7 @@ export default tseslint.config(
     },
   },
   {
+    // All TypeScript files — base rules
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       globals: {
@@ -86,6 +73,27 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+    },
+  },
+  {
+    // Scripts, debug utilities, and migration helpers — console is fine here.
+    // MUST come after the general **/*.ts block so it wins on no-console.
+    files: [
+      '**/test*.mjs',
+      '**/test*.js',
+      '**/scripts/**/*.ts',
+      '**/scripts/**/*.mjs',
+      '**/check-migration.ts',
+    ],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.es2021,
+      },
+    },
+    rules: {
+      'no-console': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
     },
   }
 );
