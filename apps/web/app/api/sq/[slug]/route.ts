@@ -31,10 +31,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return notFound("Invalid link");
     }
 
-    // Fetch the smart quote by slug
+    // Fetch the smart quote by slug.
+    // Data minimization: this is a PUBLIC (slug-gated) response, so select only
+    // customer-facing columns. Internal sales intelligence — lead_id, stage
+    // (hot/warm/cold), route_decision, risk_flags, scores — is deliberately
+    // excluded so it never leaks to anyone holding the link.
     const { data: quote, error: quoteError } = await supabaseAdmin
       .from("smart_quotes")
-      .select("*")
+      .select(
+        "id, link_slug, language_default, persona, primary_angle, secondary_angle, top_objections, page_config, copy_map, pricing_config, wall_cost_config, created_at, updated_at",
+      )
       .eq("link_slug", slug)
       .single();
 

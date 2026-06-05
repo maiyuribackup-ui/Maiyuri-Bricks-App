@@ -139,6 +139,12 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
       // browser silently blocks the voice-feedback socket (onerror).
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com",
       "frame-ancestors 'none'",
+      // Hardening (no app impact): block <base> tag hijacking, plugin/object
+      // execution, and cross-origin form posts; clickjacking already covered by
+      // frame-ancestors + X-Frame-Options.
+      "base-uri 'self'",
+      "object-src 'none'",
+      "form-action 'self'",
     ].join("; "),
   );
 
@@ -252,12 +258,15 @@ export async function middleware(request: NextRequest) {
 
     try {
       const supabase = createSupabaseMiddlewareClient(request, response);
+      // getUser() revalidates the JWT against the Supabase auth server, unlike
+      // getSession() which only decodes the (client-tamperable) cookie. This is
+      // the sole gate for service-role API routes, so it must be authentic.
       const {
-        data: { session },
-      } = await supabase.auth.getSession();
+        data: { user },
+      } = await supabase.auth.getUser();
 
-      if (!session) {
-        // No session - return 401 Unauthorized
+      if (!user) {
+        // No authenticated user - return 401 Unauthorized
         return addSecurityHeaders(
           NextResponse.json(
             { error: "Unauthorized: Authentication required" },
@@ -302,13 +311,13 @@ export async function middleware(request: NextRequest) {
   try {
     const supabase = createSupabaseMiddlewareClient(request, response);
 
-    // Get session from cookies
+    // Revalidate the JWT with the auth server (not just decode the cookie).
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    // If no session and trying to access protected route, redirect to login
-    if (!session) {
+    // If not authenticated and trying to access protected route, redirect to login
+    if (!user) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("redirect", pathname);
       return NextResponse.redirect(loginUrl);
