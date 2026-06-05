@@ -130,7 +130,13 @@ export async function triggerCallRecordingNudge(
   try {
     const response = await fetch(nudgeUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        // Internal server-to-server call — authenticate as a trusted machine
+        // caller (middleware requires this now that /api/nudges/events is no
+        // longer publicly exempted).
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""}`,
+      },
       body: JSON.stringify({
         event_type: "call_recording_processed",
         lead_id: leadId,
@@ -211,7 +217,13 @@ export async function triggerObjectionNudge(
   try {
     const response = await fetch(nudgeUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        // Internal server-to-server call — authenticate as a trusted machine
+        // caller (middleware requires this now that /api/nudges/events is no
+        // longer publicly exempted).
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""}`,
+      },
       body: JSON.stringify({
         event_type: "objection_detected",
         lead_id: leadId,

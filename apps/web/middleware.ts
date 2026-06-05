@@ -46,11 +46,39 @@ const publicApiRoutes = [
   "/api/sq/", // Smart quote public pages (customer-facing)
   "/api/feedback/", // Factory-visit feedback (token-gated; the opaque token is the auth)
   "/api/salespulse/", // SalesPulse digest gather + send (token-gated; SALESPULSE_TOKEN bearer is the auth)
-  "/api/recordings/process", // Call recording processor (uses CRON_SECRET auth)
-  "/api/admin/call-recordings", // Admin call recording management (uses internal auth)
-  "/api/nudges/events", // Nudge event triggers (uses CRON_SECRET auth)
-  "/api/leads/", // Lead analysis triggers (uses CRON_SECRET auth)
+  "/api/recordings/process", // Call recording processor (verifies CRON_SECRET in-handler)
+  // NOTE: "/api/admin/call-recordings" was previously exempted with a false
+  // "uses internal auth" comment — the handlers have NO auth and would expose
+  // every recording URL, transcript and lead contact to anonymous callers.
+  // Removed: these admin endpoints now require a staff session (or machine bearer).
+  // NOTE: "/api/nudges/events" was previously exempted but its handler has NO
+  // auth — anyone could spam staff Telegram alerts / trigger AI for arbitrary
+  // lead IDs. Removed: its only callers are internal (call-recording pipeline +
+  // analyze route), which now send a machine bearer handled by the bypass below.
+  // NOTE: "/api/leads/" was previously listed here, which exempted the ENTIRE
+  // leads API from session auth — exposing customer PII, notes, call transcripts
+  // and write/AI endpoints to anonymous callers. It is intentionally removed.
+  // The one legitimate server-to-server caller (call-recording pipeline →
+  // /api/leads/[id]/analyze) authenticates via the machine-bearer bypass below.
 ];
+
+/**
+ * Server-to-server machine auth. A request bearing the CRON_SECRET or the
+ * Supabase service-role key is a trusted internal caller (cron jobs, the
+ * call-recording → lead-analysis trigger). Browsers never hold these secrets,
+ * so this lets internal pipelines reach otherwise session-protected APIs
+ * without weakening them for the public internet.
+ */
+function hasMachineAuth(request: NextRequest): boolean {
+  const header = request.headers.get("authorization");
+  if (!header) return false;
+  const cron = process.env.CRON_SECRET;
+  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return (
+    (!!cron && header === `Bearer ${cron}`) ||
+    (!!serviceRole && header === `Bearer ${serviceRole}`)
+  );
+}
 
 // Routes that need rate limiting
 const rateLimitedRoutes = {
@@ -205,6 +233,14 @@ export async function middleware(request: NextRequest) {
       // Public API - no auth required
       const response = NextResponse.next();
       return addSecurityHeaders(response);
+    }
+
+    // Trusted server-to-server caller (cron / internal pipeline) — allow without
+    // a browser session. Secrets are never exposed to clients.
+    if (hasMachineAuth(request)) {
+      return addSecurityHeaders(
+        NextResponse.next({ request: { headers: request.headers } }),
+      );
     }
 
     // Protected API - require authentication
