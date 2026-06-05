@@ -182,10 +182,18 @@ export function VoiceFeedbackClient({
   const captionsRef = useRef<{ role: "maiyuri" | "you"; text: string }[]>([]);
   const captionScrollRef = useRef<HTMLDivElement | null>(null);
 
+  const [extracting, setExtracting] = useState(false);
+
   const sessionRef = useRef<Session | null>(null);
   const micRef = useRef<MicCapture | null>(null);
   const playerRef = useRef<PcmPlayer | null>(null);
   const transcriptRef = useRef<string>("");
+  // True once the live model has emitted its submit_feedback tool call, so the
+  // end-of-call finalize path knows not to also run the extraction fallback.
+  const toolFiredRef = useRef<boolean>(false);
+  // Full both-sided dialogue (uncapped, unlike the 14-line caption log) used as
+  // the source for transcript extraction when the tool call never fired.
+  const dialogueRef = useRef<{ role: "maiyuri" | "you"; text: string }[]>([]);
   const startedAtRef = useRef<number>(0);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speakIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -266,6 +274,17 @@ export function VoiceFeedbackClient({
     setCaptions(captionsRef.current);
   }, []);
 
+  // Accumulate the FULL both-sided dialogue (no display cap) so we can extract
+  // structured fields from it if the conversation ends before the tool call.
+  const appendDialogue = useCallback((role: "maiyuri" | "you", text: string) => {
+    if (!text) return;
+    const arr = dialogueRef.current;
+    const last = arr[arr.length - 1];
+    if (last && last.role === role) last.text += text;
+    else arr.push({ role, text });
+    if (arr.length > 200) dialogueRef.current = arr.slice(-200);
+  }, []);
+
   const handleMessage = useCallback(
     (msg: LiveServerMessage) => {
       const sc = msg.serverContent;
@@ -282,7 +301,10 @@ export function VoiceFeedbackClient({
 
       // Maiyuri's spoken words (output transcription) → live caption log.
       const outText = sc?.outputTranscription?.text;
-      if (outText) appendCaption("maiyuri", outText);
+      if (outText) {
+        appendCaption("maiyuri", outText);
+        appendDialogue("maiyuri", outText);
+      }
 
       // Visitor speech transcript — feeds the saved transcript, the caption log,
       // and clears the silence-fallback timer.
@@ -291,6 +313,7 @@ export function VoiceFeedbackClient({
         transcriptRef.current += inText;
         setHeard(transcriptRef.current.slice(-160));
         appendCaption("you", inText);
+        appendDialogue("you", inText);
         if (silenceTimerRef.current) {
           clearTimeout(silenceTimerRef.current);
           silenceTimerRef.current = null;
@@ -302,6 +325,7 @@ export function VoiceFeedbackClient({
       if (calls && calls.length) {
         for (const fc of calls) {
           if (fc.name === "submit_feedback") {
+            toolFiredRef.current = true;
             captureFromArgs((fc.args ?? {}) as Record<string, unknown>);
             try {
               sessionRef.current?.sendToolResponse({
@@ -331,7 +355,7 @@ export function VoiceFeedbackClient({
         setPhase("review");
       }
     },
-    [captureFromArgs, appendCaption],
+    [captureFromArgs, appendCaption, appendDialogue],
   );
 
   // Auto-scroll the caption log to the newest line as it grows.
@@ -345,6 +369,9 @@ export function VoiceFeedbackClient({
     captionsRef.current = [];
     setCaptions([]);
     transcriptRef.current = "";
+    dialogueRef.current = [];
+    toolFiredRef.current = false;
+    setExtracting(false);
     setPhase("connecting");
 
     // iOS CRITICAL: create + unlock the OUTPUT AudioContext synchronously here,
@@ -479,9 +506,69 @@ export function VoiceFeedbackClient({
     }
   }, [token, handleMessage, failToFallback]);
 
+  // Ensure the review grid is populated even when the visitor ends the call
+  // before Maiyuri finishes all questions and calls submit_feedback. Two-stage:
+  //   1) Nudge the live model to submit immediately with whatever it has.
+  //   2) If that doesn't land quickly, extract the fields from the transcript we
+  //      already hold (server one-shot), so nothing the visitor said is lost.
+  const finalizeReview = useCallback(async () => {
+    if (toolFiredRef.current) return;
+
+    // 1) Early-submit nudge to the live session.
+    try {
+      sessionRef.current?.sendClientContent({
+        turns: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: "The visitor wants to finish now. Call submit_feedback immediately with everything you have gathered so far. Do not ask any more questions.",
+              },
+            ],
+          },
+        ],
+        turnComplete: true,
+      });
+    } catch {
+      /* session may already be closing — the extraction fallback still covers us */
+    }
+
+    // 2) Give the tool call up to ~4s to arrive (handleMessage fills `captured`).
+    for (let i = 0; i < 20 && !toolFiredRef.current; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    if (toolFiredRef.current) return;
+
+    // 3) Fallback: extract structured fields from the full dialogue transcript.
+    const dialogue = dialogueRef.current.length
+      ? dialogueRef.current
+          .map((d) => `${d.role === "maiyuri" ? "Maiyuri" : "Visitor"}: ${d.text.trim()}`)
+          .join("\n")
+          .slice(0, 20000)
+      : transcriptRef.current.trim();
+    if (!dialogue) return;
+
+    setExtracting(true);
+    try {
+      const res = await fetch(`/api/feedback/${token}/extract`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: dialogue }),
+      });
+      const json = await res.json();
+      if (res.ok && json?.data?.fields && !toolFiredRef.current) {
+        captureFromArgs(json.data.fields as Record<string, unknown>);
+      }
+    } catch {
+      /* leave the grid editable; the visitor can still fill it in by tap */
+    } finally {
+      setExtracting(false);
+    }
+  }, [token, captureFromArgs]);
+
   const endConversation = useCallback(() => {
-    // Ask the model to wrap up by sending a final text nudge, then stop the mic
-    // and surface whatever was captured so far for confirmation.
+    // Stop sending mic audio, surface the review grid, and kick off the finalize
+    // (nudge → extraction) so the grid fills in even without a tool call.
     try {
       sessionRef.current?.sendRealtimeInput({ audioStreamEnd: true });
     } catch {
@@ -495,7 +582,8 @@ export function VoiceFeedbackClient({
     micRef.current = null;
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     setPhase("review");
-  }, []);
+    void finalizeReview();
+  }, [finalizeReview]);
 
   const submit = useCallback(async () => {
     if (!captured.mobile || captured.mobile.length !== 10) {
@@ -717,7 +805,9 @@ export function VoiceFeedbackClient({
           <div className={styles.review}>
             <h2 className={styles.reviewH}>Quick check before we send</h2>
             <p className={styles.reviewSub}>
-              Tap any line to fix it. This goes straight to our team.
+              {extracting
+                ? "✨ Filling this in from your conversation…"
+                : "Tap any line to fix it. This goes straight to our team."}
             </p>
             <div className={styles.grid}>
               {FIELDS.map(({ key, label, type }) => {
@@ -761,9 +851,13 @@ export function VoiceFeedbackClient({
               type="button"
               className={styles.primary}
               onClick={submit}
-              disabled={phase === "submitting"}
+              disabled={phase === "submitting" || extracting}
             >
-              {phase === "submitting" ? "Sending…" : "Confirm & send to Maiyuri"}
+              {phase === "submitting"
+                ? "Sending…"
+                : extracting
+                  ? "One moment…"
+                  : "Confirm & send to Maiyuri"}
             </button>
             {error && <p className={styles.error}>{error}</p>}
           </div>

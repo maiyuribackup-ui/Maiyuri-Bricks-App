@@ -327,6 +327,10 @@ export function buildVoiceSystemPrompt(ctx: VoiceLeadContext): string {
     "- ONLY after you have asked all the questions above, call the `submit_feedback` tool ONCE with",
     "  everything you gathered (use the exact option tokens; omit any a visitor genuinely skipped),",
     "  then thank them warmly by name and end. Do not keep talking after submitting.",
+    "- EARLY FINISH: if the visitor says they want to stop, finish, or are in a hurry — or you are",
+    "  told to wrap up — do NOT keep asking the remaining questions. Immediately call `submit_feedback`",
+    "  ONCE with whatever you have gathered so far (omit fields you genuinely didn't get), then thank",
+    "  them warmly and end. A partial submission is far better than none.",
     "- Never invent a mobile number, rating, or request. If you didn't get the mobile number or a",
     "  rating, gently ask for it before submitting.",
   ].join("\n");
