@@ -876,10 +876,9 @@ async function handleWeeklyBriefing(request: NextRequest): Promise<NextResponse>
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
 
-  // In production, CRON_SECRET is required for cron calls
-  // Allow manual triggers without secret if coming from POST
-  const isManualTrigger = request.method === "POST";
-  const requiresAuth = cronSecret && !isManualTrigger;
+  // CRON_SECRET is required for all requests (both GET cron and manual POST).
+  // This route queries sensitive business data — no unauthenticated access allowed.
+  const requiresAuth = !!cronSecret;
 
   if (requiresAuth && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
