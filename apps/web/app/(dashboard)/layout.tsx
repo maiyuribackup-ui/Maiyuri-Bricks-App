@@ -84,9 +84,9 @@ const roleModuleAccess: Record<UserRole, string[]> = {
     "design",
     "projects",
   ],
-  sales: ["dashboard", "leads", "tasks", "settings", "knowledge"],
+  sales: ["dashboard", "leads", "tasks", "settings", "knowledge", "coaching"],
   driver: ["dashboard", "deliveries", "settings"],
-  production_supervisor: ["dashboard", "production", "deliveries", "settings", "projects"],
+  production_supervisor: ["dashboard", "production", "deliveries", "settings", "projects", "coaching"],
 };
 
 function getNavigationForRole(role: UserRole | undefined): NavItem[] {

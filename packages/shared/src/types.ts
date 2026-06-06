@@ -1846,3 +1846,251 @@ export interface CostEntry {
   created_by?: string | null;
   created_at: string;
 }
+
+// ============================================================================
+// AI SALES COACH (Phase 1 — Foundation)
+// Training + coaching system: modules → lessons → quizzes → assignments,
+// daily/weekly targets, progress, knowledge base. AI fields (Phase 2) nullable.
+// ============================================================================
+export type CoachTrainingPath =
+  | "production_supervisor"
+  | "sales_executive"
+  | "factory_coordinator"
+  | "site_engineer"
+  | "accounts_assistant"
+  | "delivery_coordinator";
+
+export type CoachDifficulty = "beginner" | "intermediate" | "advanced";
+
+export type QuizQuestionType = "mcq" | "scenario" | "fill_blank" | "voice_text";
+
+export type CoachAssignmentType =
+  | "product_explanation"
+  | "lead_followup"
+  | "objection_practice"
+  | "factory_explanation"
+  | "reflection"
+  | "custom";
+
+export type CoachFrequency = "daily" | "weekly" | "once";
+
+export type CoachEvaluationMethod = "ai" | "manager" | "both" | "self";
+
+export type CoachManagerStatus =
+  | "pending"
+  | "approved"
+  | "needs_improvement"
+  | "rejected";
+
+export type CoachTargetType =
+  | "learning"
+  | "quiz"
+  | "roleplay"
+  | "sales_followup"
+  | "production_update"
+  | "reflection"
+  | "custom";
+
+export type CoachTargetStatus =
+  | "not_started"
+  | "in_progress"
+  | "completed"
+  | "missed"
+  | "needs_review";
+
+export type CoachLessonProgressStatus =
+  | "not_started"
+  | "in_progress"
+  | "completed";
+
+export type CoachKnowledgeCategory =
+  | "brand_story"
+  | "product"
+  | "pricing"
+  | "kerala_comparison"
+  | "regular_comparison"
+  | "factory_process"
+  | "quality"
+  | "delivery"
+  | "faq"
+  | "objection"
+  | "approved_phrases"
+  | "avoid_phrases"
+  | "proof_links"
+  | "reviews"
+  | "project_videos"
+  | "cost_calculator"
+  | "factory_visit";
+
+export interface CoachUser {
+  id: string;
+  user_id: string;
+  role?: string | null;
+  training_path: CoachTrainingPath;
+  joining_date?: string | null;
+  current_level: number;
+  active_status: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoachModule {
+  id: string;
+  slug: string;
+  title: string;
+  description?: string | null;
+  role_applicability: string[];
+  difficulty: CoachDifficulty;
+  estimated_minutes: number;
+  sequence_order: number;
+  is_required: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoachLesson {
+  id: string;
+  module_id: string;
+  slug: string;
+  title: string;
+  objective?: string | null;
+  content: string;
+  examples?: string | null;
+  do_dont_notes?: string | null;
+  estimated_minutes: number;
+  sequence_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoachQuizOption {
+  key: string;
+  label: string;
+}
+
+export interface CoachQuiz {
+  id: string;
+  slug: string;
+  lesson_id?: string | null;
+  module_id?: string | null;
+  question: string;
+  question_type: QuizQuestionType;
+  options_json: CoachQuizOption[];
+  correct_answer?: string | null;
+  explanation?: string | null;
+  suggested_lesson_id?: string | null;
+  difficulty: CoachDifficulty;
+  sequence_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoachLessonProgress {
+  id: string;
+  user_id: string;
+  lesson_id: string;
+  status: CoachLessonProgressStatus;
+  completed_at: string;
+}
+
+export interface CoachQuizAttempt {
+  id: string;
+  user_id: string;
+  quiz_id: string;
+  selected_answer?: string | null;
+  is_correct?: boolean | null;
+  score: number;
+  ai_feedback?: string | null;
+  attempted_at: string;
+}
+
+export interface CoachAssignment {
+  id: string;
+  slug: string;
+  title: string;
+  description?: string | null;
+  module_id?: string | null;
+  assignment_type: CoachAssignmentType;
+  due_frequency: CoachFrequency;
+  evaluation_method: CoachEvaluationMethod;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoachAssignmentSubmission {
+  id: string;
+  assignment_id: string;
+  user_id: string;
+  submission_text?: string | null;
+  attachment_url?: string | null;
+  ai_score?: number | null;
+  ai_feedback?: string | null;
+  manager_status: CoachManagerStatus;
+  manager_comment?: string | null;
+  submitted_at: string;
+}
+
+export interface CoachRoleplay {
+  id: string;
+  user_id: string;
+  scenario_type: string;
+  conversation_json: Array<{ role: "customer" | "employee"; content: string }>;
+  ai_score?: number | null;
+  clarity_score?: number | null;
+  empathy_score?: number | null;
+  product_score?: number | null;
+  closing_score?: number | null;
+  ai_feedback?: string | null;
+  created_at: string;
+}
+
+export interface CoachTarget {
+  id: string;
+  user_id: string;
+  target_type: CoachTargetType;
+  title: string;
+  description?: string | null;
+  due_date?: string | null;
+  frequency: CoachFrequency;
+  status: CoachTargetStatus;
+  completion_value: number;
+  target_value: number;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoachKnowledgeArticle {
+  id: string;
+  slug: string;
+  category: CoachKnowledgeCategory;
+  title: string;
+  content: string;
+  source_link?: string | null;
+  tags: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Learner dashboard bundle (GET /api/coaching/me)
+export interface CoachProgressScore {
+  trainingCompletionPct: number;
+  quizAveragePct: number;
+  lessonsCompleted: number;
+  lessonsTotal: number;
+  todayTargetsCompleted: number;
+  todayTargetsTotal: number;
+  weekTargetCompletionPct: number;
+}
+
+export interface CoachTodayPlanItem {
+  kind: "lesson" | "quiz" | "assignment" | "target";
+  refId: string;
+  title: string;
+  done: boolean;
+}
