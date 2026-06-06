@@ -435,15 +435,16 @@ export const manualContent: Record<ManualSection, ManualContent> = {
 
   coaching: {
     id: "coaching",
-    title: "Sales Coaching",
+    title: "AI Sales Coach",
     description:
-      "AI-powered coaching insights from call recordings. Improve sales performance.",
+      "Your daily training hub: learn modules, take quizzes, do assignments, hit targets, and get AI feedback on lead handling.",
     path: "/coaching",
     quickStart: [
-      "View coaching insights by staff",
-      "See missed opportunities",
-      "Learn from successful calls",
-      "Track improvement over time",
+      "Open your Today's Coaching Plan",
+      "Work through a lesson, then take its quiz",
+      "Submit the day's assignment for review",
+      "Mark your daily targets done",
+      "Check AI Feedback for lead-handling tips",
     ],
     steps: [
       {
