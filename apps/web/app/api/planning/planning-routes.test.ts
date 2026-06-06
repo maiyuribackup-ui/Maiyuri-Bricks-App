@@ -126,7 +126,7 @@ describe('Planning API Routes', () => {
       expect(body.data).toBeDefined();
       expect(body.data.sessionId).toBe('123e4567-e89b-12d3-a456-426614174000');
       expect(body.data.firstQuestion).toBeDefined();
-      expect(body.data.firstQuestion.id).toBe('plotInput');
+      expect(body.data.firstQuestion.id).toBe('clientName');
     });
 
     it('should start a session for commercial project type', async () => {

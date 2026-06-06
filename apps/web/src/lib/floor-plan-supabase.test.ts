@@ -92,9 +92,13 @@ function createSupabaseMock() {
 
 let mockSupabase: ReturnType<typeof createSupabaseMock>;
 
-// Mock the supabase module
-vi.mock('./supabase', () => ({
+// Mock the supabase client modules the service actually imports from.
+// The service uses getSupabaseAdmin() from ./supabase-admin and
+// getSupabase() from ./supabase-browser (not the old ./supabase barrel).
+vi.mock('./supabase-admin', () => ({
   getSupabaseAdmin: vi.fn(() => mockSupabase),
+}));
+vi.mock('./supabase-browser', () => ({
   getSupabase: vi.fn(() => mockSupabase),
 }));
 
