@@ -876,11 +876,9 @@ async function handleWeeklyBriefing(request: NextRequest): Promise<NextResponse>
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
 
-  // CRON_SECRET is required for all requests (both GET cron and manual POST).
-  // This route queries sensitive business data — no unauthenticated access allowed.
-  const requiresAuth = !!cronSecret;
-
-  if (requiresAuth && authHeader !== `Bearer ${cronSecret}`) {
+  // Fail closed: if CRON_SECRET is missing or the bearer token doesn't match,
+  // deny access. This route uses supabaseAdmin and reads sensitive business data.
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
