@@ -1845,6 +1845,11 @@ export interface CostEntry {
   source: CostSource;
   created_by?: string | null;
   created_at: string;
+  // CBS fields (Phase 1 additions — nullable for backward compat with old entries)
+  cbs_id?: string | null;
+  cbs?: CbsItem;
+  zone?: string | null;
+  approval_status?: 'pending' | 'approved' | 'rejected';
 }
 
 // ============================================================================
@@ -2093,4 +2098,93 @@ export interface CoachTodayPlanItem {
   refId: string;
   title: string;
   done: boolean;
+}
+
+// ============================================================================
+// CBS & BUDGET — Phase 1: Cost Breakdown Structure backbone
+// Tracks: cbs_master (company-wide codes), project_budgets (per-project),
+//         and CbsVarianceRow (computed report).
+// ============================================================================
+
+export type CbsCostType =
+  | 'material'
+  | 'labour'
+  | 'equipment'
+  | 'subcontract'
+  | 'transport'
+  | 'overhead'
+  | 'consumables'
+  | 'other';
+
+export interface CbsItem {
+  id: string;
+  cbs_code: string;
+  category: string;
+  work_item: string;
+  cost_type: CbsCostType;
+  unit?: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type BudgetStatus = 'draft' | 'approved';
+
+export interface ProjectBudget {
+  id: string;
+  project_id: string;
+  cbs_id: string;
+  cbs?: CbsItem;                      // joined on GET
+  zone?: string | null;
+  quantity: number;
+  unit?: string | null;
+  rate: number;
+  base_budget_amount: number;         // quantity × rate (DB GENERATED)
+  revision_amount_total: number;      // cumulative ± from approved revisions
+  current_budget_amount: number;      // base + revision_amount_total (DB GENERATED)
+  original_amount: number;            // snapshot locked on first approval
+  revision_no: number;
+  status: BudgetStatus;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Variance row — computed by /api/projects/[id]/variance
+export interface CbsVarianceRow {
+  cbs_id: string;
+  cbs_code: string;
+  category: string;
+  work_item: string;
+  cost_type: string;
+  budget: number;                     // current_budget_amount (sum across zones)
+  actual: number;                     // SUM of approved cost_entries
+  committed_forecast: number;         // Phase 1: = actual; Phase 2 adds open PO balances
+  variance: number;                   // budget - committed_forecast
+  variance_pct: number;               // (committed_forecast - budget) / budget × 100
+  status: 'under_budget' | 'watch' | 'risk' | 'critical';
+}
+
+export interface CbsVarianceSummary {
+  totalBudget: number;
+  totalActual: number;
+  totalVariance: number;
+  forecastProfit: number;             // placeholder; real P&L in Phase 5
+}
+
+export interface CbsVarianceReport {
+  rows: CbsVarianceRow[];
+  summary: CbsVarianceSummary;
+}
+
+export interface ProjectBudgetsResponse {
+  items: ProjectBudget[];
+  totals: {
+    base: number;
+    revision: number;
+    current: number;
+    original: number;
+  };
 }
