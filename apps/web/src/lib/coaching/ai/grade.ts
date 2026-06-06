@@ -24,7 +24,7 @@ export async function scoreAssignment(
   assignment: { title: string; description?: string | null },
   submissionText: string,
 ): Promise<AssignmentGrade> {
-  const user = `ASSIGNMENT: ${assignment.title}\nINSTRUCTIONS: ${assignment.description ?? ""}\nSUBMISSION: ${submissionText}`;
+  const user = `ASSIGNMENT: ${assignment.title}\nINSTRUCTIONS: ${assignment.description ?? "(none)"}\nSUBMISSION: ${submissionText}`;
   const out = await completeJson<AssignmentGrade>(ASSIGNMENT_GRADE_SYSTEM, user, { maxOutputTokens: 500 });
   if (!out || typeof out.ai_score !== "number") {
     return { ai_score: 0, ai_feedback: "Saved — pending manager review.", suggestedStatus: "needs_improvement" };
