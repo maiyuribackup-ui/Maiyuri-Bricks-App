@@ -1,5 +1,13 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
+import { isCoachAiEnabled } from "./flags";
+
+/** Module-level singleton — created once per process, reused across calls. */
+let _client: GoogleGenerativeAI | null = null;
+function getClient(apiKey: string): GoogleGenerativeAI {
+  if (!_client) _client = new GoogleGenerativeAI(apiKey);
+  return _client;
+}
 
 /** Strip ```json fences and parse; return null on any failure (never throws). */
 export function extractJson<T>(raw: string): T | null {
@@ -17,10 +25,11 @@ export async function completeJson<T>(
   userPrompt: string,
   opts: { maxOutputTokens?: number } = {},
 ): Promise<T | null> {
+  if (!isCoachAiEnabled()) return null;
   const apiKey = process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) return null;
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const genAI = getClient(apiKey);
     const model = genAI.getGenerativeModel({
       model: GEMINI_DEFAULT_MODEL,
       generationConfig: { maxOutputTokens: opts.maxOutputTokens ?? 700, responseMimeType: "application/json" },
