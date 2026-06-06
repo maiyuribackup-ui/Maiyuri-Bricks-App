@@ -11,6 +11,8 @@ import {
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { getCoachContext } from "@/lib/coaching/context";
 import { gradeQuizAnswer } from "@/lib/coaching/grading";
+import { gradeScenarioAnswer } from "@/lib/coaching/ai/grade";
+import { isCoachAiEnabled } from "@/lib/coaching/ai/flags";
 import type { CoachQuiz } from "@maiyuri/shared";
 import { z } from "zod";
 
@@ -39,12 +41,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const q = quiz as CoachQuiz;
     const grade = gradeQuizAnswer(q, parsed.data.selected_answer);
 
+    // For open-ended types, replace the pending result with an AI grade when enabled.
+    let aiGrade: { score: number; isCorrect: boolean; feedback: string; gaps: string[] } | null = null;
+    if (grade.pending && isCoachAiEnabled()) {
+      aiGrade = await gradeScenarioAnswer(
+        { question: q.question, explanation: q.explanation },
+        parsed.data.selected_answer,
+      );
+    }
+
     const { error: insErr } = await admin.from("coach_quiz_attempts").insert({
       user_id: ctx.userId,
       quiz_id: id,
       selected_answer: parsed.data.selected_answer,
-      is_correct: grade.isCorrect,
-      score: grade.score,
+      is_correct: aiGrade ? aiGrade.isCorrect : grade.isCorrect,
+      score: aiGrade ? aiGrade.score : grade.score,
+      ai_feedback: aiGrade ? aiGrade.feedback : null,
     });
     if (insErr) {
       console.error("coaching quiz attempt insert error:", insErr);
@@ -53,12 +65,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Surface the explanation + suggested revision lesson only AFTER answering.
     return success({
-      is_correct: grade.isCorrect,
-      score: grade.score,
-      pending: grade.pending,
-      correct_answer: grade.pending ? null : q.correct_answer,
+      is_correct: aiGrade ? aiGrade.isCorrect : grade.isCorrect,
+      score: aiGrade ? aiGrade.score : grade.score,
+      pending: aiGrade ? false : grade.pending,
+      correct_answer: (aiGrade || !grade.pending) ? null : q.correct_answer,
       explanation: q.explanation ?? null,
-      suggested_lesson_id: grade.isCorrect ? null : q.suggested_lesson_id ?? null,
+      suggested_lesson_id: (aiGrade ? !aiGrade.isCorrect : !grade.isCorrect) ? q.suggested_lesson_id ?? null : null,
+      feedback: aiGrade ? aiGrade.feedback : null,
+      gaps: aiGrade ? aiGrade.gaps : null,
     });
   } catch (err) {
     console.error("coaching/quizzes/[id]/attempt POST error:", err);
