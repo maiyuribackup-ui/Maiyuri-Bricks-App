@@ -14,6 +14,8 @@ interface AttemptResult {
   correct_answer: string | null;
   explanation: string | null;
   suggested_lesson_id: string | null;
+  feedback: string | null;
+  gaps: string[] | null;
 }
 
 export default function QuizRunnerPage() {
@@ -117,6 +119,17 @@ export default function QuizRunnerPage() {
                   : "❌ Not quite"}
             </div>
             {result.explanation && <p className="mt-1">{result.explanation}</p>}
+            {result.feedback && <p className="mt-2">{result.feedback}</p>}
+            {result.gaps && result.gaps.length > 0 && (
+              <div className="mt-2">
+                <p className="font-medium">To improve:</p>
+                <ul className="mt-1 list-disc pl-4 space-y-0.5">
+                  {result.gaps.map((gap, i) => (
+                    <li key={i}>{gap}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {result.suggested_lesson_id && (
               <Link
                 href={`/coaching/learn/${result.suggested_lesson_id}`}
