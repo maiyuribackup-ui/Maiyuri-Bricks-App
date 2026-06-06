@@ -125,7 +125,7 @@ export default function QuizRunnerPage() {
                 <p className="font-medium">To improve:</p>
                 <ul className="mt-1 list-disc pl-4 space-y-0.5">
                   {result.gaps.map((gap, i) => (
-                    <li key={i}>{gap}</li>
+                    <li key={`${i}-${gap}`}>{gap}</li>
                   ))}
                 </ul>
               </div>
