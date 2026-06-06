@@ -5,11 +5,11 @@ import type { ScenarioGrade, AssignmentGrade } from "@maiyuri/shared";
 export async function gradeScenarioAnswer(
   quiz: { question: string; explanation?: string | null },
   answer: string,
-): Promise<ScenarioGrade> {
+): Promise<ScenarioGrade | null> {
   const user = `SCENARIO: ${quiz.question}\nMODEL GUIDANCE: ${quiz.explanation ?? "(none)"}\nTRAINEE ANSWER: ${answer}`;
   const out = await completeJson<ScenarioGrade>(SCENARIO_GRADE_SYSTEM, user, { maxOutputTokens: 500 });
   if (!out || typeof out.score !== "number") {
-    return { score: 0, isCorrect: false, feedback: "Saved — pending manager review.", gaps: [] };
+    return null;
   }
   const score = Math.max(0, Math.min(100, Math.round(out.score)));
   return {
@@ -23,11 +23,11 @@ export async function gradeScenarioAnswer(
 export async function scoreAssignment(
   assignment: { title: string; description?: string | null },
   submissionText: string,
-): Promise<AssignmentGrade> {
+): Promise<AssignmentGrade | null> {
   const user = `ASSIGNMENT: ${assignment.title}\nINSTRUCTIONS: ${assignment.description ?? "(none)"}\nSUBMISSION: ${submissionText}`;
   const out = await completeJson<AssignmentGrade>(ASSIGNMENT_GRADE_SYSTEM, user, { maxOutputTokens: 500 });
   if (!out || typeof out.ai_score !== "number") {
-    return { ai_score: 0, ai_feedback: "Saved — pending manager review.", suggestedStatus: "needs_improvement" };
+    return null;
   }
   const score = Math.max(0, Math.min(100, Math.round(out.ai_score)));
   return {

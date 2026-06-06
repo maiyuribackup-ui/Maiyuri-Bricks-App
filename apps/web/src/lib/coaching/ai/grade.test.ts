@@ -13,12 +13,10 @@ describe("gradeScenarioAnswer", () => {
     expect(g.score).toBe(80);
     expect(g.isCorrect).toBe(true);
   });
-  it("falls back to pending (score 0, isCorrect false) when the model fails", async () => {
+  it("returns null when the model fails", async () => {
     (completeJson as any).mockResolvedValue(null);
     const g = await gradeScenarioAnswer(quiz, "answer");
-    expect(g.score).toBe(0);
-    expect(g.isCorrect).toBe(false);
-    expect(g.feedback).toMatch(/review/i);
+    expect(g).toBeNull();
   });
 });
 
@@ -29,10 +27,9 @@ describe("scoreAssignment", () => {
     const g = await scoreAssignment({ title: "Explain bricks", description: "60s explanation" }, "Sir, interlock bricks...");
     expect(g.suggestedStatus).toBe("approved");
   });
-  it("falls back to needs_improvement/pending on model failure", async () => {
+  it("returns null on model failure", async () => {
     (completeJson as any).mockResolvedValue(null);
     const g = await scoreAssignment({ title: "x", description: "y" }, "z");
-    expect(g.suggestedStatus).toBe("needs_improvement");
-    expect(g.ai_score).toBe(0);
+    expect(g).toBeNull();
   });
 });
