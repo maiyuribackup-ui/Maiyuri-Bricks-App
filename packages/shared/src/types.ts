@@ -2094,3 +2094,17 @@ export interface CoachTodayPlanItem {
   title: string;
   done: boolean;
 }
+
+// AI autograding result shapes (Phase 2, Milestone 1)
+export interface ScenarioGrade {
+  score: number;
+  isCorrect: boolean;
+  feedback: string;
+  gaps: string[];
+}
+
+export interface AssignmentGrade {
+  ai_score: number;
+  ai_feedback: string;
+  suggestedStatus: "approved" | "needs_improvement";
+}
