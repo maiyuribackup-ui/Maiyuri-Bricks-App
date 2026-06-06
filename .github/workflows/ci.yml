@@ -12,11 +12,13 @@ env:
   TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
 jobs:
-  # NOTE: The check run is intentionally reported under the job id "quality"
-  # (no `name:` override). main's branch protection requires the status check
-  # context "quality"; a display name like "Code Quality" would report a
-  # mismatched context and the required check could never be satisfied.
+  # NOTE: This job reports its check run under the display name "Code Quality".
+  # main's branch protection requires exactly the status-check context
+  # "Code Quality" — the two MUST stay identical. If you change this `name:`,
+  # update the required status check in Settings → Branches → main to match,
+  # or the gate becomes unsatisfiable and every PR to main is blocked.
   quality:
+    name: Code Quality
     runs-on: ubuntu-latest
 
     steps:
