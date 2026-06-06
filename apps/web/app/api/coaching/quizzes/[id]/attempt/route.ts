@@ -13,7 +13,7 @@ import { getCoachContext } from "@/lib/coaching/context";
 import { gradeQuizAnswer } from "@/lib/coaching/grading";
 import { gradeScenarioAnswer } from "@/lib/coaching/ai/grade";
 import { isCoachAiEnabled } from "@/lib/coaching/ai/flags";
-import type { CoachQuiz } from "@maiyuri/shared";
+import type { CoachQuiz, ScenarioGrade } from "@maiyuri/shared";
 import { z } from "zod";
 
 const attemptSchema = z.object({ selected_answer: z.string().min(1, "An answer is required") });
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const grade = gradeQuizAnswer(q, parsed.data.selected_answer);
 
     // For open-ended types, replace the pending result with an AI grade when enabled.
-    let aiGrade: { score: number; isCorrect: boolean; feedback: string; gaps: string[] } | null = null;
+    let aiGrade: ScenarioGrade | null = null;
     if (grade.pending && isCoachAiEnabled()) {
       aiGrade = await gradeScenarioAnswer(
         { question: q.question, explanation: q.explanation },
@@ -64,13 +64,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Surface the explanation + suggested revision lesson only AFTER answering.
+    const answeredWrong = aiGrade ? !aiGrade.isCorrect : !grade.isCorrect;
     return success({
       is_correct: aiGrade ? aiGrade.isCorrect : grade.isCorrect,
       score: aiGrade ? aiGrade.score : grade.score,
       pending: aiGrade ? false : grade.pending,
       correct_answer: (aiGrade || grade.pending) ? null : q.correct_answer,
       explanation: q.explanation ?? null,
-      suggested_lesson_id: (aiGrade ? !aiGrade.isCorrect : !grade.isCorrect) ? q.suggested_lesson_id ?? null : null,
+      suggested_lesson_id: answeredWrong ? q.suggested_lesson_id ?? null : null,
       feedback: aiGrade ? aiGrade.feedback : null,
       gaps: aiGrade ? aiGrade.gaps : null,
     });
