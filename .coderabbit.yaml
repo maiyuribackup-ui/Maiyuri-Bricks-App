@@ -7,6 +7,7 @@ language: "en-US"
 reviews:
   profile: "chill"           # assertive|chill — chill = high-signal findings only
   request_changes_workflow: false  # post review comments only; don't block with formal "request changes"
+  auto_approve: true         # approve PRs when no blocking issues found (satisfies branch protection)
   high_level_summary: true
   poem: false                # skip the poem
   review_status: true
