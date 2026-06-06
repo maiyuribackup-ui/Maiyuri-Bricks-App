@@ -478,13 +478,7 @@ gh pr comment <n> --body "@coderabbitai review"
 
 - [ ] **Step 4: Verify the required check via check-runs (not /status), get non-author approval, squash-merge.**
 
-- [ ] **Step 5: Confirm `GOOGLE_AI_API_KEY` exists on Vercel prod** (server-runtime var) before relying on grading in prod:
-
-```bash
-# per MaiyuriOps: GET /v9/projects/$PRJ/env?teamId=$TEAM ; add if missing
-```
-
-If absent, grading silently falls back to "pending manager review" — safe, but AI won't run until the key is set. No migration in this milestone.
+- [ ] **Step 5: `GOOGLE_AI_API_KEY` — already configured on Vercel prod.** Confirmed: the existing Gemini features (smart-quote AI, audio transcription pipeline) run in prod on this same key, so coaching grading runs live as soon as M1 ships. No env change and no migration in this milestone. (Safety net regardless: if the key were ever missing, `completeJson` returns `null` and grading falls back to "pending manager review" — never a 500.)
 
 ---
 
