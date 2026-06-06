@@ -68,7 +68,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       is_correct: aiGrade ? aiGrade.isCorrect : grade.isCorrect,
       score: aiGrade ? aiGrade.score : grade.score,
       pending: aiGrade ? false : grade.pending,
-      correct_answer: (aiGrade || !grade.pending) ? null : q.correct_answer,
+      correct_answer: (aiGrade || grade.pending) ? null : q.correct_answer,
       explanation: q.explanation ?? null,
       suggested_lesson_id: (aiGrade ? !aiGrade.isCorrect : !grade.isCorrect) ? q.suggested_lesson_id ?? null : null,
       feedback: aiGrade ? aiGrade.feedback : null,
