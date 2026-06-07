@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, Button, Spinner } from "@maiyuri/ui";
 import { SmartQuoteImagesTab } from "@/components/settings/SmartQuoteImagesTab";
 import { WallCostSettingsTab } from "@/components/settings/WallCostSettingsTab";
+import { CallAuditTab } from "@/components/settings/CallAuditTab";
 import { HelpButton } from "@/components/help";
 import { getSupabase } from "@/lib/supabase";
 import { interpretPushTest } from "@/lib/push/test-result";
@@ -79,7 +80,8 @@ type TabId =
   | "team"
   | "smart-quotes"
   | "wall-costs"
-  | "nudges";
+  | "nudges"
+  | "call-audit";
 
 interface Tab {
   id: TabId;
@@ -94,6 +96,7 @@ const TABS: Tab[] = [
   { id: "smart-quotes", label: "Smart Quotes", roles: ["founder"] },
   { id: "wall-costs", label: "Wall Costs", roles: ["founder", "owner"] },
   { id: "nudges", label: "Nudges", roles: ["founder", "owner", "admin"] },
+  { id: "call-audit", label: "Call Audit", roles: ["founder", "owner"] },
 ];
 
 export default function SettingsPage() {
@@ -153,6 +156,7 @@ export default function SettingsPage() {
       {activeTab === "smart-quotes" && <SmartQuoteImagesTab />}
       {activeTab === "wall-costs" && <WallCostSettingsTab />}
       {activeTab === "nudges" && <NudgesSettings />}
+      {activeTab === "call-audit" && <CallAuditTab />}
     </div>
   );
 }

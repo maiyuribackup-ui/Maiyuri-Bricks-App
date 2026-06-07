@@ -140,6 +140,29 @@ export async function sendPushToUser(
   return sendPushToUsers([userId], payload);
 }
 
+/** Return the user IDs of everyone holding any of the given roles. */
+export async function getUserIdsByRoles(roles: string[]): Promise<string[]> {
+  if (!roles.length) return [];
+  const { data } = await supabaseAdmin
+    .from("users")
+    .select("id")
+    .in("role", roles);
+  return (data ?? []).map((u) => u.id as string);
+}
+
+/**
+ * Resolve who should receive a lead-related push: the assigned rep if set,
+ * otherwise leadership (founder/owner) as a fallback. This matters for leads
+ * with no owner — e.g. auto-created from a Telegram voice note — so they still
+ * notify someone instead of being silently dropped.
+ */
+export async function resolveLeadRecipients(
+  assignedStaff: string | null | undefined,
+): Promise<string[]> {
+  if (assignedStaff) return [assignedStaff];
+  return getUserIdsByRoles(["founder", "owner"]);
+}
+
 /**
  * Convenience wrapper for lead-related pushes: centralizes the `/leads/[id]`
  * deep-link convention and the best-effort (swallow + log) discipline every

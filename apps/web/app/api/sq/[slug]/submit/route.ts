@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, notFound, error, parseBody } from "@/lib/api-utils";
 import { smartQuoteCtaSubmitSchema } from "@maiyuri/shared";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { notifyLeadPush, resolveLeadRecipients } from "@/lib/push/fcm";
 
 interface RouteParams {
   params: Promise<{ slug: string }>;
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Get lead details
     const { data: lead } = await supabaseAdmin
       .from("leads")
-      .select("id, name, contact, lead_status")
+      .select("id, name, contact, lead_status, assigned_staff")
       .eq("id", quote.lead_id)
       .single();
 
@@ -128,6 +129,23 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       primaryAngle: quote.primary_angle,
       quoteSlug: slug,
     }).catch(console.error);
+
+    // Native push: a customer just responded to the quote — strong buying
+    // signal, so notify the rep (or leadership) to follow up fast.
+    if (lead) {
+      try {
+        const recipients = await resolveLeadRecipients(
+          lead.assigned_staff ?? null,
+        );
+        await notifyLeadPush(recipients, {
+          title: "📨 Customer responded to your quote",
+          body: `${name} · ${formatRoute(quote.route_decision)}`,
+          leadId: lead.id,
+        });
+      } catch (err) {
+        console.error("[SmartQuoteSubmit] push failed:", err);
+      }
+    }
 
     return success({ submitted: true });
   } catch (err) {

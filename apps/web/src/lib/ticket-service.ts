@@ -23,10 +23,30 @@ import {
   updateProductionOrderStatus,
 } from "./production-service";
 import { supabaseAdmin } from "./supabase-admin";
+import { sendPushToUser, sendPushToUsers, getUserIdsByRoles } from "./push/fcm";
 
 // Use centralized supabase admin client
 function getSupabase() {
   return supabaseAdmin;
+}
+
+/** Push the requester (best-effort) when their approval ticket is decided. */
+async function pushTicketDecision(
+  createdBy: string | null | undefined,
+  title: string,
+  body: string,
+  ticketId: string,
+): Promise<void> {
+  if (!createdBy) return;
+  try {
+    await sendPushToUser(createdBy, {
+      title,
+      body: body.slice(0, 160),
+      data: { url: `/tickets/${ticketId}` },
+    });
+  } catch (err) {
+    console.error("ticket decision push failed:", err);
+  }
 }
 
 interface ServiceResult<T = void> {
@@ -301,6 +321,13 @@ export async function approveTicket(
       }
     }
 
+    await pushTicketDecision(
+      ticket.created_by,
+      "✅ Approval granted",
+      `${ticket.title} was approved`,
+      ticketId,
+    );
+
     return { success: true, message: "Ticket approved successfully" };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
@@ -364,6 +391,13 @@ export async function rejectTicket(
       await updateProductionOrderStatus(ticket.production_order_id, "draft");
     }
 
+    await pushTicketDecision(
+      ticket.created_by,
+      "❌ Approval rejected",
+      `${ticket.title}: ${input.reason}`,
+      ticketId,
+    );
+
     return { success: true, message: "Ticket rejected" };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
@@ -424,6 +458,13 @@ export async function requestChanges(
     if (ticket.type === "production_order" && ticket.production_order_id) {
       await updateProductionOrderStatus(ticket.production_order_id, "draft");
     }
+
+    await pushTicketDecision(
+      ticket.created_by,
+      "✏️ Changes requested",
+      `${ticket.title}: ${input.reason}`,
+      ticketId,
+    );
 
     return { success: true, message: "Changes requested" };
   } catch (err) {
@@ -610,6 +651,18 @@ export async function submitProductionOrderForApproval(
         submitted_for_approval_at: new Date().toISOString(),
       })
       .eq("id", orderId);
+
+    // Notify approvers (leadership) that an order is waiting — best-effort.
+    try {
+      const approvers = await getUserIdsByRoles(["founder", "owner"]);
+      await sendPushToUsers(approvers, {
+        title: "📝 Approval needed",
+        body: ticketResult.data.title,
+        data: { url: `/tickets/${ticketResult.data.id}` },
+      });
+    } catch (err) {
+      console.error("approval-request push failed:", err);
+    }
 
     return {
       success: true,

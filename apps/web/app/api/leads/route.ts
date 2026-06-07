@@ -11,28 +11,13 @@ import {
   sanitizeSearchTerm,
 } from "@/lib/api-utils";
 import { notifyNewLeadDetailed } from "@/lib/telegram";
-import { notifyLeadPush } from "@/lib/push/fcm";
+import { notifyLeadPush, resolveLeadRecipients } from "@/lib/push/fcm";
 import {
   createLeadSchema,
   paginationSchema,
   leadFiltersSchema,
   type Lead,
 } from "@maiyuri/shared";
-
-/**
- * Resolve which users should receive a "new lead" push:
- * the assigned rep if set, otherwise leadership (founder/owner).
- */
-async function resolveNewLeadRecipients(
-  assignedStaff: string | null,
-): Promise<string[]> {
-  if (assignedStaff) return [assignedStaff];
-  const { data } = await supabaseAdmin
-    .from("users")
-    .select("id")
-    .in("role", ["founder", "owner"]);
-  return (data ?? []).map((u) => u.id);
-}
 
 // GET /api/leads - List all leads with filtering and pagination
 export async function GET(request: NextRequest) {
@@ -135,9 +120,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Native push for the new lead (awaited before response so Vercel doesn't kill it).
-    const recipients = await resolveNewLeadRecipients(
-      lead.assigned_staff ?? null,
-    );
+    const recipients = await resolveLeadRecipients(lead.assigned_staff ?? null);
     const requirement = lead.requirement_type
       ? String(lead.requirement_type).replace(/_/g, " ")
       : null;
