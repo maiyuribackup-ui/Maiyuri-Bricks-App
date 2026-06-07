@@ -6,6 +6,29 @@ import { Card, Button, Spinner } from "@maiyuri/ui";
 import { SmartQuoteImagesTab } from "@/components/settings/SmartQuoteImagesTab";
 import { WallCostSettingsTab } from "@/components/settings/WallCostSettingsTab";
 import { HelpButton } from "@/components/help";
+import { getSupabase } from "@/lib/supabase";
+import { interpretPushTest } from "@/lib/push/test-result";
+
+// Authenticated fetch: attaches the Supabase session Bearer token so requests
+// work inside the native app (where cookies are unreliable) as well as on web.
+async function authFetch(input: string, init: RequestInit = {}) {
+  let token: string | undefined;
+  try {
+    const {
+      data: { session },
+    } = await getSupabase().auth.getSession();
+    token = session?.access_token;
+  } catch {
+    /* not signed in — let the request 401 */
+  }
+  return fetch(input, {
+    ...init,
+    headers: {
+      ...(init.headers ?? {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+}
 
 interface UserProfile {
   id: string;
@@ -448,8 +471,86 @@ function NotificationSettings() {
             </p>
           )}
         </div>
+
+        <PushDeviceSection />
       </div>
     </Card>
+  );
+}
+
+// Device push diagnostics + self-test. Lets a user confirm — from their own
+// phone — that this device is registered and that the FCM pipeline works.
+function PushDeviceSection() {
+  const [status, setStatus] = useState<{
+    configured: boolean;
+    deviceCount: number;
+  } | null>(null);
+  const [testState, setTestState] = useState<
+    "idle" | "sending" | "sent" | "error"
+  >("idle");
+  const [message, setMessage] = useState("");
+
+  const loadStatus = async () => {
+    try {
+      const res = await authFetch("/api/push/test");
+      const json = await res.json();
+      if (res.ok && json.data) setStatus(json.data);
+    } catch {
+      /* best-effort; the test button still works */
+    }
+  };
+
+  useEffect(() => {
+    loadStatus();
+  }, []);
+
+  const sendTest = async () => {
+    setTestState("sending");
+    setMessage("");
+    try {
+      const res = await authFetch("/api/push/test", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to send test");
+      const outcome = interpretPushTest(json.data ?? {});
+      setTestState(outcome.state);
+      setMessage(outcome.message);
+      loadStatus();
+    } catch (err) {
+      setTestState("error");
+      setMessage(err instanceof Error ? err.message : "Network error.");
+    }
+  };
+
+  return (
+    <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h3 className="text-sm font-medium text-slate-900 dark:text-white">
+            Push Notifications (This Device)
+          </h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {status
+              ? status.configured
+                ? `${status.deviceCount} device(s) registered`
+                : "Push not configured on the server"
+              : "Checking status…"}
+          </p>
+        </div>
+        <button
+          onClick={sendTest}
+          disabled={testState === "sending"}
+          className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50"
+        >
+          {testState === "sending" ? "Sending…" : "Send Test"}
+        </button>
+      </div>
+      {testState === "sent" && (
+        <p className="text-sm text-green-600 dark:text-green-400">{message}</p>
+      )}
+      {testState === "error" && (
+        <p className="text-sm text-red-600 dark:text-red-400">{message}</p>
+      )}
+    </div>
   );
 }
 
@@ -1286,7 +1387,8 @@ function TeamSettings() {
                       </Button>
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Directly set the user&apos;s password without sending an email.
+                      Directly set the user&apos;s password without sending an
+                      email.
                     </p>
                   </div>
                 )}

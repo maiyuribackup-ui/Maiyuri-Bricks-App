@@ -12,6 +12,11 @@ env:
   TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
 jobs:
+  # NOTE: This job reports its check run under the display name "Code Quality".
+  # main's branch protection requires exactly the status-check context
+  # "Code Quality" — the two MUST stay identical. If you change this `name:`,
+  # update the required status check in Settings → Branches → main to match,
+  # or the gate becomes unsatisfiable and every PR to main is blocked.
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
@@ -32,10 +37,10 @@ jobs:
         run: npm run typecheck
 
       - name: Lint
-        run: npm run lint || echo "Lint completed with warnings"
+        run: npm run lint
 
       - name: Run tests
-        run: npm run test || echo "Tests completed with failures"
+        run: npm run test
         env:
           CI: true
 
