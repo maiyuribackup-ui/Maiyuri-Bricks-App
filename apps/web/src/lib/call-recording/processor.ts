@@ -13,15 +13,22 @@ import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { uploadToGoogleDrive } from "./gdrive-storage";
 import { transcribeAudio } from "./transcription";
 import { analyzeTranscript, extractLeadDetails } from "./analysis";
-import { sendCallRecordingNotification, sendErrorNotification } from "./notifications";
-import { notifyLeadPush } from "@/lib/push/fcm";
+import {
+  sendCallRecordingNotification,
+  sendErrorNotification,
+} from "./notifications";
+import { notifyLeadPush, resolveLeadRecipients } from "@/lib/push/fcm";
 import { logError, logProgress } from "./logger";
 import {
   triggerLeadAnalysis,
   triggerCallRecordingNudge,
   triggerObjectionNudge,
 } from "./triggers";
-import type { CallRecording, ExtractedLeadDetails, ProcessingStatus } from "./types";
+import type {
+  CallRecording,
+  ExtractedLeadDetails,
+  ProcessingStatus,
+} from "./types";
 
 /**
  * Update recording status in database
@@ -165,7 +172,11 @@ export async function processRecording(
     // Stage 2: Upload to Google Drive (raw audio)
     // ========================================
     const lead = await getLeadDetails(lead_id);
-    let driveResult: { fileId: string; webViewLink: string; webContentLink?: string } | null = null;
+    let driveResult: {
+      fileId: string;
+      webViewLink: string;
+      webContentLink?: string;
+    } | null = null;
 
     const hasGDriveCredentials =
       process.env.GOOGLE_CLIENT_ID &&
@@ -190,7 +201,10 @@ export async function processRecording(
         mp3_gdrive_url: driveResult.webViewLink,
       });
     } else {
-      logProgress(id, "Skipping Google Drive upload (credentials not configured)");
+      logProgress(
+        id,
+        "Skipping Google Drive upload (credentials not configured)",
+      );
     }
 
     // ========================================
@@ -280,7 +294,10 @@ export async function processRecording(
         ) {
           updates.classification = extractedDetails.classification;
         }
-        if (!currentLead.requirement_type && extractedDetails.requirement_type) {
+        if (
+          !currentLead.requirement_type &&
+          extractedDetails.requirement_type
+        ) {
           updates.requirement_type = extractedDetails.requirement_type;
         }
         if (
@@ -299,7 +316,10 @@ export async function processRecording(
         if (!currentLead.next_action && extractedDetails.next_action) {
           updates.next_action = extractedDetails.next_action;
         }
-        if (!currentLead.estimated_quantity && extractedDetails.estimated_quantity) {
+        if (
+          !currentLead.estimated_quantity &&
+          extractedDetails.estimated_quantity
+        ) {
           updates.estimated_quantity = extractedDetails.estimated_quantity;
         }
         if (!currentLead.notes && extractedDetails.notes) {
@@ -348,12 +368,19 @@ export async function processRecording(
       isNewlyAutoPopulated,
     });
 
-    // Native push to the rep who owns this lead (best-effort, non-blocking).
-    if (lead?.assigned_staff && lead?.id) {
-      await notifyLeadPush([lead.assigned_staff], {
-        title: lead.name ? `📞 Call logged: ${lead.name}` : "📞 New call logged",
-        body:
-          (analysis.summary || "A new call recording was processed.").slice(0, 160),
+    // Native push to the rep who owns this lead — or leadership when the lead
+    // is unassigned (Telegram voice notes auto-create leads with no owner).
+    // Best-effort, non-blocking.
+    if (lead?.id) {
+      const recipients = await resolveLeadRecipients(lead.assigned_staff);
+      await notifyLeadPush(recipients, {
+        title: lead.name
+          ? `📞 Call logged: ${lead.name}`
+          : "📞 New call logged",
+        body: (analysis.summary || "A new call recording was processed.").slice(
+          0,
+          160,
+        ),
         leadId: lead.id,
       });
     }

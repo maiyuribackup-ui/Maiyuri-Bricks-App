@@ -141,6 +141,23 @@ export async function sendPushToUser(
 }
 
 /**
+ * Resolve who should receive a lead-related push: the assigned rep if set,
+ * otherwise leadership (founder/owner) as a fallback. This matters for leads
+ * with no owner — e.g. auto-created from a Telegram voice note — so they still
+ * notify someone instead of being silently dropped.
+ */
+export async function resolveLeadRecipients(
+  assignedStaff: string | null | undefined,
+): Promise<string[]> {
+  if (assignedStaff) return [assignedStaff];
+  const { data } = await supabaseAdmin
+    .from("users")
+    .select("id")
+    .in("role", ["founder", "owner"]);
+  return (data ?? []).map((u) => u.id as string);
+}
+
+/**
  * Convenience wrapper for lead-related pushes: centralizes the `/leads/[id]`
  * deep-link convention and the best-effort (swallow + log) discipline every
  * lead trigger needs, so call sites only decide recipients + copy. Never
