@@ -14,9 +14,22 @@ vi.mock("@/lib/supabase-admin", () => ({
 // googleapis is imported by fcm.ts but unused in these tests — stub it out.
 vi.mock("googleapis", () => ({ google: { auth: { JWT: class {} } } }));
 
-import { resolveLeadRecipients } from "./fcm";
+import { resolveLeadRecipients, getUserIdsByRoles } from "./fcm";
 
 beforeEach(() => vi.clearAllMocks());
+
+describe("getUserIdsByRoles", () => {
+  it("returns [] for an empty role list without a DB query", async () => {
+    expect(await getUserIdsByRoles([])).toEqual([]);
+    expect(mockIn).not.toHaveBeenCalled();
+  });
+
+  it("maps matched users to their ids", async () => {
+    mockIn.mockResolvedValue({ data: [{ id: "a" }, { id: "b" }] });
+    expect(await getUserIdsByRoles(["founder", "owner"])).toEqual(["a", "b"]);
+    expect(mockIn).toHaveBeenCalledWith("role", ["founder", "owner"]);
+  });
+});
 
 describe("resolveLeadRecipients", () => {
   it("returns the assigned rep without a DB lookup", async () => {

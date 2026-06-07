@@ -140,6 +140,16 @@ export async function sendPushToUser(
   return sendPushToUsers([userId], payload);
 }
 
+/** Return the user IDs of everyone holding any of the given roles. */
+export async function getUserIdsByRoles(roles: string[]): Promise<string[]> {
+  if (!roles.length) return [];
+  const { data } = await supabaseAdmin
+    .from("users")
+    .select("id")
+    .in("role", roles);
+  return (data ?? []).map((u) => u.id as string);
+}
+
 /**
  * Resolve who should receive a lead-related push: the assigned rep if set,
  * otherwise leadership (founder/owner) as a fallback. This matters for leads
@@ -150,11 +160,7 @@ export async function resolveLeadRecipients(
   assignedStaff: string | null | undefined,
 ): Promise<string[]> {
   if (assignedStaff) return [assignedStaff];
-  const { data } = await supabaseAdmin
-    .from("users")
-    .select("id")
-    .in("role", ["founder", "owner"]);
-  return (data ?? []).map((u) => u.id as string);
+  return getUserIdsByRoles(["founder", "owner"]);
 }
 
 /**

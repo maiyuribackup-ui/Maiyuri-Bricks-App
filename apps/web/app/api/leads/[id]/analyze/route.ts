@@ -4,6 +4,7 @@ import { success, error, notFound } from "@/lib/api-utils";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { getUserFromRequest } from "@/lib/supabase-server";
 import { notifyAIAnalysis } from "@/lib/telegram";
+import { notifyLeadPush, resolveLeadRecipients } from "@/lib/push/fcm";
 import type { Lead, NudgeEventType } from "@maiyuri/shared";
 
 const APP_URL =
@@ -274,6 +275,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       const isHot = newScore >= HOT_LEAD_THRESHOLD;
 
       if (!wasHot && isHot) {
+        // Native push to the owner (or leadership) — a hot lead needs action now.
+        try {
+          const recipients = await resolveLeadRecipients(
+            updatedLead.assigned_staff ?? null,
+          );
+          await notifyLeadPush(recipients, {
+            title: "🔥 Lead just turned hot",
+            body: `${updatedLead.name ?? "A lead"} crossed ${Math.round(
+              HOT_LEAD_THRESHOLD * 100,
+            )}% — follow up now`,
+            leadId: id,
+          });
+        } catch (err) {
+          console.error("[Hot Lead Push] failed:", err);
+        }
+
         // Lead just became hot - trigger hot lead alert
         triggerEventNudge("hot_lead_alert", id, {
           previous_score: previousScore,

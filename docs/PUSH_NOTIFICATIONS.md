@@ -44,6 +44,21 @@ stayed empty, and every send found zero devices — so nothing was ever delivere
 - Server + client agree on a high-importance `"default"` channel.
 - Settings → Notifications has a **"Send Test"** button + live device count.
 
+## What triggers a push
+
+| Event | Recipients | Source |
+|-------|-----------|--------|
+| New lead created | assigned rep, else founders/owners | `app/api/leads/route.ts` |
+| Lead reassigned / status changed | new/current assignee | `app/api/leads/[id]/route.ts` |
+| Call recording processed (incl. Telegram voice notes) | assigned rep, else founders/owners | `src/lib/call-recording/processor.ts` |
+| Lead turns hot (score ≥ 80%) | assigned rep, else founders/owners | `app/api/leads/[id]/analyze/route.ts` |
+| Customer responds to a Smart Quote (CTA submit) | assigned rep, else founders/owners | `app/api/sq/[slug]/submit/route.ts` |
+| Production order submitted for approval | founders/owners (approvers) | `src/lib/ticket-service.ts` |
+| Approval decided (approved / rejected / changes) | the requester (`created_by`) | `src/lib/ticket-service.ts` |
+| Nudge digest / SalesPulse | assigned staff / configured roles | `app/api/nudges/digest`, `app/api/salespulse/send` |
+
+Recipient resolution helpers live in `src/lib/push/fcm.ts`: `resolveLeadRecipients(assignedStaff)` (assignee → leadership fallback) and `getUserIdsByRoles(roles)`. All triggers are best-effort (swallow + log) so a push failure never breaks the request.
+
 ## Required configuration
 
 | Where | Variable / file | Purpose |
