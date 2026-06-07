@@ -7,6 +7,7 @@ import { SmartQuoteImagesTab } from "@/components/settings/SmartQuoteImagesTab";
 import { WallCostSettingsTab } from "@/components/settings/WallCostSettingsTab";
 import { HelpButton } from "@/components/help";
 import { getSupabase } from "@/lib/supabase";
+import { interpretPushTest } from "@/lib/push/test-result";
 
 // Authenticated fetch: attaches the Supabase session Bearer token so requests
 // work inside the native app (where cookies are unreliable) as well as on web.
@@ -510,19 +511,9 @@ function PushDeviceSection() {
       const res = await authFetch("/api/push/test", { method: "POST" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to send test");
-      const data = json.data ?? {};
-      if (!data.configured) {
-        setTestState("error");
-        setMessage("Push is not configured on the server yet.");
-      } else if ((data.sent ?? 0) > 0) {
-        setTestState("sent");
-        setMessage(`Sent to ${data.sent} device(s). Check your notifications.`);
-      } else {
-        setTestState("error");
-        setMessage(
-          "No devices registered for your account. Open the Android app and allow notifications, then try again.",
-        );
-      }
+      const outcome = interpretPushTest(json.data ?? {});
+      setTestState(outcome.state);
+      setMessage(outcome.message);
       loadStatus();
     } catch (err) {
       setTestState("error");
