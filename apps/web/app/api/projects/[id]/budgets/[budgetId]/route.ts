@@ -22,13 +22,15 @@ const updateBudgetSchema = z.object({
 // Rejects with 409 if the row is already approved — Phase 3 will introduce revision flow.
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    const { budgetId } = await params;
+    const { id, budgetId } = await params;
 
-    // Fetch current row to check status
+    // Fetch current row to check status — scope by BOTH project_id and id so a
+    // budget UUID cannot be reached through the wrong project route.
     const { data: existing, error: fetchErr } = await supabaseAdmin
       .from("project_budgets")
       .select("id, status")
       .eq("id", budgetId)
+      .eq("project_id", id)
       .single();
 
     if (fetchErr || !existing)
@@ -56,6 +58,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .from("project_budgets")
       .update(patch)
       .eq("id", budgetId)
+      .eq("project_id", id)
       .select(`*, cbs:cbs_master(*)`)
       .single();
 
@@ -71,12 +74,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 // Deletes a draft budget row. Approved rows cannot be deleted.
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   try {
-    const { budgetId } = await params;
+    const { id, budgetId } = await params;
 
     const { data: existing, error: fetchErr } = await supabaseAdmin
       .from("project_budgets")
       .select("id, status")
       .eq("id", budgetId)
+      .eq("project_id", id)
       .single();
 
     if (fetchErr || !existing)
@@ -88,7 +92,8 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     const { error: delErr } = await supabaseAdmin
       .from("project_budgets")
       .delete()
-      .eq("id", budgetId);
+      .eq("id", budgetId)
+      .eq("project_id", id);
 
     if (delErr) return error(`Failed to delete budget: ${delErr.message}`, 500);
     return success({ deleted: budgetId });

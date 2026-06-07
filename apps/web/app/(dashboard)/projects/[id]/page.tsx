@@ -29,6 +29,14 @@ interface Warning { type: string; message: string; severity: "low" | "medium" | 
 
 const inr = (n: number | null | undefined) => (n == null ? "—" : "₹" + Math.round(n).toLocaleString("en-IN"));
 const tabs = ["Overview", "Budget / CBS", "Estimate / BOQ", "WBS", "Daily Progress", "Costs", "Variance", "AI Insights"] as const;
+
+// Shared CBS master loader — explicit error handling, used by Budget/CBS + Costs tabs.
+async function fetchCbsMaster(): Promise<any[]> {
+  const res = await fetch("/api/cbs");
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || "Failed to load CBS master");
+  return body.data ?? [];
+}
 type Tab = (typeof tabs)[number];
 
 export default function ProjectDetailPage() {
@@ -169,7 +177,7 @@ function CostsTab({ projectId, wbs, onChanged }: { projectId: string; wbs: WbsIt
   // CBS master list (cached 10 min)
   const { data: cbsList } = useQuery({
     queryKey: ["cbs-master"],
-    queryFn: async (): Promise<any[]> => (await (await fetch(`/api/cbs`)).json()).data,
+    queryFn: fetchCbsMaster,
     staleTime: 10 * 60 * 1000,
   });
 
@@ -320,7 +328,7 @@ function BudgetCbsTab({ projectId }: { projectId: string }) {
 
   const { data: cbsList } = useQuery({
     queryKey: ["cbs-master"],
-    queryFn: async (): Promise<any[]> => (await (await fetch(`/api/cbs`)).json()).data,
+    queryFn: fetchCbsMaster,
     staleTime: 10 * 60 * 1000,
   });
 

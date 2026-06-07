@@ -91,6 +91,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (updates.cbs_id !== undefined) patch.cbs_id = updates.cbs_id;
     if (updates.zone !== undefined) patch.zone = updates.zone;
 
+    if (Object.keys(patch).length === 0)
+      return error("No updatable fields provided", 400);
+
     const { data: row, error: updErr } = await supabaseAdmin
       .from("cost_entries")
       .update(patch)

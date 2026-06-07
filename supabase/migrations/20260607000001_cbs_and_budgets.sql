@@ -40,7 +40,8 @@ CREATE TRIGGER cbs_master_updated_at
 CREATE TABLE IF NOT EXISTS public.project_budgets (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id            UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
-  cbs_id                UUID NOT NULL REFERENCES public.cbs_master(id),
+  -- RESTRICT: a CBS code that is in use by a budget line cannot be deleted.
+  cbs_id                UUID NOT NULL REFERENCES public.cbs_master(id) ON DELETE RESTRICT,
   zone                  TEXT,                  -- "Ground Floor", "First Floor", "" etc.
   quantity              NUMERIC NOT NULL DEFAULT 0,
   unit                  TEXT,
@@ -53,6 +54,9 @@ CREATE TABLE IF NOT EXISTS public.project_budgets (
   revision_no           INTEGER NOT NULL DEFAULT 0,
   status                TEXT NOT NULL DEFAULT 'draft'
                           CHECK (status IN ('draft','approved')),
+  -- approved_by stores the approver's EMAIL (from x-user-email header), not a
+  -- user UUID — intentionally TEXT so historical approver identity survives
+  -- even if the auth.users row is later removed.
   approved_by           TEXT,
   approved_at           TIMESTAMPTZ,
   notes                 TEXT,
@@ -77,7 +81,8 @@ CREATE TRIGGER project_budgets_updated_at
 -- existing data is mapped.
 -- ============================================================================
 ALTER TABLE public.cost_entries
-  ADD COLUMN IF NOT EXISTS cbs_id UUID REFERENCES public.cbs_master(id),
+  -- RESTRICT: prevent deleting a CBS code that is referenced by cost entries.
+  ADD COLUMN IF NOT EXISTS cbs_id UUID REFERENCES public.cbs_master(id) ON DELETE RESTRICT,
   ADD COLUMN IF NOT EXISTS zone TEXT,
   ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'pending'
     CHECK (approval_status IN ('pending','approved','rejected'));
@@ -176,7 +181,7 @@ BEGIN
   ON CONFLICT (cbs_code) DO NOTHING;
 
   INSERT INTO public.cbs_master (cbs_code, category, work_item, cost_type, unit) VALUES
-    ('05.04', 'Masonry', 'Mortar & masonry material consumables', 'labour', 'sqft')
+    ('05.04', 'Masonry', 'Mortar & masonry material consumables', 'consumables', 'sqft')
   ON CONFLICT (cbs_code) DO NOTHING;
 
   -- 06 Plastering
