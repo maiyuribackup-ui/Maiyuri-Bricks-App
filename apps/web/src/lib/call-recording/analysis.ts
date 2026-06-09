@@ -5,8 +5,7 @@
  * Also extracts lead details for auto-populating lead records.
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
+import { generateTextWithFallback } from "@/lib/ai/text-fallback";
 import { log, logError } from "./logger";
 import type {
   AnalysisResult,
@@ -14,14 +13,6 @@ import type {
   ExtractedLeadDetails,
   ProductInterest,
 } from "./types";
-
-function getGeminiClient() {
-  const apiKey = process.env.GOOGLE_AI_API_KEY;
-  if (!apiKey) {
-    throw new Error("Missing GOOGLE_AI_API_KEY");
-  }
-  return new GoogleGenerativeAI(apiKey);
-}
 
 /**
  * Analyze call transcript for sales insights
@@ -31,8 +22,6 @@ export async function analyzeTranscript(
   phoneNumber: string,
   leadName?: string,
 ): Promise<AnalysisResult> {
-  const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
 
   const prompt = `You are a sales intelligence analyst for Maiyuri Bricks, a company that manufactures eco-friendly compressed earth blocks (CSEB/interlocking bricks).
 
@@ -66,8 +55,9 @@ Transcript:
 ${transcript}`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
+    const out = await generateTextWithFallback(prompt);
+    if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
+    const response = out.text;
 
     const analysis = parseAnalysisResponse(response);
 
@@ -138,8 +128,6 @@ export async function extractLeadDetails(
   phoneNumber: string,
   leadName?: string,
 ): Promise<ExtractedLeadDetails> {
-  const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
 
   const prompt = `You are analyzing a sales call transcript for Maiyuri Bricks (CSEB/interlocking brick manufacturer in Tamil Nadu, India).
 
@@ -189,8 +177,9 @@ Transcript:
 ${transcript}`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
+    const out = await generateTextWithFallback(prompt);
+    if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
+    const response = out.text;
 
     const details = parseLeadDetailsResponse(response);
 

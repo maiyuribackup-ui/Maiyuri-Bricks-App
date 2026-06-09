@@ -9,8 +9,7 @@
  * Uses Gemini 2.0 Flash for all AI operations.
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
+import { generateTextWithFallback } from "@/lib/ai/text-fallback";
 import type {
   SmartQuoteLanguage,
   SmartQuoteStage,
@@ -51,19 +50,6 @@ export interface SmartQuoteAIResult {
   copyMap: SmartQuoteCopyMap;
 }
 
-// ============================================================================
-// Gemini Client
-// ============================================================================
-
-function getGeminiClient(): GoogleGenerativeAI {
-  const apiKey = process.env.GOOGLE_AI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("Missing GOOGLE_AI_API_KEY environment variable");
-  }
-
-  return new GoogleGenerativeAI(apiKey);
-}
 
 // ============================================================================
 // Prompt A: Lead Insight Extraction
@@ -78,8 +64,6 @@ async function extractLeadInsights(
   transcript: string,
   leadName?: string | null,
 ): Promise<LeadInsights> {
-  const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
 
   const prompt = `${PROMPT_A_SYSTEM}
 
@@ -107,8 +91,9 @@ TRANSCRIPT:
 ${transcript}`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
+    const out = await generateTextWithFallback(prompt);
+    if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
+    const response = out.text;
     return parseInsightsResponse(response);
   } catch (error) {
     console.error("[SmartQuoteAI] Failed to extract insights:", error);
@@ -174,8 +159,6 @@ Return ONLY JSON matching the schema.`;
 async function generateStrategy(
   insights: LeadInsights,
 ): Promise<StrategyResult> {
-  const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
 
   const prompt = `${PROMPT_B_SYSTEM}
 
@@ -209,8 +192,9 @@ Output schema:
 }`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
+    const out = await generateTextWithFallback(prompt);
+    if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
+    const response = out.text;
     return parseStrategyResponse(response, insights);
   } catch (error) {
     console.error("[SmartQuoteAI] Failed to generate strategy:", error);
@@ -338,8 +322,6 @@ async function generateBilingualCopy(
   insights: LeadInsights,
   strategy: StrategyResult,
 ): Promise<SmartQuoteCopyMap> {
-  const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
 
   const topObjectionStr =
     insights.top_objections.length > 0
@@ -399,8 +381,9 @@ Return schema:
 }`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
+    const out = await generateTextWithFallback(prompt);
+    if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
+    const response = out.text;
     return parseCopyResponse(response, strategy.route_decision);
   } catch (error) {
     console.error("[SmartQuoteAI] Failed to generate copy:", error);
