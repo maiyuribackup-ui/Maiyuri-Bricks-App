@@ -240,3 +240,39 @@ export async function sendErrorNotification(
 
   await sendTelegramMessage(message, adminChatId);
 }
+
+/**
+ * Classify an error as an infrastructure / AI-provider outage rather than a
+ * problem with a specific recording. These (depleted credits, expired/invalid
+ * key, quota/rate limits, 5xx, network) are transient and NOT the recording's
+ * fault — so they must not burn its retry budget, and they should produce one
+ * throttled alert instead of one-per-recording spam.
+ */
+export function isInfraError(message: string): boolean {
+  const m = (message || "").toLowerCase();
+  return /\b429\b|resource_exhausted|prepayment credits|depleted|quota|rate.?limit|api key expired|api_key_invalid|api key not valid|\b5\d\d\b|overload|unavailable|timeout|timed ?out|fetch failed|econnreset|enotfound|network/.test(
+    m,
+  );
+}
+
+/**
+ * One aggregated alert for an AI-provider/infra outage affecting N recordings —
+ * replaces the per-recording failure spam. The recordings are left pending with
+ * their retry budget intact, so they auto-resume once the outage clears.
+ */
+export async function sendInfraOutageAlert(
+  count: number,
+  sampleError: string,
+): Promise<void> {
+  const adminChatId =
+    process.env.TELEGRAM_ADMIN_CHAT_ID ?? process.env.TELEGRAM_CHAT_ID;
+
+  if (!adminChatId) return;
+
+  const message =
+    `\u{26A0}\u{FE0F} *Call recording processing paused*\n\n` +
+    `${count} recording(s) hit an AI-provider/infra error and were left *pending* — no retry consumed, they will auto-resume once it clears.\n\n` +
+    `\u{1F4A1} *Cause:* ${sampleError.slice(0, 180)}`;
+
+  await sendTelegramMessage(message, adminChatId);
+}

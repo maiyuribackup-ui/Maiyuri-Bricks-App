@@ -13,7 +13,11 @@ import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { uploadToGoogleDrive } from "./gdrive-storage";
 import { transcribeAudio } from "./transcription";
 import { analyzeTranscript, extractLeadDetails } from "./analysis";
-import { sendCallRecordingNotification, sendErrorNotification } from "./notifications";
+import {
+  sendCallRecordingNotification,
+  sendErrorNotification,
+  isInfraError,
+} from "./notifications";
 import { notifyLeadPush } from "@/lib/push/fcm";
 import { logError, logProgress } from "./logger";
 import {
@@ -412,16 +416,22 @@ export async function processRecording(
   } catch (error) {
     logError(`Processing failed for ${id}`, error);
 
+    const message = error instanceof Error ? error.message : String(error);
+    const infra = isInfraError(message);
+
     await updateStatus(id, "failed", {
-      error_message: error instanceof Error ? error.message : String(error),
-      retry_count: recording.retry_count + 1,
+      error_message: message,
+      // Infra / AI-provider outages (depleted credits, expired key, quota, 5xx,
+      // network) aren't this recording's fault — don't burn a retry, or a
+      // transient outage permanently strands real calls at retry_count >= 3.
+      retry_count: infra ? recording.retry_count : recording.retry_count + 1,
     });
 
-    // Send error notification
-    await sendErrorNotification(
-      id,
-      error instanceof Error ? error.message : String(error),
-    ).catch(() => {});
+    // Per-recording alert only for genuine per-recording failures. Infra outages
+    // are alerted once, aggregated, by the caller (see process route).
+    if (!infra) {
+      await sendErrorNotification(id, message).catch(() => {});
+    }
 
     throw error;
   }
