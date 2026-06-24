@@ -117,6 +117,11 @@ export default function QuizRunnerPage() {
                   : "❌ Not quite"}
             </div>
             {result.explanation && <p className="mt-1">{result.explanation}</p>}
+            {result.correct_answer && (
+              <p className="mt-1">
+                <span className="font-medium">Correct answer:</span> {result.correct_answer}
+              </p>
+            )}
             {result.suggested_lesson_id && (
               <Link
                 href={`/coaching/learn/${result.suggested_lesson_id}`}
