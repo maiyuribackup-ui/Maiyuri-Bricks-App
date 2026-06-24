@@ -14,6 +14,10 @@ import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { startCronLog } from "@/lib/health/cron-logger";
 import { processRecording } from "@/lib/call-recording/processor";
 import { log, logError } from "@/lib/call-recording/logger";
+import {
+  isInfraError,
+  sendInfraOutageAlert,
+} from "@/lib/call-recording/notifications";
 import type { CallRecording } from "@/lib/call-recording/types";
 
 export const dynamic = "force-dynamic";
@@ -199,7 +203,16 @@ async function handleProcess(request: NextRequest): Promise<NextResponse> {
         retry: recording.retry_count,
       });
 
-      await processRecording(recording);
+      try {
+        await processRecording(recording);
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        // Infra/provider outage → one aggregated alert (per-recording alert is suppressed in the processor).
+        if (isInfraError(errMsg)) {
+          await sendInfraOutageAlert(1, errMsg).catch(() => {});
+        }
+        throw error;
+      }
       await cronLog.success();
 
       return NextResponse.json({
@@ -228,6 +241,8 @@ async function handleProcess(request: NextRequest): Promise<NextResponse> {
     log(`Batch processing ${pendingRecordings.length} pending recordings`);
 
     const results: Array<{ id: string; status: string; error?: string }> = [];
+    let infraFailures = 0;
+    let lastInfraError = "";
 
     for (const recording of pendingRecordings) {
       if (recording.processing_status === "completed") {
@@ -249,8 +264,19 @@ async function handleProcess(request: NextRequest): Promise<NextResponse> {
         const errMsg = error instanceof Error ? error.message : String(error);
         logError(`Batch processing failed for ${recording.id}`, error);
         results.push({ id: recording.id, status: "failed", error: errMsg });
+        if (isInfraError(errMsg)) {
+          infraFailures++;
+          lastInfraError = errMsg;
+        }
         // Continue processing remaining recordings — don't let one failure stop the batch
       }
+    }
+
+    // One aggregated alert for an AI-provider/infra outage (per-recording alerts
+    // are suppressed in the processor for these). Recordings stay pending with
+    // retries intact and auto-resume once it clears.
+    if (infraFailures > 0) {
+      await sendInfraOutageAlert(infraFailures, lastInfraError).catch(() => {});
     }
 
     await cronLog.success();
