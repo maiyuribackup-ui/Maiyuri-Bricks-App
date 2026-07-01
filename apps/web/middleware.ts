@@ -258,6 +258,33 @@ export async function middleware(request: NextRequest) {
 
     try {
       const supabase = createSupabaseMiddlewareClient(request, response);
+
+      // Non-browser clients (the React Native app, future API integrations)
+      // have no cookie jar and authenticate with `Authorization: Bearer
+      // <supabase-access-token>`. Validate that token here. This is additive:
+      // browser requests carry no user Bearer header and fall through to the
+      // cookie-based check below, so web behaviour is unchanged.
+      // getUser(jwt) revalidates the token against the Supabase auth server.
+      const authHeader = request.headers.get("authorization");
+      const bearer = authHeader?.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : null;
+      if (bearer) {
+        const {
+          data: { user: bearerUser },
+        } = await supabase.auth.getUser(bearer);
+        if (bearerUser) {
+          return addSecurityHeaders(response);
+        }
+        // Invalid/expired token — reject rather than falling through.
+        return addSecurityHeaders(
+          NextResponse.json(
+            { error: "Unauthorized: Invalid or expired token" },
+            { status: 401 },
+          ),
+        );
+      }
+
       // getUser() revalidates the JWT against the Supabase auth server, unlike
       // getSession() which only decodes the (client-tamperable) cookie. This is
       // the sole gate for service-role API routes, so it must be authentic.
