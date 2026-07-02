@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
-import { success, error, unauthorized, parseBody } from "@/lib/api-utils";
-import { getUserFromRequest } from "@/lib/supabase-server";
+import { success, error, parseBody } from "@/lib/api-utils";
+import { requireProductionRole } from "@/lib/production-auth";
 import { submitProductionOrderForApproval } from "@/lib/ticket-service";
 import {
   filterByPushPref,
@@ -15,21 +15,21 @@ import type { Ticket } from "@maiyuri/shared";
 // POST /api/production/orders/[id]/submit-for-approval - Submit a production order for approval
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Cookie session (web) OR Bearer token (mobile app).
-    const user = await getUserFromRequest(request);
+    // Cookie session (web) OR Bearer token (mobile app), plus role gate.
+    const auth = await requireProductionRole(request);
+    if (auth.errorResponse) return auth.errorResponse;
+    const user = auth.user;
 
-    if (!user) {
-      return unauthorized();
-    }
+    const { id } = await params;
 
     const parsed = await parseBody(request, submitForApprovalSchema);
     if (parsed.error) return parsed.error;
 
     const result = await submitProductionOrderForApproval(
-      params.id,
+      id,
       user.id,
       parsed.data.priority,
       parsed.data.notes ?? undefined,
