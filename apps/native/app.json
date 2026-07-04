@@ -17,10 +17,10 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.maiyuri.native"
+      "bundleIdentifier": "com.maiyuri.bricks"
     },
     "android": {
-      "package": "com.maiyuri.native"
+      "package": "com.maiyuri.bricks"
     },
     "plugins": [
       "expo-router",
