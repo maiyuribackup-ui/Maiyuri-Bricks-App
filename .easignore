@@ -2,12 +2,13 @@
 # apps/native, packages/*, and root config. Everything else is dead weight
 # (the first uploads were 83 MB and kept dying with ECONNRESET).
 
-# Big binaries / artifacts
-deploy.zip
+# Big binaries / artifacts (anchored to repo root — apps/native/assets must
+# stay in the archive!)
+/deploy.zip
 *.zip
 *.log
-backend.log
-logo.png
+/backend.log
+/logo.png
 
 # Other apps/services the native build doesn't use
 apps/web
@@ -21,13 +22,13 @@ docs
 supabase
 Planning_Specification_module
 
-# Repo docs/plans not needed to build
-*.md
-*.prd
-*.drawio
-*.php
-*.py
-*.sh
+# Repo docs/plans not needed to build (root only; don't touch app dirs)
+/*.md
+/*.prd
+/*.drawio
+/*.php
+/*.py
+/*.sh
 
 # Node modules are restored on the builder
 node_modules
