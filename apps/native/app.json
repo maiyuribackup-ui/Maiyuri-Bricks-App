@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Maiyuri Bricks",
+    "slug": "maiyuri-bricks-app",
+    "version": "0.1.0",
+    "scheme": "maiyuri",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.maiyuri.native"
+    },
+    "android": {
+      "package": "com.maiyuri.native"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c913a41e-24ce-4e83-a26b-b43598d9bf85"
+      }
+    },
+    "owner": "maiyuri-bricks"
+  }
+}
