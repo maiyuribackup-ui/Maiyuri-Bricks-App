@@ -1,0 +1,13 @@
+# Files excluded from the EAS build upload archive (not needed to build the
+# standalone apps/native app; keeps the upload small/fast).
+deploy.zip
+*.zip
+*.log
+backend.log
+
+# Other apps/services the native build doesn't depend on.
+apps/web
+apps/api
+backend
+workers
+services
