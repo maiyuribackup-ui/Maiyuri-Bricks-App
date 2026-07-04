@@ -72,12 +72,24 @@ async function request<T>(
       method,
       headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      // Fail fast instead of spinning forever on a dead network / cold server.
+      signal: AbortSignal.timeout(20_000),
     });
   } catch (e) {
+    if (e instanceof Error && e.name === 'TimeoutError') {
+      throw new ApiError('Request timed out — check your connection and retry', 0);
+    }
     throw new ApiError(
       e instanceof Error ? e.message : 'Network request failed',
       0,
     );
+  }
+
+  // Expired/invalid session: sign out so the auth gate returns the user to
+  // the login screen instead of every screen showing raw 401 errors.
+  if (res.status === 401) {
+    void supabase.auth.signOut();
+    throw new ApiError('Session expired — please sign in again', 401);
   }
 
   let json: Envelope<T> | null = null;
