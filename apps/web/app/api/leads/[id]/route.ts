@@ -4,7 +4,11 @@ import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createSupabaseRouteClient } from "@/lib/supabase-server";
 import { success, error, notFound, parseBody } from "@/lib/api-utils";
-import { notifyLeadPush } from "@/lib/push/fcm";
+import {
+  filterByPushPref,
+  getUserIdsByRoles,
+  notifyLeadPush,
+} from "@/lib/push/fcm";
 import { updateLeadSchema, type Lead } from "@maiyuri/shared";
 
 function prettyLabel(value: unknown): string {
@@ -200,6 +204,33 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             await notifyLeadPush([newAssignee], {
               title: `✏️ ${leadName} updated`,
               body: changes.join(" · "),
+              leadId: lead.id,
+            });
+          }
+        }
+
+        // Case 3: order won 🎉 — celebrate to leadership (and the assignee if
+        // someone else closed it). Without this, a rep marking their own lead
+        // as won notified nobody (cases 1/2 both skip self-pings).
+        if (
+          updateData.pipeline_stage === "order_won" &&
+          currentLead.pipeline_stage !== "order_won"
+        ) {
+          const leadership = await getUserIdsByRoles(
+            ["founder", "owner"],
+            editorId,
+          );
+          const celebrants = new Set(leadership);
+          if (newAssignee && newAssignee !== editorId) celebrants.add(newAssignee);
+          const recipients = await filterByPushPref([...celebrants], "push_leads");
+          if (recipients.length > 0) {
+            const value = (lead as { final_order_value?: number | null })
+              .final_order_value;
+            await notifyLeadPush(recipients, {
+              title: `🎉 Order won: ${leadName}`,
+              body: value
+                ? `Final order value ₹${Number(value).toLocaleString("en-IN")}`
+                : "Advance received / order confirmed",
               leadId: lead.id,
             });
           }

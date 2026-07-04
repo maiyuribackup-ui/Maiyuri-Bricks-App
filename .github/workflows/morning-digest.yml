@@ -1,0 +1,31 @@
+name: Morning follow-up digest
+
+# Fires the lead follow-up digest (Telegram + native push) each morning.
+# Scheduled here because the Vercel Hobby plan caps the project at 2 crons,
+# both already used (health check + recordings processor).
+#
+# 03:00 UTC = 08:30 IST (field reps) / 07:00 Dubai.
+# Requires repo secret CRON_SECRET (same value as the Vercel env var) — the
+# digest GET endpoint validates `Authorization: Bearer <CRON_SECRET>`.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger digest endpoint
+        run: |
+          status=$(curl -s -o /tmp/digest.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mb.maiyuri.com/api/nudges/digest")
+          echo "HTTP $status"
+          cat /tmp/digest.json
+          if [ "$status" -ge 400 ]; then
+            echo "Digest trigger failed" >&2
+            exit 1
+          fi
