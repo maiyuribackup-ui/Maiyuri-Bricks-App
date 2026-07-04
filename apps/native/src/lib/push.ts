@@ -11,10 +11,14 @@
  * NOT work inside Expo Go on Android. Every entry point here degrades
  * gracefully so Expo Go development keeps working.
  */
+import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { api } from '@/lib/api';
+
+/** Remote push was removed from Expo Go (SDK 53+); only real builds can register. */
+const isExpoGo = Constants.appOwnership === 'expo';
 
 // Foreground presentation: show the banner + play sound even when the app is
 // open (default Android behaviour is to silently swallow foreground pushes).
@@ -46,6 +50,10 @@ async function ensureAndroidChannel(): Promise<void> {
  */
 export async function registerForPush(): Promise<boolean> {
   try {
+    if (isExpoGo) {
+      console.log('[push] Expo Go cannot receive remote push — use the installed APK build.');
+      return false;
+    }
     if (!Device.isDevice) return false; // emulators without Play services
 
     await ensureAndroidChannel();

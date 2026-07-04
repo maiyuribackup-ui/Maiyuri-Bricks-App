@@ -66,23 +66,30 @@ async function request<T>(
     headers['Content-Type'] = 'application/json';
   }
 
+  // Fail fast instead of spinning forever on a dead network / cold server.
+  // NOTE: manual AbortController — `AbortSignal.timeout()` does not exist in
+  // React Native's Hermes runtime (learned the hard way: it broke every call).
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20_000);
+
   let res: Response;
   try {
     res = await fetch(buildUrl(path, opts.params), {
       method,
       headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-      // Fail fast instead of spinning forever on a dead network / cold server.
-      signal: AbortSignal.timeout(20_000),
+      signal: controller.signal,
     });
   } catch (e) {
-    if (e instanceof Error && e.name === 'TimeoutError') {
+    if (controller.signal.aborted) {
       throw new ApiError('Request timed out — check your connection and retry', 0);
     }
     throw new ApiError(
       e instanceof Error ? e.message : 'Network request failed',
       0,
     );
+  } finally {
+    clearTimeout(timer);
   }
 
   // Expired/invalid session: sign out so the auth gate returns the user to
