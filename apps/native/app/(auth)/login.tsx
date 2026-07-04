@@ -2,6 +2,7 @@ import { Redirect } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -40,8 +41,13 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         className="flex-1 justify-center px-6"
       >
-        <View className="mb-10">
-          <Text className="text-3xl font-bold text-white">Maiyuri Bricks</Text>
+        <View className="mb-10 items-center">
+          <Image
+            source={require('../../assets/logo.png')}
+            style={{ width: 96, height: 96, borderRadius: 20 }}
+            resizeMode="contain"
+          />
+          <Text className="mt-4 text-3xl font-bold text-white">Maiyuri Bricks</Text>
           <Text className="mt-1 text-base text-slate-400">
             AI Lead Management
           </Text>

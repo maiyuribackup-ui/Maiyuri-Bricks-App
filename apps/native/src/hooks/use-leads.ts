@@ -1,5 +1,5 @@
 import type { Lead } from '@maiyuri/shared';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 export type LeadFilters = {
@@ -27,5 +27,22 @@ export function useLead(id: string) {
     queryKey: ['lead', id],
     queryFn: () => api.get<Lead>(`/api/leads/${id}`),
     enabled: !!id,
+  });
+}
+
+/**
+ * PATCH /api/leads/:id — same endpoint the web Quick Actions panel uses.
+ * Accepts any updateLeadSchema fields (lead_status, pipeline_stage,
+ * lead_temperature, follow_up_date, next_action, …).
+ */
+export function useUpdateLead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
+      api.patch<Lead>(`/api/leads/${id}`, body),
+    onSuccess: (_res, vars) => {
+      void queryClient.invalidateQueries({ queryKey: ['leads'] });
+      void queryClient.invalidateQueries({ queryKey: ['lead', vars.id] });
+    },
   });
 }

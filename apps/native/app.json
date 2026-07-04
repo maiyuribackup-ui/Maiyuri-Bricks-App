@@ -3,6 +3,7 @@
     "name": "Maiyuri Bricks",
     "slug": "maiyuri-bricks-app",
     "version": "0.1.0",
+    "icon": "./assets/logo.png",
     "scheme": "maiyuri",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",

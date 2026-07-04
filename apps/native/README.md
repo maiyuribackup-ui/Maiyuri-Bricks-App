@@ -26,11 +26,12 @@ This machine has **no Node toolchain installed**. Install:
 ## Setup
 
 ```bash
-# From the repo root — installs all workspaces incl. this app + @maiyuri/shared
+# This app is STANDALONE (not an npm workspace) — its React 19 / Expo SDK 54
+# deps must not mix with the web app's React 18. Install inside apps/native:
+cd apps/native
 npm install --legacy-peer-deps
 
 # Configure env
-cd apps/native
 cp .env.example .env
 # Fill in EXPO_PUBLIC_SUPABASE_URL / _ANON_KEY (reuse the web app's NEXT_PUBLIC_* values)
 # and EXPO_PUBLIC_API_BASE_URL (https://mb.maiyuri.com)
