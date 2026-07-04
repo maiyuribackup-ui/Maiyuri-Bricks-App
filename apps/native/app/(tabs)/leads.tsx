@@ -1,6 +1,6 @@
 import type { Lead, LeadTemperature } from '@maiyuri/shared';
-import { Link } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { Link, useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -589,7 +589,11 @@ function sortLeads(leads: Lead[], key: SortKey, dir: 'asc' | 'desc'): Lead[] {
 
 // ---------- screen ----------
 
+const VIEW_VALUES = new Set(VIEW_TABS.map((t) => t.value as string));
+
 export default function LeadsScreen() {
+  // Deep-link / dashboard-card drill-in: /(tabs)/leads?view=hot
+  const params = useLocalSearchParams<{ view?: string }>();
   const [search, setSearch] = useState('');
   const [aiLead, setAiLead] = useState<Lead | null>(null);
   const [qaLead, setQaLead] = useState<Lead | null>(null);
@@ -597,6 +601,14 @@ export default function LeadsScreen() {
   const [sortKey, setSortKey] = useState<SortKey>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [groupByTemp, setGroupByTemp] = useState(false);
+
+  // Apply the incoming view param whenever it changes (tapping a different
+  // dashboard card while this tab is mounted must still switch the filter).
+  useEffect(() => {
+    if (params.view && VIEW_VALUES.has(params.view)) {
+      setView(params.view as ViewFilter);
+    }
+  }, [params.view]);
 
   const { data, isLoading, isError, error, refetch, isRefetching } = useLeads({
     search: search || undefined,

@@ -4,6 +4,11 @@ import { NextRequest } from "next/server";
 import { success, error, unauthorized, parseBody } from "@/lib/api-utils";
 import { createSupabaseRouteClient } from "@/lib/supabase-server";
 import { submitProductionOrderForApproval } from "@/lib/ticket-service";
+import {
+  filterByPushPref,
+  getUserIdsByRoles,
+  sendPushToUsers,
+} from "@/lib/push/fcm";
 import { submitForApprovalSchema } from "@maiyuri/shared";
 import type { Ticket } from "@maiyuri/shared";
 
@@ -35,6 +40,23 @@ export async function POST(
 
     if (!result.success) {
       return error(result.error ?? result.message, 500);
+    }
+
+    // Ping leadership that an approval is waiting (best-effort; excludes the
+    // submitter; respects the push_ops preference).
+    try {
+      const ticket = result.data!;
+      const leadership = await getUserIdsByRoles(["founder", "owner"], user.id);
+      const recipients = await filterByPushPref(leadership, "push_ops");
+      if (recipients.length > 0) {
+        await sendPushToUsers(recipients, {
+          title: "🏭 Production order awaiting approval",
+          body: ticket.title ?? "A production order needs your review.",
+          data: { url: "/production" },
+        });
+      }
+    } catch (pushErr) {
+      console.error("Approval push failed:", pushErr);
     }
 
     return success<Ticket>(result.data!);
