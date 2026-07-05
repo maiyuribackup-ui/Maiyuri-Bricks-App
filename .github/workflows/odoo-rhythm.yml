@@ -1,0 +1,22 @@
+name: Daily Odoo close-of-day reminder
+
+# OneHub operating rhythm: 12:30 UTC = 18:00 IST — remind accounts/leadership
+# to update expenses, payments and sales in Odoo. Endpoint skips Sundays.
+
+on:
+  schedule:
+    - cron: "30 12 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger rhythm reminder
+        run: |
+          status=$(curl -s -o /tmp/r.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mb.maiyuri.com/api/onehub/rhythm")
+          echo "HTTP $status"; cat /tmp/r.json
+          if [ "$status" -ge 400 ]; then exit 1; fi

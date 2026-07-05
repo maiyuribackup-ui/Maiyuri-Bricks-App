@@ -28,6 +28,25 @@ export default function TabsLayout() {
         options={{
           title: 'Dashboard',
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>📊</Text>,
+          headerRight: () => (
+            <Link href={"/onehub" as import("expo-router").Href} asChild>
+              <Pressable
+                style={{
+                  marginRight: 14,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#f97316',
+                  borderRadius: 16,
+                  paddingHorizontal: 10,
+                  paddingVertical: 5,
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a' }}>
+                  🧭 OneHub
+                </Text>
+              </Pressable>
+            </Link>
+          ),
         }}
       />
       <Tabs.Screen

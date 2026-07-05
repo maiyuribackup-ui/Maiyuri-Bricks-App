@@ -55,6 +55,7 @@ export default function RootLayout() {
             name="leads/new"
             options={{ headerShown: true, title: 'New Lead' }}
           />
+          <Stack.Screen name="onehub" options={{ headerShown: false }} />
         </Stack>
       </PersistQueryClientProvider>
     </SafeAreaProvider>
