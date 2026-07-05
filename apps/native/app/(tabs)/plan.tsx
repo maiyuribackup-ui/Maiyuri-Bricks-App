@@ -23,6 +23,7 @@ import {
   type OpenOrder,
   type PlanItem,
 } from '@/hooks/use-ops-planning';
+import { toast } from '@/lib/toast';
 
 // ---------------- helpers ----------------
 
@@ -256,6 +257,7 @@ function PlanSegment() {
       onSuccess: () => {
         setDraft(null);
         setSelected(new Set());
+        toast.success('Plan activated — tomorrow’s plan will be sent at 9 PM');
       },
     });
   };
@@ -702,8 +704,11 @@ function CalendarSegment() {
               <Pressable
                 onPress={() => {
                   if (!reportItem) return;
-                  const qty = Number(reportQty);
-                  if (Number.isNaN(qty) || qty < 0) return;
+                  const qty = Number(reportQty.replace(/[,\s]/g, ''));
+                  if (Number.isNaN(qty) || qty < 0) {
+                    toast.error('Enter a valid produced quantity (number ≥ 0)');
+                    return;
+                  }
                   update.mutate(
                     {
                       id: reportItem.id,
@@ -712,7 +717,12 @@ function CalendarSegment() {
                         status: qty >= Number(reportItem.quantity) ? 'done' : 'partial',
                       },
                     },
-                    { onSuccess: () => setReportItem(null) },
+                    {
+                      onSuccess: () => {
+                        setReportItem(null);
+                        toast.success('Production recorded');
+                      },
+                    },
                   );
                 }}
                 disabled={update.isPending}

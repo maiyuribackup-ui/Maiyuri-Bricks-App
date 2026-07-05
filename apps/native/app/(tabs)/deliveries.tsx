@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCompleteDelivery, useDeliveries } from '@/hooks/use-deliveries';
+import { toast } from '@/lib/toast';
 
 const STATUS_STYLE: Record<DeliveryStatus, { bg: string; label: string }> = {
   draft: { bg: 'bg-slate-400', label: 'Draft' },
@@ -114,7 +115,12 @@ function MarkDeliveredModal({
         recipientName: recipient.trim() || undefined,
         notes: notes.trim() || undefined,
       },
-      { onSuccess: onClose },
+      {
+        onSuccess: () => {
+          toast.success('Delivery marked as delivered');
+          onClose();
+        },
+      },
     );
   };
 

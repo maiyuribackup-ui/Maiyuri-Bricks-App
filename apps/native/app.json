@@ -32,7 +32,8 @@
           "color": "#f97316",
           "defaultChannel": "default"
         }
-      ]
+      ],
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true
