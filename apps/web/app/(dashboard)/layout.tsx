@@ -28,8 +28,18 @@ interface NavItem {
   showBadge?: boolean;
 }
 
+function OneHubIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor">
+      <circle cx="12" cy="12" r="9" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="m14.8 9.2-1.9 4-4 1.9 1.9-4 4-1.9Z" />
+    </svg>
+  );
+}
+
 const navigation: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: HomeIcon, key: "dashboard" },
+  { name: "OneHub", href: "/onehub", icon: OneHubIcon, key: "onehub" },
   { name: "Business", href: "/business-health", icon: HealthIcon, key: "business-health" },
   { name: "Leads", href: "/leads", icon: UsersIcon, key: "leads" },
   {
@@ -68,6 +78,7 @@ const roleModuleAccess: Record<UserRole, string[]> = {
   owner: ["*"], // Full access
   accountant: [
     "dashboard",
+    "onehub",
     "leads",
     "tasks",
     "approvals",
@@ -76,6 +87,7 @@ const roleModuleAccess: Record<UserRole, string[]> = {
   ],
   engineer: [
     "dashboard",
+    "onehub",
     "leads",
     "tasks",
     "approvals",
@@ -84,9 +96,9 @@ const roleModuleAccess: Record<UserRole, string[]> = {
     "design",
     "projects",
   ],
-  sales: ["dashboard", "leads", "tasks", "settings", "knowledge", "coaching"],
-  driver: ["dashboard", "deliveries", "settings"],
-  production_supervisor: ["dashboard", "production", "deliveries", "settings", "projects", "coaching"],
+  sales: ["dashboard", "onehub", "leads", "tasks", "settings", "knowledge", "coaching"],
+  driver: ["dashboard", "onehub", "deliveries", "settings"],
+  production_supervisor: ["dashboard", "onehub", "production", "deliveries", "settings", "projects", "coaching"],
 };
 
 function getNavigationForRole(role: UserRole | undefined): NavItem[] {
