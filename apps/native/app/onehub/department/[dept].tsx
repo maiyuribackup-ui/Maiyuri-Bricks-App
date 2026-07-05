@@ -1,18 +1,28 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { useSops } from '@/hooks/use-onehub';
+import { useCanEdit, useSops } from '@/hooks/use-onehub';
 import { DEPARTMENTS } from '../index';
 
 export default function DepartmentSops() {
   const { dept } = useLocalSearchParams<{ dept: string }>();
   const { data, isLoading } = useSops(dept);
+  const canEdit = useCanEdit();
   const meta = DEPARTMENTS.find((d) => d.key === dept);
 
   return (
     <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 pb-10">
-      <Text className="mb-3 text-lg font-bold text-ink">
-        {meta?.icon} {meta?.label ?? dept} <Text className="text-sm text-slate-400">{meta?.ta}</Text>
-      </Text>
+      <View className="mb-3 flex-row items-center justify-between">
+        <Text className="text-lg font-bold text-ink">
+          {meta?.icon} {meta?.label ?? dept} <Text className="text-sm text-slate-400">{meta?.ta}</Text>
+        </Text>
+        {canEdit ? (
+          <Link href={'/onehub/edit/new' as import('expo-router').Href} asChild>
+            <Pressable className="rounded-full bg-brand px-3 py-1.5 active:opacity-80">
+              <Text className="text-xs font-bold text-ink">+ New SOP</Text>
+            </Pressable>
+          </Link>
+        ) : null}
+      </View>
       {isLoading ? (
         <ActivityIndicator size="large" color="#f97316" className="mt-10" />
       ) : (data?.data ?? []).length === 0 ? (
