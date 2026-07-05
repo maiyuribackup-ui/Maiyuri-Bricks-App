@@ -1,0 +1,25 @@
+name: Nightly plan reminder
+
+# Previous-night reminder of tomorrow's production & delivery plan.
+# 15:30 UTC = 21:00 IST. The endpoint is silent when tomorrow has no plan
+# items (Sundays, no active plan), so this can fire every night safely.
+# Requires repo secret CRON_SECRET (already configured for morning-digest).
+
+on:
+  schedule:
+    - cron: "30 15 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  send-reminder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger plan notification endpoint
+        run: |
+          status=$(curl -s -o /tmp/notify.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mb.maiyuri.com/api/ops-planning/notify")
+          echo "HTTP $status"
+          cat /tmp/notify.json
+          if [ "$status" -ge 400 ]; then exit 1; fi
