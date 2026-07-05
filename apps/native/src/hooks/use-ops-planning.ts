@@ -203,16 +203,48 @@ export function useProductParams() {
   });
 }
 
+type SaveParamsBody = {
+  finished_good_id: string;
+  daily_capacity_units: number;
+  curing_days: number;
+  min_batch?: number;
+};
+
+type ParamsEnvelope = { data: ProductParams[]; meta?: unknown };
+
 export function useSaveProductParams() {
   const queryClient = useQueryClient();
+  const key = ['ops-planning', 'params'];
   return useMutation({
-    mutationFn: (body: {
-      finished_good_id: string;
-      daily_capacity_units: number;
-      curing_days: number;
-      min_batch?: number;
-    }) => api.put('/api/ops-planning/params', body),
-    onSuccess: () => {
+    mutationFn: (body: SaveParamsBody) => api.put('/api/ops-planning/params', body),
+    // Optimistically patch the cached row so the settings list updates the
+    // instant Save is tapped — don't wait on the refetch (that delay was
+    // what made saves look like they "didn't stick").
+    onMutate: async (body: SaveParamsBody) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const prev = queryClient.getQueryData<ParamsEnvelope>(key);
+      if (prev?.data) {
+        queryClient.setQueryData<ParamsEnvelope>(key, {
+          ...prev,
+          data: prev.data.map((r) =>
+            r.finished_good_id === body.finished_good_id
+              ? {
+                  ...r,
+                  daily_capacity_units: body.daily_capacity_units,
+                  curing_days: body.curing_days,
+                  min_batch: body.min_batch ?? r.min_batch,
+                }
+              : r,
+          ),
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _body, ctx) => {
+      // Roll back the optimistic patch if the server rejected the save.
+      if (ctx?.prev) queryClient.setQueryData(key, ctx.prev);
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['ops-planning'] });
     },
   });

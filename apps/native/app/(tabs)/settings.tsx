@@ -28,6 +28,8 @@ function PlanningParamsSection() {
   const [editing, setEditing] = useState<string | null>(null);
   const [capacity, setCapacity] = useState('');
   const [curing, setCuring] = useState('');
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
 
   const startEdit = (row: {
     finished_good_id: string;
@@ -35,17 +37,34 @@ function PlanningParamsSection() {
     curing_days: number | null;
   }) => {
     setEditing(row.finished_good_id);
+    setFieldError(null);
     setCapacity(row.daily_capacity_units != null ? String(row.daily_capacity_units) : '');
     setCuring(row.curing_days != null ? String(row.curing_days) : '7');
   };
 
   const commit = (finished_good_id: string) => {
-    const cap = Number(capacity);
-    const cure = Number(curing);
-    if (Number.isNaN(cap) || cap < 0 || Number.isNaN(cure) || cure < 0) return;
+    // Tolerate stray spaces/commas the numeric keypad can introduce, then
+    // give a VISIBLE error instead of silently doing nothing.
+    const cap = Number(capacity.replace(/[,\s]/g, ''));
+    const cure = Number(curing.replace(/[,\s]/g, ''));
+    if (Number.isNaN(cap) || cap < 0) {
+      setFieldError('Enter a valid daily quantity (number ≥ 0).');
+      return;
+    }
+    if (Number.isNaN(cure) || cure < 0) {
+      setFieldError('Enter valid curing days (number ≥ 0).');
+      return;
+    }
+    setFieldError(null);
     save.mutate(
       { finished_good_id, daily_capacity_units: cap, curing_days: cure },
-      { onSuccess: () => setEditing(null) },
+      {
+        onSuccess: () => {
+          setEditing(null);
+          setSavedId(finished_good_id);
+          setTimeout(() => setSavedId((id) => (id === finished_good_id ? null : id)), 2500);
+        },
+      },
     );
   };
 
@@ -75,35 +94,58 @@ function PlanningParamsSection() {
               )}
             </View>
             {editing === row.finished_good_id ? (
-              <View className="mt-2 flex-row items-center gap-2">
-                <TextInput
-                  value={capacity}
-                  onChangeText={setCapacity}
-                  keyboardType="numeric"
-                  placeholder="units/day"
-                  placeholderTextColor="#94a3b8"
-                  className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-ink"
-                />
-                <TextInput
-                  value={curing}
-                  onChangeText={setCuring}
-                  keyboardType="numeric"
-                  placeholder="cure d"
-                  placeholderTextColor="#94a3b8"
-                  className="w-16 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-ink"
-                />
-                <Pressable
-                  onPress={() => commit(row.finished_good_id)}
-                  disabled={save.isPending}
-                  className={`rounded-lg px-3 py-1.5 ${save.isPending ? 'bg-slate-200' : 'bg-brand active:opacity-80'}`}
-                >
-                  {save.isPending ? (
-                    <ActivityIndicator size="small" color="#0f172a" />
-                  ) : (
-                    <Text className="text-xs font-semibold text-ink">Save</Text>
-                  )}
-                </Pressable>
-              </View>
+              <>
+                <View className="mt-2 flex-row items-center gap-2">
+                  <TextInput
+                    value={capacity}
+                    onChangeText={(t) => {
+                      setCapacity(t);
+                      if (fieldError) setFieldError(null);
+                    }}
+                    keyboardType="numeric"
+                    placeholder="units/day"
+                    placeholderTextColor="#94a3b8"
+                    className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-ink"
+                  />
+                  <TextInput
+                    value={curing}
+                    onChangeText={(t) => {
+                      setCuring(t);
+                      if (fieldError) setFieldError(null);
+                    }}
+                    keyboardType="numeric"
+                    placeholder="cure d"
+                    placeholderTextColor="#94a3b8"
+                    className="w-16 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-ink"
+                  />
+                  <Pressable
+                    onPress={() => commit(row.finished_good_id)}
+                    disabled={save.isPending}
+                    className={`rounded-lg px-3 py-1.5 ${save.isPending ? 'bg-slate-200' : 'bg-brand active:opacity-80'}`}
+                  >
+                    {save.isPending ? (
+                      <ActivityIndicator size="small" color="#0f172a" />
+                    ) : (
+                      <Text className="text-xs font-semibold text-ink">Save</Text>
+                    )}
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      setEditing(null);
+                      setFieldError(null);
+                    }}
+                    className="rounded-lg px-2 py-1.5 active:opacity-70"
+                  >
+                    <Text className="text-xs font-semibold text-slate-400">Cancel</Text>
+                  </Pressable>
+                </View>
+                <Text className="mt-1 text-[11px] text-slate-400">
+                  Daily quantity (units/day) · curing days
+                </Text>
+                {fieldError ? (
+                  <Text className="mt-1 text-xs text-red-500">{fieldError}</Text>
+                ) : null}
+              </>
             ) : (
               <Text className="mt-0.5 text-xs text-slate-500">
                 {row.daily_capacity_units != null
@@ -112,6 +154,9 @@ function PlanningParamsSection() {
                 {row.stock_qty != null
                   ? ` · stock ${Number(row.stock_qty).toLocaleString('en-IN')}`
                   : ''}
+                {savedId === row.finished_good_id ? (
+                  <Text className="font-semibold text-green-600">  ✓ Saved</Text>
+                ) : null}
               </Text>
             )}
           </View>
