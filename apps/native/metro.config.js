@@ -18,4 +18,9 @@ const config = getDefaultConfig(projectRoot);
 // Let Metro read the linked shared package's source.
 config.watchFolders = [sharedRoot];
 
+// Fallback resolution for the shared package's own runtime deps (e.g. zod
+// imported by packages/shared/src/schemas.ts): resolve them from THIS app's
+// node_modules. Hierarchical lookup still runs first for app code.
+config.resolver.nodeModulesPaths = [path.resolve(projectRoot, 'node_modules')];
+
 module.exports = withNativeWind(config, { input: './global.css' });

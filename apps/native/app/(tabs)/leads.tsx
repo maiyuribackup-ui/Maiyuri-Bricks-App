@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLeads, useUpdateLead } from '@/hooks/use-leads';
+import { useInfiniteLeads, useUpdateLead } from '@/hooks/use-leads';
 import {
   isoDate,
   LEAD_STATUSES,
@@ -610,10 +610,22 @@ export default function LeadsScreen() {
     }
   }, [params.view]);
 
-  const { data, isLoading, isError, error, refetch, isRefetching } = useLeads({
-    search: search || undefined,
-    limit: 100,
-  });
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isRefetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteLeads({ search: search || undefined });
+
+  const allLeads = useMemo(
+    () => data?.pages.flatMap((p) => p.data ?? []) ?? [],
+    [data],
+  );
 
   const onSortTap = (key: SortKey) => {
     if (key === sortKey) {
@@ -625,7 +637,7 @@ export default function LeadsScreen() {
   };
 
   const sections = useMemo(() => {
-    const filtered = sortLeads(applyView(data?.data ?? [], view), sortKey, sortDir);
+    const filtered = sortLeads(applyView(allLeads, view), sortKey, sortDir);
     if (!groupByTemp) {
       return [{ title: null as string | null, data: filtered }];
     }
@@ -636,7 +648,7 @@ export default function LeadsScreen() {
         data: filtered.filter((l) => l.lead_temperature === t),
       }))
       .filter((s) => s.data.length > 0);
-  }, [data, view, sortKey, sortDir, groupByTemp]);
+  }, [allLeads, view, sortKey, sortDir, groupByTemp]);
 
   return (
     <SafeAreaView edges={['bottom']} className="flex-1 bg-slate-50">
@@ -746,6 +758,15 @@ export default function LeadsScreen() {
           }
           contentContainerClassName="px-4 pb-6 pt-1"
           stickySectionHeadersEnabled={false}
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+          }}
+          onEndReachedThreshold={0.4}
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <ActivityIndicator className="py-4" color="#f97316" />
+            ) : null
+          }
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
           }
