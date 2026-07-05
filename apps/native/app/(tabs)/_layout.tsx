@@ -1,5 +1,5 @@
-import { Redirect, Tabs } from 'expo-router';
-import { Image, Text } from 'react-native';
+import { Link, Redirect, Tabs } from 'expo-router';
+import { Image, Pressable, Text } from 'react-native';
 import { useAuth } from '@/store/auth';
 
 export default function TabsLayout() {
@@ -35,6 +35,25 @@ export default function TabsLayout() {
         options={{
           title: 'Leads',
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>👥</Text>,
+          headerRight: () => (
+            <Link href="/leads/new" asChild>
+              <Pressable
+                style={{
+                  marginRight: 14,
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: '#f97316',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={{ fontSize: 20, color: '#0f172a', fontWeight: '700' }}>
+                  +
+                </Text>
+              </Pressable>
+            </Link>
+          ),
         }}
       />
       <Tabs.Screen

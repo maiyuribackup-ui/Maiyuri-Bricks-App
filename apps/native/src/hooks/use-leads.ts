@@ -30,6 +30,18 @@ export function useLead(id: string) {
   });
 }
 
+/** POST /api/leads — body validated against createLeadSchema by the server. */
+export function useCreateLead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => api.post<Lead>('/api/leads', body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['leads'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    },
+  });
+}
+
 /**
  * PATCH /api/leads/:id — same endpoint the web Quick Actions panel uses.
  * Accepts any updateLeadSchema fields (lead_status, pipeline_stage,

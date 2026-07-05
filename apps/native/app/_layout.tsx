@@ -44,6 +44,10 @@ export default function RootLayout() {
             name="leads/[id]"
             options={{ headerShown: true, title: 'Lead' }}
           />
+          <Stack.Screen
+            name="leads/new"
+            options={{ headerShown: true, title: 'New Lead' }}
+          />
         </Stack>
       </QueryClientProvider>
     </SafeAreaProvider>

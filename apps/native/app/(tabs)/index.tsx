@@ -11,7 +11,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useDashboardStats } from '@/hooks/use-dashboard';
+import {
+  formatINR,
+  useDashboardRevenue,
+  useDashboardStats,
+} from '@/hooks/use-dashboard';
 import { useLeads } from '@/hooks/use-leads';
 
 type CardDef = {
@@ -127,7 +131,9 @@ export default function DashboardScreen() {
     useDashboardStats();
   // Reuses the leads cache shared with the Leads tab (same query key).
   const leadsQuery = useLeads({ limit: 100 });
+  const revenueQuery = useDashboardRevenue();
   const stats = data?.data;
+  const revenue = revenueQuery.data?.data?.revenue;
 
   const actions = useMemo(
     () => computeTodayActions(leadsQuery.data?.data ?? []),
@@ -202,6 +208,37 @@ export default function DashboardScreen() {
             ))}
           </View>
         )}
+
+        {/* ── Revenue (this month) ────────────────────────── */}
+        {revenue ? (
+          <View className="mb-3 mt-2 rounded-xl bg-ink p-4">
+            <Text className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              💰 This month
+            </Text>
+            <View className="mt-2 flex-row">
+              <View className="flex-1">
+                <Text className="text-2xl font-bold text-white">
+                  {formatINR(revenue.revenueWon)}
+                </Text>
+                <Text className="text-xs text-slate-400">Revenue won</Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-2xl font-bold text-brand">
+                  {formatINR(revenue.pipelineValue)}
+                </Text>
+                <Text className="text-xs text-slate-400">Pipeline value</Text>
+              </View>
+            </View>
+            <View className="mt-3 flex-row">
+              <Text className="flex-1 text-xs text-slate-300">
+                Avg order {formatINR(revenue.avgOrderValue)}
+              </Text>
+              <Text className="text-xs text-slate-300">
+                Lead→Order {Math.round(revenue.leadToOrderRate)}%
+              </Text>
+            </View>
+          </View>
+        ) : null}
 
         {/* ── Stat cards ──────────────────────────────────── */}
         <Text className="mb-2 mt-2 text-base font-bold text-ink">📊 Overview</Text>

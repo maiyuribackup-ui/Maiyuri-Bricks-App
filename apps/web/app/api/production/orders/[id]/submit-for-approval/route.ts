@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { success, error, unauthorized, parseBody } from "@/lib/api-utils";
-import { createSupabaseRouteClient } from "@/lib/supabase-server";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import { submitProductionOrderForApproval } from "@/lib/ticket-service";
 import {
   filterByPushPref,
@@ -18,10 +18,8 @@ export async function POST(
   { params }: { params: { id: string } },
 ) {
   try {
-    const supabase = createSupabaseRouteClient(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Cookie session (web) OR Bearer token (mobile app).
+    const user = await getUserFromRequest(request);
 
     if (!user) {
       return unauthorized();

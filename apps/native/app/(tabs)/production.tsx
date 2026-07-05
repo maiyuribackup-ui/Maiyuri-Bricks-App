@@ -3,14 +3,20 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Pressable,
   RefreshControl,
+  ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useProductionOrders } from '@/hooks/use-production';
+import {
+  useProductionOrders,
+  useSubmitForApproval,
+  useUpdateProductionOrder,
+} from '@/hooks/use-production';
 
 const STATUS_STYLE: Record<ProductionOrderStatus, { bg: string; label: string }> = {
   draft: { bg: 'bg-slate-400', label: 'Draft' },
@@ -23,7 +29,178 @@ const STATUS_STYLE: Record<ProductionOrderStatus, { bg: string; label: string }>
   cancelled: { bg: 'bg-red-500', label: 'Cancelled' },
 };
 
-function OrderRow({ order }: { order: ProductionOrder }) {
+// Sensible one-tap transitions from the factory floor.
+const STATUS_ACTIONS: { value: ProductionOrderStatus; label: string }[] = [
+  { value: 'in_progress', label: '▶️ Start (In Progress)' },
+  { value: 'done', label: '✅ Done' },
+  { value: 'completed', label: '🏁 Completed' },
+  { value: 'cancelled', label: '❌ Cancelled' },
+];
+
+function OrderActionsModal({
+  order,
+  onClose,
+}: {
+  order: ProductionOrder | null;
+  onClose: () => void;
+}) {
+  const update = useUpdateProductionOrder();
+  const approval = useSubmitForApproval();
+  const [qty, setQty] = useState('');
+  const [openedFor, setOpenedFor] = useState<string | null>(null);
+  const [applied, setApplied] = useState<Record<string, unknown>>({});
+
+  if (order && order.id !== openedFor) {
+    setOpenedFor(order.id);
+    setQty(order.actual_quantity != null ? String(order.actual_quantity) : '');
+    setApplied({});
+    update.reset();
+    approval.reset();
+  }
+
+  const currentStatus = (applied.status as string) ?? order?.status;
+  const busy = update.isPending || approval.isPending;
+
+  const setStatus = (status: ProductionOrderStatus) => {
+    if (!order) return;
+    update.mutate(
+      { id: order.id, body: { status } },
+      { onSuccess: () => setApplied((a) => ({ ...a, status })) },
+    );
+  };
+
+  const saveQty = () => {
+    if (!order) return;
+    const value = Number(qty);
+    if (Number.isNaN(value) || value < 0) return;
+    update.mutate(
+      { id: order.id, body: { actual_quantity: value } },
+      { onSuccess: () => setApplied((a) => ({ ...a, actual_quantity: value })) },
+    );
+  };
+
+  return (
+    <Modal visible={!!order} transparent animationType="slide" onRequestClose={onClose}>
+      <View className="flex-1 justify-end bg-black/50">
+        <View className="max-h-[80%] rounded-t-3xl bg-white">
+          <View className="flex-row items-center justify-between border-b border-slate-100 px-5 py-4">
+            <View className="flex-1 pr-3">
+              <Text className="text-lg font-bold text-ink" numberOfLines={1}>
+                🏭 {order?.order_number}
+              </Text>
+              <Text className="text-sm text-slate-500" numberOfLines={1}>
+                {order?.finished_good?.name ?? 'Production order'} · currently{' '}
+                {String(currentStatus ?? '').replaceAll('_', ' ')}
+              </Text>
+            </View>
+            {busy ? <ActivityIndicator color="#f97316" /> : null}
+          </View>
+
+          <ScrollView className="px-5" contentContainerClassName="pb-6">
+            {(update.isError || approval.isError) ? (
+              <Text className="mt-3 text-sm text-red-500">
+                {(update.error ?? approval.error) instanceof Error
+                  ? ((update.error ?? approval.error) as Error).message
+                  : 'Update failed'}
+              </Text>
+            ) : null}
+
+            <Text className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Update status
+            </Text>
+            <View className="flex-row flex-wrap">
+              {STATUS_ACTIONS.map((s) => (
+                <Pressable
+                  key={s.value}
+                  onPress={() => setStatus(s.value)}
+                  disabled={busy}
+                  className={`mb-1.5 mr-1.5 rounded-lg border px-3 py-2 ${
+                    currentStatus === s.value
+                      ? 'border-ink bg-ink'
+                      : 'border-slate-200 bg-white'
+                  } ${busy ? 'opacity-50' : 'active:opacity-70'}`}
+                >
+                  <Text
+                    className={`text-xs font-medium ${
+                      currentStatus === s.value ? 'text-white' : 'text-slate-700'
+                    }`}
+                  >
+                    {s.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Actual quantity produced
+            </Text>
+            <View className="flex-row gap-2">
+              <TextInput
+                value={qty}
+                onChangeText={setQty}
+                keyboardType="numeric"
+                placeholder={`Planned: ${order?.planned_quantity ?? '—'}`}
+                placeholderTextColor="#94a3b8"
+                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
+              />
+              <Pressable
+                onPress={saveQty}
+                disabled={busy || !qty.trim()}
+                className={`items-center justify-center rounded-xl px-5 ${
+                  busy || !qty.trim() ? 'bg-slate-200' : 'bg-brand active:opacity-80'
+                }`}
+              >
+                <Text className="text-sm font-semibold text-ink">Save</Text>
+              </Pressable>
+            </View>
+
+            {currentStatus === 'draft' ? (
+              <Pressable
+                onPress={() =>
+                  order &&
+                  approval.mutate(
+                    { id: order.id },
+                    { onSuccess: () => setApplied((a) => ({ ...a, status: 'pending_approval' })) },
+                  )
+                }
+                disabled={busy}
+                className={`mt-5 items-center rounded-xl py-3 ${
+                  busy ? 'bg-slate-200' : 'bg-violet-500 active:opacity-80'
+                }`}
+              >
+                <Text className="font-semibold text-white">
+                  📨 Submit for approval
+                </Text>
+              </Pressable>
+            ) : null}
+            {approval.isSuccess ? (
+              <Text className="mt-2 text-xs text-emerald-600">
+                ✅ Sent — leadership has been notified.
+              </Text>
+            ) : null}
+          </ScrollView>
+
+          <View className="border-t border-slate-100 p-4">
+            <Pressable
+              onPress={onClose}
+              className="items-center rounded-xl bg-ink py-3 active:opacity-80"
+            >
+              <Text className="font-semibold text-white">Done</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function OrderRow({
+  order,
+  onPress,
+}: {
+  order: ProductionOrder;
+  onPress: (o: ProductionOrder) => void;
+}) {
   const s = STATUS_STYLE[order.status] ?? {
     bg: 'bg-slate-400',
     label: order.status,
@@ -37,7 +214,10 @@ function OrderRow({ order }: { order: ProductionOrder }) {
       : `${order.planned_quantity} planned`;
 
   return (
-    <View className="mb-2 rounded-xl border border-slate-200 bg-white p-4">
+    <Pressable
+      onPress={() => onPress(order)}
+      className="mb-2 rounded-xl border border-slate-200 bg-white p-4 active:opacity-70"
+    >
       <View className="flex-row items-center justify-between">
         <Text className="flex-1 text-base font-semibold text-ink" numberOfLines={1}>
           {order.order_number}
@@ -54,13 +234,15 @@ function OrderRow({ order }: { order: ProductionOrder }) {
       <Text className="mt-1 text-xs text-slate-400">
         Scheduled {date}
         {order.odoo_sync_status ? ` · Odoo: ${order.odoo_sync_status}` : ''}
+        {'  ·  tap for actions'}
       </Text>
-    </View>
+    </Pressable>
   );
 }
 
 export default function ProductionScreen() {
   const [search, setSearch] = useState('');
+  const [actionOrder, setActionOrder] = useState<ProductionOrder | null>(null);
   const { data, isLoading, isError, error, refetch, isRefetching } =
     useProductionOrders({ search: search || undefined });
 
@@ -96,7 +278,9 @@ export default function ProductionScreen() {
         <FlatList
           data={data?.data ?? []}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <OrderRow order={item} />}
+          renderItem={({ item }) => (
+            <OrderRow order={item} onPress={setActionOrder} />
+          )}
           contentContainerClassName="px-4 pb-6"
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
@@ -108,6 +292,8 @@ export default function ProductionScreen() {
           }
         />
       )}
+
+      <OrderActionsModal order={actionOrder} onClose={() => setActionOrder(null)} />
     </SafeAreaView>
   );
 }
