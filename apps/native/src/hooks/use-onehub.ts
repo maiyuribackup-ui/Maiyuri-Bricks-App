@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useAuth } from '@/store/auth';
+import { useMyProfile } from '@/hooks/use-push-settings';
 
 export type SopStep = { en: string; ta?: string; icon?: string };
 
@@ -58,6 +60,14 @@ export function useSaveSop() {
     mutationFn: (body: Partial<Sop>) => api.post<Sop>('/api/onehub/sops', body),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['onehub', 'sops'] }),
   });
+}
+
+/** True when the signed-in user may create/edit SOPs and links. */
+export function useCanEdit(): boolean {
+  const userId = useAuth((s) => s.session?.user?.id);
+  const profile = useMyProfile(userId);
+  const role = profile.data?.data.role ?? '';
+  return role === 'founder' || role === 'owner';
 }
 
 export function useOneHubLinks() {

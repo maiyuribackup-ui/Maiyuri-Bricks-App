@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -8,13 +8,14 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useSops } from '@/hooks/use-onehub';
+import { useCanEdit, useSops } from '@/hooks/use-onehub';
 
 type Lang = 'both' | 'en' | 'ta';
 
 export default function SopViewer() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const { data, isLoading } = useSops();
+  const canEdit = useCanEdit();
   const [lang, setLang] = useState<Lang>('both');
   const sop = (data?.data ?? []).find((s) => s.slug === slug);
 
@@ -113,6 +114,14 @@ export default function SopViewer() {
           >
             <Text className="font-semibold text-white">▶️ Watch video guide</Text>
           </Pressable>
+        ) : null}
+
+        {canEdit ? (
+          <Link href={`/onehub/edit/${sop.slug}` as import('expo-router').Href} asChild>
+            <Pressable className="mt-4 flex-row items-center justify-center rounded-xl border border-slate-300 py-3 active:opacity-70">
+              <Text className="font-semibold text-slate-600">✏️ Edit this SOP</Text>
+            </Pressable>
+          </Link>
         ) : null}
 
         <Text className="mt-6 text-center text-xs text-slate-400">
