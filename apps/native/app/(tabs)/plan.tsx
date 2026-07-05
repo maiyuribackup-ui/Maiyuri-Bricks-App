@@ -293,7 +293,25 @@ function PlanSegment() {
           )}
         </View>
         <Pressable
-          onPress={() => refresh.mutate()}
+          onPress={() =>
+            refresh.mutate(undefined, {
+              onSuccess: (res) => {
+                // POST /inputs returns a sync summary — surface it instead of
+                // silently showing 0 orders when the Odoo pull errors.
+                const orders = (res.data as { sync?: { orders?: { synced?: number; openOrders?: number; error?: string } } })
+                  .sync?.orders;
+                if (orders?.error) {
+                  toast.error(`Odoo sync failed: ${String(orders.error).slice(0, 90)}`);
+                } else {
+                  toast.success(
+                    `Synced ${orders?.synced ?? 0} orders · ${orders?.openOrders ?? 0} open`,
+                  );
+                }
+              },
+              onError: (e) =>
+                toast.error(e instanceof Error ? e.message : 'Sync failed'),
+            })
+          }
           disabled={refresh.isPending}
           className="rounded-lg bg-ink px-3 py-2 active:opacity-80"
         >

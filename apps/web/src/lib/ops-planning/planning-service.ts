@@ -56,7 +56,8 @@ export async function getPlanningInputs(): Promise<PlanningInputs> {
       supabaseAdmin
         .from("finished_goods")
         .select("id, name, stock_qty, stock_synced_at")
-        .eq("is_active", true),
+        .eq("is_active", true)
+        .eq("plan_excluded", false),
       supabaseAdmin.from("product_planning_params").select("*"),
       supabaseAdmin.from("planning_settings").select("*").eq("id", 1).single(),
       supabaseAdmin
