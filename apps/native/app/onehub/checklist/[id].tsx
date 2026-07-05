@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { useChecklists, useTickChecklist } from '@/hooks/use-onehub';
 
 export default function ChecklistRunScreen() {
@@ -26,9 +26,16 @@ export default function ChecklistRunScreen() {
     <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 pb-12">
       <Text className="text-lg font-bold text-ink">👤 {run.subject_name}</Text>
       {run.completed_at ? (
-        <Text className="mt-1 text-sm font-semibold text-green-600">
-          🎉 Onboarding completed {new Date(run.completed_at).toLocaleDateString('en-IN')}
-        </Text>
+        <View className="mt-2 items-center rounded-2xl border border-green-200 bg-green-50 p-4">
+          <Image
+            source={require('../../../assets/onehub/mayur-celebrate.png')}
+            style={{ width: 120, height: 120 }}
+            resizeMode="contain"
+          />
+          <Text className="mt-2 text-sm font-semibold text-green-700">
+            🎉 Onboarding completed {new Date(run.completed_at).toLocaleDateString('en-IN')}
+          </Text>
+        </View>
       ) : null}
 
       {template.phases.map((phase) => (

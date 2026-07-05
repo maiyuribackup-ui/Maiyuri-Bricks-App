@@ -1,5 +1,5 @@
 import { Link } from 'expo-router';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSops } from '@/hooks/use-onehub';
 
 export const DEPARTMENTS: { key: string; label: string; ta: string; icon: string }[] = [
@@ -21,21 +21,32 @@ export default function OneHubHome() {
   return (
     <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 pb-10">
       {/* brand promise */}
-      <View className="rounded-2xl bg-ink p-5">
-        <Text className="text-lg font-bold text-white">Vanakkam! 👋</Text>
-        <Text className="mt-2 text-2xl font-bold text-brand">
-          நம் மண். நம் வீடு. நம் அறிவு.
-        </Text>
-        <Text className="mt-1 text-sm text-slate-300">
-          Our soil. Our home. Our wisdom. — One place for SOPs, checklists,
-          links and answers.
-        </Text>
+      <View className="flex-row items-center overflow-hidden rounded-2xl bg-ink p-5">
+        <View className="flex-1 pr-2">
+          <Text className="text-lg font-bold text-white">Vanakkam! 👋</Text>
+          <Text className="mt-2 text-2xl font-bold text-brand">
+            நம் மண். நம் வீடு. நம் அறிவு.
+          </Text>
+          <Text className="mt-1 text-sm text-slate-300">
+            Our soil. Our home. Our wisdom. — One place for SOPs, checklists,
+            links and answers.
+          </Text>
+        </View>
+        <Image
+          source={require('../../assets/onehub/mayur-hero.png')}
+          style={{ width: 96, height: 96 }}
+          resizeMode="contain"
+        />
       </View>
 
       {/* Ask Mayur */}
       <Link href={"/onehub/ask" as import("expo-router").Href} asChild>
         <Pressable className="mt-3 flex-row items-center rounded-2xl border-2 border-brand bg-orange-50 p-4 active:opacity-70">
-          <Text className="mr-3 text-3xl">🦚</Text>
+          <Image
+            source={require('../../assets/onehub/mayur-avatar.png')}
+            style={{ width: 44, height: 44, borderRadius: 22, marginRight: 12 }}
+            resizeMode="cover"
+          />
           <View className="flex-1">
             <Text className="text-base font-bold text-ink">Ask Mayur</Text>
             <Text className="text-xs text-slate-500">

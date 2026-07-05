@@ -17,6 +17,7 @@ const publicRoutes = [
 // Routes that require authentication (pages)
 const protectedRoutes = [
   "/dashboard",
+  "/onehub",
   "/leads",
   "/coaching",
   "/reports",
