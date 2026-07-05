@@ -12,8 +12,13 @@ import {
 } from '@/lib/query-client';
 import { initNotificationNavigation, registerForPush } from '@/lib/push';
 import { initAuthListener, useAuth } from '@/store/auth';
+import { initSentry, Sentry, setSentryUser } from '@/lib/sentry';
+import { ToastHost } from '@/components/ToastHost';
 
-export default function RootLayout() {
+// Initialise crash reporting before the app tree renders (no-op without a DSN).
+initSentry();
+
+function RootLayout() {
   const router = useRouter();
   const session = useAuth((s) => s.session);
 
@@ -21,6 +26,13 @@ export default function RootLayout() {
     const unsubscribe = initAuthListener();
     return unsubscribe;
   }, []);
+
+  // Attribute crashes to the signed-in user.
+  useEffect(() => {
+    setSentryUser(
+      session?.user ? { id: session.user.id, email: session.user.email } : null,
+    );
+  }, [session?.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Notification tap → in-app navigation (data.url is an expo-router path).
   useEffect(() => {
@@ -57,7 +69,12 @@ export default function RootLayout() {
           />
           <Stack.Screen name="onehub" options={{ headerShown: false }} />
         </Stack>
+        <ToastHost />
       </PersistQueryClientProvider>
     </SafeAreaProvider>
   );
 }
+
+// Sentry.wrap installs a top-level error boundary (auto-reports render
+// crashes) and touch/navigation instrumentation.
+export default Sentry.wrap(RootLayout);

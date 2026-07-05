@@ -17,6 +17,7 @@ import {
   useSubmitForApproval,
   useUpdateProductionOrder,
 } from '@/hooks/use-production';
+import { toast } from '@/lib/toast';
 
 const STATUS_STYLE: Record<ProductionOrderStatus, { bg: string; label: string }> = {
   draft: { bg: 'bg-slate-400', label: 'Draft' },
@@ -65,17 +66,30 @@ function OrderActionsModal({
     if (!order) return;
     update.mutate(
       { id: order.id, body: { status } },
-      { onSuccess: () => setApplied((a) => ({ ...a, status })) },
+      {
+        onSuccess: () => {
+          setApplied((a) => ({ ...a, status }));
+          toast.success('Status updated');
+        },
+      },
     );
   };
 
   const saveQty = () => {
     if (!order) return;
-    const value = Number(qty);
-    if (Number.isNaN(value) || value < 0) return;
+    const value = Number(qty.replace(/[,\s]/g, ''));
+    if (Number.isNaN(value) || value < 0) {
+      toast.error('Enter a valid produced quantity (number ≥ 0)');
+      return;
+    }
     update.mutate(
       { id: order.id, body: { actual_quantity: value } },
-      { onSuccess: () => setApplied((a) => ({ ...a, actual_quantity: value })) },
+      {
+        onSuccess: () => {
+          setApplied((a) => ({ ...a, actual_quantity: value }));
+          toast.success('Quantity saved');
+        },
+      },
     );
   };
 
@@ -160,7 +174,12 @@ function OrderActionsModal({
                   order &&
                   approval.mutate(
                     { id: order.id },
-                    { onSuccess: () => setApplied((a) => ({ ...a, status: 'pending_approval' })) },
+                    {
+                      onSuccess: () => {
+                        setApplied((a) => ({ ...a, status: 'pending_approval' }));
+                        toast.success('Sent for approval');
+                      },
+                    },
                   )
                 }
                 disabled={busy}

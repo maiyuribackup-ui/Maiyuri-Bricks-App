@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { reportError } from './sentry';
 
 /**
  * Typed client for the Maiyuri Next.js API (the 168 routes under
@@ -109,7 +110,16 @@ async function request<T>(
   }
 
   if (!res.ok || (json && json.error)) {
-    throw new ApiError(json?.error ?? `Request failed (${res.status})`, res.status);
+    const apiErr = new ApiError(
+      json?.error ?? `Request failed (${res.status})`,
+      res.status,
+    );
+    // Report server-side failures (5xx) to Sentry — these are real bugs.
+    // Skip 4xx (expected client/validation errors) to avoid noise.
+    if (res.status >= 500) {
+      reportError(apiErr, { path, method, status: res.status });
+    }
+    throw apiErr;
   }
 
   return { data: json.data, meta: json.meta };

@@ -21,6 +21,7 @@ import {
 } from '@/hooks/use-push-settings';
 import { registerForPush } from '@/lib/push';
 import { useAuth } from '@/store/auth';
+import { toast } from '@/lib/toast';
 
 function PlanningParamsSection() {
   const { data, isLoading } = useProductParams();
@@ -260,7 +261,10 @@ function PreferencesSection({ userId }: { userId: string }) {
   >;
 
   const toggle = (key: string, value: boolean) => {
-    update.mutate({ ...prefs, [key]: value });
+    update.mutate(
+      { ...prefs, [key]: value },
+      { onSuccess: () => toast.success('Notification settings saved') },
+    );
   };
 
   return (

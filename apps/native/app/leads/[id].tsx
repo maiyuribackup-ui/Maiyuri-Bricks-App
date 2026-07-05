@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useLead } from '@/hooks/use-leads';
 import { useAddNote, useLeadNotes } from '@/hooks/use-notes';
+import { toast } from '@/lib/toast';
 
 function Field({ label, value }: { label: string; value?: string | number | null }) {
   if (value === null || value === undefined || value === '') return null;
@@ -33,7 +34,12 @@ function NotesSection({ leadId }: { leadId: string }) {
   const submit = () => {
     const trimmed = text.trim();
     if (!trimmed || addNote.isPending) return;
-    addNote.mutate(trimmed, { onSuccess: () => setText('') });
+    addNote.mutate(trimmed, {
+      onSuccess: () => {
+        setText('');
+        toast.success('Note added');
+      },
+    });
   };
 
   return (
