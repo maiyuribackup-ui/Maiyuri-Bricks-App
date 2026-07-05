@@ -16,7 +16,8 @@
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://pailepomvvwjkrhkwdqt.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhaWxlcG9tdnZ3amtyaGt3ZHF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1MzkzNzksImV4cCI6MjA4MzExNTM3OX0.LPqNxVCbBYIpsIeg5lGMro-Ubj8JPmHrDFLT8X0XVVc",
-        "EXPO_PUBLIC_API_BASE_URL": "https://mb.maiyuri.com"
+        "EXPO_PUBLIC_API_BASE_URL": "https://mb.maiyuri.com",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "production": {
