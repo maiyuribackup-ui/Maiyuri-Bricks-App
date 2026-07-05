@@ -19,6 +19,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import { getSupabase } from "@/lib/supabase";
 import { onehub } from "./theme";
 import { AskMayurModal } from "./AskMayurModal";
 
@@ -37,17 +38,42 @@ const NAV: { label: string; icon: typeof Home; href: string }[] = [
 
 export default function OneHubLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
   const [askOpen, setAskOpen] = useState(false);
 
-  // Client-side auth guard (mirrors the dashboard shell). /onehub sits outside
-  // the (dashboard) group so it needs its own guard.
+  // /onehub sits outside the (dashboard) group, so its layout never runs.
+  // Server-side protection is the middleware's job; here we only HYDRATE the
+  // auth store from the Supabase session on a direct visit (same pattern as
+  // the dashboard layout). Redirect only when there is genuinely no session.
   useEffect(() => {
-    const t = setTimeout(() => {
-      if (!useAuthStore.getState().user) router.replace("/login");
-    }, 400);
-    return () => clearTimeout(t);
-  }, [router]);
+    if (user) return;
+    let cancelled = false;
+    async function loadUser() {
+      try {
+        const supabase = getSupabase();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          if (!cancelled) router.replace("/login");
+          return;
+        }
+        const response = await fetch("/api/users/me", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.data && !cancelled) setUser(data.data);
+        }
+      } catch (error) {
+        console.error("OneHub: error loading user:", error);
+      }
+    }
+    loadUser();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, setUser, router]);
 
   return (
     <div className="flex min-h-screen" style={{ background: onehub.canvas }}>
