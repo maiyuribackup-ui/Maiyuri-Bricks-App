@@ -1,5 +1,10 @@
 import type { Lead } from '@maiyuri/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 export type LeadFilters = {
@@ -19,6 +24,29 @@ export function useLeads(filters: LeadFilters = {}) {
   return useQuery({
     queryKey: ['leads', filters],
     queryFn: () => api.get<Lead[]>('/api/leads', { limit: 50, ...filters }),
+  });
+}
+
+const PAGE_SIZE = 50;
+
+/**
+ * Server-paginated lead list for the Leads screen — pages accumulate as the
+ * user scrolls, so large books of business aren't silently truncated.
+ * Key starts with 'leads' so the existing mutations' invalidations hit it.
+ */
+export function useInfiniteLeads(filters: Omit<LeadFilters, 'page' | 'limit'> = {}) {
+  return useInfiniteQuery({
+    queryKey: ['leads', 'infinite', filters],
+    queryFn: ({ pageParam }) =>
+      api.get<Lead[]>('/api/leads', { ...filters, page: pageParam, limit: PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, pages) => {
+      const total = lastPage.meta?.total ?? 0;
+      const loaded = pages.reduce((n, p) => n + (p.data?.length ?? 0), 0);
+      return loaded < total && (lastPage.data?.length ?? 0) > 0
+        ? pages.length + 1
+        : undefined;
+    },
   });
 }
 
