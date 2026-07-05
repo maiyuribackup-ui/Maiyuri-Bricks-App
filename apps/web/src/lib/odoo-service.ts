@@ -836,3 +836,16 @@ export async function fullSync(
     },
   };
 }
+
+/**
+ * Generic Odoo RPC access for other modules (ops planning). Exposed here so
+ * the auth + XML-RPC plumbing stays in one place.
+ */
+export async function odooExecute(
+  model: string,
+  method: string,
+  args: unknown[],
+  kwargs: Record<string, unknown> = {},
+): Promise<unknown> {
+  return execute(model, method, args, kwargs);
+}
