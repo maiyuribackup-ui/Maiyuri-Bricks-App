@@ -149,6 +149,21 @@ export default function OneHubPage() {
               "linear-gradient(100deg, rgba(251,240,226,0.94) 0%, rgba(249,229,206,0.82) 45%, rgba(247,215,182,0.35) 100%)",
           }}
         />
+        {/* kolam ornament corners (artwork is drawn as a bottom-left piece) */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/onehub/ornament-corner.png"
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute -bottom-1 -left-1 h-24 w-24 opacity-50 sm:h-28 sm:w-28"
+        />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/onehub/ornament-corner.png"
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute -right-1 -top-1 h-24 w-24 rotate-180 opacity-50 sm:h-28 sm:w-28"
+        />
         <div className="relative grid items-center gap-6 p-6 sm:p-8 md:grid-cols-[1.4fr_1fr]">
           <div>
             <h2 className="font-serif text-3xl font-bold sm:text-4xl" style={{ color: onehub.brand }}>
@@ -329,6 +344,15 @@ export default function OneHubPage() {
           })}
         </div>
       </section>
+
+      {/* signature footer */}
+      <footer className="flex flex-col items-center gap-2 pb-6 pt-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/onehub/logo-monogram.png" alt="Maiyuri monogram" className="h-16 w-16 object-contain" />
+        <p className="text-xs italic" style={{ color: onehub.textMuted }}>
+          Built on Strength. Rooted in Trust.
+        </p>
+      </footer>
 
       {dept ? <SopModal dept={dept} sops={(sopsQ.data ?? []).filter((s) => s.department === dept.key)} onClose={() => setDept(null)} /> : null}
     </div>
