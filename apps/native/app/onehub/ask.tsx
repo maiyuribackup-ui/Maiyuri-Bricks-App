@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -53,7 +54,11 @@ export default function AskMayurScreen() {
     >
       <ScrollView className="flex-1" contentContainerClassName="p-4 pb-4">
         <View className="flex-row items-center rounded-2xl bg-ink p-4">
-          <Text className="mr-3 text-3xl">🦚</Text>
+          <Image
+            source={require('../../assets/onehub/mayur-avatar.png')}
+            style={{ width: 48, height: 48, borderRadius: 24, marginRight: 12 }}
+            resizeMode="cover"
+          />
           <View className="flex-1">
             <Text className="text-base font-bold text-white">Mayur</Text>
             <Text className="text-xs text-slate-300">

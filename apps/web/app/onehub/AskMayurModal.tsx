@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { MessageSquare, Send, Sparkles, X } from "lucide-react";
+import { MessageSquare, Send, X } from "lucide-react";
 import { onehub } from "./theme";
 
 type AskAnswer = {
@@ -67,9 +67,12 @@ export function AskMayurModal({ open, onClose }: { open: boolean; onClose: () =>
           className="flex items-center gap-3 px-5 py-4"
           style={{ background: `linear-gradient(135deg, ${onehub.brandTop}, ${onehub.brandDark})` }}
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-xl">
-            🦚
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/onehub/mayur-avatar.png"
+            alt="Mayur"
+            className="h-10 w-10 rounded-full bg-white/15 object-cover object-top"
+          />
           <div className="flex-1">
             <p className="font-semibold text-white">Ask Mayur</p>
             <p className="text-xs text-white/70">
@@ -109,8 +112,9 @@ export function AskMayurModal({ open, onClose }: { open: boolean; onClose: () =>
           ) : null}
 
           {ask.isPending ? (
-            <div className="flex items-center gap-2 rounded-xl border bg-white px-4 py-3" style={{ borderColor: onehub.cardBorder }}>
-              <Sparkles className="h-4 w-4 animate-pulse" style={{ color: onehub.accent }} />
+            <div className="flex items-center gap-3 rounded-xl border bg-white px-4 py-3" style={{ borderColor: onehub.cardBorder }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/onehub/mayur-thinking.png" alt="" className="h-10 w-10 animate-pulse object-contain" />
               <span className="text-sm" style={{ color: onehub.textMuted }}>Mayur is thinking…</span>
             </div>
           ) : null}

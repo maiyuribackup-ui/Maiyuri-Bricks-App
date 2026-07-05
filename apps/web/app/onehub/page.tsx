@@ -18,7 +18,6 @@ import {
   MapPin,
   MessageCircle,
   ShieldCheck,
-  Sparkles,
   Truck,
   Users,
   X,
@@ -133,13 +132,24 @@ export default function OneHubPage() {
     <div className="mx-auto max-w-[1400px] space-y-6">
       {/* ---------------------------------------------------------- hero */}
       <section
-        className="relative overflow-hidden rounded-2xl border p-6 sm:p-8"
-        style={{
-          borderColor: onehub.cardBorder,
-          background: "linear-gradient(120deg, #f6e2d2 0%, #f3d9c4 45%, #efcbb0 100%)",
-        }}
+        className="relative overflow-hidden rounded-2xl border"
+        style={{ borderColor: onehub.cardBorder }}
       >
-        <div className="grid items-center gap-6 md:grid-cols-[1.4fr_1fr]">
+        {/* painted brickyard scene + warm scrim so text stays readable */}
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: "url(/onehub/hero-backdrop.jpg)" }}
+        />
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(100deg, rgba(251,240,226,0.94) 0%, rgba(249,229,206,0.82) 45%, rgba(247,215,182,0.35) 100%)",
+          }}
+        />
+        <div className="relative grid items-center gap-6 p-6 sm:p-8 md:grid-cols-[1.4fr_1fr]">
           <div>
             <h2 className="font-serif text-3xl font-bold sm:text-4xl" style={{ color: onehub.brand }}>
               Vanakkam! I&apos;m Mayur 👋
@@ -157,15 +167,13 @@ export default function OneHubPage() {
             </a>
           </div>
 
-          <div className="flex items-center justify-end gap-4">
-            {/* Mascot slot — TODO: replace 🦚 medallion with the Mayur
-                illustration at /public/onehub/mayur.png */}
-            <div
-              className="flex h-28 w-28 items-center justify-center rounded-full border-4 text-6xl shadow-inner sm:h-32 sm:w-32"
-              style={{ borderColor: "#ffffff", background: "#f7ceb2" }}
-            >
-              🦚
-            </div>
+          <div className="flex items-center justify-end gap-5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/onehub/mayur-hero.png"
+              alt="Mayur, the Maiyuri Bricks mascot, holding an interlock brick"
+              className="h-40 w-auto drop-shadow-lg sm:h-52"
+            />
             <blockquote className="hidden max-w-[160px] border-l-2 pl-3 sm:block" style={{ borderColor: onehub.accent }}>
               <p className="font-serif text-base font-semibold" style={{ color: onehub.brand }}>
                 உழைப்பே உயர்வு தரும்
@@ -405,9 +413,10 @@ function SopModal({
 
         <div className="flex-1 overflow-y-auto p-4" style={{ background: onehub.canvas }}>
           {sops.length === 0 ? (
-            <div className="flex flex-col items-center py-12 text-center">
-              <Sparkles className="h-8 w-8" style={{ color: onehub.textMuted }} />
-              <p className="mt-2 text-sm" style={{ color: onehub.textMuted }}>
+            <div className="flex flex-col items-center py-10 text-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/onehub/mayur-empty.png" alt="" className="h-36 w-auto object-contain" />
+              <p className="mt-3 max-w-xs text-sm" style={{ color: onehub.textMuted }}>
                 No SOPs in {dept.label} yet — they&apos;ll appear here as the library grows.
               </p>
             </div>
