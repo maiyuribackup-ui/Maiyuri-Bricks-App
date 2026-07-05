@@ -37,6 +37,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return error(result.message, 500);
     }
 
+    // Auto-variance: mark the matching active-plan delivery item done.
+    try {
+      const { supabaseAdmin } = await import("@/lib/supabase-admin");
+      const { matchDeliveryDone } = await import(
+        "@/lib/ops-planning/variance-matcher"
+      );
+      const { data: deliveryRow } = await supabaseAdmin
+        .from("deliveries")
+        .select("odoo_sale_name, origin, total_quantity")
+        .eq("id", id)
+        .single();
+      if (deliveryRow) await matchDeliveryDone(deliveryRow);
+    } catch (matchErr) {
+      console.error("delivery variance match failed:", matchErr);
+    }
+
     // Return warning if Odoo sync failed but local update succeeded
     if (result.error) {
       const responseData = (result.data as Record<string, unknown>) ?? {};

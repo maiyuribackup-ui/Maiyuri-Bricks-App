@@ -186,3 +186,34 @@ export function useVariance(days = 14) {
     queryFn: () => api.get<VarianceData>('/api/ops-planning/variance', { days }),
   });
 }
+
+export type ProductParams = {
+  finished_good_id: string;
+  product_name: string;
+  stock_qty: number | null;
+  daily_capacity_units: number | null;
+  curing_days: number | null;
+  min_batch: number | null;
+};
+
+export function useProductParams() {
+  return useQuery({
+    queryKey: ['ops-planning', 'params'],
+    queryFn: () => api.get<ProductParams[]>('/api/ops-planning/params'),
+  });
+}
+
+export function useSaveProductParams() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      finished_good_id: string;
+      daily_capacity_units: number;
+      curing_days: number;
+      min_batch?: number;
+    }) => api.put('/api/ops-planning/params', body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['ops-planning'] });
+    },
+  });
+}
