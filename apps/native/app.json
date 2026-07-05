@@ -20,7 +20,8 @@
       "bundleIdentifier": "com.maiyuri.bricks"
     },
     "android": {
-      "package": "com.maiyuri.bricks"
+      "package": "com.maiyuri.bricks",
+      "googleServicesFile": "./google-services.json"
     },
     "plugins": [
       "expo-router",
