@@ -40,6 +40,7 @@ function OneHubIcon({ className }: { className?: string }) {
 const navigation: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: HomeIcon, key: "dashboard" },
   { name: "OneHub", href: "/onehub", icon: OneHubIcon, key: "onehub" },
+  { name: "Daily Report", href: "/daily-report", icon: KPIIcon, key: "daily-report" },
   { name: "Business", href: "/business-health", icon: HealthIcon, key: "business-health" },
   { name: "Leads", href: "/leads", icon: UsersIcon, key: "leads" },
   {
@@ -79,6 +80,7 @@ const roleModuleAccess: Record<UserRole, string[]> = {
   accountant: [
     "dashboard",
     "onehub",
+    "daily-report",
     "leads",
     "tasks",
     "approvals",
