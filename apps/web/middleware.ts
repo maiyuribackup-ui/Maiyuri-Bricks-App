@@ -17,6 +17,7 @@ const publicRoutes = [
 // Routes that require authentication (pages)
 const protectedRoutes = [
   "/dashboard",
+  "/daily-report", // server-rendered with real business data — must never serve anonymously
   "/onehub",
   "/leads",
   "/coaching",
