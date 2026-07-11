@@ -12,6 +12,7 @@ export async function GET() {
       .from("finished_goods")
       .select("id, name, stock_qty, product_planning_params(daily_capacity_units, curing_days, min_batch)")
       .eq("is_active", true)
+      .eq("plan_excluded", false)
       .order("name");
     if (dbError) return error("Failed to load planning params", 500);
 
