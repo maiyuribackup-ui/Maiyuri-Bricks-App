@@ -18,9 +18,12 @@ RETURNS BOOLEAN AS $$
     WHERE id = user_id
       AND role IN ('founder', 'owner', 'production_supervisor')
   );
-$$ LANGUAGE sql SECURITY DEFINER STABLE;
+$$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = '';
 
+REVOKE EXECUTE ON FUNCTION public.is_work_supervisor(UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.is_work_supervisor(UUID) FROM anon;
 GRANT EXECUTE ON FUNCTION public.is_work_supervisor(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_work_supervisor(UUID) TO service_role;
 
 -- ----------------------------------------------------------------------------
 -- Operational checklist engine (richer than onehub_checklist_* JSONB lists:
