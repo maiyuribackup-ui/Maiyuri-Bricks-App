@@ -80,7 +80,6 @@ export default function WorkItemDetailPage() {
       };
     }
     setDrafts(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.id, item?.updated_at]);
 
   // Warn before leaving with unsaved changes (PRD §11)
@@ -128,7 +127,6 @@ export default function WorkItemDetailPage() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note, drafts, dirty]);
 
   const handleChecklistChange = (
@@ -400,7 +398,6 @@ export default function WorkItemDetailPage() {
           {itemLevelPhotos.map((photo) => (
             <div key={photo.id} className="relative">
               {photo.url && (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={photo.url}
                   alt={photo.caption ?? photo.file_name}

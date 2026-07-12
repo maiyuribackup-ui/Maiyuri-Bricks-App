@@ -219,7 +219,6 @@ export function ChecklistRunner({
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {photos.map((photo) =>
                 photo.url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     key={photo.id}
                     src={photo.url}
