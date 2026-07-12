@@ -20,6 +20,7 @@ import { useAuthStore } from "@/stores/authStore";
 import {
   useChecklistTemplates,
   useCreateChecklistTemplate,
+  useUpdateChecklistTemplate,
 } from "@/hooks/useMyWork";
 import {
   useAdminLinks,
@@ -134,6 +135,8 @@ function Card({ children }: { children: React.ReactNode }) {
 /* ================= Checklist Builder ================= */
 
 type NewItem = {
+  /** present = existing template item (may be edited); absent = new */
+  id?: string;
   prompt: string;
   input_type: "status" | "text" | "number";
   mandatory: boolean;
@@ -154,44 +157,108 @@ const blankItem = (): NewItem => ({
 function ChecklistsTab() {
   const { data, isLoading } = useChecklistTemplates();
   const create = useCreateChecklistTemplate();
+  const update = useUpdateChecklistTemplate();
   const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [items, setItems] = useState<NewItem[]>([blankItem()]);
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
 
   const templates = data?.data ?? [];
+  const formOpen = creating || editingId !== null;
 
   const setItem = (i: number, patch: Partial<NewItem>) =>
     setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
 
+  const resetForm = () => {
+    setCreating(false);
+    setEditingId(null);
+    setName("");
+    setDescription("");
+    setItems([blankItem()]);
+    setRemovedIds([]);
+  };
+
+  const startEdit = (t: (typeof templates)[number]) => {
+    setMsg(null);
+    setCreating(false);
+    setEditingId(t.id);
+    setName(t.name);
+    setDescription(t.description ?? "");
+    setRemovedIds([]);
+    setItems(
+      (t.items ?? []).map((it) => ({
+        id: it.id,
+        prompt: it.prompt,
+        input_type: it.input_type,
+        mandatory: it.mandatory,
+        allow_na: it.allow_na,
+        requires_photo: it.requires_photo,
+        requires_photo_on_fail: it.requires_photo_on_fail,
+      })),
+    );
+  };
+
+  const removeItemAt = (i: number) => {
+    const it = items[i];
+    if (it.id) setRemovedIds((prev) => [...prev, it.id!]);
+    setItems((prev) => prev.filter((_, idx) => idx !== i));
+  };
+
+  const busy = create.isPending || update.isPending;
+
   const submit = () => {
     const clean = items.filter((i) => i.prompt.trim());
     if (!name.trim() || clean.length === 0) return;
-    create.mutate(
-      {
-        name: name.trim(),
-        description: description.trim() || null,
-        items: clean.map((i) => ({
-          prompt: i.prompt.trim(),
-          input_type: i.input_type,
-          mandatory: i.mandatory,
-          allow_na: i.allow_na,
-          requires_photo: i.requires_photo,
-          requires_photo_on_fail: i.requires_photo_on_fail,
-          requires_corrective_action_on_fail: true,
-        })),
-      },
-      {
-        onSuccess: () => {
-          setMsg(`Checklist “${name.trim()}” created`);
-          setCreating(false);
-          setName("");
-          setDescription("");
-          setItems([blankItem()]);
+    const payloadItems = clean.map((i) => ({
+      ...(i.id ? { id: i.id } : {}),
+      prompt: i.prompt.trim(),
+      input_type: i.input_type,
+      mandatory: i.mandatory,
+      allow_na: i.allow_na,
+      requires_photo: i.requires_photo,
+      requires_photo_on_fail: i.requires_photo_on_fail,
+      requires_corrective_action_on_fail: true,
+    }));
+
+    if (editingId) {
+      update.mutate(
+        {
+          id: editingId,
+          name: name.trim(),
+          description: description.trim() || null,
+          items: payloadItems,
+          remove_item_ids: removedIds,
         },
-      },
-    );
+        {
+          onSuccess: (res) => {
+            const kept = res.data?.kept_in_use?.length ?? 0;
+            setMsg(
+              kept > 0
+                ? `“${name.trim()}” updated — ${kept} item${kept === 1 ? "" : "s"} kept (already answered in past runs)`
+                : `“${name.trim()}” updated`,
+            );
+            resetForm();
+          },
+        },
+      );
+    } else {
+      create.mutate(
+        {
+          name: name.trim(),
+          description: description.trim() || null,
+          items: payloadItems,
+        },
+        {
+          onSuccess: () => {
+            setMsg(`Checklist “${name.trim()}” created`);
+            resetForm();
+          },
+        },
+      );
+    }
   };
 
   return (
@@ -201,18 +268,30 @@ function ChecklistsTab() {
           Checklists define the steps your team runs (assign them via My Work
           or a recurring template).
         </p>
-        <PrimaryBtn onClick={() => setCreating((v) => !v)}>
+        <PrimaryBtn
+          onClick={() => {
+            resetForm();
+            setCreating(true);
+            setMsg(null);
+          }}
+        >
           <span className="inline-flex items-center gap-1">
             <Plus className="h-4 w-4" /> New checklist
           </span>
         </PrimaryBtn>
       </div>
       <StatusLine
-        error={create.isError ? (create.error as Error).message : null}
+        error={
+          create.isError
+            ? (create.error as Error).message
+            : update.isError
+              ? (update.error as Error).message
+              : null
+        }
         success={msg}
       />
 
-      {creating && (
+      {formOpen && (
         <Card>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Checklist name">
@@ -271,11 +350,14 @@ function ChecklistsTab() {
                     <option value="number">Number</option>
                   </select>
                   <button
-                    onClick={() =>
-                      setItems((prev) => prev.filter((_, idx) => idx !== i))
-                    }
+                    onClick={() => removeItemAt(i)}
                     className="px-2 py-2 text-sm"
                     style={{ color: "#c1453e" }}
+                    title={
+                      it.id
+                        ? "Remove (kept in past runs if already answered)"
+                        : "Remove"
+                    }
                   >
                     ✕
                   </button>
@@ -313,15 +395,24 @@ function ChecklistsTab() {
             >
               + Add item
             </button>
+            <button
+              onClick={resetForm}
+              className="rounded-xl border px-3 py-2 text-sm font-medium"
+              style={{ borderColor: onehub.cardBorder, color: onehub.textMuted }}
+            >
+              Cancel
+            </button>
             <PrimaryBtn
               onClick={submit}
               disabled={
-                create.isPending ||
-                !name.trim() ||
-                items.every((i) => !i.prompt.trim())
+                busy || !name.trim() || items.every((i) => !i.prompt.trim())
               }
             >
-              {create.isPending ? "Creating…" : "Create checklist"}
+              {busy
+                ? "Saving…"
+                : editingId
+                  ? "Save changes"
+                  : "Create checklist"}
             </PrimaryBtn>
           </div>
         </Card>
@@ -334,8 +425,8 @@ function ChecklistsTab() {
       ) : (
         templates.map((t) => (
           <Card key={t.id}>
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
                 <p className="font-semibold" style={{ color: onehub.text }}>
                   {t.name}
                 </p>
@@ -344,6 +435,13 @@ function ChecklistsTab() {
                   {t.description ? ` · ${t.description}` : ""}
                 </p>
               </div>
+              <button
+                onClick={() => startEdit(t)}
+                className="flex-shrink-0 rounded-xl border px-3 py-1.5 text-xs font-semibold"
+                style={{ borderColor: onehub.cardBorder, color: onehub.accent }}
+              >
+                ✏️ Edit
+              </button>
             </div>
             {t.items?.length ? (
               <ol

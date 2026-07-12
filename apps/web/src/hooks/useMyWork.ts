@@ -273,3 +273,40 @@ export function useCreateChecklistTemplate() {
       queryClient.invalidateQueries({ queryKey: ["work-checklist-templates"] }),
   });
 }
+
+export interface UpdateChecklistTemplateInput {
+  id: string;
+  name?: string;
+  description?: string | null;
+  active?: boolean;
+  items?: Array<{
+    id?: string;
+    prompt: string;
+    input_type: "status" | "text" | "number";
+    mandatory: boolean;
+    allow_na: boolean;
+    requires_photo: boolean;
+    requires_photo_on_fail: boolean;
+    requires_corrective_action_on_fail: boolean;
+  }>;
+  remove_item_ids?: string[];
+}
+
+export function useUpdateChecklistTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...body }: UpdateChecklistTemplateInput) => {
+      const res = await fetch(`/api/my-work/checklist-templates/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) await throwApiError(res, "Failed to update the template");
+      return res.json() as Promise<
+        ApiResponse<{ template: WorkChecklistTemplate; kept_in_use: string[] }>
+      >;
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["work-checklist-templates"] }),
+  });
+}
