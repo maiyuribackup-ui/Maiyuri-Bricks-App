@@ -1,27 +1,25 @@
-name: Nightly plan reminder
+name: Driver deliveries digest
 
-# Previous-night reminder of tomorrow's production & delivery plan.
-# 15:30 UTC = 21:00 IST. The endpoint is silent when tomorrow has no plan
-# items (Sundays, no active plan), so this can fire every night safely.
-# Requires repo secret CRON_SECRET (already configured for morning-digest).
+# Rehomed from apps/web/vercel.json where it NEVER ran (root vercel.json is
+# the only one Vercel reads; Hobby cron cap already used). 01:30 UTC = 07:00
+# IST — drivers get today's delivery list before leaving the yard.
 
 on:
   schedule:
-    - cron: "30 15 * * *"
+    - cron: "30 1 * * *"
   workflow_dispatch: {}
 
 jobs:
-  send-reminder:
+  digest:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Trigger plan notification endpoint
+      - name: Trigger deliveries cron
         run: |
-          status=$(curl -s -o /tmp/notify.json -w "%{http_code}" -X POST \
+          status=$(curl -s -o /tmp/r.json -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://mb.maiyuri.com/api/ops-planning/notify")
-          echo "HTTP $status"
-          cat /tmp/notify.json
+            "https://mb.maiyuri.com/api/deliveries/cron")
+          echo "HTTP $status"; cat /tmp/r.json
           if [ "$status" -ge 400 ]; then exit 1; fi
 
       - name: Alert on failure

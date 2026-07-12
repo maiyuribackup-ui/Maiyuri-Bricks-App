@@ -20,3 +20,11 @@ jobs:
             "https://mb.maiyuri.com/api/my-work/generate")
           echo "HTTP $status"; cat /tmp/r.json
           if [ "$status" -ge 400 ]; then exit 1; fi
+
+      - name: Alert on failure
+        if: failure()
+        continue-on-error: true
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="❌ ${{ github.workflow }} failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
