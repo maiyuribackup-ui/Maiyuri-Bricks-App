@@ -12,6 +12,11 @@ export default function OneHubLayout() {
       <Stack.Screen name="index" options={{ title: '🧭 Maiyuri OneHub' }} />
       <Stack.Screen name="my-work/index" options={{ title: '✅ My Work' }} />
       <Stack.Screen name="my-work/[id]" options={{ title: 'Work Item' }} />
+      <Stack.Screen
+        name="my-work/new"
+        options={{ title: 'Assign Work', presentation: 'modal' }}
+      />
+      <Stack.Screen name="approvals" options={{ title: '👀 Approvals' }} />
       <Stack.Screen name="department/[dept]" options={{ title: 'SOPs' }} />
       <Stack.Screen name="sop/[slug]" options={{ title: 'SOP' }} />
       <Stack.Screen name="edit/[slug]" options={{ title: 'Edit SOP', presentation: 'modal' }} />

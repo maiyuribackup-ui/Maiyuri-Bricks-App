@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ChecklistResponseStatus,
+  CreateWorkItemInput,
   MyWorkQueue,
+  WorkChecklistTemplate,
   WorkItem,
 } from '@maiyuri/shared';
 import { api } from '@/lib/api';
@@ -75,6 +77,49 @@ export function useSubmitChecklist(id: string) {
   return useMutation({
     mutationFn: () => api.post<WorkItem>(`/api/my-work/${id}/submit`),
     onSuccess: () => invalidate(queryClient, id),
+  });
+}
+
+// ---------- admin: assign work from the phone ----------
+
+export type AssignableUser = {
+  id: string;
+  name: string;
+  role: string;
+  is_active: boolean;
+};
+
+/** Active staff for the assignee picker (any authenticated user may list). */
+export function useAssignableUsers(enabled: boolean) {
+  return useQuery({
+    queryKey: ['users', 'assignable'],
+    queryFn: () => api.get<AssignableUser[]>('/api/users'),
+    select: (res) => ({
+      ...res,
+      data: res.data.filter((u) => u.is_active),
+    }),
+    enabled,
+  });
+}
+
+/** Active checklist templates for the template picker. */
+export function useChecklistTemplatesList(enabled: boolean) {
+  return useQuery({
+    queryKey: ['my-work', 'checklist-templates'],
+    queryFn: () =>
+      api.get<WorkChecklistTemplate[]>('/api/my-work/checklist-templates'),
+    enabled,
+  });
+}
+
+/** Admin: create + assign a work item (POST /api/my-work). */
+export function useCreateWorkItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Partial<CreateWorkItemInput>) =>
+      api.post<WorkItem>('/api/my-work', body),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ['my-work'] }),
   });
 }
 

@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { WORK_ADMIN_ROLES, useMyRole } from '@/hooks/use-approvals';
 import { useMyWork } from '@/hooks/use-my-work';
 
 const STATUS_STYLE: Record<WorkItemStatus, { bg: string; text: string; label: string }> = {
@@ -98,6 +99,8 @@ function Section({
 export default function MyWorkQueueScreen() {
   const { data, isLoading, isRefetching, refetch } = useMyWork();
   const q = data?.data;
+  const role = useMyRole();
+  const isAdmin = WORK_ADMIN_ROLES.includes(role);
 
   if (isLoading) {
     return (
@@ -121,6 +124,15 @@ export default function MyWorkQueueScreen() {
       contentContainerClassName="p-4 pb-10"
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} />}
     >
+      {/* admin: assign work to someone */}
+      {isAdmin ? (
+        <Link href={"/onehub/my-work/new" as import('expo-router').Href} asChild>
+          <Pressable className="mb-3 flex-row items-center justify-center rounded-xl bg-brand py-2.5 active:opacity-80">
+            <Text className="text-sm font-bold text-ink">＋ Assign work to someone</Text>
+          </Pressable>
+        </Link>
+      ) : null}
+
       {/* summary strip */}
       {summary ? (
         <View className="mb-4 flex-row gap-2">

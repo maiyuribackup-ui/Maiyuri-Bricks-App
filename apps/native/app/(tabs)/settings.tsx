@@ -29,6 +29,7 @@ function PlanningParamsSection() {
   const [editing, setEditing] = useState<string | null>(null);
   const [capacity, setCapacity] = useState('');
   const [curing, setCuring] = useState('');
+  const [minBatch, setMinBatch] = useState('');
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
 
@@ -36,11 +37,13 @@ function PlanningParamsSection() {
     finished_good_id: string;
     daily_capacity_units: number | null;
     curing_days: number | null;
+    min_batch: number | null;
   }) => {
     setEditing(row.finished_good_id);
     setFieldError(null);
     setCapacity(row.daily_capacity_units != null ? String(row.daily_capacity_units) : '');
     setCuring(row.curing_days != null ? String(row.curing_days) : '7');
+    setMinBatch(row.min_batch != null ? String(row.min_batch) : '0');
   };
 
   const commit = (finished_good_id: string) => {
@@ -56,9 +59,14 @@ function PlanningParamsSection() {
       setFieldError('Enter valid curing days (number ≥ 0).');
       return;
     }
+    const batch = Number(minBatch.replace(/[,\s]/g, '') || '0');
+    if (Number.isNaN(batch) || batch < 0) {
+      setFieldError('Enter a valid minimum batch (number ≥ 0).');
+      return;
+    }
     setFieldError(null);
     save.mutate(
-      { finished_good_id, daily_capacity_units: cap, curing_days: cure },
+      { finished_good_id, daily_capacity_units: cap, curing_days: cure, min_batch: batch },
       {
         onSuccess: () => {
           setEditing(null);
@@ -119,6 +127,17 @@ function PlanningParamsSection() {
                     placeholderTextColor="#94a3b8"
                     className="w-16 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-ink"
                   />
+                  <TextInput
+                    value={minBatch}
+                    onChangeText={(t) => {
+                      setMinBatch(t);
+                      if (fieldError) setFieldError(null);
+                    }}
+                    keyboardType="numeric"
+                    placeholder="min"
+                    placeholderTextColor="#94a3b8"
+                    className="w-16 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-ink"
+                  />
                   <Pressable
                     onPress={() => commit(row.finished_good_id)}
                     disabled={save.isPending}
@@ -141,7 +160,7 @@ function PlanningParamsSection() {
                   </Pressable>
                 </View>
                 <Text className="mt-1 text-[11px] text-slate-400">
-                  Daily quantity (units/day) · curing days
+                  Daily quantity (units/day) · curing days · minimum batch size
                 </Text>
                 {fieldError ? (
                   <Text className="mt-1 text-xs text-red-500">{fieldError}</Text>
@@ -150,7 +169,7 @@ function PlanningParamsSection() {
             ) : (
               <Text className="mt-0.5 text-xs text-slate-500">
                 {row.daily_capacity_units != null
-                  ? `${Number(row.daily_capacity_units).toLocaleString('en-IN')}/day · cure ${row.curing_days}d`
+                  ? `${Number(row.daily_capacity_units).toLocaleString('en-IN')}/day · cure ${row.curing_days}d${row.min_batch ? ` · min ${Number(row.min_batch).toLocaleString('en-IN')}` : ''}`
                   : '⚠️ not set — excluded from planning'}
                 {row.stock_qty != null
                   ? ` · stock ${Number(row.stock_qty).toLocaleString('en-IN')}`

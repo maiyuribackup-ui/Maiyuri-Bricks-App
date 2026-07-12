@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { createSupabaseRouteClient } from "@/lib/supabase-server";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import {
   success,
   error,
@@ -37,11 +37,8 @@ export async function POST(request: NextRequest) {
 
     const { lead_id, regenerate } = parsed.data;
 
-    // Get authenticated user
-    const supabase = createSupabaseRouteClient(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Get authenticated user — cookie (web) OR Bearer token (mobile)
+    const user = await getUserFromRequest(request);
 
     if (!user) {
       return error("Authentication required", 401);
