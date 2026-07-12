@@ -180,7 +180,128 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return success({ date: todayISO, created, skipped, failures });
+    // ---- Renewals & Compliance register ------------------------------------
+    // Two passes: (a) roll forward entries whose renewal task was completed,
+    // (b) create a task for entries entering their reminder window.
+    let renewalsCreated = 0;
+    let renewalsRolled = 0;
+    const { data: renewals } = await supabaseAdmin
+      .from("compliance_renewals")
+      .select("*")
+      .eq("status", "active");
+
+    for (const rn of renewals ?? []) {
+      // (a) roll-forward: the generated task was completed → advance one cycle
+      if (rn.last_work_item_id) {
+        const { data: wi } = await supabaseAdmin
+          .from("work_items")
+          .select("status")
+          .eq("id", rn.last_work_item_id)
+          .maybeSingle();
+        if (wi?.status === "completed") {
+          if (rn.cycle === "one_time") {
+            await supabaseAdmin
+              .from("compliance_renewals")
+              .update({ status: "done", last_work_item_id: null })
+              .eq("id", rn.id);
+            renewalsRolled += 1;
+            continue;
+          }
+          const months =
+            rn.cycle === "yearly" ? 12 : rn.cycle === "half_yearly" ? 6 : rn.cycle === "quarterly" ? 3 : 1;
+          const next = new Date(`${rn.due_date}T00:00:00Z`);
+          next.setUTCMonth(next.getUTCMonth() + months);
+          await supabaseAdmin
+            .from("compliance_renewals")
+            .update({
+              due_date: next.toISOString().slice(0, 10),
+              last_generated_for: null,
+              last_work_item_id: null,
+            })
+            .eq("id", rn.id);
+          renewalsRolled += 1;
+          continue;
+        }
+      }
+
+      // (b) inside the reminder window and not yet generated for this due date
+      const windowStart = new Date(`${rn.due_date}T00:00:00Z`);
+      windowStart.setUTCDate(windowStart.getUTCDate() - rn.remind_days_before);
+      const inWindow = istDate.getTime() >= windowStart.getTime();
+      if (!inWindow || rn.last_generated_for === rn.due_date) continue;
+
+      // Assignee: the entry's owner, else every founder/owner
+      let assignees: string[] = [];
+      if (rn.owner_user_id) {
+        assignees = [rn.owner_user_id];
+      } else {
+        const { data: bosses } = await supabaseAdmin
+          .from("users")
+          .select("id")
+          .in("role", ["founder", "owner"])
+          .eq("is_active", true);
+        assignees = (bosses ?? []).map((u) => u.id);
+      }
+      if (!assignees.length) {
+        failures.push(`renewal ${rn.name}: no assignee`);
+        continue;
+      }
+
+      const overdue = rn.due_date < todayISO;
+      const dueLabel = new Date(`${rn.due_date}T00:00:00Z`).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC",
+      });
+      const { data: item, error: insErr } = await supabaseAdmin
+        .from("work_items")
+        .insert({
+          title: `Renew: ${rn.name} — due ${dueLabel}`,
+          description: rn.notes,
+          instructions: rn.document_url ? `Document: ${rn.document_url}` : null,
+          activity_type: "simple",
+          status: "pending",
+          priority: overdue ? "urgent" : "high",
+          assigned_user_id: assignees[0],
+          assigned_by_user_id: null,
+          due_at: new Date(`${rn.due_date}T18:00:00+05:30`).toISOString(),
+          requires_photo: false,
+          requires_note: true, // record policy no. / receipt reference
+          requires_approval: true,
+          related_label: `renewal · ${rn.category}`,
+          source_module: "renewal",
+          source_record_id: rn.id,
+          scheduled_date: todayISO,
+        })
+        .select("*")
+        .single();
+      if (insErr || !item) {
+        failures.push(`renewal ${rn.name}: item create failed`);
+        continue;
+      }
+      await supabaseAdmin
+        .from("compliance_renewals")
+        .update({ last_generated_for: rn.due_date, last_work_item_id: item.id })
+        .eq("id", rn.id);
+      renewalsCreated += 1;
+      await logWorkEvent({
+        work_item_id: item.id,
+        event_type: "created",
+        new_status: "pending",
+        performed_by: null,
+        metadata: { source: "renewal", renewal_id: rn.id },
+      });
+      void notifyWorkAssigned(item as WorkItem);
+    }
+
+    return success({
+      date: todayISO,
+      created,
+      skipped,
+      failures,
+      renewals: { created: renewalsCreated, rolled_forward: renewalsRolled },
+    });
   } catch (err) {
     console.error("[MyWork] generate failed:", err);
     return error("Generation failed", 500);
