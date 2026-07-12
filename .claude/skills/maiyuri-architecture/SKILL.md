@@ -215,7 +215,21 @@ Overlaps conceptually with My Work approvals — unifying is on the backlog.
 `/api/knowledge/ask` (language-aware Q&A), `/gaps`, `/pending`, `/scrape`.
 Auto-ingests call transcripts + published SOPs.
 
-### 3.13 Dashboards & Settings
+### 3.13 OpenProject bridge  (`src/lib/openproject.ts`)
+OpenProject (self-hosted at `op.maiyuri.com` via Cloudflare Tunnel from the
+founder's PC, container port 8080) = the founder's PLANNING cockpit (Gantt,
+dependencies). My Work stays the ONE staff queue. The bridge
+(`/api/cron/openproject-sync`, every 30 min): open assigned work packages →
+`work_items` (`source_module='openproject'`, `source_record_id=<wp id>`,
+assignee matched by email, push notification); title/due edits flow through;
+WPs closed in OP cancel the local item; items COMPLETED in the app close the
+WP + leave a completion comment. Env: `OPENPROJECT_URL`,
+`OPENPROJECT_API_KEY` (Basic auth, username literally `apikey`).
+**The tunnel host is a PC that sleeps** — the sync treats unreachable as a
+graceful skip (no alert); alerts mean real bugs. OP-derived tasks surface in
+the Daily Report through the existing Tasks tile (they ARE work_items).
+
+### 3.14 Dashboards & Settings
 - Multiple overlapping dashboards exist (dashboard, kpi, business-health,
   observability, analytics, daily-report) — consultant audit flagged
   consolidation onto Daily Report as the founder home.
@@ -245,6 +259,7 @@ UTC+5:30).
 | `plan-reminder` | — | evening | plan reminder | "update Odoo/plan" nudge |
 | `db-backup` | 21:00 | 02:30 | pg_dump (docker) | 30-day artifact |
 | `e2e` | 05:00 + post-push | 10:30 | Playwright smoke | read-only prod regression net |
+| `openproject-sync` | */30 | every 30 min | /api/cron/openproject-sync | OP work packages ↔ My Work bridge |
 
 Other CI: `ci.yml` (Code Quality — required check: typecheck+lint+test via
 turbo), `native-ci.yml` (native typecheck), `release.yml`, `android-apk.yml`,
