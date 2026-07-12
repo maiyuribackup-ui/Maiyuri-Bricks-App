@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCompleteDelivery, useDeliveries } from '@/hooks/use-deliveries';
+import { useIsOnline } from '@/lib/offline';
 import { toast } from '@/lib/toast';
 
 const STATUS_STYLE: Record<DeliveryStatus, { bg: string; label: string }> = {
@@ -80,6 +81,7 @@ function MarkDeliveredModal({
   onClose: () => void;
 }) {
   const complete = useCompleteDelivery();
+  const online = useIsOnline();
   const [photos, setPhotos] = useState<string[]>([]); // data URLs
   const [recipient, setRecipient] = useState('');
   const [notes, setNotes] = useState('');
@@ -122,6 +124,12 @@ function MarkDeliveredModal({
         },
       },
     );
+    // Offline: the mutation is now QUEUED (paused), not failed — it fires on
+    // reconnect and even survives an app restart. Tell the driver and move on.
+    if (!online) {
+      toast.info('Saved offline — will sync when back on network');
+      onClose();
+    }
   };
 
   return (

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useLead } from '@/hooks/use-leads';
 import { useAddNote, useLeadNotes } from '@/hooks/use-notes';
+import { QuickActionsModal } from '@/components/LeadQuickActions';
 import { toast } from '@/lib/toast';
 
 function Field({ label, value }: { label: string; value?: string | number | null }) {
@@ -115,6 +116,7 @@ export default function LeadDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, isLoading, isError, error } = useLead(id);
   const lead = data?.data;
+  const [qaOpen, setQaOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -156,6 +158,12 @@ export default function LeadDetailScreen() {
           >
             <Text className="font-semibold text-white">WhatsApp</Text>
           </Pressable>
+          <Pressable
+            onPress={() => setQaOpen(true)}
+            className="rounded-lg bg-white/15 px-4 py-2"
+          >
+            <Text className="font-semibold text-white">⚡ Edit</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -179,6 +187,8 @@ export default function LeadDetailScreen() {
 
       <View className="h-10" />
     </ScrollView>
+    {/* Same Quick Actions sheet as the list — no more backing out to edit */}
+    <QuickActionsModal lead={qaOpen ? lead : null} onClose={() => setQaOpen(false)} />
     </KeyboardAvoidingView>
   );
 }

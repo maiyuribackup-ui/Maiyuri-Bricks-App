@@ -44,6 +44,12 @@
         "projectId": "c913a41e-24ce-4e83-a26b-b43598d9bf85"
       }
     },
-    "owner": "maiyuri-bricks"
+    "owner": "maiyuri-bricks",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c913a41e-24ce-4e83-a26b-b43598d9bf85"
+    }
   }
 }
