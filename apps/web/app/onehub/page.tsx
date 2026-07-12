@@ -150,14 +150,12 @@ export default function OneHubPage() {
           }}
         />
         {/* kolam ornament corners (artwork is drawn as a bottom-left piece) */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/onehub/ornament-corner.png"
           alt=""
           aria-hidden
           className="pointer-events-none absolute -bottom-1 -left-1 h-24 w-24 opacity-50 sm:h-28 sm:w-28"
         />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/onehub/ornament-corner.png"
           alt=""
@@ -183,7 +181,6 @@ export default function OneHubPage() {
           </div>
 
           <div className="flex items-center justify-end gap-5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/onehub/mayur-hero.png"
               alt="Mayur, the Maiyuri Bricks mascot, holding an interlock brick"
@@ -347,7 +344,6 @@ export default function OneHubPage() {
 
       {/* signature footer */}
       <footer className="flex flex-col items-center gap-2 pb-6 pt-4">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/onehub/logo-monogram.png" alt="Maiyuri monogram" className="h-16 w-16 object-contain" />
         <p className="text-xs italic" style={{ color: onehub.textMuted }}>
           Built on Strength. Rooted in Trust.
@@ -438,7 +434,6 @@ function SopModal({
         <div className="flex-1 overflow-y-auto p-4" style={{ background: onehub.canvas }}>
           {sops.length === 0 ? (
             <div className="flex flex-col items-center py-10 text-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/onehub/mayur-empty.png" alt="" className="h-36 w-auto object-contain" />
               <p className="mt-3 max-w-xs text-sm" style={{ color: onehub.textMuted }}>
                 No SOPs in {dept.label} yet — they&apos;ll appear here as the library grows.
