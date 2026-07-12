@@ -309,6 +309,21 @@ export default function OneHubPage() {
         <section id="reminders" className="scroll-mt-24">
           <RemindersCard />
           <RenewalsCard />
+          <a
+            href="/coaching/learn"
+            className="mt-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-orange-300 hover:shadow-sm"
+          >
+            <span className="text-2xl">🎓</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold" style={{ color: onehub.text }}>
+                Training
+              </span>
+              <span className="block text-xs text-slate-400">
+                Product & sales lessons, quizzes and your learning path
+              </span>
+            </span>
+            <span className="text-slate-400">→</span>
+          </a>
         </section>
       </div>
 

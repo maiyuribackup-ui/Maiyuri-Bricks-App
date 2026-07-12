@@ -43,6 +43,7 @@ const navigation: NavItem[] = [
   { name: "Daily Report", href: "/daily-report", icon: KPIIcon, key: "daily-report" },
   { name: "Business", href: "/business-health", icon: HealthIcon, key: "business-health" },
   { name: "Leads", href: "/leads", icon: UsersIcon, key: "leads" },
+  { name: "Quotes", href: "/quotes", icon: KPIIcon, key: "quotes" },
   {
     name: "Deliveries",
     href: "/deliveries",
@@ -55,6 +56,7 @@ const navigation: NavItem[] = [
     icon: ProductionIcon,
     key: "production",
   },
+  { name: "Plan", href: "/planning", icon: ProductionIcon, key: "planning" },
   { name: "Projects", href: "/projects", icon: ProductionIcon, key: "projects" },
   {
     name: "Approvals",
@@ -63,7 +65,6 @@ const navigation: NavItem[] = [
     key: "approvals",
     showBadge: true,
   },
-  { name: "Design", href: "/design", icon: DesignIcon, key: "design" },
   { name: "Knowledge", href: "/knowledge", icon: BookIcon, key: "knowledge" },
   { name: "Tasks", href: "/tasks", icon: TasksIcon, key: "tasks" },
   { name: "Coaching", href: "/coaching", icon: ChartIcon, key: "coaching" },
@@ -82,10 +83,13 @@ const roleModuleAccess: Record<UserRole, string[]> = {
     "onehub",
     "daily-report",
     "leads",
+    "quotes",
     "tasks",
     "approvals",
     "settings",
     "knowledge",
+    "coaching",
+    "projects",
   ],
   engineer: [
     "dashboard",
@@ -95,12 +99,12 @@ const roleModuleAccess: Record<UserRole, string[]> = {
     "approvals",
     "settings",
     "knowledge",
-    "design",
     "projects",
+    "coaching",
   ],
-  sales: ["dashboard", "onehub", "leads", "tasks", "settings", "knowledge", "coaching"],
+  sales: ["dashboard", "onehub", "leads", "quotes", "tasks", "settings", "knowledge", "coaching"],
   driver: ["dashboard", "onehub", "deliveries", "settings"],
-  production_supervisor: ["dashboard", "onehub", "production", "deliveries", "settings", "projects", "coaching"],
+  production_supervisor: ["dashboard", "onehub", "production", "planning", "deliveries", "settings", "projects", "coaching"],
 };
 
 function getNavigationForRole(role: UserRole | undefined): NavItem[] {

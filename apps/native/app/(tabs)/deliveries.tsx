@@ -99,6 +99,8 @@ function MarkDeliveredModal({
   const [photos, setPhotos] = useState<string[]>([]); // data URLs
   const [recipient, setRecipient] = useState('');
   const [notes, setNotes] = useState('');
+  const [tripKm, setTripKm] = useState('');
+  const [diesel, setDiesel] = useState('');
   const [openedFor, setOpenedFor] = useState<string | null>(null);
 
   if (delivery && delivery.id !== openedFor) {
@@ -106,6 +108,8 @@ function MarkDeliveredModal({
     setPhotos([]);
     setRecipient('');
     setNotes('');
+    setTripKm('');
+    setDiesel('');
     complete.reset();
   }
 
@@ -130,6 +134,8 @@ function MarkDeliveredModal({
         photoUrls: photos.length ? photos : undefined,
         recipientName: recipient.trim() || undefined,
         notes: notes.trim() || undefined,
+        tripKm: Number(tripKm) > 0 ? Number(tripKm) : undefined,
+        dieselCost: Number(diesel) > 0 ? Number(diesel) : undefined,
       },
       {
         onSuccess: () => {
@@ -194,6 +200,28 @@ function MarkDeliveredModal({
               placeholderTextColor="#94a3b8"
               className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
             />
+
+            <Text className="mb-1.5 mt-4 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Trip — km & diesel (₹)
+            </Text>
+            <View className="flex-row gap-2">
+              <TextInput
+                value={tripKm}
+                onChangeText={setTripKm}
+                keyboardType="numeric"
+                placeholder="km driven"
+                placeholderTextColor="#94a3b8"
+                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
+              />
+              <TextInput
+                value={diesel}
+                onChangeText={setDiesel}
+                keyboardType="numeric"
+                placeholder="diesel ₹"
+                placeholderTextColor="#94a3b8"
+                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
+              />
+            </View>
 
             <Text className="mb-1.5 mt-4 text-xs font-semibold uppercase tracking-wider text-slate-400">
               Notes

@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, error } from "@/lib/api-utils";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import type { CbsVarianceRow } from "@maiyuri/shared";
 
 interface RouteParams {
@@ -29,8 +30,12 @@ function trafficLight(
 //
 // Phase 1: committed_forecast = actual only.
 // Phase 2 will add open PO/subcontract balances.
-export async function GET(_request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
     const { id } = await params;
 
     // --- Budget side: aggregate current_budget_amount per cbs_id ---

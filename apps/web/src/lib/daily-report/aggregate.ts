@@ -8,6 +8,7 @@
  */
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { odooExecute } from "@/lib/odoo-service";
+import { fetchReceivables } from "@/lib/receivables";
 import {
   getWebsiteAnalytics,
   isGa4Configured,
@@ -28,6 +29,13 @@ export interface FinanceSection extends Base {
   topExpenses: { label: string; amount: number }[];
 }
 
+export interface ReceivablesSection extends Base {
+  outstanding: number;
+  overdue: number;
+  overdueCount: number;
+  topDebtors: { customer: string; due: number; oldestDays: number }[];
+}
+
 export interface PlanActualSection extends Base {
   plannedUnits: number;
   actualUnits: number;
@@ -39,6 +47,9 @@ export interface DeliverySection extends Base {
   planned: number;
   completed: number;
   rolledOver: number;
+  /** Trip economics captured by drivers at completion (0 when not recorded). */
+  tripKm: number;
+  dieselCost: number;
 }
 
 export interface WebsiteSection extends Base {
@@ -64,6 +75,7 @@ export interface DailyReport {
   date: string; // YYYY-MM-DD (IST day)
   generatedAt: string; // ISO
   finance: FinanceSection;
+  receivables: ReceivablesSection;
   production: PlanActualSection;
   deliveries: DeliverySection;
   website: WebsiteSection;
@@ -141,6 +153,39 @@ async function financeFromOdoo(dateISO: string): Promise<FinanceSection> {
   }
 }
 
+/** Outstanding + overdue receivables — the founder's sleep-loss number. */
+async function receivablesFromOdoo(): Promise<ReceivablesSection> {
+  if (!process.env.ODOO_PASSWORD) {
+    return {
+      status: "pending",
+      note: "Odoo not configured",
+      outstanding: 0,
+      overdue: 0,
+      overdueCount: 0,
+      topDebtors: [],
+    };
+  }
+  try {
+    const ar = await fetchReceivables();
+    return {
+      status: "live",
+      outstanding: ar.outstanding,
+      overdue: ar.overdue,
+      overdueCount: ar.overdueCount,
+      topDebtors: ar.topDebtors.slice(0, 3),
+    };
+  } catch (err) {
+    return {
+      status: "error",
+      note: err instanceof Error ? err.message : "Odoo error",
+      outstanding: 0,
+      overdue: 0,
+      overdueCount: 0,
+      topDebtors: [],
+    };
+  }
+}
+
 function emptyFinance(status: SourceStatus, note: string): FinanceSection {
   return {
     status,
@@ -206,12 +251,26 @@ async function deliveriesFromPlan(dateISO: string): Promise<DeliverySection> {
     const rows = data ?? [];
     const completed = rows.filter((r) => r.status === "done").length;
     const rolledOver = rows.filter((r) => r.status === "moved" || r.status === "missed").length;
+
+    // Trip economics from the deliveries the drivers actually closed today.
+    const { startUtc, endUtc } = istBounds(dateISO);
+    const { data: trips } = await supabaseAdmin
+      .from("deliveries")
+      .select("trip_km, diesel_cost")
+      .eq("status", "delivered")
+      .gte("updated_at", startUtc)
+      .lte("updated_at", endUtc);
+    const tripKm = (trips ?? []).reduce((s, t) => s + num(t.trip_km), 0);
+    const dieselCost = (trips ?? []).reduce((s, t) => s + num(t.diesel_cost), 0);
+
     return {
       status: rows.length ? "live" : "pending",
       note: rows.length ? undefined : "No deliveries planned for this day",
       planned: rows.length,
       completed,
       rolledOver,
+      tripKm,
+      dieselCost,
     };
   } catch (err) {
     return {
@@ -220,6 +279,8 @@ async function deliveriesFromPlan(dateISO: string): Promise<DeliverySection> {
       planned: 0,
       completed: 0,
       rolledOver: 0,
+      tripKm: 0,
+      dieselCost: 0,
     };
   }
 }
@@ -354,9 +415,10 @@ async function tasksFromMyWork(dateISO: string): Promise<CountSection> {
  * a rejected source becomes an error tile rather than failing the whole report.
  */
 export async function getDailyReport(dateISO: string): Promise<DailyReport> {
-  const [finance, production, deliveries, website, leads, tasks] =
+  const [finance, receivables, production, deliveries, website, leads, tasks] =
     await Promise.all([
       financeFromOdoo(dateISO),
+      receivablesFromOdoo(),
       productionFromPlan(dateISO),
       deliveriesFromPlan(dateISO),
       websiteFromGa4(),
@@ -368,6 +430,7 @@ export async function getDailyReport(dateISO: string): Promise<DailyReport> {
     date: dateISO,
     generatedAt: new Date().toISOString(),
     finance,
+    receivables,
     production,
     deliveries,
     website,

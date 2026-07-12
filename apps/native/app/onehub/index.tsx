@@ -122,6 +122,18 @@ export default function OneHubHome() {
           <Text className="text-slate-400">→</Text>
         </Pressable>
       </Link>
+      <Link href={"/onehub/training" as import("expo-router").Href} asChild>
+        <Pressable className="mb-3 flex-row items-center rounded-xl border border-slate-200 bg-white p-4 active:opacity-70">
+          <Text className="mr-3 text-2xl">🎓</Text>
+          <View className="flex-1">
+            <Text className="text-sm font-semibold text-ink">Training</Text>
+            <Text className="text-xs text-slate-400">
+              Product & sales lessons — learn at your own pace
+            </Text>
+          </View>
+          <Text className="text-slate-400">→</Text>
+        </Pressable>
+      </Link>
       <Link href={"/onehub/links" as import("expo-router").Href} asChild>
         <Pressable className="mb-3 flex-row items-center rounded-xl border border-slate-200 bg-white p-4 active:opacity-70">
           <Text className="mr-3 text-2xl">🔗</Text>

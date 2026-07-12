@@ -29,6 +29,9 @@ export type CompleteDeliveryInput = {
   photoUrls?: string[];
   recipientName?: string;
   notes?: string;
+  /** Trip economics — km driven and diesel spent, captured by the driver. */
+  tripKm?: number;
+  dieselCost?: number;
 };
 
 /**
