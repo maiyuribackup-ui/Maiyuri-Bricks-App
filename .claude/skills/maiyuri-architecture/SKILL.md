@@ -216,18 +216,39 @@ Overlaps conceptually with My Work approvals — unifying is on the backlog.
 Auto-ingests call transcripts + published SOPs.
 
 ### 3.13 OpenProject bridge  (`src/lib/openproject.ts`)
-OpenProject (self-hosted at `op.maiyuri.com` via Cloudflare Tunnel from the
-founder's PC, container port 8080) = the founder's PLANNING cockpit (Gantt,
-dependencies). My Work stays the ONE staff queue. The bridge
-(`/api/cron/openproject-sync`, every 30 min): open assigned work packages →
-`work_items` (`source_module='openproject'`, `source_record_id=<wp id>`,
-assignee matched by email, push notification); title/due edits flow through;
-WPs closed in OP cancel the local item; items COMPLETED in the app close the
-WP + leave a completion comment. Env: `OPENPROJECT_URL`,
-`OPENPROJECT_API_KEY` (Basic auth, username literally `apikey`).
-**The tunnel host is a PC that sleeps** — the sync treats unreachable as a
-graceful skip (no alert); alerts mean real bugs. OP-derived tasks surface in
-the Daily Report through the existing Tasks tile (they ARE work_items).
+OpenProject = the founder's PLANNING cockpit (Gantt, dependencies); My Work
+stays the ONE staff queue. The bridge (`/api/cron/openproject-sync`, every
+30 min): open assigned work packages → `work_items`
+(`source_module='openproject'`, `source_record_id=<wp id>`, assignee matched
+by email, push notification); title/due edits flow through; WPs closed in OP
+cancel the local item; items COMPLETED in the app close the WP + leave a
+completion comment. Env: `OPENPROJECT_URL`, `OPENPROJECT_API_KEY` (API v3,
+Basic auth, username literally `apikey`). OP-derived tasks surface in the
+Daily Report through the existing Tasks tile (they ARE work_items).
+
+**Where OpenProject actually runs** (final topology, 2026-07-13):
+- Docker container `openproject` (image `openproject/openproject:16`,
+  bundled PG + memcached) inside the **VMware Workstation VM "Openclaw"**
+  (Ubuntu, hostname `ram-VMware-Virtual-Platform`) on the founder's PC —
+  NOT WSL, NOT Docker Desktop. Compose file:
+  `/home/ram/openproject-docker/docker-compose.yml` (user `ram`).
+- Public URL: **`https://ram-vmware-virtual-platform.tailec7c1f.ts.net`**
+  via **Tailscale Funnel** (`tailscale funnel --bg 8080`), NOT Cloudflare.
+  Container binds `127.0.0.1:8080:80` only — Funnel and the tailnet are the
+  only doors. `OPENPROJECT_HOST__NAME` = that ts.net name, `HTTPS=true`
+  (it 400s "Invalid host_name configuration" on any other Host header —
+  that is OpenProject's guard, not a network problem).
+- The VM also hosts: `maiyuri-metabase` (:3030), Mealie, Homepage. The
+  Openclaw VM's tailnet IP is 100.77.129.54; SSH access: key
+  `Claude workings/openproject/.ssh/openclaw_ed25519` as `ram@100.77.129.54`
+  (Tailscale SSH was tried and disabled — its check-mode kept denying;
+  plain sshd + authorized_keys works).
+- A leftover `op.maiyuri.com → host.docker.internal:8080` ingress exists in
+  the IMMICH Cloudflare tunnel config
+  (`Claude workings/immich/cloudflared/config.yml`) — redundant (no DNS
+  record was ever created); safe to remove.
+- **The VM sleeps with the PC** — the sync treats unreachable as a graceful
+  skip (no alert); an alert from openproject-sync means a real bug.
 
 ### 3.14 Dashboards & Settings
 - Multiple overlapping dashboards exist (dashboard, kpi, business-health,
