@@ -28,7 +28,7 @@ type Metrics = {
   stale_hot_leads: { name?: string; days_stale?: number }[];
   overdue_followups: { count: number; sample: { name?: string }[] };
   lead_sources_in_window: Record<string, number>;
-  objections_active: [string, number][];
+  objections_active: Record<string, number>;
   scores: { avg_momentum: number | null; avg_ai_score: number | null };
   staff_performance?: Record<
     string,
@@ -104,7 +104,8 @@ function compose(m: Metrics, window: "daily" | "weekly"): string {
     lines.push(...actions);
   }
 
-  const objections = (m.objections_active ?? []).slice(0, 3);
+  // topN in the metrics route emits a Record, already sorted by count desc.
+  const objections = Object.entries(m.objections_active ?? {}).slice(0, 3);
   if (objections.length) {
     lines.push("");
     lines.push(
