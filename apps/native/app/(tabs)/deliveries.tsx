@@ -40,13 +40,27 @@ const TABS: { key: TabKey; label: string }[] = [
 const OPEN = (d: DeliveryWithLines) =>
   d.status !== 'delivered' && d.status !== 'cancelled';
 
+/**
+ * Today's route order: cluster stops by area (city) so the driver finishes one
+ * neighbourhood before moving on, then keep a stable name order inside each
+ * area. No GPS optimisation — just "don't zig-zag across town".
+ */
+function routeOrder(a: DeliveryWithLines, b: DeliveryWithLines): number {
+  const cityA = (a.customer_city ?? '￿').toLowerCase(); // nulls last
+  const cityB = (b.customer_city ?? '￿').toLowerCase();
+  if (cityA !== cityB) return cityA < cityB ? -1 : 1;
+  return (a.customer_name ?? '').localeCompare(b.customer_name ?? '');
+}
+
 function applyTab(list: DeliveryWithLines[], tab: TabKey): DeliveryWithLines[] {
   const todayStr = new Date().toDateString();
   switch (tab) {
     case 'today':
-      return list.filter(
-        (d) => OPEN(d) && new Date(d.scheduled_date).toDateString() === todayStr,
-      );
+      return list
+        .filter(
+          (d) => OPEN(d) && new Date(d.scheduled_date).toDateString() === todayStr,
+        )
+        .sort(routeOrder);
     case 'upcoming':
       return list.filter(
         (d) =>
@@ -234,9 +248,12 @@ function MarkDeliveredModal({
 function DeliveryRow({
   delivery,
   onMarkDelivered,
+  stop,
 }: {
   delivery: DeliveryWithLines;
   onMarkDelivered: (d: DeliveryWithLines) => void;
+  /** 1-based stop number + total, shown only on the Today route. */
+  stop?: { n: number; of: number };
 }) {
   const s = STATUS_STYLE[delivery.status] ?? {
     bg: 'bg-slate-400',
@@ -249,6 +266,11 @@ function DeliveryRow({
   return (
     <View className="mb-2 rounded-xl border border-slate-200 bg-white p-4">
       <View className="flex-row items-center justify-between">
+        {stop ? (
+          <View className="mr-2 h-6 min-w-[24px] items-center justify-center rounded-full bg-ink px-1.5">
+            <Text className="text-xs font-bold text-white">{stop.n}</Text>
+          </View>
+        ) : null}
         <Text className="flex-1 text-base font-semibold text-ink" numberOfLines={1}>
           {delivery.name}
         </Text>
@@ -360,9 +382,20 @@ export default function DeliveriesScreen() {
         <FlatList
           data={list}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <DeliveryRow delivery={item} onMarkDelivered={setCompleting} />
+          renderItem={({ item, index }) => (
+            <DeliveryRow
+              delivery={item}
+              onMarkDelivered={setCompleting}
+              stop={tab === 'today' ? { n: index + 1, of: list.length } : undefined}
+            />
           )}
+          ListHeaderComponent={
+            tab === 'today' && list.length > 1 ? (
+              <Text className="mb-2 text-xs font-medium text-slate-500">
+                🚚 Route: {list.length} stops, grouped by area
+              </Text>
+            ) : null
+          }
           contentContainerClassName="px-4 pb-6"
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={refetch} />

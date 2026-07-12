@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useLead } from '@/hooks/use-leads';
 import { useAddNote, useLeadNotes } from '@/hooks/use-notes';
+import { quoteUrl, useGenerateSmartQuote } from '@/hooks/use-smart-quote';
 import { QuickActionsModal } from '@/components/LeadQuickActions';
 import { toast } from '@/lib/toast';
 
@@ -22,6 +23,104 @@ function Field({ label, value }: { label: string; value?: string | number | null
     <View className="border-b border-slate-100 py-3">
       <Text className="text-xs uppercase tracking-wide text-slate-400">{label}</Text>
       <Text className="mt-1 text-base text-ink">{String(value)}</Text>
+    </View>
+  );
+}
+
+/**
+ * AI Smart Quote — one tap on the phone gives sales a personalised,
+ * bilingual quote page they can WhatsApp to the customer on the spot.
+ */
+function SmartQuoteSection({
+  leadId,
+  contact,
+}: {
+  leadId: string;
+  contact: string;
+}) {
+  const generate = useGenerateSmartQuote();
+  const slug = generate.data?.data?.link_slug;
+  const url = slug ? quoteUrl(slug) : null;
+  const phone = contact.replace(/[^0-9]/g, '');
+
+  return (
+    <View className="mx-5 mt-4 rounded-xl border border-slate-200 bg-white p-4">
+      <Text className="text-base font-bold text-ink">🧾 Smart Quote</Text>
+      <Text className="mt-0.5 text-xs text-slate-400">
+        AI builds a personalised quote page for this customer — share the link
+        on WhatsApp.
+      </Text>
+
+      {url ? (
+        <>
+          <Text className="mt-2 text-xs text-sky-600" numberOfLines={1}>
+            {url}
+          </Text>
+          <View className="mt-2 flex-row gap-2">
+            <Pressable
+              onPress={() =>
+                Linking.openURL(
+                  `https://wa.me/${phone}?text=${encodeURIComponent(
+                    `Vanakkam! 🧱 Your Maiyuri Bricks quote is ready:\n${url}`,
+                  )}`,
+                )
+              }
+              className="flex-1 items-center rounded-lg bg-green-500 py-2.5 active:opacity-80"
+            >
+              <Text className="text-sm font-semibold text-white">📲 Send on WhatsApp</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => Linking.openURL(url)}
+              className="items-center rounded-lg border border-slate-200 px-4 py-2.5 active:opacity-70"
+            >
+              <Text className="text-sm font-semibold text-slate-600">Open</Text>
+            </Pressable>
+          </View>
+          <Pressable
+            disabled={generate.isPending}
+            onPress={() =>
+              generate.mutate(
+                { lead_id: leadId, regenerate: true },
+                { onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed') },
+              )
+            }
+            className="mt-2 items-center py-1 active:opacity-70"
+          >
+            <Text className="text-xs font-medium text-slate-400">
+              {generate.isPending ? 'Regenerating…' : '↻ Regenerate quote'}
+            </Text>
+          </Pressable>
+        </>
+      ) : (
+        <Pressable
+          disabled={generate.isPending}
+          onPress={() =>
+            generate.mutate(
+              { lead_id: leadId },
+              { onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed') },
+            )
+          }
+          className={`mt-3 items-center rounded-lg py-2.5 ${
+            generate.isPending ? 'bg-slate-200' : 'bg-brand active:opacity-80'
+          }`}
+        >
+          {generate.isPending ? (
+            <View className="flex-row items-center gap-2">
+              <ActivityIndicator size="small" color="#0f172a" />
+              <Text className="text-sm font-semibold text-slate-500">
+                AI is writing the quote… (~30s)
+              </Text>
+            </View>
+          ) : (
+            <Text className="text-sm font-bold text-ink">✨ Generate Smart Quote</Text>
+          )}
+        </Pressable>
+      )}
+      {generate.isError ? (
+        <Text className="mt-2 text-xs text-red-500">
+          {generate.error instanceof Error ? generate.error.message : 'Failed to generate'}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -182,6 +281,8 @@ export default function LeadDetailScreen() {
         <Field label="AI summary" value={lead.ai_summary} />
         <Field label="Staff notes" value={lead.staff_notes} />
       </View>
+
+      <SmartQuoteSection leadId={lead.id} contact={lead.contact} />
 
       <NotesSection leadId={lead.id} />
 
