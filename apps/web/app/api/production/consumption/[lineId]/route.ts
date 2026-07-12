@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { success, error, notFound, parseBody } from "@/lib/api-utils";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { requireProductionRole } from "@/lib/production-auth";
 import { updateConsumptionLine } from "@/lib/production-service";
 import { updateConsumptionLineSchema } from "@maiyuri/shared";
 import type { ProductionConsumptionLine } from "@maiyuri/shared";
@@ -45,6 +46,9 @@ export async function GET(request: NextRequest, { params }: Params) {
 // PUT /api/production/consumption/[lineId] - Update actual consumption quantity
 export async function PUT(request: NextRequest, { params }: Params) {
   try {
+    const auth = await requireProductionRole(request);
+    if (auth.errorResponse) return auth.errorResponse;
+
     const { lineId } = await params;
 
     if (!lineId) {

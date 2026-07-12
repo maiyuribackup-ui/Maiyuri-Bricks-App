@@ -3,6 +3,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { success, error, notFound, parseBody } from "@/lib/api-utils";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  requireProductionRole,
+  PRODUCTION_DELETE_ROLES,
+} from "@/lib/production-auth";
 import { getProductionOrder } from "@/lib/production-service";
 import { updateProductionOrderSchema } from "@maiyuri/shared";
 import type { ProductionOrder } from "@maiyuri/shared";
@@ -36,6 +40,9 @@ export async function GET(request: NextRequest, { params }: Params) {
 // PUT /api/production/orders/[id] - Update a production order
 export async function PUT(request: NextRequest, { params }: Params) {
   try {
+    const auth = await requireProductionRole(request);
+    if (auth.errorResponse) return auth.errorResponse;
+
     const { id } = await params;
 
     if (!id) {
@@ -94,6 +101,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
 // DELETE /api/production/orders/[id] - Delete a production order (founders only)
 export async function DELETE(request: NextRequest, { params }: Params) {
   try {
+    const auth = await requireProductionRole(request, PRODUCTION_DELETE_ROLES);
+    if (auth.errorResponse) return auth.errorResponse;
+
     const { id } = await params;
 
     if (!id) {

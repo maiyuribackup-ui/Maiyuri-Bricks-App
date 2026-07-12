@@ -6,13 +6,13 @@ interface MaterialLine {
   materialId: string;
   materialName: string;
   expectedQty: number;
-  actualQty: number;
+  actualQty: number | null;
   uom: string;
 }
 
 interface RawMaterialConsumptionProps {
   materials: MaterialLine[];
-  onUpdateActual: (materialId: string, actualQty: number) => void;
+  onUpdateActual: (materialId: string, actualQty: number | null) => void;
   readOnly?: boolean;
 }
 
@@ -21,7 +21,14 @@ export function RawMaterialConsumption({
   onUpdateActual,
   readOnly = false,
 }: RawMaterialConsumptionProps) {
-  const getDifference = (expected: number, actual: number) => {
+  const getDifference = (expected: number, actual: number | null) => {
+    if (actual === null) {
+      return {
+        value: null,
+        display: "-",
+        color: "text-slate-500 dark:text-slate-400",
+      };
+    }
     const diff = Math.round((actual - expected) * 100) / 100;
     return {
       value: diff,
@@ -34,6 +41,13 @@ export function RawMaterialConsumption({
             : "text-slate-500 dark:text-slate-400",
     };
   };
+
+  // Variance only counts materials with an entered actual quantity
+  const enteredMaterials = materials.filter((m) => m.actualQty !== null);
+  const totalVariance = enteredMaterials.reduce(
+    (sum, m) => sum + ((m.actualQty ?? 0) - m.expectedQty),
+    0,
+  );
 
   if (materials.length === 0) {
     return (
@@ -79,26 +93,31 @@ export function RawMaterialConsumption({
                 <td className="py-3 text-right">
                   {readOnly ? (
                     <span className="text-slate-900 dark:text-white">
-                      {material.actualQty.toLocaleString()} {material.uom}
+                      {material.actualQty !== null
+                        ? `${material.actualQty.toLocaleString()} ${material.uom}`
+                        : "—"}
                     </span>
                   ) : (
                     <input
                       type="number"
-                      value={material.actualQty}
+                      value={material.actualQty ?? ""}
                       onChange={(e) =>
                         onUpdateActual(
                           material.materialId,
-                          parseFloat(e.target.value) || 0,
+                          e.target.value === ""
+                            ? null
+                            : parseFloat(e.target.value) || 0,
                         )
                       }
                       step="0.01"
                       min="0"
+                      placeholder="—"
                       className="w-24 rounded-md border border-slate-300 bg-white px-2 py-1 text-right text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white"
                     />
                   )}
                 </td>
                 <td className={cn("py-3 text-right font-medium", diff.color)}>
-                  {diff.value !== 0 ? diff.display : "-"}
+                  {diff.value !== null && diff.value !== 0 ? diff.display : "-"}
                 </td>
               </tr>
             );
@@ -114,33 +133,23 @@ export function RawMaterialConsumption({
           </span>
           <span className="text-slate-600 dark:text-slate-400">
             Variance:{" "}
-            <span
-              className={cn(
-                "font-medium",
-                materials.reduce(
-                  (sum, m) => sum + (m.actualQty - m.expectedQty),
-                  0,
-                ) > 0
-                  ? "text-red-600 dark:text-red-400"
-                  : materials.reduce(
-                        (sum, m) => sum + (m.actualQty - m.expectedQty),
-                        0,
-                      ) < 0
-                    ? "text-green-600 dark:text-green-400"
-                    : "text-slate-600 dark:text-slate-400",
-              )}
-            >
-              {materials.reduce(
-                (sum, m) => sum + (m.actualQty - m.expectedQty),
-                0,
-              ) > 0
-                ? "+"
-                : ""}
-              {materials
-                .reduce((sum, m) => sum + (m.actualQty - m.expectedQty), 0)
-                .toLocaleString()}{" "}
-              total
-            </span>
+            {enteredMaterials.length === 0 ? (
+              <span className="font-medium">not recorded yet</span>
+            ) : (
+              <span
+                className={cn(
+                  "font-medium",
+                  totalVariance > 0
+                    ? "text-red-600 dark:text-red-400"
+                    : totalVariance < 0
+                      ? "text-green-600 dark:text-green-400"
+                      : "text-slate-600 dark:text-slate-400",
+                )}
+              >
+                {totalVariance > 0 ? "+" : ""}
+                {totalVariance.toLocaleString()} total
+              </span>
+            )}
           </span>
         </div>
       </div>

@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Bell,
   BookOpen,
   ClipboardCheck,
+  ClipboardList,
   FileText,
   GraduationCap,
   Home,
@@ -20,13 +21,16 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { getSupabase } from "@/lib/supabase";
+import { useMyWorkQueue } from "@/hooks/useMyWork";
 import { onehub } from "./theme";
 import { AskMayurModal } from "./AskMayurModal";
 
 // Sidebar nav — anchors into the Start Here page sections, plus links out to
 // existing modules (Training → coaching). One-page v1: most items scroll.
-const NAV: { label: string; icon: typeof Home; href: string }[] = [
+// My Work is a real sub-route with its own badge (overdue + due today).
+const NAV: { label: string; icon: typeof Home; href: string; badge?: boolean }[] = [
   { label: "Start Here", icon: Home, href: "/onehub" },
+  { label: "My Work", icon: ClipboardList, href: "/onehub/my-work", badge: true },
   { label: "SOP Library", icon: BookOpen, href: "/onehub#sop-library" },
   { label: "New Joiners Checklist", icon: ClipboardCheck, href: "/onehub#checklist" },
   { label: "Important Links", icon: Link2, href: "/onehub#links" },
@@ -38,8 +42,15 @@ const NAV: { label: string; icon: typeof Home; href: string }[] = [
 
 export default function OneHubLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, setUser } = useAuthStore();
   const [askOpen, setAskOpen] = useState(false);
+
+  // My Work badge: overdue + due-today count (only fetched once signed in)
+  const { data: myWorkData } = useMyWorkQueue();
+  const myWorkBadge = myWorkData?.data
+    ? myWorkData.data.summary.overdue + myWorkData.data.summary.due_today
+    : 0;
 
   // /onehub sits outside the (dashboard) group, so its layout never runs.
   // Server-side protection is the middleware's job; here we only HYDRATE the
@@ -94,9 +105,13 @@ export default function OneHubLayout({ children }: { children: React.ReactNode }
         </p>
 
         <nav className="flex-1 space-y-1 px-3">
-          {NAV.map((item, i) => {
+          {NAV.map((item) => {
             const Icon = item.icon;
-            const active = i === 0;
+            const active =
+              item.href === "/onehub"
+                ? pathname === "/onehub"
+                : pathname.startsWith(item.href.split("#")[0]) &&
+                  item.href.startsWith("/onehub/");
             return (
               <Link
                 key={item.label}
@@ -109,7 +124,15 @@ export default function OneHubLayout({ children }: { children: React.ReactNode }
                 }
               >
                 <Icon className="h-[18px] w-[18px]" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.badge && myWorkBadge > 0 && (
+                  <span
+                    className="rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                    style={{ background: onehub.accent, color: "#fff" }}
+                  >
+                    {myWorkBadge}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -183,9 +206,26 @@ export default function OneHubLayout({ children }: { children: React.ReactNode }
           >
             <Upload className="h-4 w-4" /> Upload
           </button>
+          {/* Mobile: the sidebar is hidden, so My Work gets a one-tap entry here */}
+          <Link
+            href="/onehub/my-work"
+            className="relative flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold text-white lg:hidden"
+            style={{ background: onehub.accent }}
+          >
+            <ClipboardList className="h-4 w-4" />
+            My Work
+            {myWorkBadge > 0 && (
+              <span
+                className="absolute -right-1.5 -top-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-bold"
+                style={{ background: onehub.brand, color: "#fff" }}
+              >
+                {myWorkBadge}
+              </span>
+            )}
+          </Link>
           <button
             aria-label="Notifications"
-            className="relative rounded-xl border bg-white p-2"
+            className="relative hidden rounded-xl border bg-white p-2 sm:block"
             style={{ borderColor: onehub.cardBorder, color: onehub.text }}
           >
             <Bell className="h-5 w-5" />
