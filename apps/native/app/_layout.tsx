@@ -14,9 +14,14 @@ import { initNotificationNavigation, registerForPush } from '@/lib/push';
 import { initAuthListener, useAuth } from '@/store/auth';
 import { initSentry, Sentry, setSentryUser } from '@/lib/sentry';
 import { ToastHost } from '@/components/ToastHost';
+import { OfflineBanner } from '@/components/OfflineBanner';
+import { initOnlineManager } from '@/lib/offline';
+import { checkForAppUpdate } from '@/lib/app-updates';
 
 // Initialise crash reporting before the app tree renders (no-op without a DSN).
 initSentry();
+// Wire online/offline detection so offline writes queue instead of failing.
+initOnlineManager();
 
 function RootLayout() {
   const router = useRouter();
@@ -25,6 +30,11 @@ function RootLayout() {
   useEffect(() => {
     const unsubscribe = initAuthListener();
     return unsubscribe;
+  }, []);
+
+  // OTA update check on launch (no-op in dev / unconfigured builds).
+  useEffect(() => {
+    void checkForAppUpdate();
   }, []);
 
   // Attribute crashes to the signed-in user.
@@ -53,8 +63,14 @@ function RootLayout() {
       <PersistQueryClientProvider
         client={queryClient}
         persistOptions={{ persister: asyncStoragePersister, maxAge: PERSIST_MAX_AGE }}
+        onSuccess={() => {
+          // Replay any offline writes that were queued before the app closed
+          // (e.g. a driver's Mark Delivered from the brick yard).
+          void queryClient.resumePausedMutations();
+        }}
       >
         <StatusBar style="light" />
+        <OfflineBanner />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="(auth)/login" />

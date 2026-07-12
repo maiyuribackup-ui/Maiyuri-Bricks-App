@@ -6,7 +6,8 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
@@ -18,13 +19,15 @@
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhaWxlcG9tdnZ3amtyaGt3ZHF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1MzkzNzksImV4cCI6MjA4MzExNTM3OX0.LPqNxVCbBYIpsIeg5lGMro-Ubj8JPmHrDFLT8X0XVVc",
         "EXPO_PUBLIC_API_BASE_URL": "https://mb.maiyuri.com",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
-      }
+      },
+      "channel": "production"
     }
   },
   "submit": {

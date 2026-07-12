@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { QueryClient } from '@tanstack/react-query';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
+import { api } from '@/lib/api';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -13,6 +14,24 @@ export const queryClient = new QueryClient({
       retry: 2,
       refetchOnWindowFocus: false,
     },
+    mutations: {
+      // With onlineManager wired to NetInfo (src/lib/offline.ts), mutations
+      // fired offline PAUSE instead of failing, then run on reconnect.
+      retry: 2,
+    },
+  },
+});
+
+/**
+ * Default mutationFns by key so PAUSED mutations survive an app restart:
+ * the persister stores dehydrated mutation state, and after hydration
+ * resumePausedMutations() replays it via these defaults (a dehydrated
+ * mutation cannot carry its original closure).
+ */
+queryClient.setMutationDefaults(['complete-delivery'], {
+  mutationFn: (input: unknown) => {
+    const { id, ...body } = input as { id: string } & Record<string, unknown>;
+    return api.post(`/api/deliveries/${id}/complete`, body);
   },
 });
 
