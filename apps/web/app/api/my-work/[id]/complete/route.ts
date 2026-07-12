@@ -13,6 +13,7 @@ import {
   WorkAccessError,
 } from "@/lib/my-work-service";
 import { validateSimpleCompletion } from "@/lib/my-work-utils";
+import { notifyWorkSubmitted } from "@/lib/my-work-notify";
 import { completeWorkItemSchema } from "@maiyuri/shared";
 import type { WorkItem } from "@maiyuri/shared";
 
@@ -80,6 +81,9 @@ export async function POST(request: NextRequest, { params }: Params) {
       performed_by: user.id,
       comment: note ?? null,
     });
+    if (targetStatus === "submitted") {
+      void notifyWorkSubmitted(updated as WorkItem);
+    }
 
     return success<WorkItem>(updated as WorkItem);
   } catch (err) {
