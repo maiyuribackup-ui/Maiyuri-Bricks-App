@@ -42,6 +42,7 @@ export type CachedOrderLine = {
 export async function pullConfirmedSalesOrders(): Promise<{
   synced: number;
   openOrders: number;
+  removed: number;
 }> {
   // Map of odoo product -> local finished good
   const { data: goods } = await supabaseAdmin
@@ -71,7 +72,7 @@ export async function pullConfirmedSalesOrders(): Promise<{
     },
   )) as OdooSaleOrder[];
 
-  if (!orders.length) return { synced: 0, openOrders: 0 };
+  if (!orders.length) return { synced: 0, openOrders: 0, removed: 0 };
 
   const lines = (await odooExecute(
     "sale.order.line",
@@ -139,7 +140,38 @@ export async function pullConfirmedSalesOrders(): Promise<{
     .upsert(rows, { onConflict: "odoo_order_id" });
   if (error) throw new Error(`sales_order_cache upsert failed: ${error.message}`);
 
-  return { synced: rows.length, openOrders };
+  // Reconcile cancellations: an order cancelled (or reset to draft) in Odoo
+  // stops matching state in ('sale','done') and would otherwise linger in the
+  // cache with stale remaining_units > 0 — the planner would keep scheduling
+  // phantom production for it (reliability audit, blocker S3). Ask Odoo for
+  // the CURRENT state of every cached order id and evict the dead ones.
+  // (Deliberately not "delete not-in-fetched": the fetch is capped at 300.)
+  let removed = 0;
+  const { data: cached } = await supabaseAdmin
+    .from("sales_order_cache")
+    .select("odoo_order_id");
+  const cachedIds = (cached ?? []).map((r) => r.odoo_order_id as number);
+  if (cachedIds.length) {
+    const dead = (await odooExecute(
+      "sale.order",
+      "search_read",
+      [[["id", "in", cachedIds], ["state", "not in", ["sale", "done"]]]],
+      { fields: ["id"], limit: cachedIds.length },
+    )) as { id: number }[];
+    if (dead.length) {
+      const { error: delErr } = await supabaseAdmin
+        .from("sales_order_cache")
+        .delete()
+        .in("odoo_order_id", dead.map((d) => d.id));
+      if (delErr) {
+        console.error("sales_order_cache eviction failed:", delErr.message);
+      } else {
+        removed = dead.length;
+      }
+    }
+  }
+
+  return { synced: rows.length, openOrders, removed };
 }
 
 /**

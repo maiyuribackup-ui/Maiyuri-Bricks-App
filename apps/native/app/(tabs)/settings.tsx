@@ -324,7 +324,12 @@ export default function SettingsScreen() {
 
         <PushSection />
         {userId ? <PreferencesSection userId={userId} /> : null}
-        <PlanningParamsSection />
+        {/* Factory capacity knobs are leadership/supervisor-only (audit S4) */}
+        {['founder', 'owner', 'production_supervisor'].includes(
+          String(profile.data?.data.role ?? ''),
+        ) ? (
+          <PlanningParamsSection />
+        ) : null}
 
         <Pressable
           onPress={signOut}
