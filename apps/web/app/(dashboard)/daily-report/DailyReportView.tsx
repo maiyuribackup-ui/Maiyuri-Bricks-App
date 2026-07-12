@@ -342,12 +342,29 @@ export function DailyReportView({ report }: { report: DailyReport }) {
             )}
           </section>
 
-          {/* Tasks */}
+          {/* Tasks — fed by the My Work module */}
           <section className={`${styles.mod} ${styles.c5}`}>
             <h3 className={styles.modHead}>
-              Tasks <span className={styles.src}>Todoist</span>
+              Tasks <span className={styles.src}>My Work</span>
             </h3>
-            <Pending note={tasks.note} error={tasks.status === "error"} />
+            {tasks.status === "live" ? (
+              <>
+                <div className={styles.summLine}>
+                  <span className={styles.big}>{tasks.primary}</span>
+                  <span className={styles.pct}>tasks done today</span>
+                </div>
+                <div className={styles.metrics}>
+                  {tasks.metrics.map((m) => (
+                    <div key={m.label}>
+                      <div className={styles.metricN}>{m.value}</div>
+                      <div className={styles.metricL}>{m.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <Pending note={tasks.note} error={tasks.status === "error"} />
+            )}
           </section>
         </div>
 
@@ -389,7 +406,7 @@ export function DailyReportView({ report }: { report: DailyReport }) {
                 ["CRM", leads.status],
                 ["Superfone", calls.status],
                 ["WhatsApp", whatsapp.status],
-                ["Todoist", tasks.status],
+                ["My Work", tasks.status],
               ] as const
             ).map(([label, status]) => (
               <span className={styles.s} key={label}>

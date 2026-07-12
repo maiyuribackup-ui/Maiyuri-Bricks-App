@@ -178,6 +178,45 @@ export function useRemoveWorkPhoto() {
 }
 
 // ============================================
+// Review (supervisors): submitted items → approve / return
+// ============================================
+
+export function useReviewQueue(enabled = true) {
+  return useQuery({
+    queryKey: ["my-work-review"],
+    queryFn: async () => {
+      const res = await fetch("/api/my-work?view=review");
+      if (!res.ok) await throwApiError(res, "Failed to load the review queue");
+      return res.json() as Promise<ApiResponse<WorkItem[]>>;
+    },
+    enabled,
+    refetchInterval: 60_000,
+  });
+}
+
+function invalidateReview(queryClient: ReturnType<typeof useQueryClient>, id: string) {
+  invalidateWork(queryClient, id);
+  queryClient.invalidateQueries({ queryKey: ["my-work-review"] });
+}
+
+export function useApproveWorkItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => postAction(id, "approve"),
+    onSuccess: (_, id) => invalidateReview(queryClient, id),
+  });
+}
+
+export function useReturnWorkItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      postAction(id, "return", { reason }),
+    onSuccess: (_, { id }) => invalidateReview(queryClient, id),
+  });
+}
+
+// ============================================
 // Admin
 // ============================================
 

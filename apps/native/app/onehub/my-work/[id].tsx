@@ -17,7 +17,9 @@ import {
   View,
 } from 'react-native';
 import {
+  useApproveWork,
   useCompleteWork,
+  useReturnWork,
   useSaveDraft,
   useStartWork,
   useSubmitChecklist,
@@ -25,7 +27,11 @@ import {
   useWorkItem,
   type DraftResponse,
 } from '@/hooks/use-my-work';
+import { useMyProfile } from '@/hooks/use-push-settings';
+import { useAuth } from '@/store/auth';
 import { toast } from '@/lib/toast';
+
+const WORK_ADMIN_ROLES = ['founder', 'owner', 'production_supervisor'];
 
 type LocalResp = {
   status?: ChecklistResponseStatus | null;
@@ -61,6 +67,14 @@ export default function WorkItemDetail() {
   const saveDraft = useSaveDraft(id);
   const submit = useSubmitChecklist(id);
   const uploadPhoto = useUploadWorkPhoto(id);
+  const approve = useApproveWork(id);
+  const returnWork = useReturnWork(id);
+
+  const userId = useAuth((s) => s.session?.user?.id);
+  const profile = useMyProfile(userId);
+  const isSupervisor = WORK_ADMIN_ROLES.includes(profile.data?.data.role ?? '');
+  const [returnReason, setReturnReason] = useState('');
+  const [returning, setReturning] = useState(false);
 
   // Local edit state, seeded once from the server payload.
   const [seededFor, setSeededFor] = useState<string | null>(null);
@@ -340,6 +354,95 @@ export default function WorkItemDetail() {
                 ? '✅ Completed'
                 : '🚫 Cancelled'}
           </Text>
+        </View>
+      ) : null}
+
+      {/* Supervisor review actions (deep-linked here from the submit push) */}
+      {isSupervisor && item.status === 'submitted' ? (
+        <View className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+          <Text className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+            Review this submission
+          </Text>
+          {returning ? (
+            <>
+              <TextInput
+                value={returnReason}
+                onChangeText={setReturnReason}
+                placeholder="What needs to be corrected?"
+                placeholderTextColor="#94a3b8"
+                multiline
+                className="min-h-[56px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-ink"
+              />
+              <View className="mt-2 flex-row gap-2">
+                <Pressable
+                  onPress={() => {
+                    setReturning(false);
+                    setReturnReason('');
+                  }}
+                  className="flex-1 items-center rounded-xl border border-slate-300 py-2.5 active:opacity-70"
+                >
+                  <Text className="text-sm font-semibold text-slate-600">Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() =>
+                    returnReason.trim().length >= 3 &&
+                    returnWork.mutate(
+                      { reason: returnReason.trim() },
+                      {
+                        onSuccess: () => {
+                          setReturning(false);
+                          setReturnReason('');
+                          toast.success('Returned for correction');
+                        },
+                        onError: (e) =>
+                          toast.error(e instanceof Error ? e.message : 'Return failed'),
+                      },
+                    )
+                  }
+                  disabled={returnWork.isPending || returnReason.trim().length < 3}
+                  className={`flex-1 items-center rounded-xl py-2.5 ${
+                    returnWork.isPending || returnReason.trim().length < 3
+                      ? 'bg-slate-200'
+                      : 'bg-red-500 active:opacity-80'
+                  }`}
+                >
+                  {returnWork.isPending ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text className="text-sm font-bold text-white">Return</Text>
+                  )}
+                </Pressable>
+              </View>
+            </>
+          ) : (
+            <View className="flex-row gap-2">
+              <Pressable
+                onPress={() =>
+                  approve.mutate(undefined, {
+                    onSuccess: () => toast.success('Approved ✓'),
+                    onError: (e) =>
+                      toast.error(e instanceof Error ? e.message : 'Approve failed'),
+                  })
+                }
+                disabled={approve.isPending}
+                className={`flex-[1.4] items-center rounded-xl py-2.5 ${
+                  approve.isPending ? 'bg-slate-200' : 'bg-green-500 active:opacity-80'
+                }`}
+              >
+                {approve.isPending ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text className="text-sm font-bold text-white">✓ Approve</Text>
+                )}
+              </Pressable>
+              <Pressable
+                onPress={() => setReturning(true)}
+                className="flex-1 items-center rounded-xl border border-red-300 py-2.5 active:opacity-70"
+              >
+                <Text className="text-sm font-semibold text-red-500">↩ Return</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
       ) : null}
 

@@ -78,6 +78,25 @@ export function useSubmitChecklist(id: string) {
   });
 }
 
+/** Supervisor: approve a submitted item (submitted → completed). */
+export function useApproveWork(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<WorkItem>(`/api/my-work/${id}/approve`),
+    onSuccess: () => invalidate(queryClient, id),
+  });
+}
+
+/** Supervisor: return a submitted item for correction. */
+export function useReturnWork(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { reason: string }) =>
+      api.post<WorkItem>(`/api/my-work/${id}/return`, body),
+    onSuccess: () => invalidate(queryClient, id),
+  });
+}
+
 /**
  * Upload a photo as evidence. Multipart, so it bypasses the JSON api client —
  * attaches the Supabase bearer directly. Pass checklistResponseId to bind the

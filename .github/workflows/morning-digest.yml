@@ -29,3 +29,15 @@ jobs:
             echo "Digest trigger failed" >&2
             exit 1
           fi
+
+      - name: My Work per-person digest
+        run: |
+          status=$(curl -s -o /tmp/mw.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mb.maiyuri.com/api/my-work/digest")
+          echo "HTTP $status"
+          cat /tmp/mw.json
+          if [ "$status" -ge 400 ]; then
+            echo "My Work digest failed" >&2
+            exit 1
+          fi

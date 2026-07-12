@@ -8,6 +8,7 @@ import {
   isWorkAdmin,
   logWorkEvent,
 } from "@/lib/my-work-service";
+import { notifyWorkAssigned } from "@/lib/my-work-notify";
 import { groupWorkItems, summarize } from "@/lib/my-work-utils";
 import { createWorkItemSchema } from "@maiyuri/shared";
 import type { MyWorkQueue, WorkItem } from "@maiyuri/shared";
@@ -16,11 +17,30 @@ const UPCOMING_LIMIT = 20;
 
 /**
  * GET /api/my-work — the signed-in employee's queue.
+ * ?view=review (supervisors): all SUBMITTED items awaiting approval instead.
  * Loads only what the page needs (PRD §22): open items + today's closed items.
  */
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuth(request);
+
+    // Supervisor review queue: every submitted item, oldest first.
+    const { searchParams } = new URL(request.url);
+    if (searchParams.get("view") === "review") {
+      if (!isWorkAdmin(user.role)) {
+        return error("Only supervisors can review submissions", 403);
+      }
+      const { data, error: revErr } = await supabaseAdmin
+        .from("work_items")
+        .select(
+          "*, assigned_user:users!work_items_assigned_user_id_fkey(id, name)",
+        )
+        .eq("status", "submitted")
+        .order("submitted_at", { ascending: true })
+        .limit(100);
+      if (revErr) return error("Failed to load the review queue", 500);
+      return success<WorkItem[]>((data ?? []) as WorkItem[]);
+    }
 
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -161,6 +181,7 @@ export async function POST(request: NextRequest) {
       performed_by: user.id,
       metadata: { assigned_user_id: input.assigned_user_id },
     });
+    void notifyWorkAssigned(item as WorkItem);
 
     return success<WorkItem>(item as WorkItem);
   } catch (err) {

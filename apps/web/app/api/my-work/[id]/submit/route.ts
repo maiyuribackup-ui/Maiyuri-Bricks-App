@@ -15,6 +15,7 @@ import {
   WorkAccessError,
 } from "@/lib/my-work-service";
 import { validateChecklistSubmission } from "@/lib/my-work-utils";
+import { notifyWorkSubmitted } from "@/lib/my-work-notify";
 import type { WorkItem } from "@maiyuri/shared";
 
 interface Params {
@@ -102,6 +103,9 @@ export async function POST(request: NextRequest, { params }: Params) {
         ).length,
       },
     });
+    if (targetStatus === "submitted") {
+      void notifyWorkSubmitted(updated as WorkItem);
+    }
 
     return success<WorkItem>(updated as WorkItem);
   } catch (err) {

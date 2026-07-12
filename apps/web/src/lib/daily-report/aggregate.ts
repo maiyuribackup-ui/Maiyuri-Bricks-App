@@ -305,18 +305,64 @@ const notConnected = (note: string): CountSection => ({
   metrics: [],
 });
 
+/** Team task activity for the day, from the My Work module. */
+async function tasksFromMyWork(dateISO: string): Promise<CountSection> {
+  const { startUtc, endUtc } = istBounds(dateISO);
+  try {
+    const [assigned, completed, openOverdue] = await Promise.all([
+      // Work that belonged to this day (scheduled or due on it)
+      supabaseAdmin
+        .from("work_items")
+        .select("id", { count: "exact", head: true })
+        .or(
+          `scheduled_date.eq.${dateISO},and(due_at.gte.${startUtc},due_at.lte.${endUtc})`,
+        ),
+      supabaseAdmin
+        .from("work_items")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["completed", "submitted"])
+        .gte("submitted_at", startUtc)
+        .lte("submitted_at", endUtc),
+      supabaseAdmin
+        .from("work_items")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["pending", "in_progress", "returned"])
+        .lt("due_at", endUtc),
+    ]);
+    const done = completed.count ?? 0;
+    return {
+      status: "live",
+      primary: done,
+      metrics: [
+        { label: "Due today", value: String(assigned.count ?? 0) },
+        { label: "Done", value: String(done) },
+        { label: "Still open", value: String(openOverdue.count ?? 0) },
+      ],
+    };
+  } catch (err) {
+    return {
+      status: "error",
+      note: err instanceof Error ? err.message : "DB error",
+      primary: 0,
+      metrics: [],
+    };
+  }
+}
+
 /**
  * Assemble the full report. Every source runs concurrently and independently;
  * a rejected source becomes an error tile rather than failing the whole report.
  */
 export async function getDailyReport(dateISO: string): Promise<DailyReport> {
-  const [finance, production, deliveries, website, leads] = await Promise.all([
-    financeFromOdoo(dateISO),
-    productionFromPlan(dateISO),
-    deliveriesFromPlan(dateISO),
-    websiteFromGa4(),
-    leadsFromDb(dateISO),
-  ]);
+  const [finance, production, deliveries, website, leads, tasks] =
+    await Promise.all([
+      financeFromOdoo(dateISO),
+      productionFromPlan(dateISO),
+      deliveriesFromPlan(dateISO),
+      websiteFromGa4(),
+      leadsFromDb(dateISO),
+      tasksFromMyWork(dateISO),
+    ]);
 
   return {
     date: dateISO,
@@ -326,9 +372,9 @@ export async function getDailyReport(dateISO: string): Promise<DailyReport> {
     deliveries,
     website,
     leads,
+    tasks,
     // Awaiting integration + credentials (see daily-report page footer):
     calls: notConnected("Superfone API not connected"),
     whatsapp: notConnected("WhatsApp Cloud API not connected"),
-    tasks: notConnected("Todoist not connected"),
   };
 }
