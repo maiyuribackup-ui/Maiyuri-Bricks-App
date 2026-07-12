@@ -24,6 +24,7 @@ import {
   Youtube,
 } from "lucide-react";
 import { onehub } from "./theme";
+import { RenewalsCard } from "./RenewalsCard";
 
 /* ------------------------------------------------------------------ types */
 type Sop = {
@@ -307,6 +308,7 @@ export default function OneHubPage() {
 
         <section id="reminders" className="scroll-mt-24">
           <RemindersCard />
+          <RenewalsCard />
         </section>
       </div>
 
