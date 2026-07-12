@@ -83,7 +83,6 @@ export default function OneHubLayout({ children }: { children: React.ReactNode }
         style={{ background: `linear-gradient(180deg, ${onehub.brandTop}, ${onehub.brandDark})` }}
       >
         <div className="flex items-center gap-3 px-6 py-6">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/onehub/logo-mark.png" alt="Maiyuri Bricks" className="h-11 w-11" />
           <div className="leading-tight">
             <p className="font-serif text-lg font-bold tracking-wide text-white">MAIYURI</p>
@@ -119,7 +118,6 @@ export default function OneHubLayout({ children }: { children: React.ReactNode }
         {/* Mayur helper card */}
         <div className="mx-3 mt-3 rounded-2xl bg-black/15 p-3">
           <div className="flex items-center gap-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/onehub/mayur-avatar.png" alt="Mayur" className="h-11 w-11 rounded-full bg-white/10 object-cover object-top" />
             <div className="leading-tight">
               <p className="text-xs text-white/70">Hello! I&apos;m</p>

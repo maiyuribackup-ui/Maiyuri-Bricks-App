@@ -67,7 +67,6 @@ export function AskMayurModal({ open, onClose }: { open: boolean; onClose: () =>
           className="flex items-center gap-3 px-5 py-4"
           style={{ background: `linear-gradient(135deg, ${onehub.brandTop}, ${onehub.brandDark})` }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/onehub/mayur-avatar.png"
             alt="Mayur"
@@ -113,7 +112,6 @@ export function AskMayurModal({ open, onClose }: { open: boolean; onClose: () =>
 
           {ask.isPending ? (
             <div className="flex items-center gap-3 rounded-xl border bg-white px-4 py-3" style={{ borderColor: onehub.cardBorder }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/onehub/mayur-thinking.png" alt="" className="h-10 w-10 animate-pulse object-contain" />
               <span className="text-sm" style={{ color: onehub.textMuted }}>Mayur is thinking…</span>
             </div>
