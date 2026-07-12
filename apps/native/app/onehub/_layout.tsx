@@ -24,6 +24,7 @@ export default function OneHubLayout() {
       <Stack.Screen name="checklists" options={{ title: 'New Joiners' }} />
       <Stack.Screen name="checklist/[id]" options={{ title: 'Checklist' }} />
       <Stack.Screen name="ask" options={{ title: 'Ask Mayur' }} />
+      <Stack.Screen name="training" options={{ title: '🎓 Training' }} />
     </Stack>
   );
 }

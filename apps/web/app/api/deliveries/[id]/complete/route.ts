@@ -11,6 +11,8 @@ const completeDeliverySchema = z.object({
   photoUrls: z.array(z.string().url()).optional(),
   recipientName: z.string().optional(),
   notes: z.string().optional(),
+  tripKm: z.number().nonnegative().optional(),
+  dieselCost: z.number().nonnegative().optional(),
 });
 
 interface RouteParams {
@@ -35,6 +37,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (!result.success) {
       return error(result.message, 500);
+    }
+
+    // Trip economics: km + diesel are simple columns, set outside the
+    // service layer so its Odoo-sync path stays untouched.
+    if (parsed.data.tripKm != null || parsed.data.dieselCost != null) {
+      try {
+        const { supabaseAdmin } = await import("@/lib/supabase-admin");
+        await supabaseAdmin
+          .from("deliveries")
+          .update({
+            ...(parsed.data.tripKm != null ? { trip_km: parsed.data.tripKm } : {}),
+            ...(parsed.data.dieselCost != null
+              ? { diesel_cost: parsed.data.dieselCost }
+              : {}),
+          })
+          .eq("id", id);
+      } catch (costErr) {
+        console.error("trip cost update failed:", costErr);
+      }
     }
 
     // Auto-variance: mark the matching active-plan delivery item done.

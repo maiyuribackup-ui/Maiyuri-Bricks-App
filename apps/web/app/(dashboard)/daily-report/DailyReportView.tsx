@@ -80,7 +80,7 @@ function Sparkline({ series }: { series: WebsiteSection["timeseries"] }) {
 
 /* ---------- main ---------- */
 export function DailyReportView({ report }: { report: DailyReport }) {
-  const { date, finance, production, deliveries, website, leads, calls, whatsapp, tasks } = report;
+  const { date, finance, receivables, production, deliveries, website, leads, calls, whatsapp, tasks } = report;
   const prev = shiftDate(date, -1);
   const next = shiftDate(date, 1);
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
@@ -180,6 +180,26 @@ export function DailyReportView({ report }: { report: DailyReport }) {
               )}
             </div>
           </div>
+          <div className={`${styles.kpi} ${styles.kpiAccent}`}>
+            <div className={styles.kpiLab}>Overdue Receivables</div>
+            <div className={styles.kpiVal}>
+              <span className={styles.cur}>₹</span>
+              {receivables.status === "live" ? inr(receivables.overdue) : "—"}
+            </div>
+            <div className={styles.kpiSub}>
+              {receivables.status === "live" ? (
+                receivables.overdue > 0 ? (
+                  <span className={styles.down}>
+                    {receivables.overdueCount} invoices past due · ₹{inr(receivables.outstanding)} total out
+                  </span>
+                ) : (
+                  <span className={styles.up}>nothing overdue 🎉</span>
+                )
+              ) : (
+                receivables.note
+              )}
+            </div>
+          </div>
           <div className={styles.kpi}>
             <div className={styles.kpiLab}>Deliveries</div>
             <div className={styles.kpiVal}>
@@ -190,9 +210,16 @@ export function DailyReportView({ report }: { report: DailyReport }) {
             </div>
             <div className={styles.kpiSub}>
               {deliveries.status === "live"
-                ? deliveries.rolledOver
-                  ? `${deliveries.rolledOver} rolled over`
-                  : "all on schedule"
+                ? [
+                    deliveries.rolledOver
+                      ? `${deliveries.rolledOver} rolled over`
+                      : "all on schedule",
+                    deliveries.tripKm || deliveries.dieselCost
+                      ? `🚛 ${inr(deliveries.tripKm)} km · ₹${inr(deliveries.dieselCost)} diesel`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
                 : deliveries.note}
             </div>
           </div>
@@ -237,6 +264,26 @@ export function DailyReportView({ report }: { report: DailyReport }) {
                       <div className={styles.ledRow} key={`e${idx}`}>
                         <span className={styles.who}>{e.label}</span>
                         <span className={`${styles.ledNum} ${styles.neg}`}>−₹{inr(e.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {receivables.status === "live" && receivables.topDebtors.length ? (
+                  <div className={styles.ledger}>
+                    <div className={styles.ledRow}>
+                      <span className={styles.who}>
+                        <strong>📞 Collect first (overdue)</strong>
+                      </span>
+                      <span className={`${styles.ledNum} ${styles.neg}`}>
+                        ₹{inr(receivables.overdue)}
+                      </span>
+                    </div>
+                    {receivables.topDebtors.map((d) => (
+                      <div className={styles.ledRow} key={d.customer}>
+                        <span className={styles.who}>
+                          {d.customer} · {d.oldestDays}d late
+                        </span>
+                        <span className={`${styles.ledNum} ${styles.neg}`}>₹{inr(d.due)}</span>
                       </div>
                     ))}
                   </div>

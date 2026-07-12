@@ -17,6 +17,7 @@ import {
   useDashboardStats,
 } from '@/hooks/use-dashboard';
 import { useLeads } from '@/hooks/use-leads';
+import { useMyWork } from '@/hooks/use-my-work';
 
 type CardDef = {
   key: keyof import('@/hooks/use-dashboard').DashboardStats;
@@ -125,6 +126,47 @@ function ActionRow({ action, onOpen }: { action: TodayAction; onOpen: () => void
   );
 }
 
+/**
+ * "Here's what YOU do today" — My Work, first thing on app open.
+ * For drivers/supervisors this strip IS the reason to open the app.
+ */
+function MyWorkStrip() {
+  const router = useRouter();
+  const { data } = useMyWork();
+  const q = data?.data;
+  if (!q) return null;
+  const urgent = q.attention.length;
+  const today = q.today.length;
+  if (!urgent && !today) return null;
+  const preview = [...q.attention, ...q.today].slice(0, 3);
+
+  return (
+    <Pressable
+      onPress={() => router.push('/onehub/my-work' as never)}
+      className={`mb-3 rounded-2xl p-4 active:opacity-80 ${urgent ? 'bg-red-600' : 'bg-ink'}`}
+    >
+      <View className="flex-row items-center justify-between">
+        <Text className="text-base font-bold text-white">
+          ✅ My Work — {urgent + today} for today
+        </Text>
+        {urgent ? (
+          <View className="rounded-full bg-white px-2 py-0.5">
+            <Text className="text-xs font-bold text-red-600">{urgent} overdue</Text>
+          </View>
+        ) : null}
+      </View>
+      {preview.map((w) => (
+        <Text key={w.id} className="mt-1 text-sm text-slate-200" numberOfLines={1}>
+          • {w.title}
+        </Text>
+      ))}
+      <Text className="mt-1.5 text-xs font-semibold text-slate-300">
+        Tap to open your work queue →
+      </Text>
+    </Pressable>
+  );
+}
+
 export default function DashboardScreen() {
   const router = useRouter();
   const { data, isLoading, isError, error, refetch, isRefetching } =
@@ -178,6 +220,8 @@ export default function DashboardScreen() {
           />
         }
       >
+        <MyWorkStrip />
+
         {/* ── Today's Actions ─────────────────────────────── */}
         <View className="mb-1 flex-row items-center justify-between">
           <Text className="text-base font-bold text-ink">⚡ Today's Actions</Text>

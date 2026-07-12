@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useLead } from '@/hooks/use-leads';
 import { useAddNote, useLeadNotes } from '@/hooks/use-notes';
+import { usePromiseDate, useProductParams } from '@/hooks/use-ops-planning';
 import { quoteUrl, useGenerateSmartQuote } from '@/hooks/use-smart-quote';
 import { QuickActionsModal } from '@/components/LeadQuickActions';
 import { toast } from '@/lib/toast';
@@ -119,6 +120,99 @@ function SmartQuoteSection({
       {generate.isError ? (
         <Text className="mt-2 text-xs text-red-500">
           {generate.error instanceof Error ? generate.error.message : 'Failed to generate'}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * "Can we deliver?" — the promise checker, in the salesperson's hand.
+ * Same engine the Plan tab uses; here so a real delivery date can be quoted
+ * DURING the customer conversation instead of over-promising.
+ */
+function PromiseSection() {
+  const { data: params } = useProductParams();
+  const promise = usePromiseDate();
+  const [fg, setFg] = useState<string | null>(null);
+  const [qty, setQty] = useState('');
+
+  const products = (params?.data ?? []).filter(
+    (p) => p.daily_capacity_units != null,
+  );
+  if (!products.length) return null;
+
+  const result = promise.data?.data;
+
+  return (
+    <View className="mx-5 mt-4 rounded-xl border border-slate-200 bg-white p-4">
+      <Text className="text-base font-bold text-ink">📦 Can we deliver?</Text>
+      <Text className="mt-0.5 text-xs text-slate-400">
+        Check the earliest realistic delivery date before promising the customer.
+      </Text>
+      <View className="mt-2 flex-row flex-wrap">
+        {products.map((p) => (
+          <Pressable
+            key={p.finished_good_id}
+            onPress={() => setFg(p.finished_good_id)}
+            className={`mb-2 mr-2 rounded-full px-3 py-1.5 ${
+              fg === p.finished_good_id ? 'bg-ink' : 'border border-slate-200 bg-white'
+            }`}
+          >
+            <Text
+              className={`text-xs font-medium ${fg === p.finished_good_id ? 'text-white' : 'text-slate-600'}`}
+            >
+              {p.product_name}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      <View className="mt-1 flex-row gap-2">
+        <TextInput
+          value={qty}
+          onChangeText={setQty}
+          keyboardType="numeric"
+          placeholder="Quantity"
+          placeholderTextColor="#94a3b8"
+          className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-ink"
+        />
+        <Pressable
+          onPress={() =>
+            fg &&
+            Number(qty) > 0 &&
+            promise.mutate({ finished_good_id: fg, quantity: Number(qty) })
+          }
+          disabled={promise.isPending || !fg || !Number(qty)}
+          className={`items-center justify-center rounded-lg px-4 ${
+            promise.isPending || !fg || !Number(qty)
+              ? 'bg-slate-200'
+              : 'bg-brand active:opacity-80'
+          }`}
+        >
+          {promise.isPending ? (
+            <ActivityIndicator size="small" color="#0f172a" />
+          ) : (
+            <Text className="text-sm font-semibold text-ink">Check</Text>
+          )}
+        </Pressable>
+      </View>
+      {result ? (
+        <Text
+          className={`mt-2 text-sm font-semibold ${
+            result.promised_delivery_date ? 'text-green-700' : 'text-red-600'
+          }`}
+        >
+          {result.promised_delivery_date
+            ? `✅ Earliest delivery: ${new Date(result.promised_delivery_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+            : '⚠️ Cannot be fulfilled within 60 days'}
+          {result.unfulfilled_units > 0
+            ? ` (${result.unfulfilled_units.toLocaleString('en-IN')} short)`
+            : ''}
+        </Text>
+      ) : null}
+      {promise.isError ? (
+        <Text className="mt-2 text-xs text-red-500">
+          {promise.error instanceof Error ? promise.error.message : 'Check failed'}
         </Text>
       ) : null}
     </View>
@@ -283,6 +377,8 @@ export default function LeadDetailScreen() {
       </View>
 
       <SmartQuoteSection leadId={lead.id} contact={lead.contact} />
+
+      <PromiseSection />
 
       <NotesSection leadId={lead.id} />
 
