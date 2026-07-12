@@ -14,6 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import {
+  useCancelWorkItem,
   useCompleteWorkItem,
   useRemoveWorkPhoto,
   useSaveDraft,
@@ -22,6 +23,7 @@ import {
   useUploadWorkPhoto,
   useWorkItem,
 } from "@/hooks/useMyWork";
+import { useAuthStore } from "@/stores/authStore";
 import {
   ChecklistRunner,
   type DraftResponse,
@@ -280,6 +282,7 @@ export default function WorkItemDetailPage() {
           >
             {WORK_STATUS_LABELS[item.status]}
           </span>
+          <CancelButton itemId={item.id} status={item.status} />
           {item.priority !== "medium" && item.priority !== "low" && (
             <span
               className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
@@ -501,5 +504,31 @@ export default function WorkItemDetailPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Supervisor-only cancel (audit U7 — the API existed with no button). */
+function CancelButton({ itemId, status }: { itemId: string; status: string }) {
+  const { user } = useAuthStore();
+  const cancel = useCancelWorkItem();
+  const isAdmin = ["founder", "owner", "production_supervisor"].includes(
+    user?.role ?? "",
+  );
+  if (!isAdmin || status === "completed" || status === "cancelled") return null;
+
+  return (
+    <button
+      onClick={() => {
+        const reason = window.prompt("Why is this work being cancelled?");
+        if (reason && reason.trim()) {
+          cancel.mutate({ id: itemId, reason: reason.trim() });
+        }
+      }}
+      disabled={cancel.isPending}
+      className="ml-auto rounded-full border px-2.5 py-0.5 text-[11px] font-semibold disabled:opacity-50"
+      style={{ borderColor: "#e5c8c2", color: "#c1453e" }}
+    >
+      {cancel.isPending ? "Cancelling…" : "Cancel work"}
+    </button>
   );
 }

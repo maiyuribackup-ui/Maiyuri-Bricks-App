@@ -17,6 +17,7 @@ import {
   MessageSquare,
   Plus,
   Search,
+  Settings2,
   Upload,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
@@ -105,7 +106,13 @@ export default function OneHubLayout({ children }: { children: React.ReactNode }
         </p>
 
         <nav className="flex-1 space-y-1 px-3">
-          {NAV.map((item) => {
+          {[
+            ...NAV,
+            // Manage console — supervisors/leadership only (audit U1–U10)
+            ...(["founder", "owner", "production_supervisor"].includes(user?.role ?? "")
+              ? [{ label: "Manage", icon: Settings2, href: "/onehub/admin" }]
+              : []),
+          ].map((item) => {
             const Icon = item.icon;
             const active =
               item.href === "/onehub"

@@ -8,6 +8,7 @@
  */
 import type { WorkItem } from "@maiyuri/shared";
 import {
+  filterByPushPref,
   getUserIdsByRoles,
   isFcmConfigured,
   sendPushToUsers,
@@ -23,7 +24,11 @@ async function safeSend(
 ): Promise<void> {
   try {
     if (!isFcmConfigured() || userIds.length === 0) return;
-    await sendPushToUsers(userIds, payload);
+    // Respect each user's notification_preferences like every other flow
+    // (completeness audit #7 — My Work previously bypassed prefs).
+    const recipients = await filterByPushPref(userIds, "push_ops");
+    if (!recipients.length) return;
+    await sendPushToUsers(recipients, payload);
   } catch (err) {
     console.error("[MyWork] push failed (ignored):", err);
   }

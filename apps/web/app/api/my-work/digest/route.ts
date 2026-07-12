@@ -4,7 +4,11 @@ export const maxDuration = 60;
 import { NextRequest } from "next/server";
 import { success, error } from "@/lib/api-utils";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { isFcmConfigured, sendPushToUsers } from "@/lib/push/fcm";
+import {
+  filterByPushPref,
+  isFcmConfigured,
+  sendPushToUsers,
+} from "@/lib/push/fcm";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -45,8 +49,14 @@ export async function POST(request: NextRequest) {
       byUser.set(row.assigned_user_id, cur);
     }
 
+    // Respect notification preferences (push_digest, same as the lead digest)
+    const optedIn = new Set(
+      await filterByPushPref([...byUser.keys()], "push_digest"),
+    );
+
     let sent = 0;
     for (const [userId, counts] of byUser) {
+      if (!optedIn.has(userId)) continue;
       const body =
         counts.overdue > 0
           ? `${counts.total} task${counts.total === 1 ? "" : "s"} today — ${counts.overdue} overdue`

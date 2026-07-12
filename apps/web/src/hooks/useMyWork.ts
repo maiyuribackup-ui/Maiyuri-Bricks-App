@@ -207,6 +207,15 @@ export function useApproveWorkItem() {
   });
 }
 
+export function useCancelWorkItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      postAction(id, "cancel", { reason }),
+    onSuccess: (_, { id }) => invalidateReview(queryClient, id),
+  });
+}
+
 export function useReturnWorkItem() {
   const queryClient = useQueryClient();
   return useMutation({
