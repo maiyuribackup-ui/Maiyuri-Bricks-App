@@ -16,6 +16,10 @@ const withPWA = withPWAInit({
 const nextConfig = {
     output: 'standalone',
     transpilePackages: ["@maiyuri/ui", "@maiyuri/shared", "@maiyuri/api"],
+    experimental: {
+        // Loads instrumentation.ts (server-side Sentry init) on boot.
+        instrumentationHook: true,
+    },
 };
 
 export default withPWA(nextConfig);
