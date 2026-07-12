@@ -39,6 +39,20 @@ export default function OneHubHome() {
         />
       </View>
 
+      {/* My Work — the personal daily queue */}
+      <Link href={"/onehub/my-work" as import("expo-router").Href} asChild>
+        <Pressable className="mt-3 flex-row items-center rounded-2xl bg-ink p-4 active:opacity-70">
+          <Text className="mr-3 text-3xl">✅</Text>
+          <View className="flex-1">
+            <Text className="text-base font-bold text-white">My Work</Text>
+            <Text className="text-xs text-slate-300">
+              Your tasks, checklists and daily jobs — do them here
+            </Text>
+          </View>
+          <Text className="text-slate-400">→</Text>
+        </Pressable>
+      </Link>
+
       {/* Ask Mayur */}
       <Link href={"/onehub/ask" as import("expo-router").Href} asChild>
         <Pressable className="mt-3 flex-row items-center rounded-2xl border-2 border-brand bg-orange-50 p-4 active:opacity-70">
