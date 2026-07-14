@@ -23,6 +23,7 @@ const protectedRoutes = [
   "/quotes",
   "/planning",
   "/projects",
+  "/expenses",
   "/approvals",
   "/production",
   "/deliveries",

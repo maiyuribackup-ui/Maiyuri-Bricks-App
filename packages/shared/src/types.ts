@@ -2188,3 +2188,102 @@ export interface ProjectBudgetsResponse {
     original: number;
   };
 }
+
+// ============================================================================
+// Reimbursement / Petty Cash
+// ============================================================================
+
+export type ExpenseKind = "standard" | "petrol";
+export type ExpenseClaimStatus = "pending" | "approved" | "rejected";
+
+export interface ExpenseType {
+  id: string;
+  name: string;
+  cost_category: string; // maps to cost_entries.cost_category
+  kind: ExpenseKind;
+  requires_project: boolean;
+  icon: string | null;
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExpenseVehicleRate {
+  id: string;
+  label: string;
+  per_km_rate: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PettyCashTopup {
+  id: string;
+  user_id: string;
+  amount: number;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+  // joined
+  user?: { id: string; name: string | null } | null;
+}
+
+export interface ExpenseClaim {
+  id: string;
+  user_id: string;
+  expense_type_id: string;
+  project_id: string | null;
+  amount: number;
+  description: string | null;
+  expense_date: string;
+  receipt_url: string | null;
+  status: ExpenseClaimStatus;
+  // petrol detail
+  vehicle_rate_id: string | null;
+  lead_id: string | null;
+  customer_name: string | null;
+  from_location: string | null;
+  to_location: string | null;
+  km: number | null;
+  per_km_rate_applied: number | null;
+  // workflow
+  approved_by: string | null;
+  approved_at: string | null;
+  reject_reason: string | null;
+  cost_entry_id: string | null;
+  created_at: string;
+  updated_at: string;
+  // joined
+  user?: { id: string; name: string | null } | null;
+  expense_type?: Pick<ExpenseType, "id" | "name" | "kind" | "icon"> | null;
+  project?: { id: string; name: string } | null;
+}
+
+/** A staffer's computed petty-cash position. */
+export interface ExpenseBalance {
+  user_id: string;
+  name: string | null;
+  role: string;
+  topups_total: number;
+  spent_total: number; // pending + approved
+  balance: number; // topups_total - spent_total
+  pending_count: number;
+}
+
+/** GET /api/expenses payload for a submitter (own view). */
+export interface MyExpensesResponse {
+  balance: number;
+  topups_total: number;
+  spent_total: number;
+  claims: ExpenseClaim[];
+  topups: PettyCashTopup[];
+  types: ExpenseType[];
+  vehicleRates: ExpenseVehicleRate[];
+}
+
+/** GET /api/expenses?view=all payload for admins. */
+export interface AllExpensesResponse {
+  balances: ExpenseBalance[];
+  pending: ExpenseClaim[];
+}
