@@ -1,7 +1,15 @@
 import { Link, Redirect, Tabs } from 'expo-router';
-import { Image, Pressable, Text } from 'react-native';
+import { Pressable, Text } from 'react-native';
 import { useAuth } from '@/store/auth';
 import { useMyProfile } from '@/hooks/use-push-settings';
+import { Icon, type IconName } from '@/ui/Icon';
+import { DrawerButton } from '@/ui/NavDrawer';
+
+const tabIcon =
+  (name: IconName) =>
+  ({ color, focused }: { color: string; focused: boolean }) => (
+    <Icon name={name} size={focused ? 25 : 23} color={color} />
+  );
 
 /**
  * Role → visible tabs, mirroring the web sidebar's roleModuleAccess.
@@ -37,22 +45,27 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#f97316',
+        tabBarInactiveTintColor: '#94a3b8',
+        tabBarStyle: {
+          backgroundColor: '#ffffff',
+          borderTopColor: '#eceff3',
+          height: 62,
+          paddingBottom: 8,
+          paddingTop: 6,
+        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
         headerStyle: { backgroundColor: '#0f172a' },
         headerTintColor: '#ffffff',
-        headerLeft: () => (
-          <Image
-            source={require('../../assets/logo.png')}
-            style={{ width: 30, height: 30, marginLeft: 14, borderRadius: 6 }}
-            resizeMode="contain"
-          />
-        ),
+        headerTitleStyle: { fontWeight: '700', fontSize: 19 },
+        // Hamburger opens the native left drawer (also swipe from the edge).
+        headerLeft: () => <DrawerButton />,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>📊</Text>,
+          tabBarIcon: tabIcon('grid-outline'),
           headerRight: () => (
             <Link href={"/onehub" as import("expo-router").Href} asChild>
               <Pressable
@@ -60,14 +73,16 @@ export default function TabsLayout() {
                   marginRight: 14,
                   flexDirection: 'row',
                   alignItems: 'center',
+                  gap: 5,
                   backgroundColor: '#f97316',
                   borderRadius: 16,
-                  paddingHorizontal: 10,
-                  paddingVertical: 5,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
                 }}
               >
+                <Icon name="compass-outline" size={16} color="#0f172a" />
                 <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a' }}>
-                  🧭 OneHub
+                  OneHub
                 </Text>
               </Pressable>
             </Link>
@@ -79,7 +94,7 @@ export default function TabsLayout() {
         options={{
           href: tabHref('leads'),
           title: 'Leads',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>👥</Text>,
+          tabBarIcon: tabIcon('people-outline'),
           headerRight: () => (
             <Link href="/leads/new" asChild>
               <Pressable
@@ -93,9 +108,7 @@ export default function TabsLayout() {
                   justifyContent: 'center',
                 }}
               >
-                <Text style={{ fontSize: 20, color: '#0f172a', fontWeight: '700' }}>
-                  +
-                </Text>
+                <Icon name="add" size={22} color="#0f172a" />
               </Pressable>
             </Link>
           ),
@@ -106,7 +119,7 @@ export default function TabsLayout() {
         options={{
           href: tabHref('plan'),
           title: 'Plan',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>📋</Text>,
+          tabBarIcon: tabIcon('calendar-outline'),
         }}
       />
       <Tabs.Screen
@@ -114,7 +127,7 @@ export default function TabsLayout() {
         options={{
           href: tabHref('production'),
           title: 'Production',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>🏭</Text>,
+          tabBarIcon: tabIcon('construct-outline'),
         }}
       />
       <Tabs.Screen
@@ -122,14 +135,14 @@ export default function TabsLayout() {
         options={{
           href: tabHref('deliveries'),
           title: 'Deliveries',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>🚚</Text>,
+          tabBarIcon: tabIcon('cube-outline'),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>⚙️</Text>,
+          tabBarIcon: tabIcon('settings-outline'),
         }}
       />
     </Tabs>

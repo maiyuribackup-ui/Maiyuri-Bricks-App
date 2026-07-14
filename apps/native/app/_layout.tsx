@@ -17,6 +17,7 @@ import { initAuthListener, useAuth } from '@/store/auth';
 import { initSentry, Sentry, setSentryUser } from '@/lib/sentry';
 import { ToastHost } from '@/components/ToastHost';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { NavDrawer } from '@/ui/NavDrawer';
 import { initOnlineManager } from '@/lib/offline';
 import { checkForAppUpdate } from '@/lib/app-updates';
 
@@ -89,6 +90,9 @@ function RootLayout() {
               />
               <Stack.Screen name="onehub" options={{ headerShown: false }} />
             </Stack>
+            {/* Native left navigation drawer (hamburger + left-edge swipe).
+                Rendered above the Stack so it overlays every screen. */}
+            {session ? <NavDrawer /> : null}
             <ToastHost />
           </BottomSheetModalProvider>
         </PersistQueryClientProvider>
