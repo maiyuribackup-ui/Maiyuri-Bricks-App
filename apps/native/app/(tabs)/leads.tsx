@@ -419,7 +419,7 @@ export default function LeadsScreen() {
   }, [allLeads, view, sortKey, sortDir, groupByTemp]);
 
   return (
-    <SafeAreaView edges={['bottom']} className="flex-1 bg-slate-50">
+    <SafeAreaView edges={['bottom']} className="flex-1 bg-canvas">
       <View className="px-4 pb-1 pt-3">
         <TextInput
           value={search}
@@ -519,7 +519,7 @@ export default function LeadsScreen() {
           )}
           renderSectionHeader={({ section }) =>
             section.title ? (
-              <Text className="bg-slate-50 px-1 pb-2 pt-3 text-sm font-bold text-slate-500">
+              <Text className="bg-canvas px-1 pb-2 pt-3 text-sm font-bold text-slate-500">
                 {section.title}
               </Text>
             ) : null

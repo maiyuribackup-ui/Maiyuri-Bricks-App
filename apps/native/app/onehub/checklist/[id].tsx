@@ -23,7 +23,7 @@ export default function ChecklistRunScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 pb-12">
+    <ScrollView className="flex-1 bg-canvas" contentContainerClassName="p-4 pb-12">
       <Text className="text-lg font-bold text-ink">👤 {run.subject_name}</Text>
       {run.completed_at ? (
         <View className="mt-2 items-center rounded-2xl border border-green-200 bg-green-50 p-4">

@@ -16,7 +16,7 @@ export default function LinksScreen() {
   }, [data]);
 
   return (
-    <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 pb-10">
+    <ScrollView className="flex-1 bg-canvas" contentContainerClassName="p-4 pb-10">
       {isLoading ? (
         <ActivityIndicator size="large" color="#f97316" className="mt-10" />
       ) : (

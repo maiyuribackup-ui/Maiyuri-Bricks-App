@@ -10,7 +10,7 @@ export default function DepartmentSops() {
   const meta = DEPARTMENTS.find((d) => d.key === dept);
 
   return (
-    <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 pb-10">
+    <ScrollView className="flex-1 bg-canvas" contentContainerClassName="p-4 pb-10">
       <View className="mb-3 flex-row items-center justify-between">
         <Text className="text-lg font-bold text-ink">
           {meta?.icon} {meta?.label ?? dept} <Text className="text-sm text-slate-400">{meta?.ta}</Text>

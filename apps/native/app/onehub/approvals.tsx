@@ -26,6 +26,7 @@ import {
   useRejectExpense,
 } from '@/hooks/use-expenses';
 import { toast } from '@/lib/toast';
+import { SkeletonList } from '@/ui';
 
 const inr = (n: number | null | undefined) =>
   `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}`;
@@ -68,7 +69,7 @@ function TicketCard({ ticket }: { ticket: Ticket }) {
             placeholder="Why is this rejected? (required)"
             placeholderTextColor="#94a3b8"
             multiline
-            className="min-h-[44px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-ink"
+            className="min-h-[44px] rounded-lg border border-slate-200 bg-canvas px-3 py-2 text-sm text-ink"
           />
           <View className="mt-2 flex-row gap-2">
             <Pressable
@@ -195,7 +196,7 @@ function ExpenseCard({ claim }: { claim: ExpenseClaim }) {
             onChangeText={setReason}
             placeholder="Why is this rejected? (required)"
             placeholderTextColor="#94a3b8"
-            className="min-h-[40px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-ink"
+            className="min-h-[40px] rounded-lg border border-slate-200 bg-canvas px-3 py-2 text-sm text-ink"
           />
           <View className="mt-2 flex-row gap-2">
             <Pressable
@@ -281,12 +282,12 @@ export default function ApprovalsScreen() {
 
   return (
     <ScrollView
-      className="flex-1 bg-slate-50"
+      className="flex-1 bg-canvas"
       contentContainerClassName="p-4 pb-10"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetchAll} />}
     >
       {loading ? (
-        <ActivityIndicator size="large" color="#f97316" className="mt-10" />
+        <SkeletonList count={5} />
       ) : (
         <>
           {canTickets ? (

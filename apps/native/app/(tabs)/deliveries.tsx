@@ -18,10 +18,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCompleteDelivery, useDeliveries } from '@/hooks/use-deliveries';
 import { useIsOnline } from '@/lib/offline';
 import { toast } from '@/lib/toast';
+import { SkeletonList } from '@/ui';
 
 const STATUS_STYLE: Record<DeliveryStatus, { bg: string; label: string }> = {
   draft: { bg: 'bg-slate-400', label: 'Draft' },
-  waiting: { bg: 'bg-slate-500', label: 'Waiting' },
+  waiting: { bg: 'bg-canvas0', label: 'Waiting' },
   confirmed: { bg: 'bg-sky-500', label: 'Confirmed' },
   assigned: { bg: 'bg-violet-500', label: 'Assigned' },
   in_transit: { bg: 'bg-amber-500', label: 'In Transit' },
@@ -198,7 +199,7 @@ function MarkDeliveredModal({
               onChangeText={setRecipient}
               placeholder="Recipient name"
               placeholderTextColor="#94a3b8"
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
+              className="rounded-xl border border-slate-200 bg-canvas px-4 py-2.5 text-ink"
             />
 
             <Text className="mb-1.5 mt-4 text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -211,7 +212,7 @@ function MarkDeliveredModal({
                 keyboardType="numeric"
                 placeholder="km driven"
                 placeholderTextColor="#94a3b8"
-                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
+                className="flex-1 rounded-xl border border-slate-200 bg-canvas px-4 py-2.5 text-ink"
               />
               <TextInput
                 value={diesel}
@@ -219,7 +220,7 @@ function MarkDeliveredModal({
                 keyboardType="numeric"
                 placeholder="diesel ₹"
                 placeholderTextColor="#94a3b8"
-                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
+                className="flex-1 rounded-xl border border-slate-200 bg-canvas px-4 py-2.5 text-ink"
               />
             </View>
 
@@ -232,7 +233,7 @@ function MarkDeliveredModal({
               placeholder="e.g. Unloaded at rear gate"
               placeholderTextColor="#94a3b8"
               multiline
-              className="min-h-[44px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
+              className="min-h-[44px] rounded-xl border border-slate-200 bg-canvas px-4 py-2.5 text-ink"
             />
 
             {complete.isError ? (
@@ -361,7 +362,7 @@ export default function DeliveriesScreen() {
   );
 
   return (
-    <SafeAreaView edges={['bottom']} className="flex-1 bg-slate-50">
+    <SafeAreaView edges={['bottom']} className="flex-1 bg-canvas">
       <View className="px-4 pb-1 pt-3">
         <TextInput
           value={search}
@@ -391,9 +392,7 @@ export default function DeliveriesScreen() {
       </View>
 
       {isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#f97316" />
-        </View>
+        <SkeletonList count={6} />
       ) : isError ? (
         <View className="flex-1 items-center justify-center px-6">
           <Text className="text-center text-red-500">

@@ -51,7 +51,7 @@ function LessonCard({ lesson }: { lesson: TrainingLesson }) {
           ) : null}
           <Text className="text-sm leading-6 text-slate-700">{lesson.content}</Text>
           {lesson.examples ? (
-            <View className="mt-3 rounded-lg bg-slate-50 p-3">
+            <View className="mt-3 rounded-lg bg-canvas p-3">
               <Text className="text-xs font-semibold text-slate-500">EXAMPLES</Text>
               <Text className="mt-1 text-sm leading-5 text-slate-600">
                 {lesson.examples}
@@ -104,7 +104,7 @@ export default function TrainingScreen() {
 
   return (
     <ScrollView
-      className="flex-1 bg-slate-50"
+      className="flex-1 bg-canvas"
       contentContainerClassName="p-4 pb-10"
       refreshControl={
         <RefreshControl
