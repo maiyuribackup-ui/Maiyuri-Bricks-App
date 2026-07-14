@@ -281,6 +281,30 @@ guard: POST rejects if amount > balance); **approve** is the audit gate;
   `expenses-notify.ts` (submitted→admins, approved/rejected/topup→user).
 - No cron. Receipts in the private `expense-receipts` bucket (signed URLs).
 
+### 3.14b Native UI design system  (`apps/native/src/ui/*`)
+The mobile app has a shared UI kit — **use it for new native screens** instead
+of raw Pressable/emoji/spinners (that's what made the app feel web-wrapped):
+- `Touchable` — the standard tappable: Android ripple + reanimated press-scale
+  + light haptic. Replaces `active:opacity-70`.
+- `Button` — variant/size/icon/loading button built on Touchable.
+- `Icon` + `ICONS` — Ionicons (`@expo/vector-icons`); **never emoji for
+  functional icons**. Names are typed against Ionicons.
+- `Card` — elevated surface (shadow/elevation), not hairline borders.
+- `Skeleton`/`SkeletonList` — shimmer loaders; use instead of a full-screen
+  `ActivityIndicator` for content loads.
+- `haptic` (`ui/haptics`) — tap/press/success/error. **`toast.success/error`
+  already fire success/error haptics**, so most flows get feedback for free.
+- `NavDrawer` + `useDrawer` (`src/store/drawer`) — the **native left drawer**
+  (hamburger in headers via `DrawerButton`, or swipe from the left edge),
+  mounted once at the root; role-filtered full menu. Bottom `Tabs` remain the
+  primary destinations. Root is wrapped in `GestureHandlerRootView` +
+  `BottomSheetModalProvider`.
+- Theme: `tailwind.config.js` has a bumped type ramp (bigger, less crowded)
+  and softer semantic colors (`bg-canvas`, `border-line`, `text-muted`).
+- New native modules (gesture-handler, react-native-svg, expo-haptics,
+  @gorhom/bottom-sheet, expo-blur, @react-navigation/drawer, @expo/vector-icons)
+  → **native-feel changes need a new EAS build, NOT just OTA.**
+
 ### 3.15 Dashboards & Settings
 - Multiple overlapping dashboards exist (dashboard, kpi, business-health,
   observability, analytics, daily-report) — consultant audit flagged
