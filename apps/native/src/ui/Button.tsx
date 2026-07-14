@@ -32,7 +32,6 @@ export function Button({
   icon,
   loading,
   disabled,
-  full = true,
   className,
   children,
 }: {
@@ -43,7 +42,6 @@ export function Button({
   icon?: IconName;
   loading?: boolean;
   disabled?: boolean;
-  full?: boolean;
   className?: string;
   children?: ReactNode;
 }) {

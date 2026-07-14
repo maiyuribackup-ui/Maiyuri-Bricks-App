@@ -18,11 +18,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCompleteDelivery, useDeliveries } from '@/hooks/use-deliveries';
 import { useIsOnline } from '@/lib/offline';
 import { toast } from '@/lib/toast';
-import { SkeletonList } from '@/ui';
+import { Icon, SkeletonList, Touchable } from '@/ui';
 
 const STATUS_STYLE: Record<DeliveryStatus, { bg: string; label: string }> = {
   draft: { bg: 'bg-slate-400', label: 'Draft' },
-  waiting: { bg: 'bg-canvas0', label: 'Waiting' },
+  waiting: { bg: 'bg-slate-500', label: 'Waiting' },
   confirmed: { bg: 'bg-sky-500', label: 'Confirmed' },
   assigned: { bg: 'bg-violet-500', label: 'Assigned' },
   in_transit: { bg: 'bg-amber-500', label: 'In Transit' },
@@ -156,10 +156,14 @@ function MarkDeliveredModal({
   return (
     <Modal visible={!!delivery} transparent animationType="slide" onRequestClose={onClose}>
       <View className="flex-1 justify-end bg-black/50">
-        <View className="max-h-[85%] rounded-t-3xl bg-white">
-          <View className="border-b border-slate-100 px-5 py-4">
-            <Text className="text-lg font-bold text-ink">✅ Mark Delivered</Text>
-            <Text className="text-sm text-slate-500" numberOfLines={1}>
+        <View className="max-h-[88%] rounded-t-3xl bg-white">
+          {/* grab handle */}
+          <View className="items-center pt-3">
+            <View className="h-1.5 w-12 rounded-full bg-slate-300" />
+          </View>
+          <View className="border-b border-line px-5 py-4">
+            <Text className="text-xl font-bold text-ink">Mark Delivered</Text>
+            <Text className="mt-0.5 text-sm text-muted" numberOfLines={1}>
               {delivery?.name} · {delivery?.customer_name}
             </Text>
           </View>
@@ -180,12 +184,12 @@ function MarkDeliveredModal({
                   />
                 </Pressable>
               ))}
-              <Pressable
+              <Touchable
                 onPress={takePhoto}
-                className="h-[72px] w-[72px] items-center justify-center rounded-xl border-2 border-dashed border-slate-300 active:opacity-70"
+                className="h-[72px] w-[72px] items-center justify-center rounded-2xl border-2 border-dashed border-slate-300"
               >
-                <Text className="text-2xl">📷</Text>
-              </Pressable>
+                <Icon name="camera-outline" size={26} color="#64748b" />
+              </Touchable>
             </View>
             <Text className="mt-1 text-xs text-slate-400">
               Long-press a photo to remove it
@@ -318,29 +322,33 @@ function DeliveryRow({
         {delivery.recipient_name ? ` · signed: ${delivery.recipient_name}` : ''}
       </Text>
 
-      <View className="mt-2.5 flex-row items-center gap-2 border-t border-slate-100 pt-2.5">
+      <View className="mt-3 flex-row items-center gap-2 border-t border-line pt-3">
         {delivery.customer_phone ? (
-          <Pressable
+          <Touchable
             onPress={() => Linking.openURL(`tel:${delivery.customer_phone}`)}
-            className="rounded-lg bg-green-50 px-3 py-1.5 active:opacity-70"
+            className="flex-row items-center gap-1.5 rounded-xl bg-green-50 px-3 py-2"
           >
-            <Text className="text-xs font-semibold text-green-700">📞 Call</Text>
-          </Pressable>
+            <Icon name="call-outline" size={15} color="#15803d" />
+            <Text className="text-sm font-semibold text-green-700">Call</Text>
+          </Touchable>
         ) : null}
-        <Pressable
+        <Touchable
           onPress={() => openNavigation(delivery)}
-          className="rounded-lg bg-sky-50 px-3 py-1.5 active:opacity-70"
+          className="flex-row items-center gap-1.5 rounded-xl bg-sky-50 px-3 py-2"
         >
-          <Text className="text-xs font-semibold text-sky-700">🗺️ Navigate</Text>
-        </Pressable>
+          <Icon name="navigate-outline" size={15} color="#0369a1" />
+          <Text className="text-sm font-semibold text-sky-700">Navigate</Text>
+        </Touchable>
         <View className="flex-1" />
         {OPEN(delivery) ? (
-          <Pressable
+          <Touchable
             onPress={() => onMarkDelivered(delivery)}
-            className="rounded-lg bg-green-500 px-3 py-1.5 active:opacity-80"
+            rippleColor="rgba(255,255,255,0.2)"
+            className="flex-row items-center gap-1.5 rounded-xl bg-green-500 px-3.5 py-2"
           >
-            <Text className="text-xs font-semibold text-white">✅ Mark Delivered</Text>
-          </Pressable>
+            <Icon name="checkmark-circle" size={16} color="#ffffff" />
+            <Text className="text-sm font-semibold text-white">Delivered</Text>
+          </Touchable>
         ) : null}
       </View>
     </View>
