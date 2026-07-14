@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useMyExpenses } from '@/hooks/use-expenses';
+import { SkeletonList } from '@/ui';
 
 const inr = (n: number | null | undefined) =>
   `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}`;
@@ -54,8 +55,8 @@ export default function ExpensesHome() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-50">
-        <ActivityIndicator size="large" color="#f97316" />
+      <View className="flex-1 bg-canvas">
+        <SkeletonList count={6} />
       </View>
     );
   }
@@ -65,7 +66,7 @@ export default function ExpensesHome() {
 
   return (
     <ScrollView
-      className="flex-1 bg-slate-50"
+      className="flex-1 bg-canvas"
       contentContainerClassName="p-4 pb-10"
       refreshControl={
         <RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} />

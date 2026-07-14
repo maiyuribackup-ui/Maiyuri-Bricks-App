@@ -193,7 +193,7 @@ export default function WorkItemDetail() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 pb-16">
+    <ScrollView className="flex-1 bg-canvas" contentContainerClassName="p-4 pb-16">
       {/* header */}
       <Text className="text-lg font-bold text-ink">{item.title}</Text>
       {item.description ? (
@@ -371,7 +371,7 @@ export default function WorkItemDetail() {
                 placeholder="What needs to be corrected?"
                 placeholderTextColor="#94a3b8"
                 multiline
-                className="min-h-[56px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-ink"
+                className="min-h-[56px] rounded-lg border border-slate-200 bg-canvas px-3 py-2 text-ink"
               />
               <View className="mt-2 flex-row gap-2">
                 <Pressable
@@ -509,7 +509,7 @@ function ChecklistRow({
           onChangeText={(t) => onChange({ text_value: t })}
           placeholder="Enter value"
           placeholderTextColor="#94a3b8"
-          className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-ink"
+          className="mt-2 rounded-lg border border-slate-200 bg-canvas px-3 py-2 text-ink"
         />
       ) : null}
 
@@ -523,7 +523,7 @@ function ChecklistRow({
           keyboardType="numeric"
           placeholder="Enter number"
           placeholderTextColor="#94a3b8"
-          className="mt-2 w-28 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-ink"
+          className="mt-2 w-28 rounded-lg border border-slate-200 bg-canvas px-3 py-2 text-ink"
         />
       ) : null}
 

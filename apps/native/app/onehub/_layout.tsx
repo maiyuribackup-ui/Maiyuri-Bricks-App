@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import { DrawerButton } from '@/ui/NavDrawer';
 
 export default function OneHubLayout() {
   return (
@@ -6,10 +7,13 @@ export default function OneHubLayout() {
       screenOptions={{
         headerStyle: { backgroundColor: '#0f172a' },
         headerTintColor: '#ffffff',
-        headerTitleStyle: { fontWeight: '700' },
+        headerTitleStyle: { fontWeight: '700', fontSize: 19 },
       }}
     >
-      <Stack.Screen name="index" options={{ title: '🧭 Maiyuri OneHub' }} />
+      <Stack.Screen
+        name="index"
+        options={{ title: 'Maiyuri OneHub', headerLeft: () => <DrawerButton /> }}
+      />
       <Stack.Screen name="my-work/index" options={{ title: '✅ My Work' }} />
       <Stack.Screen name="my-work/[id]" options={{ title: 'Work Item' }} />
       <Stack.Screen

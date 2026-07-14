@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { WORK_ADMIN_ROLES, useMyRole } from '@/hooks/use-approvals';
 import { useMyWork } from '@/hooks/use-my-work';
+import { SkeletonList } from '@/ui';
 
 const STATUS_STYLE: Record<WorkItemStatus, { bg: string; text: string; label: string }> = {
   pending: { bg: 'bg-slate-100', text: 'text-slate-600', label: 'Pending' },
@@ -104,8 +105,8 @@ export default function MyWorkQueueScreen() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-50">
-        <ActivityIndicator size="large" color="#f97316" />
+      <View className="flex-1 bg-canvas">
+        <SkeletonList count={6} />
       </View>
     );
   }
@@ -120,7 +121,7 @@ export default function MyWorkQueueScreen() {
 
   return (
     <ScrollView
-      className="flex-1 bg-slate-50"
+      className="flex-1 bg-canvas"
       contentContainerClassName="p-4 pb-10"
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} />}
     >

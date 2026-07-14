@@ -129,7 +129,7 @@ export default function SopEditor() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      className="flex-1 bg-slate-50"
+      className="flex-1 bg-canvas"
     >
       <ScrollView contentContainerClassName="p-4 pb-32">
         {/* department */}
@@ -185,7 +185,7 @@ export default function SopEditor() {
                 onChangeText={(t) => setStep(i, { icon: t })}
                 placeholder="🔧"
                 placeholderTextColor="#94a3b8"
-                className="w-14 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-center text-lg"
+                className="w-14 rounded-lg border border-slate-200 bg-canvas px-2 py-2 text-center text-lg"
               />
               <TextInput
                 value={step.en}
@@ -193,7 +193,7 @@ export default function SopEditor() {
                 placeholder="Step in English"
                 placeholderTextColor="#94a3b8"
                 multiline
-                className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-ink"
+                className="flex-1 rounded-lg border border-slate-200 bg-canvas px-3 py-2 text-ink"
               />
             </View>
             <TextInput
@@ -202,7 +202,7 @@ export default function SopEditor() {
               placeholder="படி (தமிழ்)"
               placeholderTextColor="#94a3b8"
               multiline
-              className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-ink"
+              className="mt-2 rounded-lg border border-slate-200 bg-canvas px-3 py-2 text-ink"
             />
           </View>
         ))}

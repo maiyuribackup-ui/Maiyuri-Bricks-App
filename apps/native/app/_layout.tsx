@@ -1,9 +1,11 @@
 import '../global.css';
 
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   asyncStoragePersister,
@@ -15,6 +17,7 @@ import { initAuthListener, useAuth } from '@/store/auth';
 import { initSentry, Sentry, setSentryUser } from '@/lib/sentry';
 import { ToastHost } from '@/components/ToastHost';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { NavDrawer } from '@/ui/NavDrawer';
 import { initOnlineManager } from '@/lib/offline';
 import { checkForAppUpdate } from '@/lib/app-updates';
 
@@ -59,35 +62,42 @@ function RootLayout() {
   }, [session?.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <SafeAreaProvider>
-      <PersistQueryClientProvider
-        client={queryClient}
-        persistOptions={{ persister: asyncStoragePersister, maxAge: PERSIST_MAX_AGE }}
-        onSuccess={() => {
-          // Replay any offline writes that were queued before the app closed
-          // (e.g. a driver's Mark Delivered from the brick yard).
-          void queryClient.resumePausedMutations();
-        }}
-      >
-        <StatusBar style="light" />
-        <OfflineBanner />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(auth)/login" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="leads/[id]"
-            options={{ headerShown: true, title: 'Lead' }}
-          />
-          <Stack.Screen
-            name="leads/new"
-            options={{ headerShown: true, title: 'New Lead' }}
-          />
-          <Stack.Screen name="onehub" options={{ headerShown: false }} />
-        </Stack>
-        <ToastHost />
-      </PersistQueryClientProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{ persister: asyncStoragePersister, maxAge: PERSIST_MAX_AGE }}
+          onSuccess={() => {
+            // Replay any offline writes that were queued before the app closed
+            // (e.g. a driver's Mark Delivered from the brick yard).
+            void queryClient.resumePausedMutations();
+          }}
+        >
+          <BottomSheetModalProvider>
+            <StatusBar style="light" />
+            <OfflineBanner />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(auth)/login" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen
+                name="leads/[id]"
+                options={{ headerShown: true, title: 'Lead' }}
+              />
+              <Stack.Screen
+                name="leads/new"
+                options={{ headerShown: true, title: 'New Lead' }}
+              />
+              <Stack.Screen name="onehub" options={{ headerShown: false }} />
+            </Stack>
+            {/* Native left navigation drawer (hamburger + left-edge swipe).
+                Rendered above the Stack so it overlays every screen. */}
+            {session ? <NavDrawer /> : null}
+            <ToastHost />
+          </BottomSheetModalProvider>
+        </PersistQueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

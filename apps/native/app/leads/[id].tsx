@@ -174,7 +174,7 @@ function PromiseSection() {
           keyboardType="numeric"
           placeholder="Quantity"
           placeholderTextColor="#94a3b8"
-          className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-ink"
+          className="flex-1 rounded-lg border border-slate-200 bg-canvas px-3 py-2 text-ink"
         />
         <Pressable
           onPress={() =>
@@ -243,7 +243,7 @@ function NotesSection({ leadId }: { leadId: string }) {
       </Text>
 
       {/* composer */}
-      <View className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-2">
+      <View className="mb-3 rounded-xl border border-slate-200 bg-canvas p-2">
         <TextInput
           value={text}
           onChangeText={setText}

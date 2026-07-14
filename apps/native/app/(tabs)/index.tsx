@@ -18,6 +18,7 @@ import {
 } from '@/hooks/use-dashboard';
 import { useLeads } from '@/hooks/use-leads';
 import { useMyWork } from '@/hooks/use-my-work';
+import { SkeletonList } from '@/ui';
 
 type CardDef = {
   key: keyof import('@/hooks/use-dashboard').DashboardStats;
@@ -184,15 +185,15 @@ export default function DashboardScreen() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-50">
-        <ActivityIndicator size="large" color="#f97316" />
+      <View className="flex-1 bg-canvas">
+        <SkeletonList count={6} />
       </View>
     );
   }
 
   if (isError || !stats) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-50 px-6">
+      <View className="flex-1 items-center justify-center bg-canvas px-6">
         <Text className="text-center text-red-500">
           {error instanceof Error ? error.message : 'Failed to load dashboard'}
         </Text>
@@ -207,7 +208,7 @@ export default function DashboardScreen() {
   }
 
   return (
-    <SafeAreaView edges={['bottom']} className="flex-1 bg-slate-50">
+    <SafeAreaView edges={['bottom']} className="flex-1 bg-canvas">
       <ScrollView
         contentContainerClassName="p-4 pb-8"
         refreshControl={

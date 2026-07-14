@@ -73,7 +73,7 @@ export default function SopViewer() {
 
       <View className="px-5 pt-4">
         {sop.steps.map((step, i) => (
-          <View key={i} className="mb-3 flex-row rounded-xl border border-slate-100 bg-slate-50 p-3.5">
+          <View key={i} className="mb-3 flex-row rounded-xl border border-slate-100 bg-canvas p-3.5">
             <View className="mr-3 items-center">
               <View className="h-8 w-8 items-center justify-center rounded-full bg-ink">
                 <Text className="text-sm font-bold text-white">{i + 1}</Text>

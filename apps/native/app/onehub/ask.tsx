@@ -50,7 +50,7 @@ export default function AskMayurScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      className="flex-1 bg-slate-50"
+      className="flex-1 bg-canvas"
     >
       <ScrollView className="flex-1" contentContainerClassName="p-4 pb-4">
         <View className="flex-row items-center rounded-2xl bg-ink p-4">
@@ -139,7 +139,7 @@ export default function AskMayurScreen() {
             placeholder={language === 'ta' ? 'உங்கள் கேள்வியை கேளுங்கள்…' : 'Ask Mayur anything…'}
             placeholderTextColor="#94a3b8"
             multiline
-            className="max-h-24 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
+            className="max-h-24 flex-1 rounded-xl border border-slate-200 bg-canvas px-4 py-2.5 text-ink"
           />
           <Pressable
             onPress={submit}

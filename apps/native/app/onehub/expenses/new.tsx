@@ -147,7 +147,7 @@ export default function NewExpense() {
   const busy = create.isPending || uploadReceipt.isPending;
 
   return (
-    <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 pb-16">
+    <ScrollView className="flex-1 bg-canvas" contentContainerClassName="p-4 pb-16">
       <Text className="mb-1 text-xs text-slate-400">
         Available balance {inr(balance)}
       </Text>

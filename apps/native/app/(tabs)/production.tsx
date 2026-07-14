@@ -155,7 +155,7 @@ function OrderActionsModal({
                 keyboardType="numeric"
                 placeholder={`Planned: ${order?.planned_quantity ?? '—'}`}
                 placeholderTextColor="#94a3b8"
-                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
+                className="flex-1 rounded-xl border border-slate-200 bg-canvas px-4 py-2.5 text-ink"
               />
               <Pressable
                 onPress={saveQty}
@@ -266,7 +266,7 @@ export default function ProductionScreen() {
     useProductionOrders({ search: search || undefined });
 
   return (
-    <SafeAreaView edges={['bottom']} className="flex-1 bg-slate-50">
+    <SafeAreaView edges={['bottom']} className="flex-1 bg-canvas">
       <View className="px-4 pb-2 pt-3">
         <TextInput
           value={search}

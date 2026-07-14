@@ -84,7 +84,7 @@ export default function AssignWorkScreen() {
 
   if (!isAdmin) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-50 px-6">
+      <View className="flex-1 items-center justify-center bg-canvas px-6">
         <Text className="text-center text-sm text-slate-400">
           Only founders, owners and supervisors can assign work.
         </Text>
@@ -119,7 +119,7 @@ export default function AssignWorkScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 pb-16">
+    <ScrollView className="flex-1 bg-canvas" contentContainerClassName="p-4 pb-16">
       <Text className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
         Task
       </Text>

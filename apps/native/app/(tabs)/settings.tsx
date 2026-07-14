@@ -114,7 +114,7 @@ function PlanningParamsSection() {
                     keyboardType="numeric"
                     placeholder="units/day"
                     placeholderTextColor="#94a3b8"
-                    className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-ink"
+                    className="flex-1 rounded-lg border border-slate-200 bg-canvas px-3 py-1.5 text-sm text-ink"
                   />
                   <TextInput
                     value={curing}
@@ -125,7 +125,7 @@ function PlanningParamsSection() {
                     keyboardType="numeric"
                     placeholder="cure d"
                     placeholderTextColor="#94a3b8"
-                    className="w-16 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-ink"
+                    className="w-16 rounded-lg border border-slate-200 bg-canvas px-3 py-1.5 text-sm text-ink"
                   />
                   <TextInput
                     value={minBatch}
@@ -136,7 +136,7 @@ function PlanningParamsSection() {
                     keyboardType="numeric"
                     placeholder="min"
                     placeholderTextColor="#94a3b8"
-                    className="w-16 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-ink"
+                    className="w-16 rounded-lg border border-slate-200 bg-canvas px-3 py-1.5 text-sm text-ink"
                   />
                   <Pressable
                     onPress={() => commit(row.finished_good_id)}
@@ -231,7 +231,7 @@ function PushSection() {
         <Pressable
           onPress={onRegister}
           disabled={registering}
-          className="flex-1 items-center rounded-lg border border-slate-200 bg-slate-50 py-2.5 active:opacity-70"
+          className="flex-1 items-center rounded-lg border border-slate-200 bg-canvas py-2.5 active:opacity-70"
         >
           {registering ? (
             <ActivityIndicator size="small" color="#f97316" />
@@ -329,7 +329,7 @@ export default function SettingsScreen() {
   const profile = useMyProfile(userId);
 
   return (
-    <SafeAreaView edges={['bottom']} className="flex-1 bg-slate-50">
+    <SafeAreaView edges={['bottom']} className="flex-1 bg-canvas">
       <ScrollView contentContainerClassName="px-4 pb-8 pt-4">
         <View className="rounded-xl border border-slate-200 bg-white p-4">
           <Text className="text-sm text-slate-500">Signed in as</Text>

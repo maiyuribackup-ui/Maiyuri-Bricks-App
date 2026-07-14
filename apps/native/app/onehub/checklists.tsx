@@ -21,7 +21,7 @@ export default function ChecklistsScreen() {
     (t?.phases ?? []).reduce((s, p) => s + p.items.length, 0);
 
   return (
-    <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 pb-10">
+    <ScrollView className="flex-1 bg-canvas" contentContainerClassName="p-4 pb-10">
       {isLoading ? (
         <ActivityIndicator size="large" color="#f97316" className="mt-10" />
       ) : (
@@ -35,7 +35,7 @@ export default function ChecklistsScreen() {
                 onChangeText={setName}
                 placeholder="Joiner's name"
                 placeholderTextColor="#94a3b8"
-                className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-ink"
+                className="flex-1 rounded-lg border border-slate-200 bg-canvas px-3 py-2 text-ink"
               />
               <Pressable
                 onPress={() =>

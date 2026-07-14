@@ -139,7 +139,7 @@ export default function NewLeadScreen() {
           onChangeText={setName}
           placeholder="Customer name"
           placeholderTextColor="#94a3b8"
-          className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
+          className="rounded-xl border border-slate-200 bg-canvas px-4 py-2.5 text-ink"
         />
 
         <Label required>Contact number</Label>
@@ -149,7 +149,7 @@ export default function NewLeadScreen() {
           keyboardType="phone-pad"
           placeholder="98xxxxxxxx"
           placeholderTextColor="#94a3b8"
-          className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
+          className="rounded-xl border border-slate-200 bg-canvas px-4 py-2.5 text-ink"
         />
 
         <Label required>Source</Label>
@@ -175,7 +175,7 @@ export default function NewLeadScreen() {
           onChangeText={setSiteLocation}
           placeholder="e.g. Minjur, Chennai"
           placeholderTextColor="#94a3b8"
-          className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
+          className="rounded-xl border border-slate-200 bg-canvas px-4 py-2.5 text-ink"
         />
 
         <Label>Estimated value (₹)</Label>
@@ -185,7 +185,7 @@ export default function NewLeadScreen() {
           keyboardType="numeric"
           placeholder="e.g. 250000"
           placeholderTextColor="#94a3b8"
-          className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
+          className="rounded-xl border border-slate-200 bg-canvas px-4 py-2.5 text-ink"
         />
 
         <Label>Follow-up</Label>
@@ -218,7 +218,7 @@ export default function NewLeadScreen() {
           placeholder="e.g. Send brochure on WhatsApp"
           placeholderTextColor="#94a3b8"
           multiline
-          className="min-h-[44px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
+          className="min-h-[44px] rounded-xl border border-slate-200 bg-canvas px-4 py-2.5 text-ink"
         />
 
         {formError ? (

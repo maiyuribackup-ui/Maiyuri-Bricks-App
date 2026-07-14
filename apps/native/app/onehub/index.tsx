@@ -1,5 +1,5 @@
-import { Link } from 'expo-router';
-import { Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Image, ScrollView, Text, View } from 'react-native';
 import {
   TICKET_APPROVER_ROLES,
   WORK_ADMIN_ROLES,
@@ -10,17 +10,64 @@ import {
   EXPENSE_SUBMITTER_ROLES,
 } from '@/hooks/use-expenses';
 import { useSops } from '@/hooks/use-onehub';
+import { Card, Icon, type IconName, Touchable } from '@/ui';
 
-export const DEPARTMENTS: { key: string; label: string; ta: string; icon: string }[] = [
-  { key: 'sales', label: 'Sales', ta: 'விற்பனை', icon: '🤝' },
-  { key: 'production', label: 'Production', ta: 'உற்பத்தி', icon: '🏭' },
-  { key: 'dispatch', label: 'Dispatch', ta: 'டெலிவரி', icon: '🚚' },
-  { key: 'accounts', label: 'Accounts & Odoo', ta: 'கணக்கு', icon: '💰' },
-  { key: 'hr', label: 'HR / Admin', ta: 'நிர்வாகம்', icon: '👥' },
-  { key: 'safety', label: 'Safety', ta: 'பாதுகாப்பு', icon: '🦺' },
+export const DEPARTMENTS: {
+  key: string;
+  label: string;
+  ta: string;
+  icon: IconName;
+  tint: string;
+}[] = [
+  { key: 'sales', label: 'Sales', ta: 'விற்பனை', icon: 'people-outline', tint: '#f97316' },
+  { key: 'production', label: 'Production', ta: 'உற்பத்தி', icon: 'construct-outline', tint: '#0ea5e9' },
+  { key: 'dispatch', label: 'Dispatch', ta: 'டெலிவரி', icon: 'cube-outline', tint: '#8b5cf6' },
+  { key: 'accounts', label: 'Accounts', ta: 'கணக்கு', icon: 'cash-outline', tint: '#16a34a' },
+  { key: 'hr', label: 'HR / Admin', ta: 'நிர்வாகம்', icon: 'people-circle-outline', tint: '#e11d48' },
+  { key: 'safety', label: 'Safety', ta: 'பாதுகாப்பு', icon: 'shield-checkmark-outline', tint: '#d97706' },
 ];
 
+/** A big tappable navigation row with a tinted icon chip. */
+function NavRow({
+  icon,
+  tint,
+  title,
+  subtitle,
+  onPress,
+  accent,
+}: {
+  icon: IconName;
+  tint: string;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+  accent?: boolean;
+}) {
+  return (
+    <Touchable onPress={onPress} className="mb-3">
+      <Card className={`flex-row items-center ${accent ? 'bg-ink' : ''}`}>
+        <View
+          className="mr-4 h-12 w-12 items-center justify-center rounded-2xl"
+          style={{ backgroundColor: accent ? 'rgba(255,255,255,0.12)' : `${tint}1a` }}
+        >
+          <Icon name={icon} size={24} color={accent ? '#f97316' : tint} />
+        </View>
+        <View className="flex-1">
+          <Text className={`text-base font-bold ${accent ? 'text-white' : 'text-ink'}`}>
+            {title}
+          </Text>
+          <Text className={`mt-0.5 text-sm ${accent ? 'text-slate-300' : 'text-muted'}`}>
+            {subtitle}
+          </Text>
+        </View>
+        <Icon name="chevron-forward" size={20} color={accent ? '#64748b' : '#cbd5e1'} />
+      </Card>
+    </Touchable>
+  );
+}
+
 export default function OneHubHome() {
+  const router = useRouter();
   const { data } = useSops();
   const role = useMyRole();
   const showApprovals =
@@ -31,141 +78,124 @@ export default function OneHubHome() {
   for (const sop of data?.data ?? []) {
     counts.set(sop.department, (counts.get(sop.department) ?? 0) + 1);
   }
+  const go = (href: string) => router.push(href as never);
 
   return (
-    <ScrollView className="flex-1 bg-slate-50" contentContainerClassName="p-4 pb-10">
-      {/* brand promise */}
-      <View className="flex-row items-center overflow-hidden rounded-2xl bg-ink p-5">
+    <ScrollView className="flex-1 bg-canvas" contentContainerClassName="p-4 pb-12">
+      {/* Brand promise */}
+      <View className="mb-4 flex-row items-center overflow-hidden rounded-3xl bg-ink p-6">
         <View className="flex-1 pr-2">
           <Text className="text-lg font-bold text-white">Vanakkam! 👋</Text>
           <Text className="mt-2 text-2xl font-bold text-brand">
             நம் மண். நம் வீடு. நம் அறிவு.
           </Text>
-          <Text className="mt-1 text-sm text-slate-300">
-            Our soil. Our home. Our wisdom. — One place for SOPs, checklists,
-            links and answers.
+          <Text className="mt-2 text-sm leading-6 text-slate-300">
+            Our soil. Our home. Our wisdom.
           </Text>
         </View>
         <Image
           source={require('../../assets/onehub/mayur-hero.png')}
-          style={{ width: 96, height: 96 }}
+          style={{ width: 92, height: 92 }}
           resizeMode="contain"
         />
       </View>
 
-      {/* My Work — the personal daily queue */}
-      <Link href={"/onehub/my-work" as import("expo-router").Href} asChild>
-        <Pressable className="mt-3 flex-row items-center rounded-2xl bg-ink p-4 active:opacity-70">
-          <Text className="mr-3 text-3xl">✅</Text>
-          <View className="flex-1">
-            <Text className="text-base font-bold text-white">My Work</Text>
-            <Text className="text-xs text-slate-300">
-              Your tasks, checklists and daily jobs — do them here
-            </Text>
-          </View>
-          <Text className="text-slate-400">→</Text>
-        </Pressable>
-      </Link>
+      <NavRow
+        accent
+        icon="checkbox-outline"
+        tint="#f97316"
+        title="My Work"
+        subtitle="Your tasks, checklists and daily jobs"
+        onPress={() => go('/onehub/my-work')}
+      />
 
-      {/* My Expenses — petty-cash balance + claims */}
       {showExpenses ? (
-        <Link href={"/onehub/expenses" as import("expo-router").Href} asChild>
-          <Pressable className="mt-3 flex-row items-center rounded-2xl border border-slate-200 bg-white p-4 active:opacity-70">
-            <Text className="mr-3 text-3xl">💰</Text>
-            <View className="flex-1">
-              <Text className="text-base font-bold text-ink">My Expenses</Text>
-              <Text className="text-xs text-slate-500">
-                Your petty-cash balance — record petrol, materials & more
-              </Text>
-            </View>
-            <Text className="text-slate-400">→</Text>
-          </Pressable>
-        </Link>
+        <NavRow
+          icon="wallet-outline"
+          tint="#16a34a"
+          title="My Expenses"
+          subtitle="Petty-cash balance — petrol, materials & more"
+          onPress={() => go('/onehub/expenses')}
+        />
       ) : null}
 
-      {/* Approvals — supervisors / accountants / founders */}
       {showApprovals ? (
-        <Link href={"/onehub/approvals" as import("expo-router").Href} asChild>
-          <Pressable className="mt-3 flex-row items-center rounded-2xl border border-slate-200 bg-white p-4 active:opacity-70">
-            <Text className="mr-3 text-3xl">👀</Text>
-            <View className="flex-1">
-              <Text className="text-base font-bold text-ink">Approvals</Text>
-              <Text className="text-xs text-slate-500">
-                Tickets and work submissions waiting on your decision
-              </Text>
-            </View>
-            <Text className="text-slate-400">→</Text>
-          </Pressable>
-        </Link>
+        <NavRow
+          icon="checkmark-done-outline"
+          tint="#8b5cf6"
+          title="Approvals"
+          subtitle="Tickets, work & expenses awaiting you"
+          onPress={() => go('/onehub/approvals')}
+        />
       ) : null}
 
-      {/* Ask Mayur */}
-      <Link href={"/onehub/ask" as import("expo-router").Href} asChild>
-        <Pressable className="mt-3 flex-row items-center rounded-2xl border-2 border-brand bg-orange-50 p-4 active:opacity-70">
+      {/* Ask Mayur — keep the avatar, it's brand */}
+      <Touchable onPress={() => go('/onehub/ask')} className="mb-3">
+        <View className="flex-row items-center rounded-2xl border-2 border-brand bg-orange-50 p-4">
           <Image
             source={require('../../assets/onehub/mayur-avatar.png')}
-            style={{ width: 44, height: 44, borderRadius: 22, marginRight: 12 }}
+            style={{ width: 46, height: 46, borderRadius: 23, marginRight: 14 }}
             resizeMode="cover"
           />
           <View className="flex-1">
             <Text className="text-base font-bold text-ink">Ask Mayur</Text>
-            <Text className="text-xs text-slate-500">
-              Any question about products, process, SOPs — English or தமிழ்
+            <Text className="mt-0.5 text-sm text-muted">
+              Any question — products, process, SOPs (EN / தமிழ்)
             </Text>
           </View>
-          <Text className="text-slate-400">→</Text>
-        </Pressable>
-      </Link>
+          <Icon name="chevron-forward" size={20} color="#cbd5e1" />
+        </View>
+      </Touchable>
 
       {/* SOP library */}
-      <Text className="mb-2 mt-5 text-base font-bold text-ink">📖 SOP Library</Text>
+      <Text className="mb-3 mt-5 text-lg font-bold text-ink">SOP Library</Text>
       <View className="flex-row flex-wrap justify-between">
         {DEPARTMENTS.map((d) => (
-          <Link key={d.key} href={`/onehub/department/${d.key}` as import("expo-router").Href} asChild>
-            <Pressable className="mb-3 w-[48.5%] rounded-xl border border-slate-200 bg-white p-4 active:opacity-70">
-              <Text className="text-2xl">{d.icon}</Text>
-              <Text className="mt-1 text-sm font-semibold text-ink">{d.label}</Text>
-              <Text className="text-xs text-slate-400">
-                {d.ta} · {counts.get(d.key) ?? 0} SOP{(counts.get(d.key) ?? 0) === 1 ? '' : 's'}
+          <Touchable
+            key={d.key}
+            onPress={() => go(`/onehub/department/${d.key}`)}
+            className="mb-3 w-[48.5%]"
+          >
+            <Card>
+              <View
+                className="mb-3 h-11 w-11 items-center justify-center rounded-2xl"
+                style={{ backgroundColor: `${d.tint}1a` }}
+              >
+                <Icon name={d.icon} size={22} color={d.tint} />
+              </View>
+              <Text className="text-base font-semibold text-ink">{d.label}</Text>
+              <Text className="mt-0.5 text-sm text-subtle">
+                {d.ta} · {counts.get(d.key) ?? 0} SOP
+                {(counts.get(d.key) ?? 0) === 1 ? '' : 's'}
               </Text>
-            </Pressable>
-          </Link>
+            </Card>
+          </Touchable>
         ))}
       </View>
 
-      {/* other sections */}
-      <Link href={"/onehub/checklists" as import("expo-router").Href} asChild>
-        <Pressable className="mb-3 flex-row items-center rounded-xl border border-slate-200 bg-white p-4 active:opacity-70">
-          <Text className="mr-3 text-2xl">✅</Text>
-          <View className="flex-1">
-            <Text className="text-sm font-semibold text-ink">New Joiners Checklist</Text>
-            <Text className="text-xs text-slate-400">Onboarding steps, owners, progress</Text>
-          </View>
-          <Text className="text-slate-400">→</Text>
-        </Pressable>
-      </Link>
-      <Link href={"/onehub/training" as import("expo-router").Href} asChild>
-        <Pressable className="mb-3 flex-row items-center rounded-xl border border-slate-200 bg-white p-4 active:opacity-70">
-          <Text className="mr-3 text-2xl">🎓</Text>
-          <View className="flex-1">
-            <Text className="text-sm font-semibold text-ink">Training</Text>
-            <Text className="text-xs text-slate-400">
-              Product & sales lessons — learn at your own pace
-            </Text>
-          </View>
-          <Text className="text-slate-400">→</Text>
-        </Pressable>
-      </Link>
-      <Link href={"/onehub/links" as import("expo-router").Href} asChild>
-        <Pressable className="mb-3 flex-row items-center rounded-xl border border-slate-200 bg-white p-4 active:opacity-70">
-          <Text className="mr-3 text-2xl">🔗</Text>
-          <View className="flex-1">
-            <Text className="text-sm font-semibold text-ink">Important Links</Text>
-            <Text className="text-xs text-slate-400">Odoo, brochure, calculator, socials</Text>
-          </View>
-          <Text className="text-slate-400">→</Text>
-        </Pressable>
-      </Link>
+      <View className="mt-2">
+        <NavRow
+          icon="school-outline"
+          tint="#0ea5e9"
+          title="Training"
+          subtitle="Product & sales lessons — at your own pace"
+          onPress={() => go('/onehub/training')}
+        />
+        <NavRow
+          icon="people-outline"
+          tint="#e11d48"
+          title="New Joiners Checklist"
+          subtitle="Onboarding steps, owners, progress"
+          onPress={() => go('/onehub/checklists')}
+        />
+        <NavRow
+          icon="link-outline"
+          tint="#64748b"
+          title="Important Links"
+          subtitle="Odoo, brochure, calculator, socials"
+          onPress={() => go('/onehub/links')}
+        />
+      </View>
     </ScrollView>
   );
 }

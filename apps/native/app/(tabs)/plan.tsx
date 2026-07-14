@@ -168,7 +168,7 @@ function DraftPreview({
         Day by day
       </Text>
       {byDate.map(([date, items]) => (
-        <View key={date} className="mb-2 rounded-lg bg-slate-50 p-2.5">
+        <View key={date} className="mb-2 rounded-lg bg-canvas p-2.5">
           <Text className="mb-1 text-xs font-bold text-slate-500">
             {new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', {
               weekday: 'short',
@@ -369,7 +369,7 @@ function PlanSegment() {
               keyboardType="numeric"
               placeholder="Quantity"
               placeholderTextColor="#94a3b8"
-              className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-ink"
+              className="flex-1 rounded-lg border border-slate-200 bg-canvas px-3 py-2 text-ink"
             />
             <Pressable
               onPress={() =>
@@ -710,7 +710,7 @@ function CalendarSegment() {
               value={reportQty}
               onChangeText={setReportQty}
               keyboardType="numeric"
-              className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-ink"
+              className="mt-3 rounded-xl border border-slate-200 bg-canvas px-4 py-2.5 text-ink"
             />
             <View className="mt-3 flex-row gap-2">
               <Pressable
@@ -845,7 +845,7 @@ export default function PlanScreen() {
   ];
 
   return (
-    <SafeAreaView edges={['bottom']} className="flex-1 bg-slate-50">
+    <SafeAreaView edges={['bottom']} className="flex-1 bg-canvas">
       <View className="flex-row gap-2 px-4 pb-1 pt-3">
         {SEGMENTS.map((s) => (
           <Pressable

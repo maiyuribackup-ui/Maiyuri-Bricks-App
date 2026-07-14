@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { haptic } from '@/ui/haptics';
 
 export type ToastKind = 'success' | 'error' | 'info';
 
@@ -25,9 +26,19 @@ export const useToast = create<ToastState>((set) => ({
   clear: () => set({ message: null }),
 }));
 
-/** Imperative helpers so non-component code can toast too. */
+/**
+ * Imperative helpers so non-component code can toast too. Each carries the
+ * matching haptic so every confirmed write/failure is felt, not just seen —
+ * one change gives the whole app tactile feedback.
+ */
 export const toast = {
-  success: (m: string) => useToast.getState().show(m, 'success'),
-  error: (m: string) => useToast.getState().show(m, 'error'),
+  success: (m: string) => {
+    haptic.success();
+    useToast.getState().show(m, 'success');
+  },
+  error: (m: string) => {
+    haptic.error();
+    useToast.getState().show(m, 'error');
+  },
   info: (m: string) => useToast.getState().show(m, 'info'),
 };
