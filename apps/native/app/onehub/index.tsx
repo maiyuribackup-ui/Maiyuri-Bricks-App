@@ -5,6 +5,10 @@ import {
   WORK_ADMIN_ROLES,
   useMyRole,
 } from '@/hooks/use-approvals';
+import {
+  EXPENSE_ADMIN_ROLES,
+  EXPENSE_SUBMITTER_ROLES,
+} from '@/hooks/use-expenses';
 import { useSops } from '@/hooks/use-onehub';
 
 export const DEPARTMENTS: { key: string; label: string; ta: string; icon: string }[] = [
@@ -21,6 +25,8 @@ export default function OneHubHome() {
   const role = useMyRole();
   const showApprovals =
     TICKET_APPROVER_ROLES.includes(role) || WORK_ADMIN_ROLES.includes(role);
+  const showExpenses =
+    EXPENSE_SUBMITTER_ROLES.includes(role) || EXPENSE_ADMIN_ROLES.includes(role);
   const counts = new Map<string, number>();
   for (const sop of data?.data ?? []) {
     counts.set(sop.department, (counts.get(sop.department) ?? 0) + 1);
@@ -60,6 +66,22 @@ export default function OneHubHome() {
           <Text className="text-slate-400">→</Text>
         </Pressable>
       </Link>
+
+      {/* My Expenses — petty-cash balance + claims */}
+      {showExpenses ? (
+        <Link href={"/onehub/expenses" as import("expo-router").Href} asChild>
+          <Pressable className="mt-3 flex-row items-center rounded-2xl border border-slate-200 bg-white p-4 active:opacity-70">
+            <Text className="mr-3 text-3xl">💰</Text>
+            <View className="flex-1">
+              <Text className="text-base font-bold text-ink">My Expenses</Text>
+              <Text className="text-xs text-slate-500">
+                Your petty-cash balance — record petrol, materials & more
+              </Text>
+            </View>
+            <Text className="text-slate-400">→</Text>
+          </Pressable>
+        </Link>
+      ) : null}
 
       {/* Approvals — supervisors / accountants / founders */}
       {showApprovals ? (

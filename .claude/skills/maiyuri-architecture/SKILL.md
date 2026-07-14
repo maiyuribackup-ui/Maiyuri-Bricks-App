@@ -250,7 +250,38 @@ Daily Report through the existing Tasks tile (they ARE work_items).
 - **The VM sleeps with the PC** — the sync treats unreachable as a graceful
   skip (no alert); an alert from openproject-sync means a real bug.
 
-### 3.14 Dashboards & Settings
+### 3.14 Reimbursement / Petty Cash  (`src/lib/expenses.ts`, `expenses-notify.ts`)
+Field staff hold a petty-cash **float**; they record expenses against it; the
+office tops it up. **Balance is computed live, never stored:**
+`Σ petty_cash_topups − Σ expense_claims(status in pending|approved)` —
+`getBalance()`/`getAllBalances()`. An expense deducts on **submit** (overspend
+guard: POST rejects if amount > balance); **approve** is the audit gate;
+**reject** restores the money (excluded from the sum).
+- Tables: `expense_types` (master; `kind` standard|petrol, `cost_category`
+  maps to cost_entries), `expense_vehicle_rates` (per-km petrol rates),
+  `petty_cash_topups` (admin credits), `expense_claims` (debits; petrol carries
+  vehicle_rate_id/km/from/to/customer + `per_km_rate_applied` snapshot).
+  Migration `supabase/migrations/20260714120000_expenses.sql`.
+- **Petrol amount is computed server-side** (`km × vehicle_rate`) — the client
+  number is never trusted.
+- API `apps/web/app/api/expenses/*`: GET (own view / `?view=all` admin),
+  POST (submit), `[id]/approve`+`/reject`, `topups`, `rates`, `types`,
+  `receipts` (upload + signer; private `expense-receipts` bucket).
+- On **approve**, a project-linked claim best-effort posts a `cost_entries`
+  row (`postClaimToProjectCost`, `source='manual'` since that CHECK excludes
+  other values, `payment_status='paid'`, back-linked via `claim.cost_entry_id`)
+  + `recomputeProject()` — field spend flows into project actuals/variance.
+- Roles: `EXPENSE_SUBMITTER_ROLES` = engineer/driver/sales/production_supervisor;
+  `EXPENSE_ADMIN_ROLES` = founder/owner/accountant (approve/topup/masters).
+- Surfaces: web admin cockpit `/expenses` (balances, pending queue, top-ups,
+  vehicle-rate master) — nav gated to accountant + founder/owner. Mobile
+  (submitters): `onehub/expenses/{index,new}` (balance card + petrol
+  live-calc form + receipt camera) via `use-expenses.ts`; admins get an
+  "Expense claims" queue on the shared `onehub/approvals` screen. Push via
+  `expenses-notify.ts` (submitted→admins, approved/rejected/topup→user).
+- No cron. Receipts in the private `expense-receipts` bucket (signed URLs).
+
+### 3.15 Dashboards & Settings
 - Multiple overlapping dashboards exist (dashboard, kpi, business-health,
   observability, analytics, daily-report) — consultant audit flagged
   consolidation onto Daily Report as the founder home.

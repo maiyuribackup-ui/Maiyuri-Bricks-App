@@ -58,6 +58,7 @@ const navigation: NavItem[] = [
   },
   { name: "Plan", href: "/planning", icon: ProductionIcon, key: "planning" },
   { name: "Projects", href: "/projects", icon: ProductionIcon, key: "projects" },
+  { name: "Reimbursements", href: "/expenses", icon: KPIIcon, key: "expenses" },
   {
     name: "Approvals",
     href: "/approvals",
@@ -90,6 +91,7 @@ const roleModuleAccess: Record<UserRole, string[]> = {
     "knowledge",
     "coaching",
     "projects",
+    "expenses",
   ],
   engineer: [
     "dashboard",

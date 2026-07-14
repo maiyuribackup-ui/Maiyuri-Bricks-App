@@ -1,4 +1,4 @@
-import type { Ticket, WorkItem } from '@maiyuri/shared';
+import type { ExpenseClaim, Ticket, WorkItem } from '@maiyuri/shared';
 import { Link } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -19,7 +19,16 @@ import {
   useRejectTicket,
   useWorkReviewQueue,
 } from '@/hooks/use-approvals';
+import {
+  EXPENSE_ADMIN_ROLES,
+  useApproveExpense,
+  useExpenseQueue,
+  useRejectExpense,
+} from '@/hooks/use-expenses';
 import { toast } from '@/lib/toast';
+
+const inr = (n: number | null | undefined) =>
+  `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}`;
 
 const TYPE_LABEL: Record<string, string> = {
   production_order: '🏭 Production order',
@@ -149,24 +158,126 @@ function WorkRow({ item }: { item: WorkItem }) {
   );
 }
 
+function ExpenseCard({ claim }: { claim: ExpenseClaim }) {
+  const approve = useApproveExpense();
+  const reject = useRejectExpense();
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState('');
+  const busy = approve.isPending || reject.isPending;
+
+  return (
+    <View className="mb-2 rounded-xl border border-slate-200 bg-white p-4">
+      <View className="flex-row items-center justify-between">
+        <Text className="flex-1 pr-2 text-sm font-semibold text-ink" numberOfLines={1}>
+          {claim.expense_type?.icon ?? '🧾'} {claim.expense_type?.name ?? 'Expense'}
+        </Text>
+        <Text className="text-sm font-bold text-ink">{inr(claim.amount)}</Text>
+      </View>
+      <Text className="mt-0.5 text-xs text-slate-400">
+        {claim.user?.name ?? 'staff'} · {claim.expense_date}
+        {claim.project ? ` · ${claim.project.name}` : ''}
+      </Text>
+      {claim.km ? (
+        <Text className="mt-0.5 text-xs text-slate-500">
+          🚗 {claim.from_location} → {claim.to_location} · {claim.km} km ×{' '}
+          {inr(claim.per_km_rate_applied)}/km
+          {claim.customer_name ? ` · ${claim.customer_name}` : ''}
+        </Text>
+      ) : null}
+      {claim.description ? (
+        <Text className="mt-1 text-sm text-slate-600">{claim.description}</Text>
+      ) : null}
+
+      {rejecting ? (
+        <View className="mt-2">
+          <TextInput
+            value={reason}
+            onChangeText={setReason}
+            placeholder="Why is this rejected? (required)"
+            placeholderTextColor="#94a3b8"
+            className="min-h-[40px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-ink"
+          />
+          <View className="mt-2 flex-row gap-2">
+            <Pressable
+              disabled={busy || reason.trim().length < 3}
+              onPress={() =>
+                reject.mutate(
+                  { id: claim.id, reason: reason.trim() },
+                  {
+                    onSuccess: () => toast.success('Rejected'),
+                    onError: (e) =>
+                      toast.error(e instanceof Error ? e.message : 'Failed'),
+                  },
+                )
+              }
+              className={`flex-1 items-center rounded-lg py-2 ${reason.trim().length < 3 || busy ? 'bg-slate-200' : 'bg-red-500 active:opacity-80'}`}
+            >
+              <Text className="text-xs font-semibold text-white">Confirm reject</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setRejecting(false)}
+              className="items-center rounded-lg px-4 py-2 active:opacity-70"
+            >
+              <Text className="text-xs font-semibold text-slate-400">Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : (
+        <View className="mt-2.5 flex-row gap-2 border-t border-slate-100 pt-2.5">
+          <Pressable
+            disabled={busy}
+            onPress={() =>
+              approve.mutate(claim.id, {
+                onSuccess: () => toast.success('Approved ✅'),
+                onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed'),
+              })
+            }
+            className={`flex-1 items-center rounded-lg py-2 ${busy ? 'bg-slate-200' : 'bg-green-500 active:opacity-80'}`}
+          >
+            {approve.isPending ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text className="text-xs font-semibold text-white">✅ Approve</Text>
+            )}
+          </Pressable>
+          <Pressable
+            disabled={busy}
+            onPress={() => setRejecting(true)}
+            className="flex-1 items-center rounded-lg border border-red-200 py-2 active:opacity-70"
+          >
+            <Text className="text-xs font-semibold text-red-500">✖ Reject</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function ApprovalsScreen() {
   const role = useMyRole();
   const canTickets = TICKET_APPROVER_ROLES.includes(role);
   const canWork = WORK_ADMIN_ROLES.includes(role);
+  const canExpenses = EXPENSE_ADMIN_ROLES.includes(role);
 
   const tickets = usePendingTickets(canTickets);
   const work = useWorkReviewQueue(canWork);
+  const expenses = useExpenseQueue(canExpenses);
 
   const loading =
-    (canTickets && tickets.isLoading) || (canWork && work.isLoading);
-  const refreshing = tickets.isRefetching || work.isRefetching;
+    (canTickets && tickets.isLoading) ||
+    (canWork && work.isLoading) ||
+    (canExpenses && expenses.isLoading);
+  const refreshing =
+    tickets.isRefetching || work.isRefetching || expenses.isRefetching;
   const refetchAll = () => {
     if (canTickets) void tickets.refetch();
     if (canWork) void work.refetch();
+    if (canExpenses) void expenses.refetch();
   };
 
   const pendingTickets = tickets.data?.data ?? [];
   const submissions = work.data?.data ?? [];
+  const pendingExpenses = expenses.data?.data?.pending ?? [];
 
   return (
     <ScrollView
@@ -224,7 +335,31 @@ export default function ApprovalsScreen() {
             </>
           ) : null}
 
-          {!canTickets && !canWork ? (
+          {canExpenses ? (
+            <>
+              <Text className="mb-2 mt-4 text-base font-bold text-ink">
+                💰 Expense claims{' '}
+                {pendingExpenses.length ? `(${pendingExpenses.length})` : ''}
+              </Text>
+              {expenses.isError ? (
+                <Text className="mb-3 text-sm text-red-500">
+                  {expenses.error instanceof Error
+                    ? expenses.error.message
+                    : 'Failed to load expenses'}
+                </Text>
+              ) : pendingExpenses.length === 0 ? (
+                <View className="items-center rounded-xl border border-slate-200 bg-white p-4">
+                  <Text className="text-sm text-slate-400">
+                    ✅ No expenses to approve
+                  </Text>
+                </View>
+              ) : (
+                pendingExpenses.map((c) => <ExpenseCard key={c.id} claim={c} />)
+              )}
+            </>
+          ) : null}
+
+          {!canTickets && !canWork && !canExpenses ? (
             <View className="mt-10 items-center">
               <Text className="text-sm text-slate-400">
                 Your role has no approval duties.

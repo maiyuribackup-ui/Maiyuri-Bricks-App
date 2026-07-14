@@ -1316,3 +1316,74 @@ export type SubmitQuizAttemptInput = z.infer<typeof submitQuizAttemptSchema>;
 export type SubmitAssignmentInput = z.infer<typeof submitAssignmentSchema>;
 export type ReviewSubmissionInput = z.infer<typeof reviewSubmissionSchema>;
 export type UpsertCoachUserInput = z.infer<typeof upsertCoachUserSchema>;
+
+// ============================================================================
+// Reimbursement / Petty Cash
+// ============================================================================
+
+// Create an expense claim. Petrol claims carry route + km (amount is computed
+// server-side from km × the chosen vehicle rate — never trust the client's
+// number); standard claims carry an amount directly.
+export const createExpenseSchema = z
+  .object({
+    expense_type_id: z.string().uuid(),
+    project_id: z.string().uuid().nullable().optional(),
+    description: z.string().max(500).nullable().optional(),
+    expense_date: z.string().optional(), // YYYY-MM-DD; server defaults today
+    receipt_url: z.string().nullable().optional(),
+    // standard
+    amount: z.number().nonnegative().optional(),
+    // petrol
+    vehicle_rate_id: z.string().uuid().nullable().optional(),
+    lead_id: z.string().uuid().nullable().optional(),
+    customer_name: z.string().max(200).nullable().optional(),
+    from_location: z.string().max(200).nullable().optional(),
+    to_location: z.string().max(200).nullable().optional(),
+    km: z.number().positive().nullable().optional(),
+  })
+  .refine(
+    (v) =>
+      // petrol path: vehicle + km present  OR  standard path: amount present
+      (v.vehicle_rate_id != null && v.km != null && v.km > 0) ||
+      (v.amount != null && v.amount >= 0),
+    { message: "Provide either (vehicle_rate_id + km) for petrol, or an amount." },
+  );
+
+export const approveExpenseSchema = z.object({
+  note: z.string().max(500).optional(),
+});
+
+export const rejectExpenseSchema = z.object({
+  reason: z.string().min(3, "A reason is required").max(500),
+});
+
+export const topupSchema = z.object({
+  user_id: z.string().uuid(),
+  amount: z.number().positive("Amount must be greater than 0"),
+  note: z.string().max(500).optional(),
+});
+
+export const vehicleRateSchema = z.object({
+  id: z.string().uuid().optional(), // present = update
+  label: z.string().min(1).max(80),
+  per_km_rate: z.number().nonnegative(),
+  active: z.boolean().optional(),
+});
+
+export const expenseTypeSchema = z.object({
+  id: z.string().uuid().optional(), // present = update
+  name: z.string().min(1).max(80),
+  cost_category: z.string().min(1),
+  kind: z.enum(["standard", "petrol"]).optional(),
+  requires_project: z.boolean().optional(),
+  icon: z.string().max(8).nullable().optional(),
+  sort_order: z.number().int().optional(),
+  active: z.boolean().optional(),
+});
+
+export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
+export type ApproveExpenseInput = z.infer<typeof approveExpenseSchema>;
+export type RejectExpenseInput = z.infer<typeof rejectExpenseSchema>;
+export type TopupInput = z.infer<typeof topupSchema>;
+export type VehicleRateInput = z.infer<typeof vehicleRateSchema>;
+export type ExpenseTypeInput = z.infer<typeof expenseTypeSchema>;
