@@ -1,15 +1,19 @@
 import type { Lead } from '@maiyuri/shared';
-import { useState } from 'react';
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+} from '@gorhom/bottom-sheet';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { useUpdateLead } from '@/hooks/use-leads';
+import { Button } from '@/ui';
 import {
   isoDate,
   LEAD_STATUSES,
@@ -70,6 +74,7 @@ export function QuickActionsModal({
   onClose: () => void;
 }) {
   const update = useUpdateLead();
+  const sheetRef = useRef<BottomSheetModal>(null);
   // Accumulate applied patches so the panel reflects changes immediately even
   // though the `lead` prop is a snapshot from when the panel opened.
   const [pending, setPending] = useState<Record<string, unknown>>({});
@@ -81,6 +86,24 @@ export function QuickActionsModal({
     setPending({});
     setNextAction(lead.next_action ?? '');
   }
+
+  // Present/dismiss the native sheet from the prop (parent still owns `lead`).
+  useEffect(() => {
+    if (lead) sheetRef.current?.present();
+    else sheetRef.current?.dismiss();
+  }, [lead]);
+
+  const renderBackdrop = useCallback(
+    (props: React.ComponentProps<typeof BottomSheetBackdrop>) => (
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        opacity={0.45}
+      />
+    ),
+    [],
+  );
 
   const val = <K extends keyof Lead>(field: K): Lead[K] =>
     (pending[field] as Lead[K] | undefined) ?? (lead?.[field] as Lead[K]);
@@ -96,22 +119,29 @@ export function QuickActionsModal({
   const busy = update.isPending;
 
   return (
-    <Modal visible={!!lead} transparent animationType="slide" onRequestClose={onClose}>
-      <View className="flex-1 justify-end bg-black/50">
-        <View className="max-h-[85%] rounded-t-3xl bg-white">
-          <View className="flex-row items-center justify-between border-b border-slate-100 px-5 py-4">
-            <View className="flex-1 pr-3">
-              <Text className="text-lg font-bold text-ink" numberOfLines={1}>
-                ⚡ Quick Actions
-              </Text>
-              <Text className="text-sm text-slate-500" numberOfLines={1}>
-                {lead?.name}
-              </Text>
-            </View>
-            {busy ? <ActivityIndicator color="#f97316" /> : null}
+    <BottomSheetModal
+      ref={sheetRef}
+      snapPoints={['75%']}
+      enablePanDownToClose
+      onDismiss={onClose}
+      backdropComponent={renderBackdrop}
+      handleIndicatorStyle={{ backgroundColor: '#cbd5e1', width: 44 }}
+      backgroundStyle={{ borderRadius: 26 }}
+    >
+      <View>
+        <View className="flex-row items-center justify-between border-b border-line px-5 pb-4">
+          <View className="flex-1 pr-3">
+            <Text className="text-xl font-bold text-ink" numberOfLines={1}>
+              Quick Actions
+            </Text>
+            <Text className="text-sm text-muted" numberOfLines={1}>
+              {lead?.name}
+            </Text>
           </View>
+          {busy ? <ActivityIndicator color="#f97316" /> : null}
+        </View>
 
-          <ScrollView className="px-5" contentContainerClassName="pb-6">
+        <BottomSheetScrollView className="px-5" contentContainerClassName="pb-8">
             {update.isError ? (
               <Text className="mt-3 text-sm text-red-500">
                 {update.error instanceof Error
@@ -221,29 +251,22 @@ export function QuickActionsModal({
               multiline
               className="min-h-[44px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-ink"
             />
-            <Pressable
+            <Button
+              label="Save next action"
+              size="sm"
               onPress={() => apply({ next_action: nextAction.trim() || null })}
-              disabled={busy || nextAction.trim() === (String(val('next_action') ?? ''))}
-              className={`mt-2 items-center rounded-xl py-2.5 ${
-                busy || nextAction.trim() === (String(val('next_action') ?? ''))
-                  ? 'bg-slate-200'
-                  : 'bg-brand active:opacity-80'
-              }`}
-            >
-              <Text className="text-sm font-semibold text-ink">Save next action</Text>
-            </Pressable>
-          </ScrollView>
+              disabled={busy || nextAction.trim() === String(val('next_action') ?? '')}
+              className="mt-2"
+            />
 
-          <View className="border-t border-slate-100 p-4">
-            <Pressable
-              onPress={onClose}
-              className="items-center rounded-xl bg-ink py-3 active:opacity-80"
-            >
-              <Text className="font-semibold text-white">Done</Text>
-            </Pressable>
-          </View>
-        </View>
+            <Button
+              label="Done"
+              variant="dark"
+              onPress={() => sheetRef.current?.dismiss()}
+              className="mt-6"
+            />
+        </BottomSheetScrollView>
       </View>
-    </Modal>
+    </BottomSheetModal>
   );
 }
