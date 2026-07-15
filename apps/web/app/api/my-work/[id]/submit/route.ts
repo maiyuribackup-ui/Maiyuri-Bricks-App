@@ -59,11 +59,14 @@ export async function POST(request: NextRequest, { params }: Params) {
     });
 
     if (issues.length > 0) {
-      // Structured issues let the UI highlight the exact checklist items
-      return error(
-        JSON.stringify({ validation_issues: issues }),
-        422,
-      );
+      // Human-readable summary — the client shows this straight in a toast.
+      // (Previously this stringified the raw JSON, which dumped a wall of
+      // {"validation_issues":[…]} onto the user's screen.)
+      const n = issues.length;
+      const summary =
+        `Can't submit yet — please fix ${n} item${n > 1 ? "s" : ""}:\n` +
+        issues.map((i) => `• ${i.message}`).join("\n");
+      return error(summary, 422);
     }
 
     const now = new Date().toISOString();

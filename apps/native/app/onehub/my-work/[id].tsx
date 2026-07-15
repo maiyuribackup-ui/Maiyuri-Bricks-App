@@ -30,6 +30,7 @@ import {
 import { useMyProfile } from '@/hooks/use-push-settings';
 import { useAuth } from '@/store/auth';
 import { toast } from '@/lib/toast';
+import { Icon, type IconName, Touchable } from '@/ui';
 
 const WORK_ADMIN_ROLES = ['founder', 'owner', 'production_supervisor'];
 
@@ -40,9 +41,14 @@ type LocalResp = {
   note?: string | null;
 };
 
-const STATUS_CHIPS: { key: ChecklistResponseStatus; label: string; on: string }[] = [
-  { key: 'completed', label: '✓ Done', on: 'bg-green-500' },
-  { key: 'not_completed', label: '✗ Not done', on: 'bg-red-500' },
+const STATUS_CHIPS: {
+  key: ChecklistResponseStatus;
+  label: string;
+  icon?: IconName;
+  on: string;
+}[] = [
+  { key: 'completed', label: 'Done', icon: 'checkmark-circle', on: 'bg-green-500' },
+  { key: 'not_completed', label: 'Not done', icon: 'close-circle', on: 'bg-red-500' },
   { key: 'not_applicable', label: 'N/A', on: 'bg-slate-400' },
 ];
 
@@ -275,19 +281,22 @@ export default function WorkItemDetail() {
             className="min-h-[70px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-ink"
           />
           {item.requires_photo ? (
-            <Pressable
+            <Touchable
               onPress={onSimplePhoto}
               disabled={uploadPhoto.isPending}
-              className="mt-3 flex-row items-center justify-center rounded-xl border-2 border-dashed border-slate-300 py-3 active:opacity-70"
+              className="mt-3 flex-row items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 py-3.5"
             >
               {uploadPhoto.isPending ? (
                 <ActivityIndicator color="#f97316" />
               ) : (
-                <Text className="font-semibold text-slate-600">
-                  📷 Add proof photo{item.attachments?.length ? ` (${item.attachments.length})` : ''}
-                </Text>
+                <>
+                  <Icon name="camera-outline" size={18} color="#64748b" />
+                  <Text className="font-semibold text-slate-600">
+                    Add proof photo{item.attachments?.length ? ` (${item.attachments.length})` : ''}
+                  </Text>
+                </>
               )}
-            </Pressable>
+            </Touchable>
           ) : null}
         </View>
       ) : null}
@@ -489,15 +498,23 @@ function ChecklistRow({
           {STATUS_CHIPS.filter((c) => c.key !== 'not_applicable' || ti.allow_na).map((c) => {
             const active = value.status === c.key;
             return (
-              <Pressable
+              <Touchable
                 key={c.key}
                 onPress={() => onChange({ status: active ? null : c.key })}
-                className={`rounded-lg px-3 py-1.5 ${active ? c.on : 'bg-slate-100'}`}
+                className={`flex-row items-center gap-1.5 rounded-xl px-3.5 py-2.5 ${active ? c.on : 'bg-slate-100'}`}
+                rippleColor={active ? 'rgba(255,255,255,0.2)' : undefined}
               >
-                <Text className={`text-xs font-semibold ${active ? 'text-white' : 'text-slate-600'}`}>
+                {c.icon ? (
+                  <Icon
+                    name={c.icon}
+                    size={16}
+                    color={active ? '#ffffff' : '#64748b'}
+                  />
+                ) : null}
+                <Text className={`text-sm font-semibold ${active ? 'text-white' : 'text-slate-600'}`}>
                   {c.label}
                 </Text>
-              </Pressable>
+              </Touchable>
             );
           })}
         </View>
@@ -528,13 +545,14 @@ function ChecklistRow({
       ) : null}
 
       {needsPhoto ? (
-        <Pressable
+        <Touchable
           onPress={onPhoto}
           disabled={photoPending}
-          className="mt-2 flex-row items-center self-start rounded-lg bg-slate-100 px-3 py-1.5 active:opacity-70"
+          className="mt-2 flex-row items-center gap-1.5 self-start rounded-xl bg-amber-50 px-3 py-2"
         >
-          <Text className="text-xs font-semibold text-slate-600">📷 Photo required</Text>
-        </Pressable>
+          <Icon name="camera-outline" size={15} color="#b45309" />
+          <Text className="text-sm font-semibold text-amber-700">Photo required</Text>
+        </Touchable>
       ) : null}
     </View>
   );
