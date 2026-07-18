@@ -52,14 +52,20 @@ export async function pullConfirmedSalesOrders(): Promise<{
   const fgByOdooId = new Map(
     (goods ?? []).map((g) => [g.odoo_product_id as number, g]),
   );
-  // Finished goods flagged "don't plan" (Discount, Employee Advance, …) must
-  // NOT count toward an order's remaining-to-produce — otherwise a fully
-  // delivered order with a leftover 1-unit discount line looks falsely "open".
-  const excludedFgIds = new Set(
+  // A line counts toward "remaining to produce" ONLY if it maps to a finished
+  // good we still MAKE and plan for. This set is the whitelist: it excludes
+  // plan_excluded goods (Discount, Employee Advance, …) AND goods deleted
+  // entirely (their id simply isn't here). Otherwise a fully delivered order
+  // with a leftover 1-unit discount line looks falsely "open".
+  const planableFgIds = new Set(
     (goods ?? [])
-      .filter((g) => (g as { plan_excluded?: boolean }).plan_excluded)
+      .filter((g) => !(g as { plan_excluded?: boolean }).plan_excluded)
       .map((g) => g.id as string),
   );
+  const computeRemaining = (orderLines: CachedOrderLine[]): number =>
+    orderLines
+      .filter((l) => l.finished_good_id && planableFgIds.has(l.finished_good_id))
+      .reduce((sum, l) => sum + Math.max(0, l.qty_ordered - l.qty_delivered), 0);
 
   const orders = (await odooExecute(
     "sale.order",
@@ -125,10 +131,8 @@ export async function pullConfirmedSalesOrders(): Promise<{
   const rows = orders.map((o) => {
     const orderLines = linesByOrder.get(o.id) ?? [];
     // Planable remaining = only lines mapped to a finished good we actually
-    // MAKE — excludes plan_excluded goods (Discount, Employee Advance, etc.).
-    const remaining = orderLines
-      .filter((l) => l.finished_good_id && !excludedFgIds.has(l.finished_good_id))
-      .reduce((sum, l) => sum + Math.max(0, l.qty_ordered - l.qty_delivered), 0);
+    // MAKE (see computeRemaining / planableFgIds above).
+    const remaining = computeRemaining(orderLines);
     if (remaining > 0 && o.state !== "done") openOrders += 1;
     return {
       odoo_order_id: o.id,
@@ -178,6 +182,54 @@ export async function pullConfirmedSalesOrders(): Promise<{
         removed = dead.length;
       }
     }
+  }
+
+  // Recompute remaining_units for cached rows OUTSIDE the 300-order fetch
+  // window from their stored lines. Without this, an old order (e.g. S00056,
+  // Mar 2024) whose remaining was computed under stale rules never self-heals —
+  // the upsert only touches fetched rows, so an old phantom-open order lingers
+  // until someone fixes it by hand. Uses the SAME whitelist as the fresh calc
+  // (computeRemaining): a line counts only if its finished good still exists
+  // and is planable. This only ever LOWERS a stale remaining (we scan rows that
+  // are currently > 0), so it can clear false-opens but never resurrect a
+  // legitimately-closed order.
+  let recomputed = 0;
+  try {
+    const fetchedIds = new Set(orders.map((o) => o.id));
+    const { data: staleRows } = await supabaseAdmin
+      .from("sales_order_cache")
+      .select("id, odoo_order_id, lines, remaining_units")
+      .eq("state", "sale")
+      .gt("remaining_units", 0);
+    for (const row of staleRows ?? []) {
+      // Fetched rows were just upserted with a fresh remaining — skip them.
+      if (fetchedIds.has(row.odoo_order_id as number)) continue;
+      const storedLines = (row.lines as CachedOrderLine[] | null) ?? [];
+      const newRemaining = computeRemaining(storedLines);
+      if (newRemaining !== Number(row.remaining_units)) {
+        const { error: upErr } = await supabaseAdmin
+          .from("sales_order_cache")
+          .update({ remaining_units: newRemaining })
+          .eq("id", row.id as string);
+        if (upErr) {
+          console.error(
+            `remaining_units recompute failed for order ${row.odoo_order_id}:`,
+            upErr.message,
+          );
+        } else {
+          recomputed += 1;
+        }
+      }
+    }
+  } catch (err) {
+    // Best-effort self-heal: never let it break the sync.
+    console.error("stale remaining_units recompute failed:", err);
+  }
+  if (recomputed > 0) {
+    // Data drift was detected and corrected — worth surfacing (warn, not log).
+    console.warn(
+      `[ops-planning] self-healed remaining_units on ${recomputed} cached order(s)`,
+    );
   }
 
   return { synced: rows.length, openOrders, removed };
