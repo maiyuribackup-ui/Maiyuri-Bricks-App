@@ -47,7 +47,11 @@ function NavRow({
 }) {
   return (
     <Touchable onPress={onPress} className="mb-3">
-      <Card className={`flex-row items-center ${accent ? 'bg-ink' : ''}`}>
+      <Card
+        className="flex-row items-center"
+        // style (not className) so it can't lose to Card's own bg-white.
+        style={accent ? { backgroundColor: '#0f172a' } : undefined}
+      >
         <View
           className="mr-4 h-12 w-12 items-center justify-center rounded-2xl"
           style={{ backgroundColor: accent ? 'rgba(255,255,255,0.12)' : `${tint}1a` }}
@@ -178,7 +182,7 @@ export default function OneHubHome() {
           <Touchable
             key={d.key}
             onPress={() => go(`/onehub/department/${d.key}`)}
-            className="mb-3 w-[48.5%]"
+            containerClassName="mb-3 w-[48.5%]"
           >
             <Card>
               <View
