@@ -47,10 +47,18 @@ export async function pullConfirmedSalesOrders(): Promise<{
   // Map of odoo product -> local finished good
   const { data: goods } = await supabaseAdmin
     .from("finished_goods")
-    .select("id, odoo_product_id, name")
+    .select("id, odoo_product_id, name, plan_excluded")
     .eq("is_active", true);
   const fgByOdooId = new Map(
     (goods ?? []).map((g) => [g.odoo_product_id as number, g]),
+  );
+  // Finished goods flagged "don't plan" (Discount, Employee Advance, …) must
+  // NOT count toward an order's remaining-to-produce — otherwise a fully
+  // delivered order with a leftover 1-unit discount line looks falsely "open".
+  const excludedFgIds = new Set(
+    (goods ?? [])
+      .filter((g) => (g as { plan_excluded?: boolean }).plan_excluded)
+      .map((g) => g.id as string),
   );
 
   const orders = (await odooExecute(
@@ -116,9 +124,10 @@ export async function pullConfirmedSalesOrders(): Promise<{
   let openOrders = 0;
   const rows = orders.map((o) => {
     const orderLines = linesByOrder.get(o.id) ?? [];
-    // Planable remaining = only lines that map to a finished good we make.
+    // Planable remaining = only lines mapped to a finished good we actually
+    // MAKE — excludes plan_excluded goods (Discount, Employee Advance, etc.).
     const remaining = orderLines
-      .filter((l) => l.finished_good_id)
+      .filter((l) => l.finished_good_id && !excludedFgIds.has(l.finished_good_id))
       .reduce((sum, l) => sum + Math.max(0, l.qty_ordered - l.qty_delivered), 0);
     if (remaining > 0 && o.state !== "done") openOrders += 1;
     return {
