@@ -5,6 +5,7 @@ import {
   WORK_ADMIN_ROLES,
   useMyRole,
 } from '@/hooks/use-approvals';
+import { CEO_ROLES } from '@/hooks/use-ceo';
 import { DAILY_REPORT_ROLES } from '@/hooks/use-daily-report';
 import {
   EXPENSE_ADMIN_ROLES,
@@ -76,6 +77,7 @@ export default function OneHubHome() {
   const showExpenses =
     EXPENSE_SUBMITTER_ROLES.includes(role) || EXPENSE_ADMIN_ROLES.includes(role);
   const showDailyReport = DAILY_REPORT_ROLES.includes(role);
+  const showCeo = CEO_ROLES.includes(role);
   const counts = new Map<string, number>();
   for (const sop of data?.data ?? []) {
     counts.set(sop.department, (counts.get(sop.department) ?? 0) + 1);
@@ -128,6 +130,16 @@ export default function OneHubHome() {
           title="Approvals"
           subtitle="Tickets, work & expenses awaiting you"
           onPress={() => go('/onehub/approvals')}
+        />
+      ) : null}
+
+      {showCeo ? (
+        <NavRow
+          icon="trending-up-outline"
+          tint="#eab308"
+          title="CEO Command Center"
+          subtitle="Money, margins, profit, pipeline + one AI action"
+          onPress={() => go('/onehub/ceo')}
         />
       ) : null}
 

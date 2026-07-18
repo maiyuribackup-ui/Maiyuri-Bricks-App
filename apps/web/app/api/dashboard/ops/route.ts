@@ -6,6 +6,7 @@ import { success, error } from "@/lib/api-utils";
 import { requireAuth, AuthError } from "@/lib/api-helpers";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { odooExecute } from "@/lib/odoo-service";
+import { balancesFromOdoo } from "@/lib/ceo/briefing";
 
 /**
  * GET /api/dashboard/ops — the Ops Home snapshot for factory/accounts roles:
@@ -20,15 +21,6 @@ import { odooExecute } from "@/lib/odoo-service";
 const OPS_HOME_ROLES = ["production_supervisor", "accountant", "founder", "owner"];
 
 const CEMENT_KG_PER_BAG = 50;
-
-type OdooJournal = {
-  id: number;
-  name: string;
-  type: "bank" | "cash";
-  default_account_id: [number, string] | false;
-};
-
-type BalanceGroup = { account_id: [number, string] | false; balance: number };
 
 async function cementFromOdoo(): Promise<{
   kg: number;
@@ -51,56 +43,6 @@ async function cementFromOdoo(): Promise<{
   )) as { qty_available: number }[];
   const kg = Number(products?.[0]?.qty_available ?? 0);
   return { kg, bags: Math.floor(kg / CEMENT_KG_PER_BAG) };
-}
-
-async function balancesFromOdoo(): Promise<{
-  bank: number;
-  cash: number;
-  accounts: { name: string; type: "bank" | "cash"; balance: number }[];
-} | null> {
-  // Bank/cash journals → their default GL accounts → sum of posted lines.
-  const journals = (await odooExecute(
-    "account.journal",
-    "search_read",
-    [[["type", "in", ["bank", "cash"]]]],
-    { fields: ["id", "name", "type", "default_account_id"] },
-  )) as OdooJournal[];
-
-  const accountToJournal = new Map<number, OdooJournal>();
-  for (const j of journals) {
-    if (Array.isArray(j.default_account_id)) {
-      accountToJournal.set(j.default_account_id[0], j);
-    }
-  }
-  const accountIds = [...accountToJournal.keys()];
-  if (!accountIds.length) return { bank: 0, cash: 0, accounts: [] };
-
-  const groups = (await odooExecute(
-    "account.move.line",
-    "read_group",
-    [
-      [["account_id", "in", accountIds], ["parent_state", "=", "posted"]],
-      ["balance"],
-      ["account_id"],
-    ],
-    { lazy: false },
-  )) as BalanceGroup[];
-
-  let bank = 0;
-  let cash = 0;
-  const accounts: { name: string; type: "bank" | "cash"; balance: number }[] = [];
-  for (const g of groups) {
-    const accountId = Array.isArray(g.account_id) ? g.account_id[0] : null;
-    if (!accountId) continue;
-    const journal = accountToJournal.get(accountId);
-    if (!journal) continue;
-    const balance = Number(g.balance ?? 0);
-    if (journal.type === "cash") cash += balance;
-    else bank += balance;
-    accounts.push({ name: journal.name, type: journal.type, balance });
-  }
-  accounts.sort((a, b) => b.balance - a.balance);
-  return { bank, cash, accounts };
 }
 
 export async function GET(request: NextRequest) {
