@@ -22,6 +22,7 @@ import { useMyProfile } from '@/hooks/use-push-settings';
 import { OPS_HOME_ROLES, useOpsSnapshot } from '@/hooks/use-ops-home';
 import { useAuth } from '@/store/auth';
 import { OpsHomePanel } from '@/components/OpsHomePanel';
+import { TaskFirstHome } from '@/components/TaskFirstHome';
 import { SkeletonList } from '@/ui';
 
 type CardDef = {
@@ -181,6 +182,8 @@ export default function DashboardScreen() {
   // role, so this flag only decides LAYOUT, never data access.
   const opsRole = OPS_HOME_ROLES.includes(role);
   const opsFirst = role === 'production_supervisor' || role === 'accountant';
+  // Field staff who should see WORK, not dashboards — giant one-tap task cards.
+  const taskFirst = role === 'engineer' || role === 'sales';
   const opsQuery = useOpsSnapshot(opsRole);
   const { data, isLoading, isError, error, refetch, isRefetching } =
     useDashboardStats();
@@ -198,6 +201,10 @@ export default function DashboardScreen() {
   // ── Ops Home (production_supervisor / accountant) ────────────────────
   // Rajesh runs accounts+production+delivery: his first screen is stock,
   // cement and money — not the sales funnel.
+  if (taskFirst) {
+    return <TaskFirstHome />;
+  }
+
   if (opsFirst) {
     const ops = opsQuery.data?.data;
     return (
