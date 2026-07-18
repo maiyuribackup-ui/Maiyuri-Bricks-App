@@ -18,6 +18,11 @@ export const EXPENSE_SUBMITTER_ROLES = [
 ];
 export const EXPENSE_ADMIN_ROLES = ["founder", "owner", "accountant"];
 
+// Private Supabase Storage bucket for receipt uploads. Lives here (not in the
+// route) because a route.ts may only export Next.js route fields — exporting
+// any other const from it fails the production build.
+export const EXPENSE_RECEIPT_BUCKET = "expense-receipts";
+
 const num = (v: unknown): number =>
   typeof v === "number" ? v : Number(v) || 0;
 
