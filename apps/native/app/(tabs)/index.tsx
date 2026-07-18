@@ -18,6 +18,10 @@ import {
 } from '@/hooks/use-dashboard';
 import { useLeads } from '@/hooks/use-leads';
 import { useMyWork } from '@/hooks/use-my-work';
+import { useMyProfile } from '@/hooks/use-push-settings';
+import { OPS_HOME_ROLES, useOpsSnapshot } from '@/hooks/use-ops-home';
+import { useAuth } from '@/store/auth';
+import { OpsHomePanel } from '@/components/OpsHomePanel';
 import { SkeletonList } from '@/ui';
 
 type CardDef = {
@@ -170,6 +174,14 @@ function MyWorkStrip() {
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const { session } = useAuth();
+  const profile = useMyProfile(session?.user?.id);
+  const role = (profile.data?.data.role as string | undefined) ?? '';
+  // Ops-first home for factory/accounts roles; the server route re-checks the
+  // role, so this flag only decides LAYOUT, never data access.
+  const opsRole = OPS_HOME_ROLES.includes(role);
+  const opsFirst = role === 'production_supervisor' || role === 'accountant';
+  const opsQuery = useOpsSnapshot(opsRole);
   const { data, isLoading, isError, error, refetch, isRefetching } =
     useDashboardStats();
   // Reuses the leads cache shared with the Leads tab (same query key).
@@ -182,6 +194,71 @@ export default function DashboardScreen() {
     () => computeTodayActions(leadsQuery.data?.data ?? []),
     [leadsQuery.data],
   );
+
+  // ── Ops Home (production_supervisor / accountant) ────────────────────
+  // Rajesh runs accounts+production+delivery: his first screen is stock,
+  // cement and money — not the sales funnel.
+  if (opsFirst) {
+    const ops = opsQuery.data?.data;
+    return (
+      <SafeAreaView edges={['bottom']} className="flex-1 bg-canvas">
+        <ScrollView
+          contentContainerClassName="p-4 pb-8"
+          refreshControl={
+            <RefreshControl
+              refreshing={opsQuery.isRefetching}
+              onRefresh={() => void opsQuery.refetch()}
+            />
+          }
+        >
+          <MyWorkStrip />
+          {opsQuery.isLoading ? (
+            <SkeletonList count={5} />
+          ) : !ops ? (
+            <View className="items-center rounded-xl border border-slate-200 bg-white p-4">
+              <Text className="text-center text-sm text-red-500">
+                Couldn't load the ops snapshot — pull down to retry
+              </Text>
+            </View>
+          ) : (
+            <OpsHomePanel data={ops} />
+          )}
+
+          {/* Quick links to the day's workspaces */}
+          <Text className="mb-2 mt-2 text-base font-bold text-ink">🚀 Go to</Text>
+          <View className="flex-row flex-wrap justify-between">
+            {[
+              // Tab targets are role-gated in _layout (href:null) — only show
+              // links this role can actually open.
+              ...(role === 'production_supervisor'
+                ? [
+                    { label: '🏭 Production', path: '/(tabs)/production' },
+                    { label: '🚚 Deliveries', path: '/(tabs)/deliveries' },
+                  ]
+                : [{ label: '📈 Leads', path: '/(tabs)/leads' }]),
+              { label: '👀 Approvals', path: '/onehub/approvals' },
+              { label: '💰 Expenses', path: '/onehub/expenses' },
+            ].map((l) => (
+              <Pressable
+                key={l.path}
+                onPress={() => router.push(l.path as never)}
+                className="mb-3 w-[48.5%] items-center rounded-xl border border-slate-200 bg-white p-4 active:opacity-70"
+              >
+                <Text className="text-sm font-semibold text-ink">{l.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {ops?.as_of ? (
+            <Text className="mt-1 text-center text-xs text-slate-400">
+              As of {new Date(ops.as_of).toLocaleTimeString('en-IN')} · pull down
+              to refresh
+            </Text>
+          ) : null}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -283,6 +360,11 @@ export default function DashboardScreen() {
               </Text>
             </View>
           </View>
+        ) : null}
+
+        {/* ── Ops snapshot (founder/owner) ────────────────── */}
+        {opsRole && opsQuery.data?.data ? (
+          <OpsHomePanel data={opsQuery.data.data} compact />
         ) : null}
 
         {/* ── Stat cards ──────────────────────────────────── */}
