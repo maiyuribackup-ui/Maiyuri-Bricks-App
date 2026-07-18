@@ -21,6 +21,7 @@ export default function OneHubLayout() {
         options={{ title: 'Assign Work', presentation: 'modal' }}
       />
       <Stack.Screen name="approvals" options={{ title: '👀 Approvals' }} />
+      <Stack.Screen name="daily-report" options={{ title: '📊 Daily Report' }} />
       <Stack.Screen name="expenses/index" options={{ title: '💰 My Expenses' }} />
       <Stack.Screen
         name="expenses/new"

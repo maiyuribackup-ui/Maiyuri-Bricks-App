@@ -57,7 +57,7 @@ function buildUrl(path: string, params?: QueryParams): string {
 async function request<T>(
   method: string,
   path: string,
-  opts: { params?: QueryParams; body?: unknown } = {},
+  opts: { params?: QueryParams; body?: unknown; timeoutMs?: number } = {},
 ): Promise<ApiResult<T>> {
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -71,7 +71,7 @@ async function request<T>(
   // NOTE: manual AbortController — `AbortSignal.timeout()` does not exist in
   // React Native's Hermes runtime (learned the hard way: it broke every call).
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20_000);
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 20_000);
 
   let res: Response;
   try {
@@ -126,8 +126,8 @@ async function request<T>(
 }
 
 export const api = {
-  get: <T>(path: string, params?: QueryParams) =>
-    request<T>('GET', path, { params }),
+  get: <T>(path: string, params?: QueryParams, opts?: { timeoutMs?: number }) =>
+    request<T>('GET', path, { params, ...opts }),
   post: <T>(path: string, body?: unknown) =>
     request<T>('POST', path, { body }),
   patch: <T>(path: string, body?: unknown) =>
