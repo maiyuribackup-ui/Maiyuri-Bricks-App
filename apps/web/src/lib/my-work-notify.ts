@@ -85,3 +85,67 @@ export async function notifyWorkReturned(
     data: { url: itemUrl(item.id) },
   });
 }
+
+/**
+ * Escalating nag (SR2) — repeats every cron run until the task moves.
+ * Tone hardens with the nudge count; Tamil + English so the least
+ * tech-savvy staffer can't misread it.
+ */
+export async function notifyWorkNudge(
+  item: Pick<WorkItem, "id" | "title" | "assigned_user_id" | "status">,
+  nudgeNo: number,
+  overdue: boolean,
+): Promise<void> {
+  const title = overdue
+    ? "🔴 வேலை தாமதம்! · Task overdue!"
+    : nudgeNo <= 1
+      ? "⏰ நினைவூட்டல் · Reminder"
+      : "⏰ இன்னும் காத்திருக்கிறது · Still waiting";
+  const action =
+    item.status === "pending"
+      ? "தொடங்கவும் · please start"
+      : "முடிக்கவும் · please finish";
+  await safeSend([item.assigned_user_id], {
+    title,
+    body: `${item.title} — ${action}`.slice(0, 180),
+    data: { url: itemUrl(item.id) },
+  });
+}
+
+/** Escalation (SR3) — the boss finds out. Sent ONCE per item. */
+export async function notifyWorkEscalated(
+  item: Pick<WorkItem, "id" | "title" | "due_at">,
+  assigneeName: string,
+  hoursOverdue: number,
+): Promise<void> {
+  try {
+    const admins = await getUserIdsByRoles(["founder", "owner"]);
+    await safeSend(admins, {
+      title: "🚨 Work not done — escalation",
+      body: `${assigneeName}: "${item.title}" is ${hoursOverdue}h overdue`.slice(
+        0,
+        180,
+      ),
+      data: { url: itemUrl(item.id) },
+    });
+  } catch (err) {
+    console.error("[MyWork] escalation push failed (ignored):", err);
+  }
+}
+
+/** Evening chaser (SR4) — one summary per assignee at 6pm IST. */
+export async function notifyEveningChaser(
+  userId: string,
+  titles: string[],
+): Promise<void> {
+  const head = titles.slice(0, 3).join(", ");
+  const extra = titles.length > 3 ? ` +${titles.length - 3}` : "";
+  await safeSend([userId], {
+    title: `🌆 இன்று முடிக்காதவை: ${titles.length} · Not finished today`,
+    body: `${head}${extra} — நாளைக்கு விடாதீர்கள் · don't leave it for tomorrow`.slice(
+      0,
+      180,
+    ),
+    data: { url: "/onehub/my-work" },
+  });
+}
