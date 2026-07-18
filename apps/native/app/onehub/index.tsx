@@ -5,6 +5,7 @@ import {
   WORK_ADMIN_ROLES,
   useMyRole,
 } from '@/hooks/use-approvals';
+import { DAILY_REPORT_ROLES } from '@/hooks/use-daily-report';
 import {
   EXPENSE_ADMIN_ROLES,
   EXPENSE_SUBMITTER_ROLES,
@@ -74,6 +75,7 @@ export default function OneHubHome() {
     TICKET_APPROVER_ROLES.includes(role) || WORK_ADMIN_ROLES.includes(role);
   const showExpenses =
     EXPENSE_SUBMITTER_ROLES.includes(role) || EXPENSE_ADMIN_ROLES.includes(role);
+  const showDailyReport = DAILY_REPORT_ROLES.includes(role);
   const counts = new Map<string, number>();
   for (const sop of data?.data ?? []) {
     counts.set(sop.department, (counts.get(sop.department) ?? 0) + 1);
@@ -126,6 +128,16 @@ export default function OneHubHome() {
           title="Approvals"
           subtitle="Tickets, work & expenses awaiting you"
           onPress={() => go('/onehub/approvals')}
+        />
+      ) : null}
+
+      {showDailyReport ? (
+        <NavRow
+          icon="stats-chart-outline"
+          tint="#0ea5e9"
+          title="Daily Report"
+          subtitle="Finance, receivables, production — export PDF"
+          onPress={() => go('/onehub/daily-report')}
         />
       ) : null}
 
