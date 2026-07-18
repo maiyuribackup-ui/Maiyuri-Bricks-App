@@ -60,6 +60,60 @@ export type CeoBriefing = {
 
 export const CEO_ROLES = ['founder', 'owner'];
 
+// ---- P&L (shapes mirror apps/web/src/lib/ceo/pnl.ts) ----
+
+export type PnlAccount = {
+  account_id: number;
+  account: string;
+  amount: number;
+  entry_count: number;
+};
+
+export type PnlStatement = {
+  month: string;
+  from: string;
+  to: string;
+  revenue: { total: number; accounts: PnlAccount[] };
+  expenses: { total: number; accounts: PnlAccount[] };
+  net: number;
+};
+
+export type PnlLine = {
+  date: string;
+  move: string;
+  partner: string | null;
+  label: string | null;
+  amount: number;
+};
+
+export function usePnl(month: string) {
+  return useQuery({
+    queryKey: ['ceo-pnl', month],
+    queryFn: () =>
+      api.get<PnlStatement>('/api/ceo/pnl', { month }, { timeoutMs: 55_000 }),
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+/** Journal entries behind one account row — fetched lazily on expand. */
+export function usePnlLines(
+  accountId: number | null,
+  month: string,
+  kind: 'income' | 'expense',
+) {
+  return useQuery({
+    queryKey: ['ceo-pnl-lines', accountId, month],
+    queryFn: () =>
+      api.get<PnlLine[]>(
+        '/api/ceo/pnl/lines',
+        { account_id: accountId, month, kind },
+        { timeoutMs: 55_000 },
+      ),
+    enabled: accountId != null,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
 export function useCeoBriefing(enabled: boolean) {
   return useQuery({
     queryKey: ['ceo-briefing'],

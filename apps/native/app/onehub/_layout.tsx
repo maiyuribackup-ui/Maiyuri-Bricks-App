@@ -23,6 +23,7 @@ export default function OneHubLayout() {
       <Stack.Screen name="approvals" options={{ title: '👀 Approvals' }} />
       <Stack.Screen name="daily-report" options={{ title: '📊 Daily Report' }} />
       <Stack.Screen name="ceo" options={{ title: '👑 CEO Command Center' }} />
+      <Stack.Screen name="pnl" options={{ title: '📑 Profit & Loss' }} />
       <Stack.Screen name="expenses/index" options={{ title: '💰 My Expenses' }} />
       <Stack.Screen
         name="expenses/new"

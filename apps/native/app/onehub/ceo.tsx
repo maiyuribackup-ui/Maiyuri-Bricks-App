@@ -1,4 +1,5 @@
-import { RefreshControl, ScrollView, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { formatINR } from '@/hooks/use-dashboard';
 import { useCeoBriefing, type CeoProduct } from '@/hooks/use-ceo';
 import { SkeletonList } from '@/ui';
@@ -61,6 +62,7 @@ function ProductRow({ p }: { p: CeoProduct }) {
 }
 
 export default function CeoScreen() {
+  const router = useRouter();
   const query = useCeoBriefing(true);
   const b = query.data?.data;
 
@@ -154,7 +156,17 @@ export default function CeoScreen() {
           )}
 
           {/* 📈 Profit */}
-          <SectionTitle>📈 Profit (invoiced − bills)</SectionTitle>
+          <View className="mt-3 flex-row items-center justify-between">
+            <Text className="mb-2 text-base font-bold text-ink">
+              📈 Profit (invoiced − bills)
+            </Text>
+            <Pressable
+              onPress={() => router.push('/onehub/pnl' as never)}
+              className="mb-2 rounded-lg bg-ink px-3 py-1.5 active:opacity-80"
+            >
+              <Text className="text-xs font-semibold text-white">📑 Full P&L →</Text>
+            </Pressable>
+          </View>
           {b.profit.map((p) => (
             <View
               key={p.label}
