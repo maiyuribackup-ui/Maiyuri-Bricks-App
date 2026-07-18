@@ -52,7 +52,8 @@ export async function getPlanningInputs(): Promise<PlanningInputs> {
         .select("*")
         .eq("state", "sale")
         .gt("remaining_units", 0)
-        .order("date_order", { ascending: true }),
+        // Newest orders first — the ones the supervisor most likely acts on.
+        .order("date_order", { ascending: false }),
       supabaseAdmin
         .from("finished_goods")
         .select("id, name, stock_qty, stock_synced_at")
