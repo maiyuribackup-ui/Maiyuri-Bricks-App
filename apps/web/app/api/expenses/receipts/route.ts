@@ -4,9 +4,11 @@ import { NextRequest } from "next/server";
 import { success, error } from "@/lib/api-utils";
 import { requireAuth, AuthError } from "@/lib/api-helpers";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { EXPENSE_ADMIN_ROLES, EXPENSE_SUBMITTER_ROLES } from "@/lib/expenses";
-
-export const EXPENSE_RECEIPT_BUCKET = "expense-receipts";
+import {
+  EXPENSE_ADMIN_ROLES,
+  EXPENSE_RECEIPT_BUCKET,
+  EXPENSE_SUBMITTER_ROLES,
+} from "@/lib/expenses";
 
 const ALLOWED_MIME = [
   "image/jpeg",
