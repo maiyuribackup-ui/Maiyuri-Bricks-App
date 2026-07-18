@@ -93,7 +93,7 @@ export async function productEconomics(): Promise<ProductEconomics[]> {
   const [{ data: goods }, { data: boms }, { data: mats }] = await Promise.all([
     supabaseAdmin
       .from("finished_goods")
-      .select("id, name, odoo_product_id, stock_qty")
+      .select("id, name, odoo_product_id, stock_qty, bom_quantity")
       .eq("is_active", true)
       .eq("plan_excluded", false),
     supabaseAdmin
@@ -121,6 +121,10 @@ export async function productEconomics(): Promise<ProductEconomics[]> {
   return (goods ?? [])
     .map((g) => {
       const lines = (boms ?? []).filter((b) => b.finished_good_id === g.id);
+      // A BOM in Odoo describes ONE BATCH, not one brick — e.g. CIB-10*8*5's
+      // recipe (90kg sand + 10kg cement + …) yields bom_quantity = 7.5 bricks.
+      // Divide by the batch output or every cost is inflated ~7×.
+      const batchQty = num((g as { bom_quantity?: unknown }).bom_quantity) || 1;
       const breakdown = lines
         .map((b) => {
           const mat = matById.get(b.raw_material_id as string);
@@ -129,7 +133,7 @@ export async function productEconomics(): Promise<ProductEconomics[]> {
             : 0;
           return {
             material: (mat?.name as string) ?? "?",
-            amount: num(b.quantity_per_bom) * unitPrice,
+            amount: (num(b.quantity_per_bom) * unitPrice) / batchQty,
           };
         })
         .sort((a, b) => b.amount - a.amount);

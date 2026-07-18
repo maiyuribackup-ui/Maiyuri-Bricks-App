@@ -20,6 +20,7 @@ import { haptic } from './haptics';
 export function Touchable({
   children,
   className,
+  containerClassName,
   onPress,
   haptics = true,
   rippleColor = 'rgba(15,23,42,0.12)',
@@ -28,6 +29,13 @@ export function Touchable({
 }: PressableProps & {
   children: ReactNode;
   className?: string;
+  /**
+   * Layout classes (width/margins) must go HERE, not on className: the outer
+   * Animated.View is what the parent flexbox lays out — a `w-[48.5%]` on the
+   * inner Pressable measures against the already-collapsed wrapper (this is
+   * what broke the OneHub SOP grid into skinny columns).
+   */
+  containerClassName?: string;
   haptics?: boolean;
   rippleColor?: string;
 }) {
@@ -35,7 +43,7 @@ export function Touchable({
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   return (
-    <Animated.View style={animStyle}>
+    <Animated.View style={animStyle} className={containerClassName}>
       <Pressable
         className={`overflow-hidden ${className ?? ''}`}
         disabled={disabled}
