@@ -315,6 +315,7 @@ export default function DailyReportScreen() {
             <CountTile title="📞 Calls" section={report.calls} />
             <CountTile title="💬 WhatsApp" section={report.whatsapp} />
             <CountTile title="✅ Tasks" section={report.tasks} />
+            <CountTile title="🎙️ Recordings" section={report.recordings} />
           </View>
 
           <Text className="mt-1 text-center text-xs text-slate-400">

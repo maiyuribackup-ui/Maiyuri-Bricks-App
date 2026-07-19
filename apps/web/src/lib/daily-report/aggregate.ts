@@ -83,6 +83,7 @@ export interface DailyReport {
   calls: CountSection;
   whatsapp: CountSection;
   tasks: CountSection;
+  recordings: CountSection;
 }
 
 const IST_OFFSET = "+05:30";
@@ -410,12 +411,53 @@ async function tasksFromMyWork(dateISO: string): Promise<CountSection> {
   }
 }
 
+/** Call-recording pipeline health: processed today, queued, given up. */
+async function recordingsFromPipeline(dateISO: string): Promise<CountSection> {
+  const { startUtc, endUtc } = istBounds(dateISO);
+  try {
+    const [processedToday, queued, deadFailed] = await Promise.all([
+      supabaseAdmin
+        .from("call_recordings")
+        .select("id", { count: "exact", head: true })
+        .eq("processing_status", "completed")
+        .gte("updated_at", startUtc)
+        .lte("updated_at", endUtc),
+      supabaseAdmin
+        .from("call_recordings")
+        .select("id", { count: "exact", head: true })
+        .in("processing_status", ["pending", "failed"])
+        .lt("retry_count", 3),
+      supabaseAdmin
+        .from("call_recordings")
+        .select("id", { count: "exact", head: true })
+        .eq("processing_status", "failed")
+        .gte("retry_count", 3),
+    ]);
+    return {
+      status: "live",
+      primary: processedToday.count ?? 0,
+      metrics: [
+        { label: "Processed today", value: String(processedToday.count ?? 0) },
+        { label: "In queue", value: String(queued.count ?? 0) },
+        { label: "Given up ⚠️", value: String(deadFailed.count ?? 0) },
+      ],
+    };
+  } catch (err) {
+    return {
+      status: "error",
+      note: err instanceof Error ? err.message : "DB error",
+      primary: 0,
+      metrics: [],
+    };
+  }
+}
+
 /**
  * Assemble the full report. Every source runs concurrently and independently;
  * a rejected source becomes an error tile rather than failing the whole report.
  */
 export async function getDailyReport(dateISO: string): Promise<DailyReport> {
-  const [finance, receivables, production, deliveries, website, leads, tasks] =
+  const [finance, receivables, production, deliveries, website, leads, tasks, recordings] =
     await Promise.all([
       financeFromOdoo(dateISO),
       receivablesFromOdoo(),
@@ -424,6 +466,7 @@ export async function getDailyReport(dateISO: string): Promise<DailyReport> {
       websiteFromGa4(),
       leadsFromDb(dateISO),
       tasksFromMyWork(dateISO),
+      recordingsFromPipeline(dateISO),
     ]);
 
   return {
@@ -436,6 +479,7 @@ export async function getDailyReport(dateISO: string): Promise<DailyReport> {
     website,
     leads,
     tasks,
+    recordings,
     // Awaiting integration + credentials (see daily-report page footer):
     calls: notConnected("Superfone API not connected"),
     whatsapp: notConnected("WhatsApp Cloud API not connected"),

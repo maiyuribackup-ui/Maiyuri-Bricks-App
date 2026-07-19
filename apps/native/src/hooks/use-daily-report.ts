@@ -63,6 +63,7 @@ export type DailyReport = {
   calls: CountSection;
   whatsapp: CountSection;
   tasks: CountSection;
+  recordings: CountSection;
 };
 
 /** Roles allowed to open the briefing (server re-checks). */
