@@ -264,7 +264,7 @@ export async function processRecording(
       const { data: currentLead } = await supabase
         .from("leads")
         .select(
-          "lead_type, classification, requirement_type, product_interests, site_region, site_location, next_action, estimated_quantity, notes",
+          "lead_type, classification, requirement_type, product_interests, site_region, site_location, next_action, follow_up_date, estimated_quantity, notes",
         )
         .eq("id", lead_id)
         .single();
@@ -300,8 +300,25 @@ export async function processRecording(
         if (!currentLead.site_location && extractedDetails.site_location) {
           updates.site_location = extractedDetails.site_location;
         }
-        if (!currentLead.next_action && extractedDetails.next_action) {
+        // Next action: the LATEST call always wins — a stale "send quotation"
+        // from last week must not survive a call that agreed on a site visit.
+        if (
+          extractedDetails.next_action &&
+          extractedDetails.next_action !== currentLead.next_action
+        ) {
           updates.next_action = extractedDetails.next_action;
+        }
+        // Follow-up date: set when empty; when one exists, only ever PULL IT
+        // EARLIER (a call can add urgency, never silently postpone). If the
+        // call needs a follow-up but gave no timing, the extractor already
+        // defaulted to tomorrow.
+        if (extractedDetails.follow_up_date) {
+          const existing = currentLead.follow_up_date
+            ? String(currentLead.follow_up_date).slice(0, 10)
+            : null;
+          if (!existing || extractedDetails.follow_up_date < existing) {
+            updates.follow_up_date = extractedDetails.follow_up_date;
+          }
         }
         if (!currentLead.estimated_quantity && extractedDetails.estimated_quantity) {
           updates.estimated_quantity = extractedDetails.estimated_quantity;
@@ -331,6 +348,20 @@ export async function processRecording(
             });
           }
         }
+      }
+
+      // Turn the next action into a REAL task in My Work so the whole
+      // accountability machine (task-first home, 2h nags, founder escalation,
+      // evening chaser) owns it — a lead field alone can be ignored.
+      if (extractedDetails.next_action && extractedDetails.follow_up_date) {
+        await upsertNextActionTask(
+          lead_id,
+          lead?.name ?? phone_number,
+          (lead?.assigned_staff as string | null) ?? null,
+          extractedDetails.next_action,
+          extractedDetails.follow_up_date,
+          id,
+        );
       }
     }
 
@@ -434,5 +465,101 @@ export async function processRecording(
     }
 
     throw error;
+  }
+}
+
+/**
+ * Turn a call's extracted next action into a My Work task so the
+ * accountability engine (task-first home, 2h nags, >4h founder escalation,
+ * 6pm chaser) chases it. One OPEN task per lead from this source — a newer
+ * call updates it (and re-arms the nag counters) instead of stacking
+ * duplicates. Best-effort: never fails the recording pipeline.
+ */
+async function upsertNextActionTask(
+  leadId: string,
+  leadName: string,
+  assignedStaff: string | null,
+  nextAction: string,
+  followUpDate: string, // YYYY-MM-DD (IST)
+  recordingId: string,
+): Promise<void> {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    // Assignee: the lead's rep, else the first active sales/engineer, else
+    // leadership — a task nobody owns nags nobody.
+    let assignee = assignedStaff;
+    if (!assignee) {
+      const { data: fallback } = await supabase
+        .from("users")
+        .select("id, role")
+        .eq("is_active", true)
+        .in("role", ["sales", "engineer", "founder", "owner"])
+        .order("role", { ascending: false }) // sales > owner > founder > engineer alphabetically reversed — good enough tiebreak
+        .limit(10);
+      const byRole = (r: string) => fallback?.find((u) => u.role === r)?.id;
+      assignee =
+        byRole("sales") ?? byRole("engineer") ?? byRole("founder") ?? byRole("owner") ?? null;
+    }
+    if (!assignee) return;
+
+    const title = `📞 ${nextAction} — ${leadName}`.slice(0, 200);
+    const dueAt = new Date(`${followUpDate}T10:00:00+05:30`).toISOString();
+
+    // One open call-task per lead: update it if it exists, create otherwise.
+    const { data: existing } = await supabase
+      .from("work_items")
+      .select("id")
+      .eq("related_lead_id", leadId)
+      .eq("source_module", "call_recording")
+      .in("status", ["pending", "in_progress", "returned"])
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from("work_items")
+        .update({
+          title,
+          due_at: dueAt,
+          assigned_user_id: assignee,
+          source_record_id: recordingId,
+          // Re-arm the nag engine for the fresh action/date.
+          last_nudged_at: null,
+          nudge_count: 0,
+          escalated_at: null,
+        })
+        .eq("id", existing.id);
+      logProgress(recordingId, "Next-action task updated", { task: title });
+      return;
+    }
+
+    const { data: item, error: insErr } = await supabase
+      .from("work_items")
+      .insert({
+        title,
+        description: `Auto-created from the call recording. Next action agreed on the call: ${nextAction}`,
+        activity_type: "simple",
+        status: "pending",
+        priority: "high",
+        assigned_user_id: assignee,
+        due_at: dueAt,
+        related_lead_id: leadId,
+        related_label: leadName,
+        source_module: "call_recording",
+        source_record_id: recordingId,
+      })
+      .select("*")
+      .single();
+
+    if (insErr || !item) {
+      logError("Next-action task insert failed", insErr);
+      return;
+    }
+    logProgress(recordingId, "Next-action task created", { task: title });
+    const { notifyWorkAssigned } = await import("@/lib/my-work-notify");
+    await notifyWorkAssigned(item as never);
+  } catch (err) {
+    logError("upsertNextActionTask failed (ignored)", err);
   }
 }

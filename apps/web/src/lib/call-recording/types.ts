@@ -77,6 +77,8 @@ export interface ExtractedLeadDetails {
   site_region: string | null;
   site_location: string | null;
   next_action: string | null;
+  /** YYYY-MM-DD (IST) the next action is due — resolved from the call. */
+  follow_up_date: string | null;
   estimated_quantity: number | null;
   notes: string | null;
 }

@@ -154,6 +154,7 @@ Extract lead information from this call in JSON format:
   "site_region": "Chennai|Coimbatore|Madurai|Salem|Trichy|Tirupur|Erode|Vellore|Thanjavur|Other",
   "site_location": "specific location/area if mentioned",
   "next_action": "recommended next step",
+  "follow_up_date": "YYYY-MM-DD or null",
   "estimated_quantity": null or number of bricks if mentioned,
   "notes": "any important context about the customer's requirements"
 }
@@ -176,6 +177,7 @@ Guidelines:
 - site_region: Tamil Nadu district/city if mentioned
 - site_location: Specific area, street, or village name if mentioned
 - next_action: What should sales team do next? (e.g., "Schedule site visit", "Send quotation", "Call back next week")
+- follow_up_date: WHEN should the next_action happen, as YYYY-MM-DD. Today (IST) is ${new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })}. Resolve relative timing from the call ("call me Monday", "after two weeks", "next month"). If the call clearly needs a follow-up but no timing was mentioned, use tomorrow's date. Use null ONLY when no follow-up is needed at all.
 - estimated_quantity: Number of bricks if customer mentioned (e.g., "10000 bricks" -> 10000)
 - notes: Key requirements, timeline, special requests
 
@@ -212,6 +214,7 @@ ${transcript}`;
       site_region: null,
       site_location: null,
       next_action: "Follow up with customer",
+      follow_up_date: null,
       estimated_quantity: null,
       notes: null,
     };
@@ -290,6 +293,7 @@ function parseLeadDetailsResponse(response: string): ExtractedLeadDetails {
         typeof parsed.site_location === "string" ? parsed.site_location : null,
       next_action:
         typeof parsed.next_action === "string" ? parsed.next_action : null,
+      follow_up_date: sanitizeFollowUpDate(parsed.follow_up_date),
       estimated_quantity:
         typeof parsed.estimated_quantity === "number"
           ? parsed.estimated_quantity
@@ -307,10 +311,38 @@ function parseLeadDetailsResponse(response: string): ExtractedLeadDetails {
       site_region: null,
       site_location: null,
       next_action: null,
+      follow_up_date: null,
       estimated_quantity: null,
       notes: null,
     };
   }
+}
+
+/** Today (IST) as YYYY-MM-DD. */
+function istToday(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
+/**
+ * Fool-proof the AI's follow-up date: must be a real YYYY-MM-DD; anything in
+ * the past clamps to tomorrow (the model sometimes echoes a date the customer
+ * SAID, e.g. "I called you last Monday"); anything more than a year out is
+ * discarded as a hallucination.
+ */
+function sanitizeFollowUpDate(value: unknown): string | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+  const today = istToday();
+  const tomorrow = new Date(`${today}T12:00:00Z`);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const tomorrowISO = tomorrow.toISOString().slice(0, 10);
+
+  if (value < today) return tomorrowISO;
+  const yearOut = new Date(`${today}T12:00:00Z`);
+  yearOut.setUTCFullYear(yearOut.getUTCFullYear() + 1);
+  if (value > yearOut.toISOString().slice(0, 10)) return null;
+  return value;
 }
 
 function ensureStringArray(value: unknown): string[] | undefined {
