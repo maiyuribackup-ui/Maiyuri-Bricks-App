@@ -16,6 +16,7 @@ import {
   getUserIdsByRoles,
   notifyLeadPush,
 } from "@/lib/push/fcm";
+import { createFirstResponseTask } from "@/lib/golden-hour";
 import {
   createLeadSchema,
   paginationSchema,
@@ -136,6 +137,9 @@ export async function POST(request: NextRequest) {
     }).catch((err) => {
       console.error("Failed to send Telegram notification:", err);
     });
+
+    // Golden Hour: first-response task due in 30 min (awaited; never throws).
+    await createFirstResponseTask(lead);
 
     // Native push for the new lead (awaited before response so Vercel doesn't kill it).
     const recipients = await resolveNewLeadRecipients(
