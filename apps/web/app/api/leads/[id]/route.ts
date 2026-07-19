@@ -163,6 +163,34 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         const newAssignee = (lead.assigned_staff as string | null) ?? null;
         const leadName = lead.name || "Lead";
 
+        // The change summary, computed once — used for both the rep ping and
+        // the leadership ping below.
+        const changes: string[] = [];
+        if (
+          updateData.pipeline_stage &&
+          updateData.pipeline_stage !== currentLead.pipeline_stage
+        ) {
+          changes.push(`Stage → ${prettyLabel(updateData.pipeline_stage)}`);
+        }
+        if (
+          updateData.lead_status &&
+          updateData.lead_status !== currentLead.lead_status
+        ) {
+          changes.push(`Status → ${prettyLabel(updateData.lead_status)}`);
+        }
+        if (
+          updateData.lead_temperature &&
+          updateData.lead_temperature !== currentLead.lead_temperature
+        ) {
+          changes.push(`${prettyLabel(updateData.lead_temperature)} lead`);
+        }
+        if (
+          updateData.follow_up_date &&
+          updateData.follow_up_date !== currentLead.follow_up_date
+        ) {
+          changes.push("Follow-up rescheduled");
+        }
+
         // Case 1: reassignment (skip self-assignment ping).
         if (newAssignee && newAssignee !== prevAssignee && newAssignee !== editorId) {
           await notifyLeadPush([newAssignee], {
@@ -174,34 +202,31 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
         // Case 2: meaningful field change → notify the (unchanged) owner.
         // Require a known editor and skip if the editor IS the owner.
-        if (newAssignee && newAssignee === prevAssignee && editorId && newAssignee !== editorId) {
-          const changes: string[] = [];
-          if (
-            updateData.pipeline_stage &&
-            updateData.pipeline_stage !== currentLead.pipeline_stage
-          ) {
-            changes.push(`Stage → ${prettyLabel(updateData.pipeline_stage)}`);
-          }
-          if (
-            updateData.lead_status &&
-            updateData.lead_status !== currentLead.lead_status
-          ) {
-            changes.push(`Status → ${prettyLabel(updateData.lead_status)}`);
-          }
-          if (
-            updateData.lead_temperature &&
-            updateData.lead_temperature !== currentLead.lead_temperature
-          ) {
-            changes.push(`${prettyLabel(updateData.lead_temperature)} lead`);
-          }
-          if (
-            updateData.follow_up_date &&
-            updateData.follow_up_date !== currentLead.follow_up_date
-          ) {
-            changes.push("Follow-up rescheduled");
-          }
-          if (changes.length > 0) {
-            await notifyLeadPush([newAssignee], {
+        if (
+          newAssignee &&
+          newAssignee === prevAssignee &&
+          editorId &&
+          newAssignee !== editorId &&
+          changes.length > 0
+        ) {
+          await notifyLeadPush([newAssignee], {
+            title: `✏️ ${leadName} updated`,
+            body: changes.join(" · "),
+            leadId: lead.id,
+          });
+        }
+
+        // Case 3: leadership visibility — the founder asked to hear about
+        // every meaningful lead change. Exclude the editor (no self-pings)
+        // and the assignee (already pinged above); respect push_leads.
+        if (changes.length > 0) {
+          const leadership = await getUserIdsByRoles(["founder", "owner"]);
+          const others = leadership.filter(
+            (uid) => uid !== editorId && uid !== newAssignee,
+          );
+          const recipients = await filterByPushPref(others, "push_leads");
+          if (recipients.length > 0) {
+            await notifyLeadPush(recipients, {
               title: `✏️ ${leadName} updated`,
               body: changes.join(" · "),
               leadId: lead.id,
