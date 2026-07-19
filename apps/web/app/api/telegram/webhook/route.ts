@@ -18,12 +18,12 @@ import {
 // Environment configuration
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
-// Chat whitelist. Falls back to the ONE group that has ever legitimately fed
-// the pipeline (663 recordings as of Jul 2026, per call_recordings audit) —
-// without a default, any chat that can message the bot could inject audio.
-// Override/extend via TELEGRAM_ALLOWED_CHAT_IDS (comma-separated) if the
-// intake group ever changes.
-const DEFAULT_ALLOWED_CHAT_IDS = [-5116644495];
+// Chat whitelist — without one, any chat that can message the bot could
+// inject audio into the pipeline. Two groups (BOTH titled "Maiyuri Bricks"):
+//   -5116644495  original intake group (663 recordings; staff still use it)
+//   -5303889805  new group created by Ram, 2026-07-19
+// Override/extend via TELEGRAM_ALLOWED_CHAT_IDS (comma-separated).
+const DEFAULT_ALLOWED_CHAT_IDS = [-5116644495, -5303889805];
 const ALLOWED_CHAT_IDS = process.env.TELEGRAM_ALLOWED_CHAT_IDS
   ? process.env.TELEGRAM_ALLOWED_CHAT_IDS.split(",").map(Number)
   : DEFAULT_ALLOWED_CHAT_IDS;
