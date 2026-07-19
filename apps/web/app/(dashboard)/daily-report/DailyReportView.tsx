@@ -80,7 +80,7 @@ function Sparkline({ series }: { series: WebsiteSection["timeseries"] }) {
 
 /* ---------- main ---------- */
 export function DailyReportView({ report }: { report: DailyReport }) {
-  const { date, finance, receivables, production, deliveries, website, leads, calls, whatsapp, tasks } = report;
+  const { date, finance, receivables, production, deliveries, website, leads, calls, whatsapp, tasks, recordings } = report;
   const prev = shiftDate(date, -1);
   const next = shiftDate(date, 1);
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
@@ -411,6 +411,33 @@ export function DailyReportView({ report }: { report: DailyReport }) {
               </>
             ) : (
               <Pending note={tasks.note} error={tasks.status === "error"} />
+            )}
+          </section>
+        </div>
+
+        {/* Call-recording pipeline health */}
+        <div className={styles.grid}>
+          <section className={`${styles.mod} ${styles.c12}`}>
+            <h3 className={styles.modHead}>
+              Call Recordings <span className={styles.src}>Telegram → Gemini</span>
+            </h3>
+            {recordings.status === "live" ? (
+              <>
+                <div className={styles.summLine}>
+                  <span className={styles.big}>{recordings.primary}</span>
+                  <span className={styles.pct}>calls processed today</span>
+                </div>
+                <div className={styles.metrics}>
+                  {recordings.metrics.map((m) => (
+                    <div key={m.label}>
+                      <div className={styles.metricN}>{m.value}</div>
+                      <div className={styles.metricL}>{m.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <Pending note={recordings.note} error={recordings.status === "error"} />
             )}
           </section>
         </div>

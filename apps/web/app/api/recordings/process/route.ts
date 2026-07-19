@@ -244,9 +244,26 @@ async function handleProcess(request: NextRequest): Promise<NextResponse> {
     let infraFailures = 0;
     let lastInfraError = "";
 
+    // Time-budgeted batch: one recording takes 60-90s of Gemini time, so a
+    // 10-deep queue CANNOT finish inside maxDuration=120 — the old code got
+    // FUNCTION_INVOCATION_TIMEOUT mid-batch and starved the queue (this is
+    // how 8 recordings ended up permanently failed). Stop starting new work
+    // near the budget and RE-CHAIN a fresh invocation for the remainder.
+    const startedAt = Date.now();
+    const BATCH_BUDGET_MS = 60_000; // leave headroom for one ~60-90s recording
+
+    let processed = 0;
     for (const recording of pendingRecordings) {
+      if (Date.now() - startedAt > BATCH_BUDGET_MS) {
+        log("Batch budget reached — rechaining for the remainder", {
+          processed,
+          remaining: pendingRecordings.length - processed,
+        });
+        break;
+      }
       if (recording.processing_status === "completed") {
         results.push({ id: recording.id, status: "skipped_completed" });
+        processed += 1;
         continue;
       }
 
@@ -270,6 +287,30 @@ async function handleProcess(request: NextRequest): Promise<NextResponse> {
         }
         // Continue processing remaining recordings — don't let one failure stop the batch
       }
+      processed += 1;
+    }
+
+    // Rechain: anything we didn't get to runs in a FRESH invocation right now
+    // instead of waiting for the next scheduled run. Fire-and-abort — the
+    // target function keeps running after we disconnect. Each chained run
+    // makes progress (completes or burns a retry), so the chain terminates.
+    const remaining = pendingRecordings.length - processed;
+    if (remaining > 0) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://mb.maiyuri.com";
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2_000);
+      try {
+        await fetch(`${appUrl}/api/recordings/process`, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+          signal: controller.signal,
+        });
+      } catch {
+        // AbortError expected — the chained invocation continues server-side.
+      } finally {
+        clearTimeout(timer);
+      }
+      log("Rechained batch invocation", { remaining });
     }
 
     // One aggregated alert for an AI-provider/infra outage (per-recording alerts
@@ -285,6 +326,8 @@ async function handleProcess(request: NextRequest): Promise<NextResponse> {
       ok: true,
       mode: "batch",
       total: pendingRecordings.length,
+      processed,
+      rechained_for: remaining,
       results,
       recovered,
     });

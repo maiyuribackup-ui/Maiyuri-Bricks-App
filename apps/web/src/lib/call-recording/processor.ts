@@ -12,13 +12,18 @@
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { uploadToGoogleDrive } from "./gdrive-storage";
 import { transcribeAudio } from "./transcription";
-import { analyzeTranscript, extractLeadDetails } from "./analysis";
+import { analyzeCallCombined } from "./analysis";
 import {
   sendCallRecordingNotification,
   sendErrorNotification,
+  sendPermanentFailureAlert,
   isInfraError,
 } from "./notifications";
-import { notifyLeadPush } from "@/lib/push/fcm";
+import {
+  filterByPushPref,
+  getUserIdsByRoles,
+  notifyLeadPush,
+} from "@/lib/push/fcm";
 import { logError, logProgress } from "./logger";
 import {
   triggerLeadAnalysis,
@@ -222,7 +227,9 @@ export async function processRecording(
     await updateStatus(id, "analyzing");
     logProgress(id, "Running AI analysis");
 
-    const analysis = await analyzeTranscript(
+    // ONE Gemini call for analysis + lead extraction (was two sequential
+    // calls — half the cost/latency per recording, one fewer failure point).
+    const { analysis, details: combinedDetails } = await analyzeCallCombined(
       transcription.text,
       phone_number,
       lead?.name,
@@ -245,20 +252,34 @@ export async function processRecording(
     let extractedDetails: ExtractedLeadDetails | null = null;
     let isNewlyAutoPopulated = false;
 
-    if (lead_id) {
-      logProgress(id, "Extracting lead details from transcription");
-
-      extractedDetails = await extractLeadDetails(
-        transcription.text,
-        phone_number,
-        lead?.name,
-      );
+    // Extraction runs for EVERY transcript — previously gated on lead_id,
+    // which left no-match recordings as orphans (6 in prod) with their
+    // insights unread. When no lead matched, we find-or-create one below.
+    let effectiveLeadId = lead_id;
+    let effectiveLead = lead;
+    {
+      extractedDetails = combinedDetails;
 
       logProgress(id, "Lead details extracted", {
         lead_type: extractedDetails.lead_type,
         classification: extractedDetails.classification,
         site_region: extractedDetails.site_region,
       });
+
+      if (!effectiveLeadId) {
+        const linked = await findOrCreateLeadForRecording(
+          id,
+          phone_number,
+          extractedDetails,
+        );
+        if (linked) {
+          effectiveLeadId = linked.id;
+          effectiveLead = linked;
+        }
+      }
+    }
+
+    if (effectiveLeadId && extractedDetails) {
 
       // Update lead with extracted fields (only if currently empty)
       const { data: currentLead, error: leadFetchError } = await supabase
@@ -269,7 +290,7 @@ export async function processRecording(
           // why lead auto-population never actually ran until Jul 2026.
           "lead_type, classification, requirement_type, product_interests, site_region, site_location, next_action, follow_up_date, estimated_quantity",
         )
-        .eq("id", lead_id)
+        .eq("id", effectiveLeadId)
         .single();
       if (leadFetchError) {
         // Loud, not silent — a bad column here disables auto-population.
@@ -293,6 +314,16 @@ export async function processRecording(
         }
         if (!currentLead.requirement_type && extractedDetails.requirement_type) {
           updates.requirement_type = extractedDetails.requirement_type;
+        }
+        // Name repair: filename-derived junk ("100", bare digits) gets
+        // replaced by the name the customer actually SAID on the call.
+        const currentName = (effectiveLead?.name ?? "").trim();
+        const nameIsJunk =
+          !currentName ||
+          /^[\d\s]+$/.test(currentName) ||
+          currentName === phone_number;
+        if (nameIsJunk && extractedDetails.customer_name) {
+          updates.name = extractedDetails.customer_name;
         }
         if (
           (!currentLead.product_interests ||
@@ -340,7 +371,7 @@ export async function processRecording(
               ...updates,
               updated_at: new Date().toISOString(),
             })
-            .eq("id", lead_id);
+            .eq("id", effectiveLeadId);
 
           if (updateError) {
             logError(
@@ -361,9 +392,9 @@ export async function processRecording(
       // evening chaser) owns it — a lead field alone can be ignored.
       if (extractedDetails.next_action && extractedDetails.follow_up_date) {
         await upsertNextActionTask(
-          lead_id,
-          lead?.name ?? phone_number,
-          (lead?.assigned_staff as string | null) ?? null,
+          effectiveLeadId,
+          effectiveLead?.name ?? phone_number,
+          (effectiveLead?.assigned_staff as string | null) ?? null,
           extractedDetails.next_action,
           extractedDetails.follow_up_date,
           id,
@@ -377,8 +408,8 @@ export async function processRecording(
     logProgress(id, "Sending notification");
 
     await sendCallRecordingNotification(telegram_chat_id.toString(), {
-      leadName: lead?.name,
-      leadId: lead?.id,
+      leadName: effectiveLead?.name,
+      leadId: effectiveLead?.id,
       phoneNumber: phone_number,
       duration: durationSeconds,
       summary: analysis.summary,
@@ -390,31 +421,31 @@ export async function processRecording(
     });
 
     // Native push to the rep who owns this lead (best-effort, non-blocking).
-    if (lead?.assigned_staff && lead?.id) {
-      await notifyLeadPush([lead.assigned_staff], {
-        title: lead.name ? `📞 Call logged: ${lead.name}` : "📞 New call logged",
+    if (effectiveLead?.assigned_staff && effectiveLead?.id) {
+      await notifyLeadPush([effectiveLead.assigned_staff], {
+        title: effectiveLead.name ? `📞 Call logged: ${effectiveLead.name}` : "📞 New call logged",
         body:
           (analysis.summary || "A new call recording was processed.").slice(0, 160),
-        leadId: lead.id,
+        leadId: effectiveLead.id,
       });
     }
 
     // ========================================
     // Stage 6: Trigger Lead Analysis (awaited in serverless)
     // ========================================
-    if (lead_id) {
+    if (effectiveLeadId) {
       logProgress(id, "Triggering lead analysis");
       try {
-        await triggerLeadAnalysis({ leadId: lead_id, recordingId: id });
+        await triggerLeadAnalysis({ leadId: effectiveLeadId, recordingId: id });
       } catch (err) {
-        logError(`Failed to trigger analysis for lead ${lead_id}`, err);
+        logError(`Failed to trigger analysis for lead ${effectiveLeadId}`, err);
       }
     }
 
     // ========================================
     // Stage 7: Trigger Event Nudges (awaited in serverless)
     // ========================================
-    if (lead_id) {
+    if (effectiveLeadId) {
       logProgress(id, "Triggering event nudges");
 
       const objections = [
@@ -424,7 +455,7 @@ export async function processRecording(
 
       try {
         await triggerCallRecordingNudge({
-          leadId: lead_id,
+          leadId: effectiveLeadId,
           recordingId: id,
           summary: analysis.summary,
           objections,
@@ -432,13 +463,13 @@ export async function processRecording(
 
         if (objections.length > 0) {
           await triggerObjectionNudge({
-            leadId: lead_id,
+            leadId: effectiveLeadId,
             recordingId: id,
             objections,
           });
         }
       } catch (err) {
-        logError(`Failed to trigger nudges for lead ${lead_id}`, err);
+        logError(`Failed to trigger nudges for lead ${effectiveLeadId}`, err);
       }
     }
 
@@ -468,6 +499,15 @@ export async function processRecording(
     // are alerted once, aggregated, by the caller (see process route).
     if (!infra) {
       await sendErrorNotification(id, message).catch(() => {});
+      // Final strike → loud "we are giving up" alert (SR review: 8 recordings
+      // previously died silently at retry_count >= 3).
+      if (recording.retry_count + 1 >= 3) {
+        await sendPermanentFailureAlert(
+          original_filename,
+          phone_number,
+          message,
+        ).catch(() => {});
+      }
     }
 
     throw error;
@@ -567,5 +607,99 @@ async function upsertNextActionTask(
     await notifyWorkAssigned(item as never);
   } catch (err) {
     logError("upsertNextActionTask failed (ignored)", err);
+  }
+}
+
+/**
+ * A recording with no matched lead is an orphan — its insights die unread
+ * (6 in prod before this). Find an existing lead by NORMALIZED phone
+ * (last-10-digit suffix beats +91/0-prefix format drift) or create one from
+ * what the customer said on the call, then link the recording.
+ */
+async function findOrCreateLeadForRecording(
+  recordingId: string,
+  phoneNumber: string,
+  details: ExtractedLeadDetails,
+): Promise<{ id: string; name: string; assigned_staff: string | null } | null> {
+  try {
+    const supabase = getSupabaseAdmin();
+    const last10 = phoneNumber.replace(/\D/g, "").slice(-10);
+    if (last10.length !== 10) return null;
+
+    // Dedupe: suffix match catches +919345971162 vs 9345971162 vs 09345971162.
+    const { data: existing } = await supabase
+      .from("leads")
+      .select("id, name, assigned_staff")
+      .ilike("contact", `%${last10}`)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from("call_recordings")
+        .update({ lead_id: existing.id })
+        .eq("id", recordingId);
+      logProgress(recordingId, "Linked to existing lead by normalized phone", {
+        lead_id: existing.id,
+      });
+      return existing as { id: string; name: string; assigned_staff: string | null };
+    }
+
+    // Create from the call itself.
+    const { data: lead, error: insErr } = await supabase
+      .from("leads")
+      .insert({
+        name: details.customer_name ?? last10,
+        contact: last10,
+        source: "Telegram",
+        lead_status: "new_contact_pending",
+        pipeline_stage: "new_inquiry",
+        lead_type: details.lead_type ?? "Other",
+        classification: details.classification ?? "direct_customer",
+        requirement_type: details.requirement_type,
+        site_region: details.site_region,
+        site_location: details.site_location,
+        next_action: details.next_action,
+        follow_up_date: details.follow_up_date,
+      })
+      .select("id, name, assigned_staff")
+      .single();
+
+    if (insErr || !lead) {
+      logError("Auto-create lead from recording failed", insErr);
+      return null;
+    }
+
+    await supabase
+      .from("call_recordings")
+      .update({ lead_id: lead.id })
+      .eq("id", recordingId);
+    logProgress(recordingId, "Auto-created lead from call", { lead_id: lead.id });
+
+    // Founder push with the call summary (same contract as extract-from-audio).
+    try {
+      const leadership = await getUserIdsByRoles(["founder", "owner"]);
+      const recipients = await filterByPushPref(leadership, "push_leads");
+      const summary = [
+        details.lead_type,
+        details.site_location ?? details.site_region,
+        details.next_action,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      await notifyLeadPush(recipients, {
+        title: `🎙️ New lead from call: ${lead.name}`,
+        body: (summary || last10).slice(0, 180),
+        leadId: lead.id,
+      });
+    } catch (pushErr) {
+      logError("Auto-create lead push failed (ignored)", pushErr);
+    }
+
+    return lead as { id: string; name: string; assigned_staff: string | null };
+  } catch (err) {
+    logError("findOrCreateLeadForRecording failed (ignored)", err);
+    return null;
   }
 }
