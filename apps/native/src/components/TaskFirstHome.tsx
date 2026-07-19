@@ -117,6 +117,17 @@ function TaskCard({ item, overdue }: { item: WorkItem; overdue: boolean }) {
         </Text>
       ) : null}
 
+      {item.related_lead_id ? (
+        <Pressable
+          onPress={() => router.push(`/onehub/brief/${item.related_lead_id}` as never)}
+          className="mt-3 items-center rounded-2xl border-2 border-sky-300 bg-sky-50 px-4 py-3 active:opacity-80"
+        >
+          <Text className="text-base font-bold text-sky-700">
+            🧠  அழைப்பதற்கு முன் படி · Pre-call brief
+          </Text>
+        </Pressable>
+      ) : null}
+
       {item.status === 'pending' || item.status === 'returned' ? (
         <BigButton
           tone="start"
