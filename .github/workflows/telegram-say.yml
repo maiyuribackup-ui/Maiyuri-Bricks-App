@@ -41,3 +41,4 @@ jobs:
           echo "--- getChat ---";                curl -s "$base/getChat?chat_id=$cid"; echo
           echo "--- getChatMemberCount ---";     curl -s "$base/getChatMemberCount?chat_id=$cid"; echo
           echo "--- getChatAdministrators ---";  curl -s "$base/getChatAdministrators?chat_id=$cid"; echo
+          echo "--- getWebhookInfo ---";         curl -s "$base/getWebhookInfo"; echo
