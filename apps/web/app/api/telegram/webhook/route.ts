@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { createFirstResponseTask } from "@/lib/golden-hour";
 import {
   extractFromFilename,
   normalizePhoneNumber,
@@ -274,6 +275,8 @@ export async function POST(request: NextRequest) {
         console.warn(
           `[Telegram Webhook] Auto-created lead: ${newLead.id} for ${extractedName}`,
         );
+        // Golden Hour: 30-min first-response task for the fresh lead.
+        await createFirstResponseTask(newLead);
       }
     }
 

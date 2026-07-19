@@ -24,6 +24,7 @@ import {
   getUserIdsByRoles,
   notifyLeadPush,
 } from "@/lib/push/fcm";
+import { createFirstResponseTask } from "@/lib/golden-hour";
 import { logError, logProgress } from "./logger";
 import {
   triggerLeadAnalysis,
@@ -676,6 +677,9 @@ async function findOrCreateLeadForRecording(
       .update({ lead_id: lead.id })
       .eq("id", recordingId);
     logProgress(recordingId, "Auto-created lead from call", { lead_id: lead.id });
+
+    // Golden Hour: 30-min first-response task for the fresh lead.
+    await createFirstResponseTask({ ...lead, contact: last10, source: "Telegram" });
 
     // Founder push with the call summary (same contract as extract-from-audio).
     try {

@@ -12,6 +12,7 @@ import {
   getUserIdsByRoles,
   notifyLeadPush,
 } from "@/lib/push/fcm";
+import { createFirstResponseTask } from "@/lib/golden-hour";
 
 interface ExtractedLeadInfo {
   name: string | null;
@@ -81,6 +82,9 @@ export async function POST(request: NextRequest) {
           .update({ lead_id: lead.id })
           .eq("id", recording_id);
       }
+
+      // Golden Hour: 30-min first-response task for the fresh lead.
+      await createFirstResponseTask(lead);
 
       // Push the founder/owner a lead summary — Telegram-uploaded calls used
       // to create leads silently; leadership specifically asked to hear about
