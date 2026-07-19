@@ -83,3 +83,83 @@ export async function createFirstResponseTask(lead: {
     console.error("[GoldenHour] createFirstResponseTask failed (ignored):", err);
   }
 }
+
+/**
+ * GH4: the customer just OPENED their quote — the single hottest moment in the
+ * funnel. Create a 2-hour "call now" task so the rep reaches them while the
+ * numbers are on their screen. Deduped with a cooldown so repeated page views
+ * don't spawn a task each time.
+ */
+const QUOTE_OPEN_CALLBACK_HOURS = 2;
+const QUOTE_OPEN_COOLDOWN_MS = 6 * 60 * 60 * 1000; // one hot task per 6h of views
+
+export async function createQuoteOpenCallback(smartQuoteId: string): Promise<void> {
+  try {
+    const { data: quote } = await supabaseAdmin
+      .from("smart_quotes")
+      .select("lead_id")
+      .eq("id", smartQuoteId)
+      .maybeSingle();
+    if (!quote?.lead_id) return;
+    const leadId = quote.lead_id as string;
+
+    const { data: lead } = await supabaseAdmin
+      .from("leads")
+      .select("name, contact, assigned_staff")
+      .eq("id", leadId)
+      .maybeSingle();
+    if (!lead) return;
+
+    // Cooldown: skip if an open callback task already exists for this lead, or
+    // a very recent one was created (repeat views within the window).
+    const { data: recent } = await supabaseAdmin
+      .from("work_items")
+      .select("id, status, created_at")
+      .eq("related_lead_id", leadId)
+      .eq("source_module", "quote_open")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (recent) {
+      const openStates = ["pending", "in_progress", "returned"];
+      const isOpen = openStates.includes(recent.status as string);
+      const fresh =
+        Date.now() - new Date(recent.created_at as string).getTime() <
+        QUOTE_OPEN_COOLDOWN_MS;
+      if (isOpen || fresh) return;
+    }
+
+    const assignee = await resolveAssignee(
+      (lead.assigned_staff as string | null) ?? null,
+    );
+    if (!assignee) return;
+
+    const label = (lead.name as string) || (lead.contact as string) || "Lead";
+    const { data: item, error } = await supabaseAdmin
+      .from("work_items")
+      .insert({
+        title: `🔥 Quote OPENED — call ${label} now`.slice(0, 200),
+        description: `${label} is looking at their quote right now — call within ${QUOTE_OPEN_CALLBACK_HOURS} hours while it's hot. இப்போது கோட் பார்க்கிறார்கள் — உடனே அழையுங்கள்!`,
+        activity_type: "simple",
+        status: "pending",
+        priority: "urgent",
+        assigned_user_id: assignee,
+        due_at: new Date(
+          Date.now() + QUOTE_OPEN_CALLBACK_HOURS * 3_600_000,
+        ).toISOString(),
+        related_lead_id: leadId,
+        related_label: label,
+        source_module: "quote_open",
+      })
+      .select("*")
+      .single();
+
+    if (error || !item) {
+      console.error("[GoldenHour] quote-open task insert failed:", error);
+      return;
+    }
+    await notifyWorkAssigned(item as WorkItem);
+  } catch (err) {
+    console.error("[GoldenHour] createQuoteOpenCallback failed (ignored):", err);
+  }
+}
