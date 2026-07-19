@@ -28,10 +28,22 @@ interface NavItem {
   showBadge?: boolean;
 }
 
+function OneHubIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor">
+      <circle cx="12" cy="12" r="9" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="m14.8 9.2-1.9 4-4 1.9 1.9-4 4-1.9Z" />
+    </svg>
+  );
+}
+
 const navigation: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: HomeIcon, key: "dashboard" },
+  { name: "OneHub", href: "/onehub", icon: OneHubIcon, key: "onehub" },
+  { name: "Daily Report", href: "/daily-report", icon: KPIIcon, key: "daily-report" },
   { name: "Business", href: "/business-health", icon: HealthIcon, key: "business-health" },
   { name: "Leads", href: "/leads", icon: UsersIcon, key: "leads" },
+  { name: "Quotes", href: "/quotes", icon: KPIIcon, key: "quotes" },
   {
     name: "Deliveries",
     href: "/deliveries",
@@ -44,7 +56,10 @@ const navigation: NavItem[] = [
     icon: ProductionIcon,
     key: "production",
   },
+  { name: "Plan", href: "/planning", icon: ProductionIcon, key: "planning" },
   { name: "Projects", href: "/projects", icon: ProductionIcon, key: "projects" },
+  { name: "Reimbursements", href: "/expenses", icon: KPIIcon, key: "expenses" },
+  { name: "Rate Card", href: "/rate-card", icon: KPIIcon, key: "rate-card" },
   {
     name: "Approvals",
     href: "/approvals",
@@ -52,7 +67,6 @@ const navigation: NavItem[] = [
     key: "approvals",
     showBadge: true,
   },
-  { name: "Design", href: "/design", icon: DesignIcon, key: "design" },
   { name: "Knowledge", href: "/knowledge", icon: BookIcon, key: "knowledge" },
   { name: "Tasks", href: "/tasks", icon: TasksIcon, key: "tasks" },
   { name: "Coaching", href: "/coaching", icon: ChartIcon, key: "coaching" },
@@ -68,25 +82,33 @@ const roleModuleAccess: Record<UserRole, string[]> = {
   owner: ["*"], // Full access
   accountant: [
     "dashboard",
+    "onehub",
+    "daily-report",
     "leads",
+    "quotes",
     "tasks",
     "approvals",
     "settings",
     "knowledge",
+    "coaching",
+    "projects",
+    "expenses",
+    "rate-card",
   ],
   engineer: [
     "dashboard",
+    "onehub",
     "leads",
     "tasks",
     "approvals",
     "settings",
     "knowledge",
-    "design",
     "projects",
+    "coaching",
   ],
-  sales: ["dashboard", "leads", "tasks", "settings", "knowledge"],
-  driver: ["dashboard", "deliveries", "settings"],
-  production_supervisor: ["dashboard", "production", "deliveries", "settings", "projects"],
+  sales: ["dashboard", "onehub", "leads", "quotes", "tasks", "settings", "knowledge", "coaching"],
+  driver: ["dashboard", "onehub", "deliveries", "settings"],
+  production_supervisor: ["dashboard", "onehub", "production", "planning", "deliveries", "settings", "projects", "coaching"],
 };
 
 function getNavigationForRole(role: UserRole | undefined): NavItem[] {

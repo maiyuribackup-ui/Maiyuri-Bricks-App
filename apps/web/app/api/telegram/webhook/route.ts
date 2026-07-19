@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { createFirstResponseTask } from "@/lib/golden-hour";
 import {
   extractFromFilename,
   normalizePhoneNumber,
@@ -18,8 +19,15 @@ import {
 // Environment configuration
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
-const ALLOWED_CHAT_IDS =
-  process.env.TELEGRAM_ALLOWED_CHAT_IDS?.split(",").map(Number) || [];
+// Chat whitelist — without one, any chat that can message the bot could
+// inject audio into the pipeline. Two groups (BOTH titled "Maiyuri Bricks"):
+//   -5116644495  original intake group (663 recordings; staff still use it)
+//   -5303889805  new group created by Ram, 2026-07-19
+// Override/extend via TELEGRAM_ALLOWED_CHAT_IDS (comma-separated).
+const DEFAULT_ALLOWED_CHAT_IDS = [-5116644495, -5303889805];
+const ALLOWED_CHAT_IDS = process.env.TELEGRAM_ALLOWED_CHAT_IDS
+  ? process.env.TELEGRAM_ALLOWED_CHAT_IDS.split(",").map(Number)
+  : DEFAULT_ALLOWED_CHAT_IDS;
 
 /**
  * POST /api/telegram/webhook
@@ -71,7 +79,11 @@ export async function POST(request: NextRequest) {
 
     // Verify chat ID is whitelisted (if configured)
     if (ALLOWED_CHAT_IDS.length > 0 && !ALLOWED_CHAT_IDS.includes(chatId)) {
-      console.warn(`[Telegram Webhook] Unauthorized chat: ${chatId}`);
+      // Include the chat's name so a legit-but-unlisted group is identifiable
+      // from the logs without needing a Telegram getChat round-trip.
+      console.warn(
+        `[Telegram Webhook] Unauthorized chat: ${chatId} (${message.chat.title ?? "private chat"})`,
+      );
       return NextResponse.json({ ok: true }); // Don't reveal we ignored it
     }
 
@@ -263,6 +275,8 @@ export async function POST(request: NextRequest) {
         console.warn(
           `[Telegram Webhook] Auto-created lead: ${newLead.id} for ${extractedName}`,
         );
+        // Golden Hour: 30-min first-response task for the fresh lead.
+        await createFirstResponseTask(newLead);
       }
     }
 

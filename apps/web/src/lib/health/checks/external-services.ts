@@ -14,7 +14,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { HealthCheckResult, THRESHOLDS } from '../types';
 
@@ -236,33 +236,38 @@ export async function checkGemini(): Promise<HealthCheckResult> {
 }
 
 /**
- * Check Resend email service availability
+ * Check email delivery (Gmail SMTP — switched from Resend).
  *
- * Validates the API key by listing API keys (lightweight operation).
+ * transporter.verify() performs the SMTP handshake + auth without sending.
  */
 export async function checkResend(): Promise<HealthCheckResult> {
   const startTime = Date.now();
-  const checkName = 'resend';
-  const serviceName = 'Resend Email';
+  const checkName = 'resend'; // keep the historic check name for continuity in logs
+  const serviceName = 'Email (Gmail SMTP)';
 
   try {
-    const apiKey = process.env.RESEND_API_KEY;
+    const user = process.env.GMAIL_SMTP_USER;
+    const pass = process.env.GMAIL_SMTP_APP_PASSWORD;
 
-    if (!apiKey) {
+    if (!user || !pass) {
       return {
         checkName,
         serviceName,
         status: 'unhealthy',
         responseTimeMs: 0,
-        errorMessage: 'Not configured - RESEND_API_KEY missing',
+        errorMessage:
+          'Not configured - GMAIL_SMTP_USER / GMAIL_SMTP_APP_PASSWORD missing',
       };
     }
 
-    const resend = new Resend(apiKey);
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user, pass },
+    });
 
-    const checkPromise = resend.apiKeys.list();
-
-    await withTimeout(checkPromise, THRESHOLDS.resend.timeoutMs);
+    await withTimeout(transporter.verify(), THRESHOLDS.resend.timeoutMs);
     const responseTimeMs = Date.now() - startTime;
 
     const status =

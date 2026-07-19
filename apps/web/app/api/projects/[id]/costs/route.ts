@@ -3,19 +3,25 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, error, parseBody } from "@/lib/api-utils";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import { createCostEntrySchema } from "@maiyuri/shared";
 import { recomputeProject } from "@/lib/projects/recompute";
+import { z } from "zod";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-export async function GET(_request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
     const { id } = await params;
     const { data, error: dbErr } = await supabaseAdmin
       .from("cost_entries")
-      .select("*")
+      .select("*, cbs:cbs_master(id, cbs_code, category, work_item, cost_type)")
       .eq("project_id", id)
       .order("entry_date", { ascending: false })
       .order("created_at", { ascending: false });
@@ -29,6 +35,10 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 // POST — record a cost entry, then recompute the project budget-vs-actual.
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
     const { id } = await params;
     const parsed = await parseBody(request, createCostEntrySchema);
     if (parsed.error) return parsed.error;
@@ -66,6 +76,49 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return success(entry);
   } catch (err) {
     console.error("costs POST error:", err);
+    return error("Internal server error", 500);
+  }
+}
+
+const patchCostSchema = z.object({
+  id: z.string().uuid(),
+  approval_status: z.enum(["pending", "approved", "rejected"]).optional(),
+  cbs_id: z.string().uuid().nullable().optional(),
+  zone: z.string().nullable().optional(),
+});
+
+// PATCH — update approval_status or CBS assignment on a cost entry.
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
+    const { id } = await params;
+    const parsed = await parseBody(request, patchCostSchema);
+    if (parsed.error) return parsed.error;
+    const { id: costId, ...updates } = parsed.data;
+
+    const patch: Record<string, unknown> = {};
+    if (updates.approval_status !== undefined) patch.approval_status = updates.approval_status;
+    if (updates.cbs_id !== undefined) patch.cbs_id = updates.cbs_id;
+    if (updates.zone !== undefined) patch.zone = updates.zone;
+
+    if (Object.keys(patch).length === 0)
+      return error("No updatable fields provided", 400);
+
+    const { data: row, error: updErr } = await supabaseAdmin
+      .from("cost_entries")
+      .update(patch)
+      .eq("id", costId)
+      .eq("project_id", id)
+      .select()
+      .single();
+
+    if (updErr) return error(`Failed to update cost: ${updErr.message}`, 500);
+    return success(row);
+  } catch (err) {
+    console.error("costs PATCH error:", err);
     return error("Internal server error", 500);
   }
 }

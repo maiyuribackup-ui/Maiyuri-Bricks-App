@@ -6,6 +6,29 @@ import { Card, Button, Spinner } from "@maiyuri/ui";
 import { SmartQuoteImagesTab } from "@/components/settings/SmartQuoteImagesTab";
 import { WallCostSettingsTab } from "@/components/settings/WallCostSettingsTab";
 import { HelpButton } from "@/components/help";
+import { getSupabase } from "@/lib/supabase";
+import { interpretPushTest } from "@/lib/push/test-result";
+
+// Authenticated fetch: attaches the Supabase session Bearer token so requests
+// work inside the native app (where cookies are unreliable) as well as on web.
+async function authFetch(input: string, init: RequestInit = {}) {
+  let token: string | undefined;
+  try {
+    const {
+      data: { session },
+    } = await getSupabase().auth.getSession();
+    token = session?.access_token;
+  } catch {
+    /* not signed in — let the request 401 */
+  }
+  return fetch(input, {
+    ...init,
+    headers: {
+      ...(init.headers ?? {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+}
 
 interface UserProfile {
   id: string;
@@ -295,13 +318,27 @@ function ProfileSettings() {
 }
 
 function NotificationSettings() {
-  const [settings, setSettings] = useState({
-    new_leads: true,
-    follow_ups: true,
-    ai_insights: true,
-    daily_summary: true,
-    telegram: false,
+  // REAL persistence (the previous version faked saves with a setTimeout —
+  // completeness audit): these are the exact keys filterByPushPref reads,
+  // shared with the mobile Settings screen.
+  const queryClient = useQueryClient();
+  const { data: profileData } = useQuery({
+    queryKey: ["me-prefs"],
+    queryFn: async () => {
+      const res = await fetch("/api/users/me");
+      if (!res.ok) throw new Error("Failed to load preferences");
+      return res.json() as Promise<{
+        data: { notification_preferences?: Record<string, boolean> | null };
+      }>;
+    },
   });
+  const prefs = profileData?.data?.notification_preferences ?? {};
+  const settings = {
+    push_leads: prefs.push_leads !== false,
+    push_ops: prefs.push_ops !== false,
+    push_digest: prefs.push_digest !== false,
+    telegram: prefs.telegram === true,
+  };
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle",
   );
@@ -310,15 +347,27 @@ function NotificationSettings() {
   >("idle");
   const [telegramError, setTelegramError] = useState("");
 
-  const handleToggle = (key: keyof typeof settings) => {
-    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
-    // Auto-save notification settings
-    setSaveStatus("saving");
-    // Simulate save (in production, call API)
-    setTimeout(() => {
+  const saveMutation = useMutation({
+    mutationFn: async (next: Record<string, boolean>) => {
+      const res = await fetch("/api/users/me", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notification_preferences: next }),
+      });
+      if (!res.ok) throw new Error("Failed to save preferences");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["me-prefs"] });
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 2000);
-    }, 500);
+    },
+    onError: () => setSaveStatus("idle"),
+  });
+
+  const handleToggle = (key: keyof typeof settings) => {
+    setSaveStatus("saving");
+    saveMutation.mutate({ ...prefs, [key]: !settings[key] });
   };
 
   const testTelegram = async () => {
@@ -360,25 +409,20 @@ function NotificationSettings() {
         {(
           [
             {
-              id: "new_leads",
-              title: "New Lead Alerts",
-              description: "Get notified when new leads are added",
+              id: "push_leads",
+              title: "Lead Alerts",
+              description: "New/assigned leads, updates, order won",
             },
             {
-              id: "follow_ups",
-              title: "Follow-up Reminders",
-              description: "Reminders for scheduled follow-ups",
-            },
-            {
-              id: "ai_insights",
-              title: "AI Insights",
+              id: "push_ops",
+              title: "Operations Alerts",
               description:
-                "Notifications about AI-generated insights and recommendations",
+                "Deliveries, production approvals, My Work assignments & reviews",
             },
             {
-              id: "daily_summary",
-              title: "Daily Summary",
-              description: "Daily digest of lead activity and metrics",
+              id: "push_digest",
+              title: "Morning Digest",
+              description: "Daily follow-up + My Work summary each morning",
             },
           ] as const
         ).map((setting) => (
@@ -448,8 +492,86 @@ function NotificationSettings() {
             </p>
           )}
         </div>
+
+        <PushDeviceSection />
       </div>
     </Card>
+  );
+}
+
+// Device push diagnostics + self-test. Lets a user confirm — from their own
+// phone — that this device is registered and that the FCM pipeline works.
+function PushDeviceSection() {
+  const [status, setStatus] = useState<{
+    configured: boolean;
+    deviceCount: number;
+  } | null>(null);
+  const [testState, setTestState] = useState<
+    "idle" | "sending" | "sent" | "error"
+  >("idle");
+  const [message, setMessage] = useState("");
+
+  const loadStatus = async () => {
+    try {
+      const res = await authFetch("/api/push/test");
+      const json = await res.json();
+      if (res.ok && json.data) setStatus(json.data);
+    } catch {
+      /* best-effort; the test button still works */
+    }
+  };
+
+  useEffect(() => {
+    loadStatus();
+  }, []);
+
+  const sendTest = async () => {
+    setTestState("sending");
+    setMessage("");
+    try {
+      const res = await authFetch("/api/push/test", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to send test");
+      const outcome = interpretPushTest(json.data ?? {});
+      setTestState(outcome.state);
+      setMessage(outcome.message);
+      loadStatus();
+    } catch (err) {
+      setTestState("error");
+      setMessage(err instanceof Error ? err.message : "Network error.");
+    }
+  };
+
+  return (
+    <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h3 className="text-sm font-medium text-slate-900 dark:text-white">
+            Push Notifications (This Device)
+          </h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {status
+              ? status.configured
+                ? `${status.deviceCount} device(s) registered`
+                : "Push not configured on the server"
+              : "Checking status…"}
+          </p>
+        </div>
+        <button
+          onClick={sendTest}
+          disabled={testState === "sending"}
+          className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50"
+        >
+          {testState === "sending" ? "Sending…" : "Send Test"}
+        </button>
+      </div>
+      {testState === "sent" && (
+        <p className="text-sm text-green-600 dark:text-green-400">{message}</p>
+      )}
+      {testState === "error" && (
+        <p className="text-sm text-red-600 dark:text-red-400">{message}</p>
+      )}
+    </div>
   );
 }
 
@@ -1286,7 +1408,8 @@ function TeamSettings() {
                       </Button>
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Directly set the user&apos;s password without sending an email.
+                      Directly set the user&apos;s password without sending an
+                      email.
                     </p>
                   </div>
                 )}

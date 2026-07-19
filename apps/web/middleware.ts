@@ -17,10 +17,25 @@ const publicRoutes = [
 // Routes that require authentication (pages)
 const protectedRoutes = [
   "/dashboard",
+  "/daily-report", // server-rendered with real business data — must never serve anonymously
+  "/onehub",
   "/leads",
+  "/quotes",
+  "/planning",
+  "/projects",
+  "/expenses",
+  "/rate-card",
+  "/approvals",
+  "/production",
+  "/deliveries",
   "/coaching",
   "/reports",
+  "/knowledge",
   "/knowledgebase",
+  "/kpi",
+  "/business-health",
+  "/analytics",
+  "/observability",
   "/settings",
   "/tasks",
 ];
@@ -46,11 +61,39 @@ const publicApiRoutes = [
   "/api/sq/", // Smart quote public pages (customer-facing)
   "/api/feedback/", // Factory-visit feedback (token-gated; the opaque token is the auth)
   "/api/salespulse/", // SalesPulse digest gather + send (token-gated; SALESPULSE_TOKEN bearer is the auth)
-  "/api/recordings/process", // Call recording processor (uses CRON_SECRET auth)
-  "/api/admin/call-recordings", // Admin call recording management (uses internal auth)
-  "/api/nudges/events", // Nudge event triggers (uses CRON_SECRET auth)
-  "/api/leads/", // Lead analysis triggers (uses CRON_SECRET auth)
+  "/api/recordings/process", // Call recording processor (verifies CRON_SECRET in-handler)
+  // NOTE: "/api/admin/call-recordings" was previously exempted with a false
+  // "uses internal auth" comment — the handlers have NO auth and would expose
+  // every recording URL, transcript and lead contact to anonymous callers.
+  // Removed: these admin endpoints now require a staff session (or machine bearer).
+  // NOTE: "/api/nudges/events" was previously exempted but its handler has NO
+  // auth — anyone could spam staff Telegram alerts / trigger AI for arbitrary
+  // lead IDs. Removed: its only callers are internal (call-recording pipeline +
+  // analyze route), which now send a machine bearer handled by the bypass below.
+  // NOTE: "/api/leads/" was previously listed here, which exempted the ENTIRE
+  // leads API from session auth — exposing customer PII, notes, call transcripts
+  // and write/AI endpoints to anonymous callers. It is intentionally removed.
+  // The one legitimate server-to-server caller (call-recording pipeline →
+  // /api/leads/[id]/analyze) authenticates via the machine-bearer bypass below.
 ];
+
+/**
+ * Server-to-server machine auth. A request bearing the CRON_SECRET or the
+ * Supabase service-role key is a trusted internal caller (cron jobs, the
+ * call-recording → lead-analysis trigger). Browsers never hold these secrets,
+ * so this lets internal pipelines reach otherwise session-protected APIs
+ * without weakening them for the public internet.
+ */
+function hasMachineAuth(request: NextRequest): boolean {
+  const header = request.headers.get("authorization");
+  if (!header) return false;
+  const cron = process.env.CRON_SECRET;
+  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return (
+    (!!cron && header === `Bearer ${cron}`) ||
+    (!!serviceRole && header === `Bearer ${serviceRole}`)
+  );
+}
 
 // Routes that need rate limiting
 const rateLimitedRoutes = {
@@ -111,6 +154,12 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
       // browser silently blocks the voice-feedback socket (onerror).
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com",
       "frame-ancestors 'none'",
+      // Hardening (no app impact): block <base> tag hijacking, plugin/object
+      // execution, and cross-origin form posts; clickjacking already covered by
+      // frame-ancestors + X-Frame-Options.
+      "base-uri 'self'",
+      "object-src 'none'",
+      "form-action 'self'",
     ].join("; "),
   );
 
@@ -207,6 +256,14 @@ export async function middleware(request: NextRequest) {
       return addSecurityHeaders(response);
     }
 
+    // Trusted server-to-server caller (cron / internal pipeline) — allow without
+    // a browser session. Secrets are never exposed to clients.
+    if (hasMachineAuth(request)) {
+      return addSecurityHeaders(
+        NextResponse.next({ request: { headers: request.headers } }),
+      );
+    }
+
     // Protected API - require authentication
     const response = NextResponse.next({
       request: {
@@ -216,12 +273,42 @@ export async function middleware(request: NextRequest) {
 
     try {
       const supabase = createSupabaseMiddlewareClient(request, response);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
 
-      if (!session) {
-        // No session - return 401 Unauthorized
+      // Non-browser clients (the React Native app, future API integrations)
+      // have no cookie jar and authenticate with `Authorization: Bearer
+      // <supabase-access-token>`. Validate that token here. This is additive:
+      // browser requests carry no user Bearer header and fall through to the
+      // cookie-based check below, so web behaviour is unchanged.
+      // getUser(jwt) revalidates the token against the Supabase auth server.
+      const authHeader = request.headers.get("authorization");
+      const bearer = authHeader?.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : null;
+      if (bearer) {
+        const {
+          data: { user: bearerUser },
+        } = await supabase.auth.getUser(bearer);
+        if (bearerUser) {
+          return addSecurityHeaders(response);
+        }
+        // Invalid/expired token — reject rather than falling through.
+        return addSecurityHeaders(
+          NextResponse.json(
+            { error: "Unauthorized: Invalid or expired token" },
+            { status: 401 },
+          ),
+        );
+      }
+
+      // getUser() revalidates the JWT against the Supabase auth server, unlike
+      // getSession() which only decodes the (client-tamperable) cookie. This is
+      // the sole gate for service-role API routes, so it must be authentic.
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        // No authenticated user - return 401 Unauthorized
         return addSecurityHeaders(
           NextResponse.json(
             { error: "Unauthorized: Authentication required" },
@@ -266,13 +353,13 @@ export async function middleware(request: NextRequest) {
   try {
     const supabase = createSupabaseMiddlewareClient(request, response);
 
-    // Get session from cookies
+    // Revalidate the JWT with the auth server (not just decode the cookie).
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    // If no session and trying to access protected route, redirect to login
-    if (!session) {
+    // If not authenticated and trying to access protected route, redirect to login
+    if (!user) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("redirect", pathname);
       return NextResponse.redirect(loginUrl);

@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { success, error, parseQuery } from "@/lib/api-utils";
+import { requireProductionRole } from "@/lib/production-auth";
 import { getEmployees, syncEmployeesFromOdoo } from "@/lib/production-service";
 import type { Employee } from "@maiyuri/shared";
 
@@ -22,6 +23,9 @@ export async function GET(request: NextRequest) {
 // POST /api/production/employees - Sync employees from Odoo
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireProductionRole(request);
+    if (auth.errorResponse) return auth.errorResponse;
+
     const body = await request.json().catch(() => ({}));
     const department = body.department as string | undefined;
 

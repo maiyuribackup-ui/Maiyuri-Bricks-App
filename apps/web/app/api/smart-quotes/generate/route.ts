@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { createSupabaseRouteClient } from "@/lib/supabase-server";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import {
   success,
   error,
@@ -37,24 +37,33 @@ export async function POST(request: NextRequest) {
 
     const { lead_id, regenerate } = parsed.data;
 
-    // Get authenticated user
-    const supabase = createSupabaseRouteClient(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Machine caller (call-recording pipeline auto-draft, GH3): the
+    // service-role/CRON bearer is a trusted internal identity with no user
+    // session — skip the per-user access check below.
+    const authHeader = request.headers.get("authorization");
+    const isMachine =
+      (!!process.env.SUPABASE_SERVICE_ROLE_KEY &&
+        authHeader === `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`) ||
+      (!!process.env.CRON_SECRET &&
+        authHeader === `Bearer ${process.env.CRON_SECRET}`);
 
-    if (!user) {
+    // Get authenticated user — cookie (web) OR Bearer token (mobile)
+    const user = isMachine ? null : await getUserFromRequest(request);
+
+    if (!user && !isMachine) {
       return error("Authentication required", 401);
     }
 
     // Check user role (must be founder or have access to lead)
-    const { data: userData } = await supabaseAdmin
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
-      .single();
+    const { data: userData } = user
+      ? await supabaseAdmin
+          .from("users")
+          .select("role")
+          .eq("id", user.id)
+          .single()
+      : { data: null };
 
-    if (!userData) {
+    if (user && !userData) {
       return error("User not found", 404);
     }
 
@@ -71,12 +80,14 @@ export async function POST(request: NextRequest) {
       return notFound("Lead not found");
     }
 
-    // Check access (founders have full access, others need assignment)
-    const isFounder = userData.role === "founder";
+    // Check access (founders + the machine pipeline have full access,
+    // others need assignment)
+    const isFounder = userData?.role === "founder";
     const hasAccess =
+      isMachine ||
       isFounder ||
-      lead.assigned_staff === user.id ||
-      lead.created_by === user.id;
+      (user != null &&
+        (lead.assigned_staff === user.id || lead.created_by === user.id));
 
     if (!hasAccess) {
       return forbidden("You don't have access to this lead");

@@ -701,6 +701,8 @@ export function calculateExpectedConsumption(
   expected_quantity: number;
   uom_name: string | null;
 }> {
+  if (!bomQuantity) return [];
+
   const multiplier = plannedQuantity / bomQuantity;
 
   return bomLines.map((line) => ({
@@ -742,17 +744,28 @@ export async function createProductionOrder(
       };
     }
 
-    // Create consumption lines
-    for (const line of input.consumption_lines) {
-      await supabase.from("production_consumption_lines").insert({
-        production_order_id: order.id,
-        raw_material_id: line.raw_material_id,
-        expected_quantity: line.expected_quantity,
-        actual_quantity: line.actual_quantity ?? null,
-        uom_name: line.uom_name ?? null,
-        sort_order: line.sort_order ?? 0,
-        notes: line.notes ?? null,
-      });
+    // Create consumption lines. If any line fails, roll back the order so we
+    // never leave a partial order behind (no client-side transaction support).
+    const { error: linesError } = await supabase
+      .from("production_consumption_lines")
+      .insert(
+        input.consumption_lines.map((line, index) => ({
+          production_order_id: order.id,
+          raw_material_id: line.raw_material_id,
+          expected_quantity: line.expected_quantity,
+          actual_quantity: line.actual_quantity ?? null,
+          uom_name: line.uom_name ?? null,
+          sort_order: line.sort_order ?? index,
+          notes: line.notes ?? null,
+        })),
+      );
+
+    if (linesError) {
+      await supabase.from("production_orders").delete().eq("id", order.id);
+      return {
+        success: false,
+        error: `Failed to create consumption lines: ${linesError.message}`,
+      };
     }
 
     // Create shifts if provided
@@ -873,7 +886,11 @@ export async function getProductionOrder(
     .eq("id", orderId)
     .single();
 
-  if (error) throw error;
+  if (error) {
+    // PGRST116 = no rows found; callers treat null as "not found" (404)
+    if (error.code === "PGRST116") return null;
+    throw error;
+  }
   return data;
 }
 
@@ -1320,12 +1337,58 @@ export async function markManufacturingOrderDoneInOdoo(
       };
     }
 
-    // Call Odoo to mark as done using button_mark_done
-    await execute("mrp.production", "button_mark_done", [
-      [order.odoo_production_id],
-    ]);
+    const moId = order.odoo_production_id;
 
-    // Update local status
+    // Odoo cannot mark a draft MO done: it must be confirmed first, and the
+    // producing quantity must be set. Read the current state to decide.
+    const moRecords = (await execute("mrp.production", "read", [[moId]], {
+      fields: ["state", "product_qty"],
+    })) as Array<{ id: number; state: string; product_qty: number }>;
+
+    const moState = moRecords?.[0]?.state;
+    if (!moState) {
+      return {
+        success: false,
+        message: `Manufacturing Order ${moId} not found in Odoo`,
+      };
+    }
+
+    if (moState === "draft") {
+      await execute("mrp.production", "action_confirm", [[moId]]);
+    }
+
+    if (moState !== "done" && moState !== "cancel") {
+      // Set produced qty (falls back to planned) so mark_done doesn't open a wizard
+      await execute("mrp.production", "write", [
+        [moId],
+        { qty_producing: moRecords[0].product_qty ?? order.planned_quantity },
+      ]);
+
+      await execute("mrp.production", "button_mark_done", [[moId]]);
+    }
+
+    // button_mark_done can return a wizard action instead of raising, so
+    // verify the MO actually reached the 'done' state before trusting it.
+    const verifyRecords = (await execute("mrp.production", "read", [[moId]], {
+      fields: ["state"],
+    })) as Array<{ id: number; state: string }>;
+
+    const finalState = verifyRecords?.[0]?.state;
+    if (finalState !== "done") {
+      await supabase.from("production_sync_log").insert({
+        production_order_id: orderId,
+        sync_type: "mo_done",
+        status: "error",
+        error_message: `MO state is '${finalState ?? "unknown"}' after mark_done (expected 'done')`,
+      });
+
+      return {
+        success: false,
+        message: `Odoo MO not completed: state is '${finalState ?? "unknown"}' (expected 'done')`,
+      };
+    }
+
+    // Update local status only after Odoo confirms 'done'
     await supabase
       .from("production_orders")
       .update({

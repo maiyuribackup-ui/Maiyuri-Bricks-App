@@ -1,0 +1,54 @@
+name: My Work accountability nudges
+
+# Three schedules, one route (mode picked from which cron fired):
+#   nag       — every 2h, 09:30–17:30 IST (04:00–12:00 UTC): re-push open
+#               items due today/overdue until acted on; >4h overdue escalates
+#               once to founder/owner + Telegram.
+#   evening   — 18:00 IST (12:30 UTC): "not finished today" summary per person.
+#   scorecard — Monday 08:00 IST (02:30 UTC Mon): weekly completion % → Telegram.
+
+on:
+  schedule:
+    - cron: "0 4,6,8,10,12 * * *" # nag (work hours IST)
+    - cron: "30 12 * * *" # evening chaser 6pm IST
+    - cron: "30 2 * * 1" # scorecard Monday 8am IST
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "nag | evening | scorecard"
+        required: true
+        default: "nag"
+
+jobs:
+  nudge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Pick mode from trigger
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ github.event.inputs.mode }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "30 12 * * *" ]; then
+            echo "mode=evening" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "30 2 * * 1" ]; then
+            echo "mode=scorecard" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=nag" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run nudges
+        run: |
+          status=$(curl -s -o /tmp/r.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mb.maiyuri.com/api/my-work/nudges?mode=${{ steps.mode.outputs.mode }}")
+          echo "HTTP $status (mode=${{ steps.mode.outputs.mode }})"; cat /tmp/r.json
+          if [ "$status" -ge 400 ]; then exit 1; fi
+
+      - name: Alert on failure
+        if: failure()
+        continue-on-error: true
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="❌ ${{ github.workflow }} failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

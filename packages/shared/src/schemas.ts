@@ -1117,3 +1117,273 @@ export type UpdateWbsItemInput = z.infer<typeof updateWbsItemSchema>;
 export type CreateDailyProgressInput = z.infer<typeof createDailyProgressSchema>;
 export type CreateCostEntryInput = z.infer<typeof createCostEntrySchema>;
 export type SetupAssistantInput = z.infer<typeof setupAssistantSchema>;
+
+// ============================================================================
+// AI SALES COACH (Phase 1) — zod schemas
+// ============================================================================
+export const coachTrainingPathSchema = z.enum([
+  "production_supervisor",
+  "sales_executive",
+  "factory_coordinator",
+  "site_engineer",
+  "accounts_assistant",
+  "delivery_coordinator",
+]);
+export const coachDifficultySchema = z.enum(["beginner", "intermediate", "advanced"]);
+export const quizQuestionTypeSchema = z.enum(["mcq", "scenario", "fill_blank", "voice_text"]);
+export const coachAssignmentTypeSchema = z.enum([
+  "product_explanation",
+  "lead_followup",
+  "objection_practice",
+  "factory_explanation",
+  "reflection",
+  "custom",
+]);
+export const coachFrequencySchema = z.enum(["daily", "weekly", "once"]);
+export const coachEvaluationMethodSchema = z.enum(["ai", "manager", "both", "self"]);
+export const coachManagerStatusSchema = z.enum([
+  "pending",
+  "approved",
+  "needs_improvement",
+  "rejected",
+]);
+export const coachTargetTypeSchema = z.enum([
+  "learning",
+  "quiz",
+  "roleplay",
+  "sales_followup",
+  "production_update",
+  "reflection",
+  "custom",
+]);
+export const coachTargetStatusSchema = z.enum([
+  "not_started",
+  "in_progress",
+  "completed",
+  "missed",
+  "needs_review",
+]);
+export const coachKnowledgeCategorySchema = z.enum([
+  "brand_story",
+  "product",
+  "pricing",
+  "kerala_comparison",
+  "regular_comparison",
+  "factory_process",
+  "quality",
+  "delivery",
+  "faq",
+  "objection",
+  "approved_phrases",
+  "avoid_phrases",
+  "proof_links",
+  "reviews",
+  "project_videos",
+  "cost_calculator",
+  "factory_visit",
+]);
+
+const quizOptionSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+});
+
+// --- Admin CMS: modules / lessons / quizzes / assignments / knowledge ---
+export const createCoachModuleSchema = z.object({
+  slug: z.string().min(1),
+  title: z.string().min(1, "Title is required"),
+  description: emptyStringToNull(z.string().nullable().optional()),
+  role_applicability: z.array(z.string()).default([]),
+  difficulty: coachDifficultySchema.default("beginner"),
+  estimated_minutes: optionalNumber(),
+  sequence_order: optionalNumber(),
+  is_required: z.boolean().default(true),
+  is_active: z.boolean().default(true),
+});
+export const updateCoachModuleSchema = createCoachModuleSchema.partial();
+
+export const createCoachLessonSchema = z.object({
+  module_id: z.string().uuid(),
+  slug: z.string().min(1),
+  title: z.string().min(1, "Title is required"),
+  objective: emptyStringToNull(z.string().nullable().optional()),
+  content: z.string().default(""),
+  examples: emptyStringToNull(z.string().nullable().optional()),
+  do_dont_notes: emptyStringToNull(z.string().nullable().optional()),
+  estimated_minutes: optionalNumber(),
+  sequence_order: optionalNumber(),
+  is_active: z.boolean().default(true),
+});
+export const updateCoachLessonSchema = createCoachLessonSchema.partial();
+
+export const createCoachQuizSchema = z.object({
+  slug: z.string().min(1),
+  lesson_id: emptyStringToNull(z.string().uuid().nullable().optional()),
+  module_id: emptyStringToNull(z.string().uuid().nullable().optional()),
+  question: z.string().min(1, "Question is required"),
+  question_type: quizQuestionTypeSchema.default("mcq"),
+  options_json: z.array(quizOptionSchema).default([]),
+  correct_answer: emptyStringToNull(z.string().nullable().optional()),
+  explanation: emptyStringToNull(z.string().nullable().optional()),
+  suggested_lesson_id: emptyStringToNull(z.string().uuid().nullable().optional()),
+  difficulty: coachDifficultySchema.default("beginner"),
+  sequence_order: optionalNumber(),
+  is_active: z.boolean().default(true),
+});
+export const updateCoachQuizSchema = createCoachQuizSchema.partial();
+
+export const createCoachAssignmentSchema = z.object({
+  slug: z.string().min(1),
+  title: z.string().min(1, "Title is required"),
+  description: emptyStringToNull(z.string().nullable().optional()),
+  module_id: emptyStringToNull(z.string().uuid().nullable().optional()),
+  assignment_type: coachAssignmentTypeSchema.default("custom"),
+  due_frequency: coachFrequencySchema.default("daily"),
+  evaluation_method: coachEvaluationMethodSchema.default("manager"),
+  is_active: z.boolean().default(true),
+});
+export const updateCoachAssignmentSchema = createCoachAssignmentSchema.partial();
+
+export const createCoachKnowledgeSchema = z.object({
+  slug: z.string().min(1),
+  category: coachKnowledgeCategorySchema.default("faq"),
+  title: z.string().min(1, "Title is required"),
+  content: z.string().default(""),
+  source_link: emptyStringToNull(z.string().nullable().optional()),
+  tags: z.array(z.string()).default([]),
+  is_active: z.boolean().default(true),
+});
+export const updateCoachKnowledgeSchema = createCoachKnowledgeSchema.partial();
+
+// --- Targets (admin assigns; learner updates progress) ---
+export const createCoachTargetSchema = z.object({
+  user_id: z.string().uuid(),
+  target_type: coachTargetTypeSchema.default("custom"),
+  title: z.string().min(1, "Title is required"),
+  description: emptyStringToNull(z.string().nullable().optional()),
+  due_date: emptyStringToNull(z.string().nullable().optional()),
+  frequency: coachFrequencySchema.default("daily"),
+  target_value: optionalNumber(),
+});
+export const updateCoachTargetSchema = z.object({
+  status: coachTargetStatusSchema.optional(),
+  completion_value: optionalNumber(),
+});
+
+// --- Learner actions ---
+export const completeLessonSchema = z.object({
+  lesson_id: z.string().uuid(),
+});
+export const submitQuizAttemptSchema = z.object({
+  quiz_id: z.string().uuid(),
+  selected_answer: z.string().min(1, "An answer is required"),
+});
+export const submitAssignmentSchema = z.object({
+  assignment_id: z.string().uuid(),
+  submission_text: emptyStringToNull(z.string().nullable().optional()),
+  attachment_url: emptyStringToNull(z.string().nullable().optional()),
+});
+
+// --- Manager review of a submission ---
+export const reviewSubmissionSchema = z.object({
+  manager_status: coachManagerStatusSchema,
+  manager_comment: emptyStringToNull(z.string().nullable().optional()),
+});
+
+// --- Learner profile (training path) ---
+export const upsertCoachUserSchema = z.object({
+  user_id: z.string().uuid(),
+  role: emptyStringToNull(z.string().nullable().optional()),
+  training_path: coachTrainingPathSchema.default("production_supervisor"),
+  joining_date: emptyStringToNull(z.string().nullable().optional()),
+  active_status: z.boolean().default(true),
+});
+
+export type CreateCoachModuleInput = z.infer<typeof createCoachModuleSchema>;
+export type UpdateCoachModuleInput = z.infer<typeof updateCoachModuleSchema>;
+export type CreateCoachLessonInput = z.infer<typeof createCoachLessonSchema>;
+export type UpdateCoachLessonInput = z.infer<typeof updateCoachLessonSchema>;
+export type CreateCoachQuizInput = z.infer<typeof createCoachQuizSchema>;
+export type UpdateCoachQuizInput = z.infer<typeof updateCoachQuizSchema>;
+export type CreateCoachAssignmentInput = z.infer<typeof createCoachAssignmentSchema>;
+export type UpdateCoachAssignmentInput = z.infer<typeof updateCoachAssignmentSchema>;
+export type CreateCoachKnowledgeInput = z.infer<typeof createCoachKnowledgeSchema>;
+export type UpdateCoachKnowledgeInput = z.infer<typeof updateCoachKnowledgeSchema>;
+export type CreateCoachTargetInput = z.infer<typeof createCoachTargetSchema>;
+export type UpdateCoachTargetInput = z.infer<typeof updateCoachTargetSchema>;
+export type CompleteLessonInput = z.infer<typeof completeLessonSchema>;
+export type SubmitQuizAttemptInput = z.infer<typeof submitQuizAttemptSchema>;
+export type SubmitAssignmentInput = z.infer<typeof submitAssignmentSchema>;
+export type ReviewSubmissionInput = z.infer<typeof reviewSubmissionSchema>;
+export type UpsertCoachUserInput = z.infer<typeof upsertCoachUserSchema>;
+
+// ============================================================================
+// Reimbursement / Petty Cash
+// ============================================================================
+
+// Create an expense claim. Petrol claims carry route + km (amount is computed
+// server-side from km × the chosen vehicle rate — never trust the client's
+// number); standard claims carry an amount directly.
+export const createExpenseSchema = z
+  .object({
+    expense_type_id: z.string().uuid(),
+    project_id: z.string().uuid().nullable().optional(),
+    description: z.string().max(500).nullable().optional(),
+    expense_date: z.string().optional(), // YYYY-MM-DD; server defaults today
+    receipt_url: z.string().nullable().optional(),
+    // standard
+    amount: z.number().nonnegative().optional(),
+    // petrol
+    vehicle_rate_id: z.string().uuid().nullable().optional(),
+    lead_id: z.string().uuid().nullable().optional(),
+    customer_name: z.string().max(200).nullable().optional(),
+    from_location: z.string().max(200).nullable().optional(),
+    to_location: z.string().max(200).nullable().optional(),
+    km: z.number().positive().nullable().optional(),
+  })
+  .refine(
+    (v) =>
+      // petrol path: vehicle + km present  OR  standard path: amount present
+      (v.vehicle_rate_id != null && v.km != null && v.km > 0) ||
+      (v.amount != null && v.amount >= 0),
+    { message: "Provide either (vehicle_rate_id + km) for petrol, or an amount." },
+  );
+
+export const approveExpenseSchema = z.object({
+  note: z.string().max(500).optional(),
+});
+
+export const rejectExpenseSchema = z.object({
+  reason: z.string().min(3, "A reason is required").max(500),
+});
+
+export const topupSchema = z.object({
+  user_id: z.string().uuid(),
+  amount: z.number().positive("Amount must be greater than 0"),
+  note: z.string().max(500).optional(),
+});
+
+export const vehicleRateSchema = z.object({
+  id: z.string().uuid().optional(), // present = update
+  label: z.string().min(1).max(80),
+  per_km_rate: z.number().nonnegative(),
+  active: z.boolean().optional(),
+});
+
+export const expenseTypeSchema = z.object({
+  id: z.string().uuid().optional(), // present = update
+  name: z.string().min(1).max(80),
+  cost_category: z.string().min(1),
+  kind: z.enum(["standard", "petrol"]).optional(),
+  requires_project: z.boolean().optional(),
+  icon: z.string().max(8).nullable().optional(),
+  sort_order: z.number().int().optional(),
+  active: z.boolean().optional(),
+});
+
+export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
+export type ApproveExpenseInput = z.infer<typeof approveExpenseSchema>;
+export type RejectExpenseInput = z.infer<typeof rejectExpenseSchema>;
+export type TopupInput = z.infer<typeof topupSchema>;
+export type VehicleRateInput = z.infer<typeof vehicleRateSchema>;
+export type ExpenseTypeInput = z.infer<typeof expenseTypeSchema>;

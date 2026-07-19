@@ -1845,4 +1845,445 @@ export interface CostEntry {
   source: CostSource;
   created_by?: string | null;
   created_at: string;
+  // CBS fields (Phase 1 additions — nullable for backward compat with old entries)
+  cbs_id?: string | null;
+  cbs?: CbsItem;
+  zone?: string | null;
+  approval_status?: 'pending' | 'approved' | 'rejected';
+}
+
+// ============================================================================
+// AI SALES COACH (Phase 1 — Foundation)
+// Training + coaching system: modules → lessons → quizzes → assignments,
+// daily/weekly targets, progress, knowledge base. AI fields (Phase 2) nullable.
+// ============================================================================
+export type CoachTrainingPath =
+  | "production_supervisor"
+  | "sales_executive"
+  | "factory_coordinator"
+  | "site_engineer"
+  | "accounts_assistant"
+  | "delivery_coordinator";
+
+export type CoachDifficulty = "beginner" | "intermediate" | "advanced";
+
+export type QuizQuestionType = "mcq" | "scenario" | "fill_blank" | "voice_text";
+
+export type CoachAssignmentType =
+  | "product_explanation"
+  | "lead_followup"
+  | "objection_practice"
+  | "factory_explanation"
+  | "reflection"
+  | "custom";
+
+export type CoachFrequency = "daily" | "weekly" | "once";
+
+export type CoachEvaluationMethod = "ai" | "manager" | "both" | "self";
+
+export type CoachManagerStatus =
+  | "pending"
+  | "approved"
+  | "needs_improvement"
+  | "rejected";
+
+export type CoachTargetType =
+  | "learning"
+  | "quiz"
+  | "roleplay"
+  | "sales_followup"
+  | "production_update"
+  | "reflection"
+  | "custom";
+
+export type CoachTargetStatus =
+  | "not_started"
+  | "in_progress"
+  | "completed"
+  | "missed"
+  | "needs_review";
+
+export type CoachLessonProgressStatus =
+  | "not_started"
+  | "in_progress"
+  | "completed";
+
+export type CoachKnowledgeCategory =
+  | "brand_story"
+  | "product"
+  | "pricing"
+  | "kerala_comparison"
+  | "regular_comparison"
+  | "factory_process"
+  | "quality"
+  | "delivery"
+  | "faq"
+  | "objection"
+  | "approved_phrases"
+  | "avoid_phrases"
+  | "proof_links"
+  | "reviews"
+  | "project_videos"
+  | "cost_calculator"
+  | "factory_visit";
+
+export interface CoachUser {
+  id: string;
+  user_id: string;
+  role?: string | null;
+  training_path: CoachTrainingPath;
+  joining_date?: string | null;
+  current_level: number;
+  active_status: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoachModule {
+  id: string;
+  slug: string;
+  title: string;
+  description?: string | null;
+  role_applicability: string[];
+  difficulty: CoachDifficulty;
+  estimated_minutes: number;
+  sequence_order: number;
+  is_required: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoachLesson {
+  id: string;
+  module_id: string;
+  slug: string;
+  title: string;
+  objective?: string | null;
+  content: string;
+  examples?: string | null;
+  do_dont_notes?: string | null;
+  estimated_minutes: number;
+  sequence_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoachQuizOption {
+  key: string;
+  label: string;
+}
+
+export interface CoachQuiz {
+  id: string;
+  slug: string;
+  lesson_id?: string | null;
+  module_id?: string | null;
+  question: string;
+  question_type: QuizQuestionType;
+  options_json: CoachQuizOption[];
+  correct_answer?: string | null;
+  explanation?: string | null;
+  suggested_lesson_id?: string | null;
+  difficulty: CoachDifficulty;
+  sequence_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoachLessonProgress {
+  id: string;
+  user_id: string;
+  lesson_id: string;
+  status: CoachLessonProgressStatus;
+  completed_at: string;
+}
+
+export interface CoachQuizAttempt {
+  id: string;
+  user_id: string;
+  quiz_id: string;
+  selected_answer?: string | null;
+  is_correct?: boolean | null;
+  score: number;
+  ai_feedback?: string | null;
+  attempted_at: string;
+}
+
+export interface CoachAssignment {
+  id: string;
+  slug: string;
+  title: string;
+  description?: string | null;
+  module_id?: string | null;
+  assignment_type: CoachAssignmentType;
+  due_frequency: CoachFrequency;
+  evaluation_method: CoachEvaluationMethod;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoachAssignmentSubmission {
+  id: string;
+  assignment_id: string;
+  user_id: string;
+  submission_text?: string | null;
+  attachment_url?: string | null;
+  ai_score?: number | null;
+  ai_feedback?: string | null;
+  manager_status: CoachManagerStatus;
+  manager_comment?: string | null;
+  submitted_at: string;
+}
+
+export interface CoachRoleplay {
+  id: string;
+  user_id: string;
+  scenario_type: string;
+  conversation_json: Array<{ role: "customer" | "employee"; content: string }>;
+  ai_score?: number | null;
+  clarity_score?: number | null;
+  empathy_score?: number | null;
+  product_score?: number | null;
+  closing_score?: number | null;
+  ai_feedback?: string | null;
+  created_at: string;
+}
+
+export interface CoachTarget {
+  id: string;
+  user_id: string;
+  target_type: CoachTargetType;
+  title: string;
+  description?: string | null;
+  due_date?: string | null;
+  frequency: CoachFrequency;
+  status: CoachTargetStatus;
+  completion_value: number;
+  target_value: number;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoachKnowledgeArticle {
+  id: string;
+  slug: string;
+  category: CoachKnowledgeCategory;
+  title: string;
+  content: string;
+  source_link?: string | null;
+  tags: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Learner dashboard bundle (GET /api/coaching/me)
+export interface CoachProgressScore {
+  trainingCompletionPct: number;
+  quizAveragePct: number;
+  lessonsCompleted: number;
+  lessonsTotal: number;
+  todayTargetsCompleted: number;
+  todayTargetsTotal: number;
+  weekTargetCompletionPct: number;
+}
+
+export interface CoachTodayPlanItem {
+  kind: "lesson" | "quiz" | "assignment" | "target";
+  refId: string;
+  title: string;
+  done: boolean;
+}
+
+// ============================================================================
+// CBS & BUDGET — Phase 1: Cost Breakdown Structure backbone
+// Tracks: cbs_master (company-wide codes), project_budgets (per-project),
+//         and CbsVarianceRow (computed report).
+// ============================================================================
+
+export type CbsCostType =
+  | 'material'
+  | 'labour'
+  | 'equipment'
+  | 'subcontract'
+  | 'transport'
+  | 'overhead'
+  | 'consumables'
+  | 'other';
+
+export interface CbsItem {
+  id: string;
+  cbs_code: string;
+  category: string;
+  work_item: string;
+  cost_type: CbsCostType;
+  unit?: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type BudgetStatus = 'draft' | 'approved';
+
+export interface ProjectBudget {
+  id: string;
+  project_id: string;
+  cbs_id: string;
+  cbs?: CbsItem;                      // joined on GET
+  zone?: string | null;
+  quantity: number;
+  unit?: string | null;
+  rate: number;
+  base_budget_amount: number;         // quantity × rate (DB GENERATED)
+  revision_amount_total: number;      // cumulative ± from approved revisions
+  current_budget_amount: number;      // base + revision_amount_total (DB GENERATED)
+  original_amount: number;            // snapshot locked on first approval
+  revision_no: number;
+  status: BudgetStatus;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Variance row — computed by /api/projects/[id]/variance
+export interface CbsVarianceRow {
+  cbs_id: string;
+  cbs_code: string;
+  category: string;
+  work_item: string;
+  cost_type: string;
+  budget: number;                     // current_budget_amount (sum across zones)
+  actual: number;                     // SUM of approved cost_entries
+  committed_forecast: number;         // Phase 1: = actual; Phase 2 adds open PO balances
+  variance: number;                   // budget - committed_forecast
+  variance_pct: number;               // (committed_forecast - budget) / budget × 100
+  status: 'under_budget' | 'watch' | 'risk' | 'critical';
+}
+
+export interface CbsVarianceSummary {
+  totalBudget: number;
+  totalActual: number;
+  totalVariance: number;
+  forecastProfit: number;             // placeholder; real P&L in Phase 5
+}
+
+export interface CbsVarianceReport {
+  rows: CbsVarianceRow[];
+  summary: CbsVarianceSummary;
+}
+
+export interface ProjectBudgetsResponse {
+  items: ProjectBudget[];
+  totals: {
+    base: number;
+    revision: number;
+    current: number;
+    original: number;
+  };
+}
+
+// ============================================================================
+// Reimbursement / Petty Cash
+// ============================================================================
+
+export type ExpenseKind = "standard" | "petrol";
+export type ExpenseClaimStatus = "pending" | "approved" | "rejected";
+
+export interface ExpenseType {
+  id: string;
+  name: string;
+  cost_category: string; // maps to cost_entries.cost_category
+  kind: ExpenseKind;
+  requires_project: boolean;
+  icon: string | null;
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExpenseVehicleRate {
+  id: string;
+  label: string;
+  per_km_rate: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PettyCashTopup {
+  id: string;
+  user_id: string;
+  amount: number;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+  // joined
+  user?: { id: string; name: string | null } | null;
+}
+
+export interface ExpenseClaim {
+  id: string;
+  user_id: string;
+  expense_type_id: string;
+  project_id: string | null;
+  amount: number;
+  description: string | null;
+  expense_date: string;
+  receipt_url: string | null;
+  status: ExpenseClaimStatus;
+  // petrol detail
+  vehicle_rate_id: string | null;
+  lead_id: string | null;
+  customer_name: string | null;
+  from_location: string | null;
+  to_location: string | null;
+  km: number | null;
+  per_km_rate_applied: number | null;
+  // workflow
+  approved_by: string | null;
+  approved_at: string | null;
+  reject_reason: string | null;
+  cost_entry_id: string | null;
+  created_at: string;
+  updated_at: string;
+  // joined
+  user?: { id: string; name: string | null } | null;
+  expense_type?: Pick<ExpenseType, "id" | "name" | "kind" | "icon"> | null;
+  project?: { id: string; name: string } | null;
+}
+
+/** A staffer's computed petty-cash position. */
+export interface ExpenseBalance {
+  user_id: string;
+  name: string | null;
+  role: string;
+  topups_total: number;
+  spent_total: number; // pending + approved
+  balance: number; // topups_total - spent_total
+  pending_count: number;
+}
+
+/** GET /api/expenses payload for a submitter (own view). */
+export interface MyExpensesResponse {
+  balance: number;
+  topups_total: number;
+  spent_total: number;
+  claims: ExpenseClaim[];
+  topups: PettyCashTopup[];
+  types: ExpenseType[];
+  vehicleRates: ExpenseVehicleRate[];
+}
+
+/** GET /api/expenses?view=all payload for admins. */
+export interface AllExpensesResponse {
+  balances: ExpenseBalance[];
+  pending: ExpenseClaim[];
 }

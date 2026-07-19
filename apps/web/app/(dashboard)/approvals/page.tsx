@@ -4,6 +4,11 @@ import { useState } from "react";
 import { Spinner } from "@maiyuri/ui";
 import { useTickets, useApprovalQueue } from "@/hooks/useTickets";
 import {
+  useApproveWorkItem,
+  useReturnWorkItem,
+  useReviewQueue,
+} from "@/hooks/useMyWork";
+import {
   TicketTable,
   TicketDetailPanel,
   TicketStatusBadge,
@@ -63,6 +68,9 @@ export default function ApprovalsPage() {
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto p-6">
       <Toaster position="top-right" />
+
+      {/* My Work submissions — unified into the same inbox (audit #11) */}
+      <WorkSubmissionsSection />
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -177,6 +185,106 @@ export default function ApprovalsPage() {
           onActionComplete={handleActionComplete}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Work submissions awaiting review — the OTHER approval stream (My Work).
+ * Previously only visible inside OneHub; approvers had to know to check two
+ * screens (completeness audit #11). Approve/Return inline, or open OneHub
+ * for the full detail (answers + photos).
+ */
+function WorkSubmissionsSection() {
+  const { data, isLoading } = useReviewQueue();
+  const approve = useApproveWorkItem();
+  const returnItem = useReturnWorkItem();
+  const items = data?.data ?? [];
+
+  if (isLoading || items.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 dark:border-violet-800 dark:bg-violet-900/20">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="font-semibold text-violet-900 dark:text-violet-200">
+          📥 Work submissions awaiting review ({items.length})
+        </h2>
+        <a
+          href="/onehub/my-work"
+          className="text-xs font-semibold text-violet-700 underline dark:text-violet-300"
+        >
+          Open in OneHub →
+        </a>
+      </div>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white p-3 dark:bg-slate-800"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-slate-900 dark:text-white">
+                {item.title}
+              </p>
+              <p className="text-xs text-slate-500">
+                {item.assigned_user?.name ?? "Team member"}
+                {item.submitted_at
+                  ? ` · ${new Date(item.submitted_at).toLocaleString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}`
+                  : ""}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <a
+                href={`/onehub/my-work/${item.id}`}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 dark:border-slate-600 dark:text-slate-300"
+              >
+                Details
+              </a>
+              <button
+                onClick={() =>
+                  approve.mutate(item.id, {
+                    onSuccess: () => toast.success("Approved"),
+                    onError: (e) =>
+                      toast.error(e instanceof Error ? e.message : "Failed"),
+                  })
+                }
+                disabled={approve.isPending}
+                className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                ✓ Approve
+              </button>
+              <button
+                onClick={() => {
+                  const reason = window.prompt(
+                    "What needs to be corrected?",
+                  );
+                  if (reason && reason.trim().length >= 3) {
+                    returnItem.mutate(
+                      { id: item.id, reason: reason.trim() },
+                      {
+                        onSuccess: () => toast.success("Returned for correction"),
+                        onError: (e) =>
+                          toast.error(
+                            e instanceof Error ? e.message : "Failed",
+                          ),
+                      },
+                    );
+                  }
+                }}
+                disabled={returnItem.isPending}
+                className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-50"
+              >
+                ↩ Return
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

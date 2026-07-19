@@ -1,0 +1,26 @@
+name: Cron kick
+
+# Manually trigger one of the app's CRON_SECRET-protected endpoints out of
+# schedule (e.g. process a stuck call recording immediately instead of waiting
+# for the nightly run). workflow_dispatch only — repo write access required.
+
+on:
+  workflow_dispatch:
+    inputs:
+      path:
+        description: "API path to POST (e.g. /api/recordings/process)"
+        required: true
+        default: "/api/recordings/process"
+
+jobs:
+  kick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call endpoint
+        run: |
+          status=$(curl -s -o /tmp/r.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mb.maiyuri.com${{ github.event.inputs.path }}")
+          echo "HTTP $status"; cat /tmp/r.json
+          if [ "$status" -ge 400 ]; then exit 1; fi
