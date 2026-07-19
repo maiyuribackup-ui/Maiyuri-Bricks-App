@@ -18,8 +18,15 @@ import {
 // Environment configuration
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
-const ALLOWED_CHAT_IDS =
-  process.env.TELEGRAM_ALLOWED_CHAT_IDS?.split(",").map(Number) || [];
+// Chat whitelist. Falls back to the ONE group that has ever legitimately fed
+// the pipeline (663 recordings as of Jul 2026, per call_recordings audit) —
+// without a default, any chat that can message the bot could inject audio.
+// Override/extend via TELEGRAM_ALLOWED_CHAT_IDS (comma-separated) if the
+// intake group ever changes.
+const DEFAULT_ALLOWED_CHAT_IDS = [-5116644495];
+const ALLOWED_CHAT_IDS = process.env.TELEGRAM_ALLOWED_CHAT_IDS
+  ? process.env.TELEGRAM_ALLOWED_CHAT_IDS.split(",").map(Number)
+  : DEFAULT_ALLOWED_CHAT_IDS;
 
 /**
  * POST /api/telegram/webhook
@@ -71,7 +78,11 @@ export async function POST(request: NextRequest) {
 
     // Verify chat ID is whitelisted (if configured)
     if (ALLOWED_CHAT_IDS.length > 0 && !ALLOWED_CHAT_IDS.includes(chatId)) {
-      console.warn(`[Telegram Webhook] Unauthorized chat: ${chatId}`);
+      // Include the chat's name so a legit-but-unlisted group is identifiable
+      // from the logs without needing a Telegram getChat round-trip.
+      console.warn(
+        `[Telegram Webhook] Unauthorized chat: ${chatId} (${message.chat.title ?? "private chat"})`,
+      );
       return NextResponse.json({ ok: true }); // Don't reveal we ignored it
     }
 
