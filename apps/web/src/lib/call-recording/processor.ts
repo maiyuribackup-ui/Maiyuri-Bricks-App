@@ -30,6 +30,7 @@ import {
   triggerLeadAnalysis,
   triggerCallRecordingNudge,
   triggerObjectionNudge,
+  triggerAutoQuote,
 } from "./triggers";
 import type { CallRecording, ExtractedLeadDetails, ProcessingStatus } from "./types";
 
@@ -386,6 +387,15 @@ export async function processRecording(
             });
           }
         }
+      }
+
+      // GH3: the call revealed WHAT they want -> draft the smart quote now
+      // so the rep only reviews and sends (the qualified->quoted leak).
+      if (
+        extractedDetails.product_interests.length > 0 ||
+        extractedDetails.estimated_quantity
+      ) {
+        await triggerAutoQuote(effectiveLeadId, id);
       }
 
       // Turn the next action into a REAL task in My Work so the whole
