@@ -261,13 +261,20 @@ export async function processRecording(
       });
 
       // Update lead with extracted fields (only if currently empty)
-      const { data: currentLead } = await supabase
+      const { data: currentLead, error: leadFetchError } = await supabase
         .from("leads")
         .select(
-          "lead_type, classification, requirement_type, product_interests, site_region, site_location, next_action, follow_up_date, estimated_quantity, notes",
+          // NOTE: leads has NO "notes" column (notes are their own table) —
+          // selecting it made this whole fetch 42703-fail silently, which is
+          // why lead auto-population never actually ran until Jul 2026.
+          "lead_type, classification, requirement_type, product_interests, site_region, site_location, next_action, follow_up_date, estimated_quantity",
         )
         .eq("id", lead_id)
         .single();
+      if (leadFetchError) {
+        // Loud, not silent — a bad column here disables auto-population.
+        logError("Lead fetch for auto-population failed", leadFetchError);
+      }
 
       if (currentLead) {
         const updates: Record<string, unknown> = {};
@@ -323,9 +330,8 @@ export async function processRecording(
         if (!currentLead.estimated_quantity && extractedDetails.estimated_quantity) {
           updates.estimated_quantity = extractedDetails.estimated_quantity;
         }
-        if (!currentLead.notes && extractedDetails.notes) {
-          updates.notes = extractedDetails.notes;
-        }
+        // (extractedDetails.notes intentionally NOT written — leads has no
+        // notes column; call context already lives in ai_summary + transcript.)
 
         if (Object.keys(updates).length > 0) {
           const { error: updateError } = await supabase
