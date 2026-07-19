@@ -8,6 +8,7 @@ import {
   type SmartQuotePricingConfig,
 } from "@maiyuri/shared";
 import { computeEstimate } from "@/lib/pricing/compute-estimate";
+import { resolveUnitPrice } from "@/lib/pricing";
 
 /**
  * POST /api/sq/[slug]/estimate
@@ -62,6 +63,27 @@ export async function POST(
       .limit(1)
       .single();
 
+    // Rate card first (GH0/GH3): when a km band covers this distance, the
+    // customer sees the true DELIVERED price — no separate transport line,
+    // exactly how the business actually quotes. Falls back to the legacy
+    // base_price + per-km transport when no band matches.
+    const resolved = await resolveUnitPrice(product.id, distance_km ?? null);
+    if (resolved && resolved.source === "band") {
+      const subtotal = resolved.unit_price * quantity;
+      return success({
+        product: { id: product.id, name: product.name, unit: product.unit },
+        quantity,
+        distance_km: distance_km ?? null,
+        unit_price: resolved.unit_price,
+        subtotal,
+        transport_cost: 0,
+        transport_included: true,
+        total: subtotal,
+        pricing_source: "rate_card",
+        band: resolved.band,
+      });
+    }
+
     const includeTransport = pricing.show_transport !== false;
     const breakdown = computeEstimate(
       [
@@ -84,6 +106,7 @@ export async function POST(
       product: { id: product.id, name: product.name, unit: product.unit },
       quantity,
       distance_km: includeTransport ? (distance_km ?? null) : null,
+      pricing_source: "base",
       ...breakdown,
     });
   } catch (err) {
