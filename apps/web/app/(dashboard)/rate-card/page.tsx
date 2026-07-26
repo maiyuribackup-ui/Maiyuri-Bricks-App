@@ -6,7 +6,7 @@
  * distance has no band the product's base price is used as fallback.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Product = { id: string; name: string; unit: string; base_price: number };
 type Entry = {
@@ -20,7 +20,9 @@ type RateCard = { products: Product[]; entries: Entry[] };
 type BandDraft = { km_from: string; km_to: string; unit_price: string };
 
 async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  // no-store: the browser was serving a cached (empty) rate card even after
+  // bands were saved — the read must always hit the server.
+  const res = await fetch(url, { cache: "no-store" });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `Failed (${res.status})`);
   return body.data as T;
@@ -44,16 +46,26 @@ function ProductBands({
   initial: Entry[];
 }) {
   const queryClient = useQueryClient();
-  // Initialized from props; the parent remounts this component (key includes
-  // the server data hash) whenever fresh bands arrive, so no sync effect.
-  const [bands, setBands] = useState<BandDraft[]>(() =>
-    initial.map((e) => ({
+  const toDraft = (es: Entry[]): BandDraft[] =>
+    es.map((e) => ({
       km_from: String(e.km_from),
       km_to: String(e.km_to),
       unit_price: String(e.unit_price),
-    })),
-  );
+    }));
+  const [bands, setBands] = useState<BandDraft[]>(() => toDraft(initial));
   const [dirty, setDirty] = useState(false);
+
+  // Sync from the server whenever fresh data arrives — but never clobber
+  // in-progress edits. Compare by serialized server state so a refetch that
+  // returns the SAME bands doesn't wipe the form.
+  const serverKey = JSON.stringify(initial);
+  const lastServerKey = useRef(serverKey);
+  useEffect(() => {
+    if (serverKey !== lastServerKey.current) {
+      lastServerKey.current = serverKey;
+      if (!dirty) setBands(toDraft(initial));
+    }
+  }, [serverKey, dirty, initial]);
 
   const save = useMutation({
     mutationFn: () =>
@@ -199,16 +211,13 @@ export default function RateCardPage() {
           {error instanceof Error ? error.message : "Failed to load"}
         </p>
       ) : (
-        (data?.products ?? []).map((p) => {
-          const mine = (data?.entries ?? []).filter(
-            (e) => e.product_id === p.id,
-          );
-          // Key carries the server state → editor remounts on fresh data.
-          const hash = mine
-            .map((e) => `${e.km_from}-${e.km_to}-${e.unit_price}`)
-            .join("|");
-          return <ProductBands key={`${p.id}:${hash}`} product={p} initial={mine} />;
-        })
+        (data?.products ?? []).map((p) => (
+          <ProductBands
+            key={p.id}
+            product={p}
+            initial={(data?.entries ?? []).filter((e) => e.product_id === p.id)}
+          />
+        ))
       )}
     </div>
   );
