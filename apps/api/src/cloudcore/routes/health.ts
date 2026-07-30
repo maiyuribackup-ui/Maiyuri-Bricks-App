@@ -133,7 +133,7 @@ const REQUIRED_LEAD_COLUMNS = [
   "contact",
   "source",
   "lead_type",
-  "status",
+  "lead_status",
   "assigned_staff",
   // Issue #3, #4, #5 - Classification and location fields
   "classification",
