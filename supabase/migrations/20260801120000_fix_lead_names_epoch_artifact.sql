@@ -21,9 +21,33 @@
 -- Idempotent: re-running finds nothing to change.
 -- ============================================================================
 
+-- 1. Names where a real customer name survived: drop the trailing " 100".
+--    e.g. 'Murali Kanchipuram 100' -> 'Murali Kanchipuram'
 UPDATE public.leads AS l
 SET name = regexp_replace(l.name, '\s+100$', '')
 WHERE l.name ~ '\s100$'
+  AND EXISTS (
+    SELECT 1
+    FROM public.call_recordings cr
+    WHERE cr.lead_id = l.id
+       OR right(regexp_replace(cr.phone_number, '\D', '', 'g'), 10)
+          = right(regexp_replace(l.contact, '\D', '', 'g'), 10)
+  );
+
+-- 2. Names that are ONLY the artifact: the recording filename carried no
+--    customer name at all (e.g. Superfone_Recording_+917200112291_<epoch>.wav),
+--    so the "100" fragment became the entire name. There is no name to
+--    recover, so use an honest, searchable placeholder carrying the number the
+--    customer called from — staff can rename from the call transcript.
+--    e.g. '100' -> 'Unknown caller 7200112291'
+--    Matches name = '100' exactly; a lead named with a full phone number
+--    ('9841621999', typed manually in January) is a different problem and is
+--    deliberately left alone.
+UPDATE public.leads AS l
+SET name = 'Unknown caller ' || right(regexp_replace(l.contact, '\D', '', 'g'), 10)
+WHERE l.name = '100'
+  AND l.contact IS NOT NULL
+  AND right(regexp_replace(l.contact, '\D', '', 'g'), 10) <> ''
   AND EXISTS (
     SELECT 1
     FROM public.call_recordings cr
