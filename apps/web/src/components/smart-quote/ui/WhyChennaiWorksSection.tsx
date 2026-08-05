@@ -4,6 +4,10 @@ import { smartQuoteTokens, cn } from "../tokens";
 
 interface WhyChennaiWorksSectionProps {
   language: "en" | "ta";
+  /** AI copy (climate.section_headline). Blank string keeps the brand default. */
+  headline?: string;
+  /** AI copy (climate.core_insight) shown under the headline when present. */
+  insight?: string;
 }
 
 /**
@@ -16,13 +20,16 @@ interface WhyChennaiWorksSectionProps {
  */
 export function WhyChennaiWorksSection({
   language,
+  headline,
+  insight,
 }: WhyChennaiWorksSectionProps) {
   const { typography, colors, radius, spacing } = smartQuoteTokens;
 
   const title =
-    language === "ta"
+    headline?.trim() ||
+    (language === "ta"
       ? "சென்னையில் இது ஏன் வேலை செய்கிறது"
-      : "Why this works in Chennai";
+      : "Why this works in Chennai");
 
   const cards =
     language === "ta"
@@ -82,11 +89,25 @@ export function WhyChennaiWorksSection({
           className={cn(
             typography.headline.section,
             colors.text.primary,
-            "text-center mb-12 md:mb-16",
+            "text-center",
+            insight?.trim() ? "mb-4" : "mb-12 md:mb-16",
           )}
         >
           {title}
         </h2>
+
+        {/* AI's climate insight for this specific lead, when written */}
+        {insight?.trim() && (
+          <p
+            className={cn(
+              typography.body.base,
+              colors.text.secondary,
+              "text-center max-w-2xl mx-auto mb-12 md:mb-16",
+            )}
+          >
+            {insight}
+          </p>
+        )}
 
         {/* Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">

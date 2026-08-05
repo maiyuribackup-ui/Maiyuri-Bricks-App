@@ -202,7 +202,7 @@ Output schema:
   "page_blocks": {
     "entry": ["hero_headline", "belief_breaker", "trust_anchor", "cta_teaser"],
     "climate": ["chennai_logic", "breathability", "micro_cta"],
-    "cost": ["range_frame", "range_value", "drivers", "micro_cta"],
+    "cost": ["range_frame", "range_value", "drivers", "soft_compare", "micro_cta"],
     "objection": ["top_objection_answer", "reassurance"],
     "cta": ["single_cta", "route_explainer", "light_form"]
   }
@@ -312,11 +312,14 @@ function getDefaultStrategy(insights: LeadInsights): StrategyResult {
   };
 }
 
-function getDefaultBlocks(pageKey: SmartQuotePageKey): string[] {
+export function getDefaultBlocks(pageKey: SmartQuotePageKey): string[] {
   const defaults: Record<SmartQuotePageKey, string[]> = {
     entry: ["hero_headline", "belief_breaker", "trust_anchor", "cta_teaser"],
     climate: ["chennai_logic", "breathability", "micro_cta"],
-    cost: ["range_frame", "range_value", "drivers", "micro_cta"],
+    // soft_compare drives the wall-cost comparison section. It must stay in
+    // the default set: the page now honours page_config, so omitting it here
+    // would silently drop that section from every quote that falls back.
+    cost: ["range_frame", "range_value", "drivers", "soft_compare", "micro_cta"],
     objection: ["top_objection_answer", "reassurance"],
     cta: ["single_cta", "route_explainer", "light_form"],
   };

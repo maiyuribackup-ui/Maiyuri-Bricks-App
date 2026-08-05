@@ -10,6 +10,16 @@ import type {
 interface ObjectionAnswerSectionProps {
   objections: SmartQuoteObjection[]; // Changed to array to support max 2
   language: "en" | "ta";
+  /** AI copy (objection.section_headline); blank keeps the brand default. */
+  headline?: string;
+  /**
+   * AI copy (objection.answer). Applies to the FIRST objection only — the AI
+   * is prompted to answer the single top objection, so later accordion items
+   * keep their curated answers.
+   */
+  answer?: string;
+  /** AI copy (objection.reassurance), appended to that first answer. */
+  reassurance?: string;
 }
 
 // Objection answers - addressing each concern directly
@@ -133,6 +143,10 @@ const objectionAnswers: Record<
 export function ObjectionAnswerSection({
   objections,
   language,
+  headline,
+  // aliased: `answer` is already the curated per-objection record inside the map
+  answer: answerOverride,
+  reassurance,
 }: ObjectionAnswerSectionProps) {
   const { colors, typography, radius, spacing } = smartQuoteTokens;
 
@@ -142,7 +156,9 @@ export function ObjectionAnswerSection({
   // Track which accordion item is open (default first one open)
   const [openIndex, setOpenIndex] = useState<number>(0);
 
-  const title = language === "ta" ? "நீங்கள் கேட்கலாம்..." : "Common questions";
+  const title =
+    headline?.trim() ||
+    (language === "ta" ? "நீங்கள் கேட்கலாம்..." : "Common questions");
 
   return (
     <section
@@ -232,7 +248,13 @@ export function ObjectionAnswerSection({
                         "mb-4",
                       )}
                     >
-                      {answer.answer[language]}
+                      {/* AI answer for the top objection; curated copy otherwise */}
+                      {index === 0 && answerOverride
+                        ? answerOverride
+                        : answer.answer[language]}
+                      {index === 0 && reassurance?.trim() ? (
+                        <span className="block mt-2">{reassurance}</span>
+                      ) : null}
                     </p>
 
                     {/* Proof point */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { smartQuoteTokens, cn } from "./tokens";
 import { LanguageToggle } from "./ui/LanguageToggle";
 import { HeroSection } from "./ui/HeroSection";
@@ -11,8 +11,14 @@ import { ObjectionAnswerSection } from "./ui/ObjectionAnswerSection";
 import { InteractiveEstimate } from "./ui/InteractiveEstimate";
 import { WallCostComparison } from "@/components/wall-cost/WallCostComparison";
 import { computeWallComparison } from "@/lib/pricing/wall-cost";
+import {
+  makeCopyReader,
+  showBlock,
+  showPage,
+} from "@/lib/smart-quote-page";
 import type {
   SmartQuoteLanguage,
+  SmartQuotePageKey,
   SmartQuoteWithImages,
   SmartQuotePersonalizationSnippets,
 } from "@maiyuri/shared";
@@ -40,7 +46,9 @@ const defaultSnippets: SmartQuotePersonalizationSnippets = {
   },
 };
 
-// Hero copy - belief-breaking headline about Tamil architecture
+// Brand fallback hero copy. Used only when the AI did not write
+// entry.hero_headline / entry.belief_breaker for this quote (older quotes, or
+// a model response that omitted the key) — never as the default for everyone.
 const heroCopy = {
   en: {
     headline:
@@ -79,13 +87,19 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
     quote.language_default,
   );
 
-  // Get copy for current language
-  const copy = quote.copy_map[language];
-  const getCopy = useCallback(
-    (key: string, fallback: string = ""): string => {
-      return copy[key] ?? fallback;
-    },
-    [copy],
+  // AI copy for the active language, with brand text as the fallback.
+  const getCopy = useMemo(
+    () => makeCopyReader(quote.copy_map, language),
+    [quote.copy_map, language],
+  );
+
+  // The AI's page plan decides which sections this customer sees. Quotes
+  // generated before page_config existed have none, and show everything.
+  const config = quote.page_config;
+  const show = useCallback(
+    (page: SmartQuotePageKey, block?: string) =>
+      block ? showBlock(config, page, block) : showPage(config, page),
+    [config],
   );
 
   // Get personalization snippets (from lead's SmartQuotePayload or defaults)
@@ -168,75 +182,101 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
       {/* Language Toggle - Fixed top right */}
       <LanguageToggle value={language} onChange={handleLanguageChange} />
 
-      {/* === SECTION 1: HERO === */}
-      {/* Full-bleed image, belief-breaking headline, trust chips, CTA */}
-      <section data-section="hero">
-        <HeroSection
-          image={quote.images.entry}
-          headline={heroCopy[language].headline}
-          subheadline={heroCopy[language].subheadline}
-          language={language}
-        />
-      </section>
-
-      {/* === SECTION 2: MADE FOR YOU === */}
-      {/* Personalized insights from AI */}
-      <section data-section="made_for_you">
-        <PersonalizationCard
-          snippets={personalizationSnippets}
-          language={language}
-          persona={quote.persona ?? undefined}
-        />
-      </section>
-
-      {/* === SECTION 3: WHY CHENNAI WORKS === */}
-      {/* Chennai-specific logic with 3 icon cards */}
-      <section data-section="why_chennai_works">
-        <WhyChennaiWorksSection language={language} />
-      </section>
-
-      {/* === SECTION 4: PROOF TEASER === */}
-      {/* 2-3 real project images */}
-      <section data-section="proof_teaser">
-        <ProofSection language={language} />
-      </section>
-
-      {/* === SECTION 5: OBJECTION HANDLING === */}
-      {/* Max 2 objections, accordion style */}
-      {topObjections.length > 0 && (
-        <section data-section="objection_handling">
-          <ObjectionAnswerSection
-            objections={topObjections}
+      {/* === ENTRY: HERO === */}
+      {/* Headline and sub-headline now come from the AI's copy_map, so a
+          price-driven lead and a factory-visit lead no longer open with the
+          same sentence. Brand copy remains the fallback. */}
+      {show("entry") && (
+        <section data-section="hero">
+          <HeroSection
+            image={quote.images.entry}
+            headline={getCopy(
+              "entry.hero_headline",
+              heroCopy[language].headline,
+            )}
+            subheadline={getCopy(
+              "entry.belief_breaker",
+              heroCopy[language].subheadline,
+            )}
             language={language}
           />
         </section>
       )}
 
-      {/* === SECTION 6: INTERACTIVE ESTIMATE + WHATSAPP CTA (finale) === */}
-      <section data-section="instant_estimate">
-        <InteractiveEstimate
-          slug={slug}
-          language={language}
-          products={quote.products ?? []}
-          pricing={quote.pricing_config}
-          quoteUrl={quoteUrl}
-          onCtaTrack={(payload) => trackEvent("cta_click", "instant_estimate", payload)}
-        />
-      </section>
+      {/* === ENTRY: MADE FOR YOU === */}
+      {show("entry", "belief_breaker") && (
+        <section data-section="made_for_you">
+          <PersonalizationCard
+            snippets={personalizationSnippets}
+            language={language}
+            persona={quote.persona ?? undefined}
+          />
+        </section>
+      )}
 
-      {/* === SECTION 7: TOTAL-COST-OF-CONSTRUCTION COMPARISON === */}
-      {(() => {
-        const comparison = computeWallComparison(
-          quote.wall_cost_config,
-          quote.pricing_config?.default_area_sqft ?? null,
-        );
-        if (!comparison) return null;
-        return (
-          <section data-section="cost_comparison" className="max-w-2xl mx-auto px-4">
-            <WallCostComparison comparison={comparison} language={language} />
-          </section>
-        );
-      })()}
+      {/* === CLIMATE: WHY CHENNAI WORKS === */}
+      {show("climate", "chennai_logic") && (
+        <section data-section="why_chennai_works">
+          <WhyChennaiWorksSection
+            language={language}
+            headline={getCopy("climate.section_headline")}
+            insight={getCopy("climate.core_insight")}
+          />
+        </section>
+      )}
+
+      {/* === ENTRY: PROOF TEASER === */}
+      {/* The AI drops trust_anchor for leads who already trust us. */}
+      {show("entry", "trust_anchor") && (
+        <section data-section="proof_teaser">
+          <ProofSection language={language} />
+        </section>
+      )}
+
+      {/* === OBJECTION HANDLING === */}
+      {topObjections.length > 0 && show("objection", "top_objection_answer") && (
+        <section data-section="objection_handling">
+          <ObjectionAnswerSection
+            objections={topObjections}
+            language={language}
+            headline={getCopy("objection.section_headline")}
+            answer={getCopy("objection.answer")}
+            reassurance={getCopy("objection.reassurance")}
+          />
+        </section>
+      )}
+
+      {/* === COST: INTERACTIVE ESTIMATE + WHATSAPP CTA === */}
+      {show("cost") && (
+        <section data-section="instant_estimate">
+          <InteractiveEstimate
+            slug={slug}
+            language={language}
+            products={quote.products ?? []}
+            pricing={quote.pricing_config}
+            quoteUrl={quoteUrl}
+            headline={getCopy("cost.section_headline")}
+            rangeFrame={getCopy("cost.range_frame")}
+            ctaLabel={getCopy("cta.primary_cta", getCopy("entry.primary_cta"))}
+            onCtaTrack={(payload) => trackEvent("cta_click", "instant_estimate", payload)}
+          />
+        </section>
+      )}
+
+      {/* === COST: WALL-COST COMPARISON === */}
+      {show("cost", "soft_compare") &&
+        (() => {
+          const comparison = computeWallComparison(
+            quote.wall_cost_config,
+            quote.pricing_config?.default_area_sqft ?? null,
+          );
+          if (!comparison) return null;
+          return (
+            <section data-section="cost_comparison" className="max-w-2xl mx-auto px-4">
+              <WallCostComparison comparison={comparison} language={language} />
+            </section>
+          );
+        })()}
 
       {/* Footer */}
       <footer className={cn("py-10 text-center", colors.background.secondary)}>
