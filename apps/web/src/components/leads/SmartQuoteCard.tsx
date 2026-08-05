@@ -27,8 +27,11 @@ async function generateSmartQuote(
   return res.json();
 }
 
+/** Newest existing quote for this lead, or null if none has been generated. */
 async function fetchExistingQuote(leadId: string): Promise<SmartQuote | null> {
-  const res = await fetch(`/api/smart-quotes?lead_id=${leadId}`);
+  const res = await fetch(
+    `/api/smart-quotes?lead_id=${encodeURIComponent(leadId)}`,
+  );
   if (!res.ok) return null;
   const data = await res.json();
   return data.data?.[0] ?? null;
@@ -38,21 +41,14 @@ export function SmartQuoteCard({ lead, hasTranscripts }: SmartQuoteCardProps) {
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
 
-  // Fetch existing quote for this lead
+  // Look up any quote this lead already has, so staff see the existing link
+  // instead of being offered "Generate" again (and regenerating by mistake).
+  // This is a plain GET: the previous version POSTed to /generate as its query
+  // function, which is a write endpoint, and was disabled with enabled:false —
+  // so an existing quote never loaded at all.
   const { data: existingQuote, isLoading } = useQuery({
     queryKey: ["smart-quote", lead.id],
-    queryFn: async () => {
-      // Check if lead already has a smart quote by searching for it
-      const res = await fetch(`/api/smart-quotes/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lead_id: lead.id, regenerate: false }),
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.data as SmartQuote;
-    },
-    enabled: false, // Don't auto-fetch, we'll use the mutation
+    queryFn: () => fetchExistingQuote(lead.id),
     retry: false,
   });
 
@@ -120,7 +116,15 @@ export function SmartQuoteCard({ lead, hasTranscripts }: SmartQuoteCardProps) {
         )}
       </div>
 
-      {quote ? (
+      {isLoading ? (
+        // Checking for an existing quote. Without this the card briefly shows
+        // "Generate Smart Quote" for a lead that already has one — the exact
+        // confusion that leads to accidental regeneration.
+        <div className="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400">
+          <Spinner className="h-4 w-4" />
+          Checking for an existing quote…
+        </div>
+      ) : quote ? (
         // Quote exists - show link and actions
         <div className="space-y-4">
           {/* Quote Info */}
