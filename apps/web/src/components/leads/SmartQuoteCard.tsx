@@ -6,6 +6,7 @@ import { Card, Button, Badge, Spinner } from "@maiyuri/ui";
 import { cn } from "@maiyuri/ui";
 import type { Lead, SmartQuote } from "@maiyuri/shared";
 import { SmartQuoteReview } from "./SmartQuoteReview";
+import { getQuoteReadiness } from "@/lib/pricing/quote-readiness";
 
 interface SmartQuoteCardProps {
   lead: Lead;
@@ -87,15 +88,19 @@ export function SmartQuoteCard({ lead, hasTranscripts }: SmartQuoteCardProps) {
     ? `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/sq/${quote.link_slug}`
     : null;
 
+  // A quote with no engineer rate would show the customer rate-card pricing.
+  // Block sharing until product, quantity and rate are set.
+  const readiness = getQuoteReadiness(quote?.pricing_config);
+
   const copyLink = async () => {
-    if (!quoteUrl) return;
+    if (!quoteUrl || !readiness.ready) return;
     await navigator.clipboard.writeText(quoteUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const shareWhatsApp = () => {
-    if (!quoteUrl) return;
+    if (!quoteUrl || !readiness.ready) return;
     const text = encodeURIComponent(
       `Hi ${lead.name ?? "there"},\n\nHere's your personalized quote from Maiyuri Bricks:\n${quoteUrl}\n\nTake a look and let us know if you have any questions!`,
     );
@@ -175,12 +180,26 @@ export function SmartQuoteCard({ lead, hasTranscripts }: SmartQuoteCardProps) {
             </code>
           </div>
 
+          {/* Not priced yet — say so plainly and block sharing */}
+          {!readiness.ready && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-700/60 dark:bg-amber-900/20">
+              <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                Not ready to send
+              </p>
+              <p className="mt-0.5 text-xs text-amber-800 dark:text-amber-300">
+                {readiness.reason}
+              </p>
+            </div>
+          )}
+
           {/* Action buttons */}
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
               variant="secondary"
               onClick={copyLink}
+              disabled={!readiness.ready}
+              title={readiness.reason ?? undefined}
               className="flex items-center gap-1"
             >
               {copied ? (
@@ -195,19 +214,23 @@ export function SmartQuoteCard({ lead, hasTranscripts }: SmartQuoteCardProps) {
                 </>
               )}
             </Button>
+            {/* Open stays enabled: staff previewing their own draft is safe,
+                it is sending it to the customer that is not. */}
             <Button
               size="sm"
               variant="secondary"
               onClick={() => window.open(quoteUrl!, "_blank")}
             >
               <ExternalLinkIcon className="h-3 w-3 mr-1" />
-              Open
+              Preview
             </Button>
             {lead.contact && (
               <Button
                 size="sm"
                 variant="secondary"
                 onClick={shareWhatsApp}
+                disabled={!readiness.ready}
+                title={readiness.reason ?? undefined}
                 className="text-green-600 hover:text-green-700"
               >
                 <WhatsAppIcon className="h-3 w-3 mr-1" />
