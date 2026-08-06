@@ -8,6 +8,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
+import {
+  getQuoteSignal,
+  isFollowUpOverdue,
+  needsActionToday,
+  type QuoteSignalTone,
+} from "@/lib/quote-signals";
 
 interface QuoteRow {
   id: string;
@@ -18,12 +24,32 @@ interface QuoteRow {
     name: string;
     contact: string | null;
     pipeline_stage: string | null;
+    owner_name: string | null;
+    follow_up_date: string | null;
   } | null;
   viewCount: number;
   lastViewedAt: string | null;
   sectionViewCount: number;
   ctaClicked: boolean;
   lastEventAt: string | null;
+}
+
+const TONE_CLASS: Record<QuoteSignalTone, string> = {
+  urgent: "bg-orange-100 text-orange-700",
+  warm: "bg-amber-100 text-amber-700",
+  chase: "bg-rose-100 text-rose-700",
+  neutral: "bg-slate-100 text-slate-500",
+};
+
+function signalOf(q: QuoteRow) {
+  return getQuoteSignal(
+    {
+      createdAt: q.created_at,
+      viewCount: q.viewCount,
+      ctaClicked: q.ctaClicked,
+      lastViewedAt: q.lastViewedAt,
+    },
+  );
 }
 
 function useQuotesInbox() {
@@ -48,15 +74,11 @@ function ago(iso: string | null): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-/** Warmth: CTA click beats repeat views beats a single open beats silence. */
-function warmth(q: QuoteRow): { label: string; cls: string; rank: number } {
-  if (q.ctaClicked)
-    return { label: "🔥 Clicked WhatsApp", cls: "bg-orange-100 text-orange-700", rank: 3 };
-  if (q.viewCount >= 3)
-    return { label: `👀 Opened ${q.viewCount}×`, cls: "bg-amber-100 text-amber-700", rank: 2 };
-  if (q.viewCount > 0)
-    return { label: "Opened", cls: "bg-sky-100 text-sky-700", rank: 1 };
-  return { label: "Not opened", cls: "bg-slate-100 text-slate-500", rank: 0 };
+function shortDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
 /** "Can we deliver?" — same engine as the mobile Plan tab, for sales on web. */
@@ -152,13 +174,15 @@ function PromiseChecker() {
 export default function QuotesInboxPage() {
   const { data, isLoading, isError, error, refetch, isRefetching } = useQuotesInbox();
 
+  // Most urgent action first, then most recent activity.
   const rows = [...(data ?? [])].sort((a, b) => {
-    const w = warmth(b).rank - warmth(a).rank;
-    if (w !== 0) return w;
+    const r = signalOf(b).rank - signalOf(a).rank;
+    if (r !== 0) return r;
     return Date.parse(b.lastEventAt ?? b.created_at) - Date.parse(a.lastEventAt ?? a.created_at);
   });
 
-  const hot = rows.filter((r) => warmth(r).rank >= 2);
+  const todo = rows.filter((r) => needsActionToday(signalOf(r)));
+  const callNow = rows.filter((r) => signalOf(r).key === "cta_clicked");
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
@@ -179,16 +203,26 @@ export default function QuotesInboxPage() {
 
       <PromiseChecker />
 
-      {hot.length > 0 ? (
-        <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-4">
-          <div className="text-sm font-semibold text-orange-800">
-            🔥 {hot.length} warm quote{hot.length > 1 ? "s" : ""} — follow up today
+      {callNow.length > 0 ? (
+        <div className="mb-3 rounded-xl border border-orange-300 bg-orange-50 p-4">
+          <div className="text-sm font-semibold text-orange-900">
+            📞 Call now — {callNow.length} customer
+            {callNow.length > 1 ? "s" : ""} asked to be contacted
           </div>
-          <div className="mt-1 text-xs text-orange-700">
-            {hot
-              .slice(0, 5)
-              .map((r) => r.lead?.name ?? r.link_slug)
-              .join(" · ")}
+          <div className="mt-1 text-xs text-orange-800">
+            {callNow.map((r) => r.lead?.name ?? r.link_slug).join(" · ")}
+          </div>
+        </div>
+      ) : null}
+
+      {todo.length > 0 ? (
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="text-sm font-semibold text-slate-900">
+            {todo.length} quote{todo.length > 1 ? "s" : ""} need action today
+          </div>
+          <div className="mt-1 text-xs text-slate-500">
+            Sorted below by urgency — clicked, then opened-but-stalled, then
+            never opened.
           </div>
         </div>
       ) : null}
@@ -209,16 +243,18 @@ export default function QuotesInboxPage() {
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wider text-slate-400">
                 <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3">Engagement</th>
-                <th className="px-4 py-3">Sections read</th>
+                <th className="px-4 py-3">Signal</th>
+                <th className="px-4 py-3">Do this</th>
+                <th className="px-4 py-3">Owner</th>
+                <th className="px-4 py-3">Follow-up</th>
                 <th className="px-4 py-3">Last activity</th>
-                <th className="px-4 py-3">Sent</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {rows.map((q) => {
-                const w = warmth(q);
+                const s = signalOf(q);
+                const overdue = isFollowUpOverdue(q.lead?.follow_up_date);
                 return (
                   <tr key={q.id} className="border-b border-slate-50 hover:bg-slate-50">
                     <td className="px-4 py-3">
@@ -237,17 +273,41 @@ export default function QuotesInboxPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${w.cls}`}>
-                        {w.label}
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE_CLASS[s.tone]}`}
+                      >
+                        {s.label}
                       </span>
                     </td>
+                    <td
+                      className={`px-4 py-3 text-xs ${
+                        s.rank >= 3 ? "font-semibold text-slate-900" : "text-slate-500"
+                      }`}
+                    >
+                      {s.action}
+                    </td>
                     <td className="px-4 py-3 text-slate-600">
-                      {q.sectionViewCount > 0 ? `${q.sectionViewCount} views` : "—"}
+                      {q.lead?.owner_name ?? (
+                        <span className="text-xs text-rose-500">Unassigned</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {q.lead?.follow_up_date ? (
+                        <span
+                          className={
+                            overdue
+                              ? "text-xs font-semibold text-rose-600"
+                              : "text-xs text-slate-600"
+                          }
+                        >
+                          {shortDate(q.lead.follow_up_date)}
+                          {overdue ? " · overdue" : ""}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400">not set</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{ago(q.lastEventAt)}</td>
-                    <td className="px-4 py-3 text-slate-500">
-                      {new Date(q.created_at).toLocaleDateString("en-IN")}
-                    </td>
                     <td className="px-4 py-3 text-right">
                       <a
                         href={`/sq/${q.link_slug}`}

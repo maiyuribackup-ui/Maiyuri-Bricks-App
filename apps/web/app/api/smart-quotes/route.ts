@@ -16,6 +16,9 @@ export interface QuoteInboxRow {
     contact: string | null;
     pipeline_stage: string | null;
     assigned_staff: string | null;
+    /** Resolved owner name — a uuid tells a rep nothing. */
+    owner_name: string | null;
+    follow_up_date: string | null;
   } | null;
   viewCount: number;
   lastViewedAt: string | null;
@@ -56,7 +59,7 @@ export async function GET(request: NextRequest) {
     const { data: quotes, error: qErr } = await supabaseAdmin
       .from("smart_quotes")
       .select(
-        "id, link_slug, created_at, lead:leads(id, name, contact, pipeline_stage, assigned_staff)",
+        "id, link_slug, created_at, lead:leads(id, name, contact, pipeline_stage, assigned_staff, follow_up_date)",
       )
       .order("created_at", { ascending: false })
       .limit(200);
@@ -93,10 +96,38 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Resolve owner names in one query — a rep needs "Rajesh", not a uuid.
+    const ownerIds = Array.from(
+      new Set(
+        (quotes ?? [])
+          .map((q) => {
+            const l = Array.isArray(q.lead) ? q.lead[0] : q.lead;
+            return l?.assigned_staff ?? null;
+          })
+          .filter((id): id is string => !!id),
+      ),
+    );
+    const ownerNames = new Map<string, string>();
+    if (ownerIds.length) {
+      const { data: owners } = await supabaseAdmin
+        .from("users")
+        .select("id, name")
+        .in("id", ownerIds);
+      for (const o of owners ?? []) ownerNames.set(o.id, o.name);
+    }
+
     const rows: QuoteInboxRow[] = (quotes ?? []).map((q) => {
       const agg = eventsByQuote.get(q.id);
       // Supabase types joined rows as arrays; normalise to a single object.
-      const lead = Array.isArray(q.lead) ? (q.lead[0] ?? null) : q.lead;
+      const raw = Array.isArray(q.lead) ? (q.lead[0] ?? null) : q.lead;
+      const lead = raw
+        ? {
+            ...raw,
+            owner_name: raw.assigned_staff
+              ? (ownerNames.get(raw.assigned_staff) ?? null)
+              : null,
+          }
+        : null;
       return {
         id: q.id,
         link_slug: q.link_slug,
