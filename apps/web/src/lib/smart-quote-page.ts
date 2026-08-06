@@ -29,7 +29,7 @@ export const SECTION_GATING_BLOCKS: Record<SmartQuotePageKey, string[]> = {
   climate: ["chennai_logic"],
   cost: ["soft_compare"],
   objection: ["top_objection_answer"],
-  cta: [],
+  cta: ["single_cta"],
 };
 
 /** True when the AI produced a usable page_config; false → render everything. */

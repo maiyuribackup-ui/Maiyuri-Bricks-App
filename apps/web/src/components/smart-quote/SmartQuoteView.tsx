@@ -9,6 +9,7 @@ import { WhyChennaiWorksSection } from "./ui/WhyChennaiWorksSection";
 import { ProofSection } from "./ui/ProofSection";
 import { ObjectionAnswerSection } from "./ui/ObjectionAnswerSection";
 import { InteractiveEstimate } from "./ui/InteractiveEstimate";
+import { RoutedCtaSection } from "./ui/RoutedCtaSection";
 import { WallCostComparison } from "@/components/wall-cost/WallCostComparison";
 import { computeWallComparison } from "@/lib/pricing/wall-cost";
 import {
@@ -17,6 +18,7 @@ import {
   showPage,
 } from "@/lib/smart-quote-page";
 import type {
+  SmartQuoteCtaSubmission,
   SmartQuoteLanguage,
   SmartQuotePageKey,
   SmartQuoteWithImages,
@@ -171,6 +173,30 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
     return () => observer.disconnect();
   }, [trackEvent]);
 
+  // The AI-routed CTA closes the page when the plan includes it. When it does,
+  // it is the ONE call to action, so the estimate's inline WhatsApp button
+  // stands down (see the "one CTA only" rule in the strategy prompt).
+  const showRoutedCta = show("cta", "single_cta");
+
+  const handleCtaSubmit = useCallback(
+    async (data: SmartQuoteCtaSubmission) => {
+      const res = await fetch(`/api/sq/${slug}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        // Surface failure to RoutedCtaSection so the customer sees its error
+        // state and can retry, rather than a silent success.
+        throw new Error("Submit failed");
+      }
+      trackEvent("cta_click", "routed_cta", {
+        route: quote.route_decision,
+      });
+    },
+    [slug, trackEvent, quote.route_decision],
+  );
+
   // Quote URL (for prefilled WhatsApp message)
   const quoteUrl =
     typeof window !== "undefined" ? window.location.href : `/sq/${slug}`;
@@ -258,6 +284,7 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
             headline={getCopy("cost.section_headline")}
             rangeFrame={getCopy("cost.range_frame")}
             ctaLabel={getCopy("cta.primary_cta", getCopy("entry.primary_cta"))}
+            showWhatsAppCta={!showRoutedCta}
             onCtaTrack={(payload) => trackEvent("cta_click", "instant_estimate", payload)}
           />
         </section>
@@ -277,6 +304,23 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
             </section>
           );
         })()}
+
+      {/* === CTA: THE ROUTED NEXT STEP === */}
+      {/* One CTA, chosen by the AI from the conversation: book a factory
+          visit, schedule a technical call, get an estimate, or nurture. */}
+      {showRoutedCta && (
+        <section data-section="routed_cta">
+          <RoutedCtaSection
+            /* No route decided → nurture, the lowest-pressure next step */
+            routeDecision={quote.route_decision ?? "nurture"}
+            language={language}
+            onSubmit={handleCtaSubmit}
+            headline={getCopy("cta.section_headline")}
+            ctaLabel={getCopy("cta.primary_cta")}
+            description={getCopy("cta.route_explainer")}
+          />
+        </section>
+      )}
 
       {/* Footer */}
       <footer className={cn("py-10 text-center", colors.background.secondary)}>
