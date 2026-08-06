@@ -15,6 +15,7 @@ import {
   LayoutGrid,
   Link2,
   MessageSquare,
+  PlaySquare,
   Plus,
   Search,
   Settings2,
@@ -32,6 +33,7 @@ import { AskMayurModal } from "./AskMayurModal";
 const NAV: { label: string; icon: typeof Home; href: string; badge?: boolean }[] = [
   { label: "Start Here", icon: Home, href: "/onehub" },
   { label: "My Work", icon: ClipboardList, href: "/onehub/my-work", badge: true },
+  { label: "Watch & Learn", icon: PlaySquare, href: "/onehub#videos" },
   { label: "SOP Library", icon: BookOpen, href: "/onehub#sop-library" },
   { label: "New Joiners Checklist", icon: ClipboardCheck, href: "/onehub#checklist" },
   { label: "Important Links", icon: Link2, href: "/onehub#links" },
