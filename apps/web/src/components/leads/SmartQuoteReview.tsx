@@ -11,6 +11,7 @@ import type {
 import { WallCostComparison } from "@/components/wall-cost/WallCostComparison";
 import { WallCostSettings } from "@/components/wall-cost/WallCostSettings";
 import { computeWallComparison } from "@/lib/pricing/wall-cost";
+import { useProducts } from "@/hooks/useEstimates";
 
 interface Engagement {
   viewed: boolean;
@@ -52,10 +53,20 @@ export function SmartQuoteReview({ quote }: { quote: SmartQuote }) {
   const [showTransport, setShowTransport] = useState<boolean>(
     pricing.show_transport !== false,
   );
+  // The engineer's rate per unit. Authoritative — when set, the customer's
+  // quote uses this and never the rate card.
+  const [rate, setRate] = useState<string>(
+    pricing.quoted_rate != null ? String(pricing.quoted_rate) : "",
+  );
+  const [product, setProduct] = useState<string>(pricing.default_product ?? "");
   const [repPhone, setRepPhone] = useState<string>(pricing.rep_phone ?? "");
   const [note, setNote] = useState<string>(pricing.price_note ?? "");
   const [saved, setSaved] = useState(false);
   const [editWall, setEditWall] = useState(false);
+
+  // Products the engineer can quote against
+  const { data: productsResp } = useProducts();
+  const productList = productsResp?.data ?? [];
 
   const wallSave = useMutation({
     mutationFn: async (cfg: WallCostConfig) => {
@@ -95,7 +106,9 @@ export function SmartQuoteReview({ quote }: { quote: SmartQuote }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pricing_config: {
+            default_product: product || null,
             default_area_sqft: area ? Number(area) : null,
+            quoted_rate: rate ? Number(rate) : null,
             default_distance_km: distance ? Number(distance) : null,
             show_transport: showTransport,
             rep_phone: repPhone || null,
@@ -148,15 +161,31 @@ export function SmartQuoteReview({ quote }: { quote: SmartQuote }) {
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
       >
-        <span>⚙️ Review &amp; adjust estimate defaults</span>
+        <span>⚙️ Set the quote — product, quantity &amp; rate</span>
         <span>{open ? "▲" : "▼"}</span>
       </button>
 
       {open && (
         <div className="space-y-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+          {/* The three fields that ARE the quote. */}
+          <label className="block text-xs">
+            <span className="text-slate-500 dark:text-slate-400">Product</span>
+            <select
+              value={product}
+              onChange={(e) => setProduct(e.target.value)}
+              className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm"
+            >
+              <option value="">Select product…</option>
+              {(productList ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="text-xs">
-              <span className="text-slate-500 dark:text-slate-400">Default area / qty</span>
+              <span className="text-slate-500 dark:text-slate-400">Quantity</span>
               <input
                 type="number"
                 value={area}
@@ -165,15 +194,34 @@ export function SmartQuoteReview({ quote }: { quote: SmartQuote }) {
               />
             </label>
             <label className="text-xs">
-              <span className="text-slate-500 dark:text-slate-400">Delivery distance (km)</span>
+              <span className="text-slate-500 dark:text-slate-400">Rate (₹ per unit)</span>
               <input
                 type="number"
-                value={distance}
-                onChange={(e) => setDistance(e.target.value)}
+                value={rate}
+                onChange={(e) => setRate(e.target.value)}
+                placeholder="e.g. 42"
                 className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm"
               />
             </label>
           </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            {rate
+              ? `This rate is the quote — ₹${rate}/unit × ${area || "?"} = ₹${
+                  rate && area
+                    ? (Number(rate) * Number(area)).toLocaleString("en-IN")
+                    : "—"
+                }. The rate card is not used.`
+              : "Leave the rate blank to fall back to the rate card."}
+          </p>
+          <label className="block text-xs">
+            <span className="text-slate-500 dark:text-slate-400">Delivery distance (km)</span>
+            <input
+              type="number"
+              value={distance}
+              onChange={(e) => setDistance(e.target.value)}
+              className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm"
+            />
+          </label>
           <label className="block text-xs">
             <span className="text-slate-500 dark:text-slate-400">Rep WhatsApp number (CTA)</span>
             <input

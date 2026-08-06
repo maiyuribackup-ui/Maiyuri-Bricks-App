@@ -567,13 +567,21 @@ export interface SmartQuoteCopyMap {
 // Smart Quote 2.0 — interactive instant-estimate config (staff-reviewed)
 export interface SmartQuotePricingConfig {
   allowed_products: string[]; // product ids offered on the quote
-  default_product: string | null; // product id pre-selected
-  default_area_sqft: number | null; // default quantity in the product's unit
+  default_product: string | null; // the quoted product
+  default_area_sqft: number | null; // the quoted quantity, in the product's unit
   default_distance_km: number | null; // delivery distance for transport calc
   locality_label: string | null; // human label for the delivery area
   show_transport: boolean; // include delivery in the headline total
   price_note: string | null; // optional caveat shown under the estimate
   rep_phone: string | null; // WhatsApp number for the CTA (E.164-ish digits)
+  /**
+   * Rate per unit (₹) set by the engineer in the app. When present this is
+   * THE price: the rate card and product base_price are not consulted at all,
+   * so the customer never sees a number the engineer did not authorise.
+   * Null on quotes created before engineer pricing, which keep the rate-card
+   * behaviour.
+   */
+  quoted_rate: number | null;
 }
 
 // ============================================================================

@@ -620,6 +620,8 @@ export const smartQuotePricingConfigSchema = z.object({
   show_transport: z.boolean().default(true),
   price_note: z.string().nullable().optional(),
   rep_phone: z.string().nullable().optional(),
+  // Engineer-set rate per unit (₹). Authoritative when present.
+  quoted_rate: z.number().positive().nullable().optional(),
 });
 
 // Public instant-estimate request (slug-gated, from the customer page)
