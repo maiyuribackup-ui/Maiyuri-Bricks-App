@@ -158,7 +158,7 @@ export function InteractiveEstimate({
                 <button
                   key={p.id}
                   onClick={() => setProductId(p.id)}
-                  className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+                  className={`inline-flex min-h-[44px] items-center rounded-full px-4 py-2 text-sm font-medium transition ${
                     productId === p.id
                       ? "bg-slate-900 text-white"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -208,7 +208,7 @@ export function InteractiveEstimate({
                 value={distanceKm || ""}
                 onChange={(e) => setDistanceKm(Number(e.target.value) || 0)}
                 placeholder="0"
-                className="w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="min-h-[44px] w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c0562f]"
               />
               <span className="text-sm text-slate-500">
                 km {t(language, "from our factory", "எங்கள் தொழிற்சாலையிலிருந்து")}

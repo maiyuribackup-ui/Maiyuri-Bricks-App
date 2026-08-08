@@ -24,32 +24,72 @@ colors:
   status-good-wash: "#e4f1e3"
   status-warning-wash: "#f8ecd4"
   status-critical-wash: "#fbe4df"
+  scrim: "rgba(0,0,0,0.70)"
 typography:
+  hero:
+    fontFamily: "Inter, system-ui, sans-serif"
+    fontSize: "34px"
+    fontWeight: 700
+    lineHeight: 1.1
+    letterSpacing: "-0.02em"
+  hero-lg:
+    fontFamily: "Inter, system-ui, sans-serif"
+    fontSize: "44px"
+    fontWeight: 700
+    lineHeight: 1.1
+    letterSpacing: "-0.02em"
   display:
     fontFamily: "ui-serif, Georgia, Cambria, Times New Roman, serif"
-    fontSize: "clamp(1.5rem, 4vw, 1.75rem)"
+    fontSize: "28px"
     fontWeight: 700
     lineHeight: 1.15
     letterSpacing: "-0.01em"
   headline:
     fontFamily: "Inter, system-ui, sans-serif"
-    fontSize: "clamp(1.625rem, 4vw, 2rem)"
+    fontSize: "26px"
     fontWeight: 700
     lineHeight: 1.2
     letterSpacing: "-0.01em"
+  headline-lg:
+    fontFamily: "Inter, system-ui, sans-serif"
+    fontSize: "32px"
+    fontWeight: 700
+    lineHeight: 1.2
+    letterSpacing: "-0.01em"
+  subsection:
+    fontFamily: "Inter, system-ui, sans-serif"
+    fontSize: "20px"
+    fontWeight: 600
+    lineHeight: 1.3
+  subsection-lg:
+    fontFamily: "Inter, system-ui, sans-serif"
+    fontSize: "24px"
+    fontWeight: 600
+    lineHeight: 1.3
   title:
     fontFamily: "Inter, system-ui, sans-serif"
-    fontSize: "1.125rem"
+    fontSize: "18px"
     fontWeight: 600
     lineHeight: 1.4
   body:
     fontFamily: "Inter, system-ui, sans-serif"
-    fontSize: "1rem"
+    fontSize: "16px"
     fontWeight: 400
     lineHeight: 1.6
+  body-sm:
+    fontFamily: "Inter, system-ui, sans-serif"
+    fontSize: "14px"
+    fontWeight: 400
+    lineHeight: 1.5
   label:
     fontFamily: "Inter, system-ui, sans-serif"
-    fontSize: "0.6875rem"
+    fontSize: "12px"
+    fontWeight: 600
+    lineHeight: 1.3
+    letterSpacing: "0.05em"
+  label-xs:
+    fontFamily: "Inter, system-ui, sans-serif"
+    fontSize: "11px"
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: "0.1em"
@@ -168,6 +208,12 @@ is used consistently where it already rules, not extended into new work.
 - **Signal Blue** (`#3b82f6`, deep `#2563eb`): dashboard primary action.
 - **Slate Canvas** (`#f8fafc`), **Slate Ink** (`#0f172a`), **Slate Muted**
   (`#64748b`), **Slate Border** (`#e2e8f0`): the cool neutral ramp.
+
+### Overlay
+
+- **Scrim** (`rgba(0,0,0,0.70)`): the only permitted veil over a full-bleed
+  photograph, so white type clears AA against whatever the image happens to be
+  behind it. Not a decorative tint — never use it to darken a coloured surface.
 
 ### Tertiary — status
 
