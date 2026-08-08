@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseYouTubeId } from "@/../app/api/onehub/videos/route";
+import { parseYouTubeId } from "@/lib/youtube-id";
 
 /**
  * Staff paste whatever YouTube gave them — a share link, the address bar, a
