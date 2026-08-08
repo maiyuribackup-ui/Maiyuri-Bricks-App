@@ -1,0 +1,241 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-06T00:00:00.000Z",
+  "title": "Design System: Maiyuri Bricks",
+  "extensions": {
+    "colorMeta": {
+      "red-soil": {
+        "role": "primary",
+        "displayName": "Red Soil",
+        "canonical": "#c0562f",
+        "tonalRamp": ["#2b1108", "#4a1e0e", "#6d2c15", "#91401f", "#c0562f", "#d4805e", "#e6b39a", "#f7e2d8"]
+      },
+      "brick-red": {
+        "role": "primary",
+        "displayName": "Brick Red",
+        "canonical": "#7a2817",
+        "tonalRamp": ["#1f0a05", "#3a130a", "#571c10", "#7a2817", "#9b3a24", "#c06b52", "#dda893", "#f4ddd4"]
+      },
+      "cream": {
+        "role": "neutral",
+        "displayName": "Cream",
+        "canonical": "#fbf5ea",
+        "tonalRamp": ["#2a2318", "#453a29", "#63553f", "#8a7a61", "#b3a48b", "#d6cab4", "#efe3d2", "#fbf5ea"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#4a3428",
+        "tonalRamp": ["#1a120d", "#2c1f17", "#4a3428", "#6b4d3c", "#917158", "#b89a82", "#d9c6b5", "#f2e8de"]
+      },
+      "signal-blue": {
+        "role": "secondary",
+        "displayName": "Signal Blue",
+        "canonical": "#3b82f6",
+        "tonalRamp": ["#0b1c38", "#12305f", "#1c4a91", "#2563eb", "#3b82f6", "#7aaefa", "#b3d1fd", "#e3eefe"]
+      },
+      "status-good": {
+        "role": "tertiary",
+        "displayName": "Cured Green",
+        "canonical": "#3f7d4d",
+        "tonalRamp": ["#0f1f13", "#1a3521", "#2a5333", "#3f7d4d", "#5fa06e", "#8fc39a", "#c0e0c7", "#e4f1e3"]
+      },
+      "status-warning": {
+        "role": "tertiary",
+        "displayName": "Kiln Amber",
+        "canonical": "#b3781a",
+        "tonalRamp": ["#2b1c06", "#48300b", "#6c4811", "#b3781a", "#d09a43", "#e2bc80", "#efd9b4", "#f8ecd4"]
+      },
+      "status-critical": {
+        "role": "tertiary",
+        "displayName": "Alarm Rose",
+        "canonical": "#c1453e",
+        "tonalRamp": ["#2c0d0b", "#4b1613", "#71211d", "#9a2e28", "#c1453e", "#d67d78", "#ecb5b1", "#fbe4df"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display Serif",
+        "purpose": "OneHub greetings, wordmark and section titles only. Never on data, labels, forms or buttons."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The top of a customer quote and major section openers."
+      },
+      "title": { "displayName": "Title", "purpose": "Card headings and work-item titles." },
+      "body": { "displayName": "Body", "purpose": "All running text; measures near 65-75 characters." },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Uppercase eyebrows, table headers and status chips."
+      }
+    },
+    "shadows": [
+      {
+        "name": "resting-card",
+        "value": "0 1px 2px rgba(20,23,26,.05)",
+        "purpose": "Barest separation. Dashboard cards only; warm-world cards rest flat."
+      },
+      {
+        "name": "hover-lift",
+        "value": "0 4px 20px rgba(74,55,40,0.08)",
+        "purpose": "Warm diffuse lift on hover for tappable cards."
+      },
+      {
+        "name": "floating",
+        "value": "0 8px 24px -12px rgba(20,23,26,.14)",
+        "purpose": "Modals, toasts and sticky action bars — things genuinely above the page."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-fast",
+        "value": "150ms cubic-bezier(0, 0, 0.2, 1)",
+        "purpose": "Button and chip state changes."
+      },
+      {
+        "name": "ease-out-base",
+        "value": "300ms cubic-bezier(0, 0, 0.2, 1)",
+        "purpose": "Card hover, section reveals, language toggle."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "prefers-reduced-motion: reduce -> transition: none",
+        "purpose": "All transitions collapse; nothing animates for users who opt out."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "container-read", "value": "720px" },
+      { "name": "container-standard", "value": "1040px" },
+      { "name": "container-wide", "value": "1200px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single action per screen region. Red Soil ground, white label.",
+      "html": "<button class=\"ds-btn-primary\">Assign Work</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 10px 14px; background: #c0562f; color: #ffffff; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-weight: 600; border: none; border-radius: 12px; cursor: pointer; transition: background 150ms cubic-bezier(0,0,0.2,1); } .ds-btn-primary:hover { background: #a8481f; } .ds-btn-primary:focus-visible { outline: 2px solid #7a2817; outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.6; cursor: default; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Supporting action. White ground, warm hairline, Ink label.",
+      "html": "<button class=\"ds-btn-secondary\">Preview</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 14px; background: #ffffff; color: #4a3428; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-weight: 600; border: 1px solid #efe3d2; border-radius: 12px; cursor: pointer; transition: border-color 150ms cubic-bezier(0,0,0.2,1); } .ds-btn-secondary:hover { border-color: #9c8676; } .ds-btn-secondary:focus-visible { outline: 2px solid #c0562f; outline-offset: 2px; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Resting surface on Cream ground. Flat: hairline border, no shadow.",
+      "html": "<div class=\"ds-card\"><p class=\"ds-card-title\">Pan Mixer Inspection</p><p class=\"ds-card-meta\">Today, 8:30 AM &middot; Pan Mixer 01</p></div>",
+      "css": ".ds-card { background: #ffffff; border: 1px solid #efe3d2; border-radius: 16px; padding: 16px; transition: box-shadow 300ms cubic-bezier(0,0,0.2,1); } .ds-card:hover { box-shadow: 0 4px 20px rgba(74,55,40,0.08); } .ds-card-title { margin: 0; font-family: Inter, system-ui, sans-serif; font-size: 15px; font-weight: 700; color: #4a3428; } .ds-card-meta { margin: 6px 0 0; font-family: Inter, system-ui, sans-serif; font-size: 12px; color: #9c8676; }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Read-only state. Coloured wash with matching darker text, never white on pale.",
+      "html": "<span class=\"ds-chip ds-chip-critical\">Overdue</span> <span class=\"ds-chip ds-chip-warning\">Due today</span> <span class=\"ds-chip ds-chip-good\">Completed</span>",
+      "css": ".ds-chip { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-family: Inter, system-ui, sans-serif; font-size: 11px; font-weight: 600; } .ds-chip-critical { background: #fbe4df; color: #c1453e; } .ds-chip-warning { background: #f8ecd4; color: #b3781a; } .ds-chip-good { background: #e4f1e3; color: #3f7d4d; }"
+    },
+    {
+      "name": "Filter Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Interactive filter. Inverts to Brick Red ground when active.",
+      "html": "<button class=\"ds-chip-filter\" aria-pressed=\"true\">Overdue</button> <button class=\"ds-chip-filter\" aria-pressed=\"false\">Upcoming</button>",
+      "css": ".ds-chip-filter { min-height: 40px; padding: 6px 16px; border: 1px solid #efe3d2; border-radius: 9999px; background: #ffffff; color: #9c8676; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 150ms, color 150ms; } .ds-chip-filter[aria-pressed=\"true\"] { background: #7a2817; border-color: #7a2817; color: #ffffff; } .ds-chip-filter:focus-visible { outline: 2px solid #c0562f; outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "White ground, warm hairline, accent focus ring.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Rate (₹ per unit)\" />",
+      "css": ".ds-input { width: 100%; padding: 10px 12px; background: #ffffff; color: #4a3428; font-family: Inter, system-ui, sans-serif; font-size: 14px; border: 1px solid #efe3d2; border-radius: 12px; transition: border-color 150ms; } .ds-input::placeholder { color: #9c8676; } .ds-input:focus { outline: 2px solid #c0562f; outline-offset: -1px; border-color: transparent; }"
+    },
+    {
+      "name": "Sidebar Navigation Item",
+      "kind": "nav",
+      "refersTo": "button-secondary",
+      "description": "OneHub sidebar on the Brick Red gradient; active item inverts to a Cream pill.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-nav-item-active\" href=\"#\">Start Here</a><a class=\"ds-nav-item\" href=\"#\">My Work<span class=\"ds-nav-badge\">8</span></a><a class=\"ds-nav-item\" href=\"#\">SOP Library</a></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 4px; padding: 12px; background: linear-gradient(180deg, #8a2f1c, #6d2212); border-radius: 12px; } .ds-nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.82); text-decoration: none; transition: background 150ms; } .ds-nav-item:hover { background: rgba(255,255,255,0.10); } .ds-nav-item-active { background: #fbf5ea; color: #7a2817; } .ds-nav-badge { margin-left: auto; padding: 2px 6px; border-radius: 9999px; background: #c0562f; color: #ffffff; font-size: 10px; font-weight: 700; }"
+    },
+    {
+      "name": "Quote Block",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Signature component. The engineer-set price leads the customer page; total is the largest number present.",
+      "html": "<section class=\"ds-quote\"><p class=\"ds-quote-label\">Your quote</p><p class=\"ds-quote-line\">8\" Mud Interlock &middot; 5,000 nos &middot; ₹42/unit</p><p class=\"ds-quote-total\">₹2,10,000</p><p class=\"ds-quote-note\">Delivered to your site. Confirmed by our team.</p></section>",
+      "css": ".ds-quote { background: #ffffff; border: 1px solid #efe3d2; border-radius: 16px; padding: 24px; text-align: center; font-family: Inter, system-ui, sans-serif; } .ds-quote-label { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #9c8676; } .ds-quote-line { margin: 10px 0 0; font-size: 15px; color: #4a3428; font-variant-numeric: tabular-nums; } .ds-quote-total { margin: 8px 0 0; font-size: 40px; font-weight: 700; letter-spacing: -0.02em; color: #7a2817; font-variant-numeric: tabular-nums; } .ds-quote-note { margin: 10px 0 0; font-size: 12px; color: #9c8676; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Curing Yard",
+    "overview": "Bricks are laid out in rows and left alone until they are strong. Nothing is rushed, nothing is shouted, and the material does the convincing. The interface works the same way: warm earth tones, ordered rows, generous rhythm, and no decoration that has not earned its place.\n\nThe system is warm and earthy before it is anything else — clay, soil and daylight rather than steel and glass. Structure comes from hairline borders and tonal shifts rather than drop shadows, so surfaces read as laid down rather than floating. Colour is used sparingly: a single warm accent carries every action, and the rest of the palette stays quiet enough that a number or a status can be the loudest thing on screen.\n\nThree surfaces exist and they are not identical. OneHub and the customer quote share the warm world described here. The staff dashboard still runs on an older blue-and-slate palette across 21 routes; it is documented as the incumbent Operate world, not as an aspiration.",
+    "keyCharacteristics": [
+      "Warm neutrals (cream and clay) instead of grey",
+      "One accent, used rarely, always meaning \"act here\"",
+      "Hairline borders carry structure; shadows are reserved for what floats",
+      "Generous vertical rhythm; one idea at a time",
+      "Bilingual English/Tamil throughout customer-facing copy",
+      "Built to be read on a phone in daylight and on a desktop at arm's length"
+    ],
+    "rules": [
+      {
+        "name": "The One Accent Rule",
+        "body": "Red Soil is the only colour that means \"act\". If two things on a screen are Red Soil, one of them is wrong. Status colours report state and are never borrowed for a button.",
+        "section": "colors"
+      },
+      {
+        "name": "The No Pure Black Rule",
+        "body": "Text is Ink (#4a3428) on warm surfaces and Slate Ink (#0f172a) on cool ones. #000000 appears nowhere.",
+        "section": "colors"
+      },
+      {
+        "name": "The Warm Ground Rule",
+        "body": "Warm-world surfaces sit on Cream, never on white or grey. White is a card, not a page.",
+        "section": "colors"
+      },
+      {
+        "name": "The Numbers Are Tabular Rule",
+        "body": "Any column of figures — rates, totals, quantities, counts — uses tabular numerals so digits line up down the column.",
+        "section": "typography"
+      },
+      {
+        "name": "The Serif Stays Upstairs Rule",
+        "body": "The serif face is for greetings, wordmarks and section titles. Data, labels, forms and buttons are always Inter.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-At-Rest Rule",
+        "body": "If a surface is not being hovered, focused, or floating above the page, it has no shadow. A grid of resting cards shows a grid of hairlines, not a field of drop shadows.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do put the number the reader came for first, at the top, in tabular figures — the quote block is the model.",
+      "Do use Red Soil (#c0562f) for exactly one action per screen region.",
+      "Do set text in Ink (#4a3428) on warm surfaces and give every control a 44px touch target.",
+      "Do carry status in a wash-plus-dark-text pair (#e4f1e3/#3f7d4d, #f8ecd4/#b3781a, #fbe4df/#c1453e).",
+      "Do keep English and Tamil together on customer-facing copy, in conversational Tamil rather than literary.",
+      "Do let a section render nothing when it has no content, rather than showing an empty shell."
+    ],
+    "donts": [
+      "Don't introduce a second warm accent. #C46A2B and cream #FBF7F2 appear in the Smart Quote tokens and are drift, not design — they are being unified onto #c0562f and #fbf5ea. Do not add more near-misses.",
+      "Don't put a drop shadow on a resting surface.",
+      "Don't use pure black, pure grey borders on warm grounds, or Brick Red on a button.",
+      "Don't reach for urgency devices — countdowns, \"BEST PRICE\", flashing badges. The price is stated once, plainly, and stands.",
+      "Don't present stock photography as Maiyuri's own work. There are almost no real project photographs; show none rather than a purchased one captioned as a local site.",
+      "Don't extend the blue-and-slate dashboard palette into new surfaces, and don't half-convert an existing dashboard screen to the warm world."
+    ]
+  }
+}
