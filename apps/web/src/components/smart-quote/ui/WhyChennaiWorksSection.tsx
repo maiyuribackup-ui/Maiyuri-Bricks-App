@@ -118,9 +118,9 @@ export function WhyChennaiWorksSection({
                 "p-8",
                 colors.background.secondary,
                 radius["2xl"],
-                "border border-[#E8DED2]",
+                "border border-[#efe3d2]",
                 "transition-all duration-200",
-                "hover:shadow-lg hover:border-[#C46A2B]/20",
+                "hover:shadow-lg hover:border-[#c0562f]/20",
               )}
             >
               {/* Icon */}

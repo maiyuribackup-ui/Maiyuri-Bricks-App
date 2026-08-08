@@ -261,7 +261,7 @@ export function RoutedCtaSection({
                 colors.text.primary,
                 radius.lg,
                 "border border-stone-200",
-                "focus:outline-none focus:ring-2 focus:ring-[#C87941] focus:border-transparent",
+                "focus:outline-none focus:ring-2 focus:ring-[#c0562f] focus:border-transparent",
                 transition.fast,
               )}
               placeholder={language === "ta" ? "பெயர்" : "Name"}
@@ -293,7 +293,7 @@ export function RoutedCtaSection({
                 colors.text.primary,
                 radius.lg,
                 "border border-stone-200",
-                "focus:outline-none focus:ring-2 focus:ring-[#C87941] focus:border-transparent",
+                "focus:outline-none focus:ring-2 focus:ring-[#c0562f] focus:border-transparent",
                 transition.fast,
               )}
               placeholder="98XXXXXXXX"

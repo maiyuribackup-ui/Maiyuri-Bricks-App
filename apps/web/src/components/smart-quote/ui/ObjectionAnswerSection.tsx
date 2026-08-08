@@ -193,19 +193,26 @@ export function ObjectionAnswerSection({
                 className={cn(
                   "bg-white",
                   radius["2xl"],
-                  "border border-[#E8DED2]",
+                  "border border-[#efe3d2]",
                   "overflow-hidden",
                   "transition-all duration-200",
                 )}
               >
                 {/* Accordion header - clickable */}
                 <button
+                  type="button"
+                  /* Without these a screen reader announces a button with no
+                     indication that it reveals an answer, or whether that
+                     answer is currently open. */
+                  aria-expanded={isOpen}
+                  aria-controls={`sq-objection-panel-${index}`}
+                  id={`sq-objection-trigger-${index}`}
                   className={cn(
                     "w-full px-6 py-5 md:px-8 md:py-6",
                     "flex items-center justify-between",
                     "text-left",
                     "transition-colors duration-200",
-                    "hover:bg-[#FBF7F2]/50",
+                    "hover:bg-[#fbf5ea]/60",
                   )}
                   onClick={() => setOpenIndex(isOpen ? -1 : index)}
                 >
@@ -239,7 +246,12 @@ export function ObjectionAnswerSection({
 
                 {/* Accordion content */}
                 {isOpen && (
-                  <div className="px-6 pb-6 md:px-8 md:pb-8">
+                  <div
+                    id={`sq-objection-panel-${index}`}
+                    role="region"
+                    aria-labelledby={`sq-objection-trigger-${index}`}
+                    className="px-6 pb-6 md:px-8 md:pb-8"
+                  >
                     {/* The answer */}
                     <p
                       className={cn(

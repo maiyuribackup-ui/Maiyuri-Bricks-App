@@ -10,7 +10,8 @@ colors:
   surface: "#ffffff"
   border-warm: "#efe3d2"
   ink: "#4a3428"
-  ink-muted: "#9c8676"
+  ink-muted: "#7d6653"
+  ink-muted-soft: "#9c8676"
   signal-blue: "#3b82f6"
   signal-blue-deep: "#2563eb"
   slate-canvas: "#f8fafc"
@@ -154,7 +155,10 @@ still in service on the staff dashboard.
 - **Surface** (`#ffffff`): cards, panels and any raised content block.
 - **Warm Border** (`#efe3d2`): the hairline that does the structural work.
 - **Ink** (`#4a3428`): primary text — a warm dark brown, never pure black.
-- **Ink Muted** (`#9c8676`): secondary text, captions, empty-state copy.
+- **Ink Muted** (`#7d6653`): secondary text, captions, disclaimers — anything
+  set at body size. Clears AA on both Cream (4.97:1) and Surface (5.39:1).
+- **Ink Muted Soft** (`#9c8676`): the lighter warm grey, for large text,
+  dividers and icons only. It measures 3.18:1 and **must not carry body copy**.
 
 ### Secondary — the incumbent dashboard world
 

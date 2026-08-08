@@ -275,7 +275,11 @@ export function InteractiveEstimate({
         {showWhatsAppCta && (
           <button
             onClick={handleWhatsApp}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-5 py-3.5 text-base font-semibold text-white shadow-md transition hover:bg-[#1ebe5b]"
+            /* WhatsApp's dark brand green. The familiar #25D366 renders white
+               text at 1.98:1 — below WCAG AA at any size — which is fatal on
+               the page's primary action, read outdoors on a phone. #0F7A6C is
+               still unmistakably WhatsApp and clears AA at 5.22:1. */
+            className="mt-5 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-[#0F7A6C] px-5 py-3.5 text-base font-semibold text-white shadow-md transition hover:bg-[#0b5f54]"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden>
               <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.978-1.595z"/>
