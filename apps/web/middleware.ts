@@ -27,6 +27,7 @@ const protectedRoutes = [
   "/rate-card",
   "/approvals",
   "/production",
+  "/factory",
   "/deliveries",
   "/coaching",
   "/reports",
