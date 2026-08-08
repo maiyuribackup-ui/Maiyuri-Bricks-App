@@ -162,6 +162,12 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
   const rate = quote.pricing_config?.quoted_rate;
   const hasEngineerRate = rate != null && rate > 0;
 
+  // Unit of the quoted product ("piece" or "sqft"), which decides whether the
+  // quoted quantity can be read as a wall area.
+  const quotedUnit = quote.products?.find(
+    (p) => p.id === quote.pricing_config?.default_product,
+  )?.unit;
+
   // Quote URL (for prefilled WhatsApp message)
   const quoteUrl =
     typeof window !== "undefined" ? window.location.href : `/sq/${slug}`;
@@ -227,9 +233,16 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
       {/* === SUPPORTING: WALL-COST COMPARISON === */}
       {show("cost", "soft_compare") &&
         (() => {
+          // The comparison is priced per sq.ft of WALL. `default_area_sqft` is
+          // the quoted quantity in the PRODUCT's unit, so for a per-piece
+          // product it is a brick count — 4,000 bricks is not 4,000 sq.ft of
+          // wall, and treating it as one printed a wall cost that was simply
+          // wrong. Only feed it through when the quantity really is an area.
           const comparison = computeWallComparison(
             quote.wall_cost_config,
-            quote.pricing_config?.default_area_sqft ?? null,
+            quotedUnit === "sqft"
+              ? (quote.pricing_config?.default_area_sqft ?? null)
+              : null,
           );
           if (!comparison) return null;
           return (

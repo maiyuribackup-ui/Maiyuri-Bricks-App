@@ -39,15 +39,29 @@ const full: QuoteDocumentData = {
       quantity: 5000,
       rate: 32,
       amount: 160_000,
+      hsnCode: "681011",
     },
   ],
   total: 160_000,
   deliveryIncluded: true,
   distanceKm: 18,
   priceNote: null,
+  taxNote: "GST extra, as per actual.",
   terms: {
-    payment: "50% advance, balance before dispatch",
-    delivery: "Delivered within 7 days of confirmation",
+    payment: "20% advance against this quotation; balance on delivery",
+    delivery: "30 days from the date of advance payment",
+    additional: [
+      "The price is inclusive of loading, unloading and transportation.",
+      "Road access suitable for an Eicher vehicle is required at the site.",
+    ],
+  },
+  bank: {
+    accountName: "Maiyuri Bricks",
+    accountNumber: "510909010289320",
+    ifsc: "CIUB0000389",
+    bankName: "City Union Bank",
+    branch: "Red Hills",
+    upiNumber: "6383579119",
   },
   rep: { name: "Ganesh", phone: "919876543210" },
   footerNote: "Thank you for considering Maiyuri Bricks.",
@@ -97,7 +111,9 @@ const bare: QuoteDocumentData = {
   },
   customer: { name: "Customer", phone: null, location: null },
   distanceKm: null,
-  terms: { payment: null, delivery: null },
+  taxNote: null,
+  terms: { payment: null, delivery: null, additional: [] },
+  bank: null,
   rep: { name: null, phone: null },
   footerNote: null,
   wallCost: null,
@@ -113,16 +129,17 @@ describe("QuoteDocument", () => {
     expect(buffer.subarray(0, 5).toString("latin1")).toBe("%PDF-");
   }, 20_000);
 
-  it("adds a second page when there is an argument to make", async () => {
+  it("keeps the commercial page clean and puts the argument on page two", async () => {
     const withArgument = await render(full);
-    const quoteOnly = await render({
+    const minimal = await render({
       ...full,
       wallCost: null,
       objection: null,
       nextStep: null,
     });
-    // The one-pager is the same document minus page 2, so it must be smaller.
-    expect(withArgument.length).toBeGreaterThan(quoteOnly.length);
+    // Page 2 always exists (Why Maiyuri earns it), but the optional blocks add
+    // to it — so the fuller document must be larger.
+    expect(withArgument.length).toBeGreaterThan(minimal.length);
   }, 20_000);
 
   it("renders with every optional fact missing, rather than throwing", async () => {
@@ -145,6 +162,7 @@ describe("QuoteDocument", () => {
           quantity: 800,
           rate: 45,
           amount: 36_000,
+          hsnCode: "681011",
         },
       ],
       total: 196_000,

@@ -40,6 +40,18 @@ export interface QuoteLine {
   quantity: number;
   rate: number;
   amount: number;
+  /** HSN/SAC code. Printed under the product name when the product carries one. */
+  hsnCode: string | null;
+}
+
+/** Where the advance is paid. Printed only when the account is on file. */
+export interface BankDetails {
+  accountName: string | null;
+  accountNumber: string | null;
+  ifsc: string | null;
+  bankName: string | null;
+  branch: string | null;
+  upiNumber: string | null;
 }
 
 /**
@@ -97,7 +109,18 @@ export interface QuoteDocumentData {
   deliveryIncluded: boolean;
   distanceKm: number | null;
   priceNote: string | null;
-  terms: { payment: string | null; delivery: string | null };
+  /**
+   * How tax is treated. Sits directly under the total, because a total with
+   * no tax statement reads as final — and on Maiyuri's quotes GST is extra.
+   */
+  taxNote: string | null;
+  terms: {
+    payment: string | null;
+    delivery: string | null;
+    /** Everything else, one term per line. */
+    additional: string[];
+  };
+  bank: BankDetails | null;
   rep: { name: string | null; phone: string | null };
   footerNote: string | null;
   /**
@@ -197,6 +220,35 @@ const s = StyleSheet.create({
   totalValue: { fontSize: 17, fontFamily: "Helvetica-Bold", color: C.brick },
 
   note: { fontSize: 8, color: C.inkMuted, marginTop: 8, lineHeight: 1.5 },
+  // The tax statement is not a footnote. It changes what the customer will
+  // actually pay, so it gets the weight of a line item.
+  taxNote: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: C.brick,
+    marginTop: 8,
+  },
+
+  termItem: {
+    flexDirection: "row",
+    marginBottom: 3,
+    paddingRight: 10,
+  },
+  termBullet: { fontSize: 9, color: C.inkMuted, width: 12 },
+  termText: { fontSize: 9, color: C.ink, flex: 1, lineHeight: 1.5 },
+
+  bank: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 4,
+    backgroundColor: C.cream,
+    padding: 12,
+  },
+  bankGrid: { flexDirection: "row", flexWrap: "wrap", marginTop: 2 },
+  bankCell: { width: "33%", marginTop: 6 },
+  bankLabel: { fontSize: 7, color: C.inkMuted, letterSpacing: 0.5 },
+  bankValue: { fontSize: 9.5, fontFamily: "Helvetica-Bold", color: C.ink, marginTop: 2 },
 
   // Why Maiyuri
   whyRow: { flexDirection: "row", gap: 10, marginTop: 20 },
@@ -303,13 +355,25 @@ const s = StyleSheet.create({
 export function QuoteDocument({ data }: { data: QuoteDocumentData }) {
   const {
     quoteNumber, quotedOn, validUntil, company, customer,
-    lines, total, deliveryIncluded, distanceKm, priceNote, terms, rep, footerNote,
-    wallCost, objection, nextStep,
+    lines, total, deliveryIncluded, distanceKm, priceNote, taxNote, terms, bank,
+    rep, footerNote, wallCost, objection, nextStep,
   } = data;
 
-  const hasTerms = Boolean(terms.payment || terms.delivery);
+  const hasTerms = Boolean(
+    terms.payment || terms.delivery || terms.additional.length,
+  );
+
+  const bankLines: Array<[string, string]> = bank
+    ? ([
+        ["ACCOUNT NAME", bank.accountName],
+        ["ACCOUNT NO.", bank.accountNumber],
+        ["IFSC", bank.ifsc],
+        ["BANK", bank.bankName],
+        ["BRANCH", bank.branch],
+        ["GPAY / UPI", bank.upiNumber],
+      ].filter(([, v]) => Boolean(v)) as Array<[string, string]>)
+    : [];
   // Page 2 exists only if it has something real to say.
-  const hasArgument = Boolean(wallCost || objection || nextStep);
 
   return (
     <Document
@@ -383,7 +447,10 @@ export function QuoteDocument({ data }: { data: QuoteDocumentData }) {
             <View style={s.tr} key={i}>
               <View style={s.cellProduct}>
                 <Text style={s.productName}>{l.product}</Text>
-                <Text style={s.productUnit}>Per {l.unit}</Text>
+                <Text style={s.productUnit}>
+                  Per {l.unit}
+                  {l.hsnCode ? ` · HSN/SAC ${l.hsnCode}` : ""}
+                </Text>
               </View>
               <Text style={[s.num, s.cellNum]}>
                 {l.quantity.toLocaleString("en-IN")}
@@ -401,6 +468,10 @@ export function QuoteDocument({ data }: { data: QuoteDocumentData }) {
           </View>
         </View>
 
+        {/* Stated before anything else on the page, because it changes the
+            number above. Omitted only when the business has said nothing. */}
+        {taxNote ? <Text style={s.taxNote}>{taxNote}</Text> : null}
+
         <Text style={s.note}>
           {deliveryIncluded
             ? `This rate includes delivery to your site${
@@ -410,48 +481,58 @@ export function QuoteDocument({ data }: { data: QuoteDocumentData }) {
           {priceNote ? ` ${priceNote}` : ""}
         </Text>
 
-        {/* Why Maiyuri — the three confirmed positioning claims (PRODUCT.md).
-            No testimonials or certifications: none have been confirmed. */}
-        <Text style={s.sectionTitle}>WHY MAIYURI</Text>
-        <View style={s.whyRow}>
-          <View style={s.why}>
-            <Text style={s.whyTitle}>Made here, cured properly</Text>
-            <Text style={s.whyBody}>
-              Tested red soil, machine compacted and fully cured before dispatch
-              — not trucked in from another state to crack on the way.
-            </Text>
-          </View>
-          <View style={s.why}>
-            <Text style={s.whyTitle}>The price is the price</Text>
-            <Text style={s.whyBody}>
-              The rate above is what you pay, delivered to your site. No
-              transport added at the gate, no surprises on the invoice.
-            </Text>
-          </View>
-          <View style={s.why}>
-            <Text style={s.whyTitle}>Come and see</Text>
-            <Text style={s.whyBody}>
-              Visit the factory. Handle the bricks, see the water and strength
-              tests, and watch the demo wall before you decide.
-            </Text>
-          </View>
-        </View>
-
         {/* Terms — printed only when the business has entered them */}
         {hasTerms ? (
           <>
             <Text style={s.sectionTitle}>TERMS</Text>
             {terms.payment ? (
-              <Text style={s.termLine}>Payment: {terms.payment}</Text>
+              <View style={s.termItem}>
+                <Text style={s.termBullet}>1.</Text>
+                <Text style={s.termText}>Payment: {terms.payment}</Text>
+              </View>
             ) : null}
             {terms.delivery ? (
-              <Text style={s.termLine}>Delivery: {terms.delivery}</Text>
+              <View style={s.termItem}>
+                <Text style={s.termBullet}>{terms.payment ? "2." : "1."}</Text>
+                <Text style={s.termText}>Delivery: {terms.delivery}</Text>
+              </View>
             ) : null}
+            {terms.additional.map((term, i) => (
+              <View style={s.termItem} key={i}>
+                <Text style={s.termBullet}>
+                  {i +
+                    1 +
+                    (terms.payment ? 1 : 0) +
+                    (terms.delivery ? 1 : 0)}
+                  .
+                </Text>
+                <Text style={s.termText}>{term}</Text>
+              </View>
+            ))}
           </>
         ) : null}
 
+        {/* How to pay. The terms ask for an advance, so the account has to be
+            on the same sheet — otherwise the customer has to come back and
+            ask, and that is a day lost. */}
+        {bankLines.length > 0 ? (
+          /* wrap={false}: an account number split across a page break is a
+             wrong-transfer waiting to happen. */
+          <View style={s.bank} wrap={false}>
+            <Text style={s.cardLabel}>PAY THE ADVANCE TO</Text>
+            <View style={s.bankGrid}>
+              {bankLines.map(([label, value]) => (
+                <View style={s.bankCell} key={label}>
+                  <Text style={s.bankLabel}>{label}</Text>
+                  <Text style={s.bankValue}>{value}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         {/* Signature */}
-        <View style={s.signRow}>
+        <View style={s.signRow} wrap={false}>
           <View style={s.signBlock}>
             <View style={s.signLine}>
               <Text style={s.signName}>{rep.name ?? "For Maiyuri Bricks"}</Text>
@@ -490,9 +571,35 @@ export function QuoteDocument({ data }: { data: QuoteDocumentData }) {
           founder's own build costs, the objection recorded from the call,
           and the routed next step. Nothing is generated here.
           ================================================================== */}
-      {hasArgument && (
-        <Page size="A4" style={s.page}>
+      <Page size="A4" style={s.page}>
           <Text style={s.pageTitle}>Before you decide</Text>
+
+          {/* The three confirmed positioning claims (PRODUCT.md). No
+              testimonials or certifications: none have been confirmed. */}
+          <View style={s.whyRow} wrap={false}>
+            <View style={s.why}>
+              <Text style={s.whyTitle}>Made here, cured properly</Text>
+              <Text style={s.whyBody}>
+                Tested red soil, machine compacted and fully cured before
+                dispatch — not trucked in from another state to crack on the
+                way.
+              </Text>
+            </View>
+            <View style={s.why}>
+              <Text style={s.whyTitle}>The price is the price</Text>
+              <Text style={s.whyBody}>
+                The rate on page one is what you pay, delivered to your site.
+                No transport added at the gate, no surprises on the invoice.
+              </Text>
+            </View>
+            <View style={s.why}>
+              <Text style={s.whyTitle}>Come and see</Text>
+              <Text style={s.whyBody}>
+                Visit the factory. Handle the bricks, see the water and
+                strength tests, and watch the demo wall before you decide.
+              </Text>
+            </View>
+          </View>
 
           {wallCost && (
             <>
@@ -601,8 +708,7 @@ export function QuoteDocument({ data }: { data: QuoteDocumentData }) {
               }
             />
           </View>
-        </Page>
-      )}
+      </Page>
     </Document>
   );
 }

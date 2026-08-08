@@ -24,6 +24,14 @@ interface CompanyProfileForm {
   website: string;
   payment_terms: string;
   delivery_terms: string;
+  additional_terms: string;
+  tax_note: string;
+  bank_account_name: string;
+  bank_account_number: string;
+  bank_ifsc: string;
+  bank_name: string;
+  bank_branch: string;
+  upi_number: string;
   quote_footer_note: string;
   quote_validity_days: string;
 }
@@ -37,6 +45,14 @@ const EMPTY: CompanyProfileForm = {
   website: "",
   payment_terms: "",
   delivery_terms: "",
+  additional_terms: "",
+  tax_note: "",
+  bank_account_name: "",
+  bank_account_number: "",
+  bank_ifsc: "",
+  bank_name: "",
+  bank_branch: "",
+  upi_number: "",
   quote_footer_note: "",
   quote_validity_days: "15",
 };
@@ -67,6 +83,14 @@ async function saveFactory(form: CompanyProfileForm) {
       website: orNull(form.website),
       payment_terms: orNull(form.payment_terms),
       delivery_terms: orNull(form.delivery_terms),
+      additional_terms: orNull(form.additional_terms),
+      tax_note: orNull(form.tax_note),
+      bank_account_name: orNull(form.bank_account_name),
+      bank_account_number: orNull(form.bank_account_number),
+      bank_ifsc: orNull(form.bank_ifsc),
+      bank_name: orNull(form.bank_name),
+      bank_branch: orNull(form.bank_branch),
+      upi_number: orNull(form.upi_number),
       quote_footer_note: orNull(form.quote_footer_note),
       quote_validity_days: Number.isFinite(days) && days > 0 ? days : null,
     }),
@@ -100,6 +124,14 @@ export function CompanyProfileTab() {
       website: s.website ?? "",
       payment_terms: s.payment_terms ?? "",
       delivery_terms: s.delivery_terms ?? "",
+      additional_terms: s.additional_terms ?? "",
+      tax_note: s.tax_note ?? "",
+      bank_account_name: s.bank_account_name ?? "",
+      bank_account_number: s.bank_account_number ?? "",
+      bank_ifsc: s.bank_ifsc ?? "",
+      bank_name: s.bank_name ?? "",
+      bank_branch: s.bank_branch ?? "",
+      upi_number: s.upi_number ?? "",
       quote_footer_note: s.quote_footer_note ?? "",
       quote_validity_days: String(s.quote_validity_days ?? 15),
     });
@@ -198,6 +230,14 @@ export function CompanyProfileTab() {
           onChange={set("delivery_terms")}
         />
         <Field
+          label="Other terms"
+          hint="One term per line. Loading and unloading, road access, blocks per load — anything else the customer should know before ordering."
+          multiline
+          rows={5}
+          value={form.additional_terms}
+          onChange={set("additional_terms")}
+        />
+        <Field
           label="Quotation validity (days)"
           hint="New quotations expire after this many days and can no longer be downloaded."
           type="number"
@@ -205,10 +245,62 @@ export function CompanyProfileTab() {
           onChange={set("quote_validity_days")}
         />
         <Field
+          label="Tax treatment"
+          hint='Printed directly under the total. A total with nothing said about tax reads as final — e.g. "GST extra, as per actual".'
+          value={form.tax_note}
+          onChange={set("tax_note")}
+        />
+        <Field
           label="Footer note"
           hint="One line at the foot of every page."
           value={form.quote_footer_note}
           onChange={set("quote_footer_note")}
+        />
+      </Card>
+
+      <Card className="space-y-5 p-5">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+            Where the advance is paid
+          </h3>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Printed on the quotation so a customer who wants to proceed can pay
+            without asking. Left off entirely if no account is entered.
+          </p>
+        </div>
+        <Field
+          label="Account name"
+          value={form.bank_account_name}
+          onChange={set("bank_account_name")}
+        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Account number"
+            value={form.bank_account_number}
+            onChange={set("bank_account_number")}
+          />
+          <Field
+            label="IFSC code"
+            value={form.bank_ifsc}
+            onChange={set("bank_ifsc")}
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Bank name"
+            value={form.bank_name}
+            onChange={set("bank_name")}
+          />
+          <Field
+            label="Branch"
+            value={form.bank_branch}
+            onChange={set("bank_branch")}
+          />
+        </div>
+        <Field
+          label="GPay / UPI number"
+          value={form.upi_number}
+          onChange={set("upi_number")}
         />
       </Card>
 
@@ -234,6 +326,7 @@ interface FieldProps {
   onChange: (value: string) => void;
   hint?: string;
   multiline?: boolean;
+  rows?: number;
   type?: string;
 }
 
@@ -243,6 +336,7 @@ function Field({
   onChange,
   hint,
   multiline,
+  rows = 2,
   type = "text",
 }: FieldProps) {
   const shared =
@@ -254,7 +348,7 @@ function Field({
       </span>
       {multiline ? (
         <textarea
-          rows={2}
+          rows={rows}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={shared}

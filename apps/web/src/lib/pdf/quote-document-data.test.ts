@@ -40,11 +40,20 @@ const base: QuoteDocumentSources = {
     contact_phone: "044-1234567",
     contact_email: "sales@maiyuri.com",
     website: "maiyuri.com",
-    payment_terms: "50% advance, balance before dispatch",
-    delivery_terms: "Delivered within 7 days of confirmation",
+    payment_terms: "20% advance against this quotation",
+    delivery_terms: "30 days from the date of advance payment",
+    additional_terms:
+      "1.The price is inclusive of loading, unloading and transportation.\n\n2.Road access for an Eicher vehicle is required.",
+    tax_note: "GST extra, as per actual.",
+    bank_account_name: "Maiyuri Bricks",
+    bank_account_number: "510909010289320",
+    bank_ifsc: "CIUB0000389",
+    bank_name: "City Union Bank",
+    bank_branch: "Red Hills",
+    upi_number: "6383579119",
     quote_footer_note: "Thank you.",
   },
-  product: { name: "Interlocking Brick", unit: "piece" },
+  product: { name: "Interlocking Brick", unit: "piece", hsn_code: "681011" },
   rep: { name: "Ganesh", phone: "919876543210" },
 };
 
@@ -91,6 +100,79 @@ describe("buildQuoteDocumentData", () => {
     const { data, reason } = buildQuoteDocumentData({ ...base, product: null });
     expect(data).toBeNull();
     expect(reason).toMatch(/product/i);
+  });
+
+  it("does not treat a brick count as a wall area", () => {
+    // 4,000 bricks is not 4,000 sq.ft of wall. Pricing the comparison off the
+    // piece count would print a wall cost that is simply wrong.
+    const { data } = buildQuoteDocumentData({
+      ...base,
+      wallCostConfig: realCosts,
+    });
+    expect(data?.wallCost).toBeNull();
+  });
+
+  it("uses the quoted quantity as the wall area for a sq.ft product", () => {
+    const { data } = buildQuoteDocumentData({
+      ...base,
+      product: { name: "Wall system", unit: "sqft" },
+      wallCostConfig: realCosts,
+    });
+    expect(data?.wallCost?.areaSqft).toBe(5000);
+  });
+
+  it("carries the HSN/SAC code onto the line item", () => {
+    const { data } = buildQuoteDocumentData(base);
+    expect(data?.lines[0].hsnCode).toBe("681011");
+  });
+
+  it("leaves the HSN off when the product has none", () => {
+    const { data } = buildQuoteDocumentData({
+      ...base,
+      product: { name: "Interlocking Brick", unit: "piece" },
+    });
+    expect(data?.lines[0].hsnCode).toBeNull();
+  });
+
+  it("states the tax treatment, because a bare total reads as final", () => {
+    expect(buildQuoteDocumentData(base).data?.taxNote).toBe(
+      "GST extra, as per actual.",
+    );
+  });
+
+  it("splits other terms into lines and strips the business's own numbering", () => {
+    // Their existing terms block reads "1.Payment : ...". The document numbers
+    // the list itself, so a pasted "1." must not become "1. 1.".
+    const { data } = buildQuoteDocumentData(base);
+    expect(data?.terms.additional).toEqual([
+      "The price is inclusive of loading, unloading and transportation.",
+      "Road access for an Eicher vehicle is required.",
+    ]);
+  });
+
+  it("prints the bank block so the advance can actually be paid", () => {
+    const { data } = buildQuoteDocumentData(base);
+    expect(data?.bank?.accountNumber).toBe("510909010289320");
+    expect(data?.bank?.ifsc).toBe("CIUB0000389");
+    expect(data?.bank?.upiNumber).toBe("6383579119");
+  });
+
+  it("drops the bank block entirely when no account is on file", () => {
+    const { data } = buildQuoteDocumentData({
+      ...base,
+      factory: { ...base.factory, bank_account_number: null, upi_number: null },
+    });
+    // Half a payment box is worse than none — a customer would try to pay to it.
+    expect(data?.bank).toBeNull();
+  });
+
+  it("keeps the block when only UPI is on file", () => {
+    const { data } = buildQuoteDocumentData({
+      ...base,
+      factory: { ...base.factory, bank_account_number: null },
+    });
+    expect(data?.bank?.upiNumber).toBe("6383579119");
+    expect(data?.bank?.accountNumber).toBeNull();
   });
 
   it("omits company facts the business has not entered — never invents them", () => {

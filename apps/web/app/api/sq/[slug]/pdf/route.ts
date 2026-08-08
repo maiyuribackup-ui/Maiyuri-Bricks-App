@@ -63,7 +63,7 @@ export async function GET(
       supabaseAdmin
         .from("factory_settings")
         .select(
-          "name, legal_name, gstin, registered_address, address, contact_phone, contact_email, website, payment_terms, delivery_terms, quote_footer_note",
+          "name, legal_name, gstin, registered_address, address, contact_phone, contact_email, website, payment_terms, delivery_terms, additional_terms, tax_note, bank_account_name, bank_account_number, bank_ifsc, bank_name, bank_branch, upi_number, quote_footer_note",
         )
         .limit(1)
         .maybeSingle(),
@@ -73,7 +73,7 @@ export async function GET(
       pricing.default_product
         ? supabaseAdmin
             .from("products")
-            .select("name, unit")
+            .select("name, unit, hsn_code")
             .eq("id", pricing.default_product)
             .maybeSingle()
         : Promise.resolve({ data: null }),

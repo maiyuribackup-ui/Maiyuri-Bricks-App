@@ -324,6 +324,8 @@ export interface Product {
   unit: string;
   base_price: number;
   description: string | null;
+  /** HSN/SAC code printed beside the line item on a quotation, e.g. 681011. */
+  hsn_code?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -351,6 +353,22 @@ export interface FactorySettings {
   website?: string | null;
   payment_terms?: string | null;
   delivery_terms?: string | null;
+  /** Standing terms beyond payment/delivery. One per line. */
+  additional_terms?: string | null;
+  /**
+   * How tax is treated on the quoted total, in the business's own words
+   * ("GST extra, as per actual"). Printed under the total — a total with no
+   * tax statement reads as final.
+   */
+  tax_note?: string | null;
+  // Where the advance is paid. The terms ask for 20% up front, so a quotation
+  // without these is a document the customer cannot act on.
+  bank_account_name?: string | null;
+  bank_account_number?: string | null;
+  bank_ifsc?: string | null;
+  bank_name?: string | null;
+  bank_branch?: string | null;
+  upi_number?: string | null;
   quote_footer_note?: string | null;
   /** Days a quotation stays valid; drives `smart_quotes.valid_until`. */
   quote_validity_days?: number | null;

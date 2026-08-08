@@ -14,6 +14,7 @@
 import { getQuoteReadiness } from "@/lib/pricing/quote-readiness";
 import { computeWallComparison } from "@/lib/pricing/wall-cost";
 import type {
+  BankDetails,
   NextStepBlock,
   ObjectionBlock,
   QuoteDocumentData,
@@ -49,10 +50,22 @@ export interface QuoteDocumentSources {
     website?: string | null;
     payment_terms?: string | null;
     delivery_terms?: string | null;
+    additional_terms?: string | null;
+    tax_note?: string | null;
+    bank_account_name?: string | null;
+    bank_account_number?: string | null;
+    bank_ifsc?: string | null;
+    bank_name?: string | null;
+    bank_branch?: string | null;
+    upi_number?: string | null;
     quote_footer_note?: string | null;
   } | null;
   /** The quoted product, resolved from `pricing_config.default_product`. */
-  product: { name?: string | null; unit?: string | null } | null;
+  product: {
+    name?: string | null;
+    unit?: string | null;
+    hsn_code?: string | null;
+  } | null;
   /** The staff member who owns the lead — signs the quotation. */
   rep: { name?: string | null; phone?: string | null } | null;
   /** Per-quote snapshot of the founder's build costs, for page 2. */
@@ -71,6 +84,41 @@ export interface QuoteDocumentResult {
 function clean(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+/** One term per line, blank lines dropped. */
+function splitLines(value: string | null | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    // The business's existing terms are already numbered ("1.Payment : ...").
+    // The document numbers them itself, so strip any leading numbering rather
+    // than printing "1. 1.Payment".
+    .map((line) => line.replace(/^\d+\s*[.)]\s*/, ""))
+    .filter(Boolean);
+}
+
+/**
+ * The bank block, or null when no account is on file.
+ *
+ * All-or-nothing on the account being present: a "pay the advance to" box with
+ * only a branch name in it is worse than no box.
+ */
+export function buildBankDetails(
+  factory: QuoteDocumentSources["factory"],
+): BankDetails | null {
+  const accountNumber = clean(factory?.bank_account_number);
+  const upi = clean(factory?.upi_number);
+  if (!accountNumber && !upi) return null;
+  return {
+    accountName: clean(factory?.bank_account_name),
+    accountNumber,
+    ifsc: clean(factory?.bank_ifsc),
+    bankName: clean(factory?.bank_name),
+    branch: clean(factory?.bank_branch),
+    upiNumber: upi,
+  };
 }
 
 /**
@@ -250,6 +298,7 @@ export function buildQuoteDocumentData(
           quantity,
           rate,
           amount: rate * quantity,
+          hsnCode: clean(product.hsn_code),
         },
       ],
       total: rate * quantity,
@@ -259,18 +308,28 @@ export function buildQuoteDocumentData(
       deliveryIncluded: pricing?.show_transport !== false,
       distanceKm: pricing?.default_distance_km ?? null,
       priceNote: clean(pricing?.price_note),
+      taxNote: clean(factory?.tax_note),
       terms: {
         payment: clean(factory?.payment_terms),
         delivery: clean(factory?.delivery_terms),
+        additional: splitLines(factory?.additional_terms),
       },
+      bank: buildBankDetails(factory),
       rep: {
         name: clean(rep?.name),
         phone: clean(rep?.phone) ?? clean(pricing?.rep_phone),
       },
       footerNote: clean(factory?.quote_footer_note),
-      // The wall comparison is sized to the wall the customer is building,
-      // which for a sq.ft product is the quoted quantity itself.
-      wallCost: buildWallCostBlock(wallCostConfig, quantity),
+      // The comparison is priced per sq.ft of WALL, so it can only use the
+      // quoted quantity when that quantity is already an area. For a per-piece
+      // product 4,000 means 4,000 bricks, not 4,000 sq.ft — treating it as
+      // area would print a wall cost roughly nobody's, so the block is dropped
+      // instead. Better silent than confidently wrong on a document a
+      // contractor will check.
+      wallCost: buildWallCostBlock(
+        wallCostConfig,
+        unit === "sqft" ? quantity : null,
+      ),
       objection,
       nextStep,
     },
