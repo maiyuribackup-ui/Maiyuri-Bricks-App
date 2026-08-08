@@ -1,5 +1,6 @@
 import type { DeliveryStatus, DeliveryWithLines } from '@maiyuri/shared';
 import * as ImagePicker from 'expo-image-picker';
+import { Link } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -371,6 +372,18 @@ export default function DeliveriesScreen() {
 
   return (
     <SafeAreaView edges={['bottom']} className="flex-1 bg-canvas">
+      <Link href={'/factory/deliveries' as import('expo-router').Href} asChild>
+        <Pressable className="mx-4 mt-3 flex-row items-center rounded-xl border border-slate-200 bg-white px-4 py-3 active:opacity-70">
+          <Text className="mr-3 text-xl">🏭</Text>
+          <View className="flex-1">
+            <Text className="text-sm font-semibold text-ink">Factory schedule (Sat–Fri)</Text>
+            <Text className="text-xs text-slate-400">
+              Yard deliveries · mark delivered / postponed
+            </Text>
+          </View>
+          <Text className="text-slate-400">→</Text>
+        </Pressable>
+      </Link>
       <View className="px-4 pb-1 pt-3">
         <TextInput
           value={search}

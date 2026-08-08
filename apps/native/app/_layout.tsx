@@ -89,6 +89,7 @@ function RootLayout() {
                 options={{ headerShown: true, title: 'New Lead' }}
               />
               <Stack.Screen name="onehub" options={{ headerShown: false }} />
+          <Stack.Screen name="factory" options={{ headerShown: false }} />
             </Stack>
             {/* Native left navigation drawer (hamburger + left-edge swipe).
                 Rendered above the Stack so it overlays every screen. */}

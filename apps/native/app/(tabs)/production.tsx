@@ -1,4 +1,5 @@
 import type { ProductionOrder, ProductionOrderStatus } from '@maiyuri/shared';
+import { Link } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -267,6 +268,18 @@ export default function ProductionScreen() {
 
   return (
     <SafeAreaView edges={['bottom']} className="flex-1 bg-canvas">
+      <Link href={'/factory' as import('expo-router').Href} asChild>
+        <Pressable className="mx-4 mt-3 flex-row items-center rounded-xl border border-slate-200 bg-white px-4 py-3 active:opacity-70">
+          <Text className="mr-3 text-xl">🏭</Text>
+          <View className="flex-1">
+            <Text className="text-sm font-semibold text-ink">Factory Ledger</Text>
+            <Text className="text-xs text-slate-400">
+              Daily production entry · stock · downtime
+            </Text>
+          </View>
+          <Text className="text-slate-400">→</Text>
+        </Pressable>
+      </Link>
       <View className="px-4 pb-2 pt-3">
         <TextInput
           value={search}
