@@ -107,7 +107,9 @@ export function VideoCarousel() {
                         className="relative overflow-hidden rounded-xl border"
                         style={{ borderColor: onehub.cardBorder }}
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        {/* Plain <img>, not next/image: YouTube thumbnails are
+                            a third-party host and would need remotePatterns
+                            config plus an optimizer round-trip for no gain. */}
                         <img
                           src={thumbUrl(v.youtube_id)}
                           alt=""

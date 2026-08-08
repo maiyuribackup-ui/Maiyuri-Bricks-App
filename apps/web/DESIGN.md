@@ -93,6 +93,19 @@ typography:
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: "0.1em"
+  # The printed quotation only. PDF base-14 faces, so the file embeds no font
+  # and opens identically in every viewer a customer forwards it to. See
+  # "The Printed Document" below for why Inter is deliberately not used here.
+  document-body:
+    fontFamily: "Helvetica"
+    fontSize: "10px"
+    fontWeight: 400
+    lineHeight: 1.5
+  document-strong:
+    fontFamily: "Helvetica-Bold"
+    fontSize: "10px"
+    fontWeight: 700
+    lineHeight: 1.4
 rounded:
   sm: "2px"
   md: "6px"
@@ -265,6 +278,33 @@ quantities, counts — uses tabular numerals so digits line up down the column.
 
 **The Serif Stays Upstairs Rule.** The serif face is for greetings, wordmarks
 and section titles. Data, labels, forms and buttons are always Inter.
+
+### The Printed Document
+
+The PDF quotation (`src/lib/pdf/QuoteDocument.tsx`) is the one surface that does
+not run in a browser, and it uses a different type stack on purpose:
+**Helvetica** and **Helvetica-Bold**, the PDF specification's built-in base-14
+faces.
+
+This is a deliberate brand addition, not a lapse from Inter. A PDF that names an
+embedded font carries that font's outlines in the file; a PDF that names
+Helvetica carries nothing, and opens identically in Acrobat, Preview, Gmail's
+viewer, WhatsApp's viewer and every Android PDF app a customer might forward it
+to. For a document whose whole job is to survive being forwarded to a
+contractor, a parent or a bank, universal rendering beats brand fidelity.
+
+Two consequences, both accepted:
+
+- **The document is English only.** The base-14 faces carry no Tamil glyphs, so
+  Tamil copy would render as blank boxes. The PDF reads `copy_map.en` even when
+  the customer's quote page is set to Tamil. Bilingual PDFs need an embedded
+  Tamil face (Noto Sans Tamil, ~250KB in the file) — a real option, not yet
+  taken.
+- **Rupees are written `Rs.`, not `₹`.** The ₹ glyph is absent from the base-14
+  faces. `Rs.` is the standard fallback on Indian invoices and is unambiguous.
+
+The palette does not change: the PDF restates the canonical hexes as literals
+because the renderer has no access to CSS custom properties.
 
 ## Layout
 

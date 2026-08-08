@@ -25,6 +25,7 @@
     "@maiyuri/api": "*",
     "@maiyuri/shared": "*",
     "@maiyuri/ui": "*",
+    "@react-pdf/renderer": "^4.5.1",
     "@sentry/nextjs": "^10.65.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.47.12",

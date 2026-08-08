@@ -6,6 +6,7 @@ import { LanguageToggle } from "./ui/LanguageToggle";
 import { WhyChennaiWorksSection } from "./ui/WhyChennaiWorksSection";
 import { ObjectionAnswerSection } from "./ui/ObjectionAnswerSection";
 import { InteractiveEstimate } from "./ui/InteractiveEstimate";
+import { DownloadQuoteButton } from "./ui/DownloadQuoteButton";
 import { RoutedCtaSection } from "./ui/RoutedCtaSection";
 import { WallCostComparison } from "@/components/wall-cost/WallCostComparison";
 import { computeWallComparison } from "@/lib/pricing/wall-cost";
@@ -157,6 +158,10 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
     [slug, trackEvent, quote.route_decision],
   );
 
+  // Same gate the staff share buttons use: no engineer rate, no document.
+  const rate = quote.pricing_config?.quoted_rate;
+  const hasEngineerRate = rate != null && rate > 0;
+
   // Quote URL (for prefilled WhatsApp message)
   const quoteUrl =
     typeof window !== "undefined" ? window.location.href : `/sq/${slug}`;
@@ -189,6 +194,21 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
           onCtaTrack={(payload) => trackEvent("cta_click", "instant_estimate", payload)}
         />
       </section>
+
+      {/* The quote as a document the customer can forward. Only offered when an
+          engineer has set a rate — without one the PDF route refuses, and a
+          button that always fails is worse than no button. */}
+      {hasEngineerRate && (
+        <DownloadQuoteButton
+          slug={slug}
+          language={language}
+          onDownload={() =>
+            trackEvent("cta_click", "pdf_download", {
+              source: "customer_page",
+            })
+          }
+        />
+      )}
 
       {/* === SUPPORTING: THE TOP OBJECTION === */}
       {/* Only the concern actually raised on the call, directly under the price. */}

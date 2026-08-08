@@ -339,6 +339,21 @@ export interface FactorySettings {
   min_transport_charge: number;
   /** Founder-owned global template for the wall-cost comparison. */
   wall_cost_config?: WallCostConfig | null;
+  // --- Company identity + standing terms printed on the PDF quotation. ---
+  // Every one is null until the business enters it. The document omits any
+  // block whose facts are missing; software must never invent a GST number,
+  // an address or a payment term.
+  legal_name?: string | null;
+  gstin?: string | null;
+  registered_address?: string | null;
+  contact_phone?: string | null;
+  contact_email?: string | null;
+  website?: string | null;
+  payment_terms?: string | null;
+  delivery_terms?: string | null;
+  quote_footer_note?: string | null;
+  /** Days a quotation stays valid; drives `smart_quotes.valid_until`. */
+  quote_validity_days?: number | null;
   updated_at: string;
   updated_by?: string | null;
 }
@@ -644,6 +659,14 @@ export interface SmartQuote {
   pricing_config?: SmartQuotePricingConfig | null;
   /** Per-quote snapshot of wall-system costs (personalizable; frozen on share). */
   wall_cost_config?: WallCostConfig | null;
+  /**
+   * Human quotation reference (e.g. MB-2026-0042), assigned the first time a
+   * PDF is produced and never reassigned — a document already in a customer's
+   * hands must keep its number.
+   */
+  quote_number?: string | null;
+  /** ISO date the quotation expires (derived from quote_validity_days). */
+  valid_until?: string | null;
   created_at: string;
   updated_at: string;
   // Joined fields

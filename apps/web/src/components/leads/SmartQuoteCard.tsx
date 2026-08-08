@@ -237,6 +237,20 @@ export function SmartQuoteCard({ lead, hasTranscripts }: SmartQuoteCardProps) {
                 WhatsApp
               </Button>
             )}
+            {/* The same PDF the customer gets — useful for emailing it, or for
+                checking what the document actually says before sharing. */}
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() =>
+                window.open(`/api/sq/${quote.link_slug}/pdf`, "_blank")
+              }
+              disabled={!readiness.ready}
+              title={readiness.reason ?? undefined}
+            >
+              <DownloadIcon className="h-3 w-3 mr-1" />
+              PDF
+            </Button>
           </div>
 
           {/* Engagement + review/tweak pricing before sharing */}
@@ -382,6 +396,24 @@ function ExternalLinkIcon({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+      />
+    </svg>
+  );
+}
+
+function DownloadIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
       />
     </svg>
   );

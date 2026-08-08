@@ -160,6 +160,14 @@
       "label": {
         "displayName": "Label",
         "purpose": "Uppercase eyebrows, table headers and status chips."
+      },
+      "document-body": {
+        "displayName": "Document Body",
+        "purpose": "The printed PDF quotation only. PDF base-14 Helvetica so the file embeds no font and renders identically in every viewer. English only — base-14 carries no Tamil glyphs."
+      },
+      "document-strong": {
+        "displayName": "Document Strong",
+        "purpose": "Emphasis inside the printed PDF quotation: totals, product names, section titles."
       }
     },
     "shadows": [
@@ -176,7 +184,7 @@
       {
         "name": "floating",
         "value": "0 8px 24px -12px rgba(20,23,26,.14)",
-        "purpose": "Modals, toasts and sticky action bars \u2014 things genuinely above the page."
+        "purpose": "Modals, toasts and sticky action bars — things genuinely above the page."
       }
     ],
     "motion": [
@@ -269,7 +277,7 @@
       "kind": "input",
       "refersTo": "input",
       "description": "White ground, warm hairline, accent focus ring.",
-      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Rate (\u20b9 per unit)\" />",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Rate (₹ per unit)\" />",
       "css": ".ds-input { width: 100%; padding: 10px 12px; background: #ffffff; color: #4a3428; font-family: Inter, system-ui, sans-serif; font-size: 14px; border: 1px solid #efe3d2; border-radius: 12px; transition: border-color 150ms; } .ds-input::placeholder { color: #9c8676; } .ds-input:focus { outline: 2px solid #c0562f; outline-offset: -1px; border-color: transparent; }"
     },
     {
@@ -285,13 +293,13 @@
       "kind": "custom",
       "refersTo": "card",
       "description": "Signature component. The engineer-set price leads the customer page; total is the largest number present.",
-      "html": "<section class=\"ds-quote\"><p class=\"ds-quote-label\">Your quote</p><p class=\"ds-quote-line\">8\" Mud Interlock &middot; 5,000 nos &middot; \u20b942/unit</p><p class=\"ds-quote-total\">\u20b92,10,000</p><p class=\"ds-quote-note\">Delivered to your site. Confirmed by our team.</p></section>",
+      "html": "<section class=\"ds-quote\"><p class=\"ds-quote-label\">Your quote</p><p class=\"ds-quote-line\">8\" Mud Interlock &middot; 5,000 nos &middot; ₹42/unit</p><p class=\"ds-quote-total\">₹2,10,000</p><p class=\"ds-quote-note\">Delivered to your site. Confirmed by our team.</p></section>",
       "css": ".ds-quote { background: #ffffff; border: 1px solid #efe3d2; border-radius: 16px; padding: 24px; text-align: center; font-family: Inter, system-ui, sans-serif; } .ds-quote-label { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #9c8676; } .ds-quote-line { margin: 10px 0 0; font-size: 15px; color: #4a3428; font-variant-numeric: tabular-nums; } .ds-quote-total { margin: 8px 0 0; font-size: 40px; font-weight: 700; letter-spacing: -0.02em; color: #7a2817; font-variant-numeric: tabular-nums; } .ds-quote-note { margin: 10px 0 0; font-size: 12px; color: #9c8676; }"
     }
   ],
   "narrative": {
     "northStar": "The Curing Yard",
-    "overview": "Bricks are laid out in rows and left alone until they are strong. Nothing is rushed, nothing is shouted, and the material does the convincing. The interface works the same way: warm earth tones, ordered rows, generous rhythm, and no decoration that has not earned its place.\n\nThe system is warm and earthy before it is anything else \u2014 clay, soil and daylight rather than steel and glass. Structure comes from hairline borders and tonal shifts rather than drop shadows, so surfaces read as laid down rather than floating. Colour is used sparingly: a single warm accent carries every action, and the rest of the palette stays quiet enough that a number or a status can be the loudest thing on screen.\n\nThree surfaces exist and they are not identical. OneHub and the customer quote share the warm world described here. The staff dashboard still runs on an older blue-and-slate palette across 21 routes; it is documented as the incumbent Operate world, not as an aspiration.",
+    "overview": "Bricks are laid out in rows and left alone until they are strong. Nothing is rushed, nothing is shouted, and the material does the convincing. The interface works the same way: warm earth tones, ordered rows, generous rhythm, and no decoration that has not earned its place.\n\nThe system is warm and earthy before it is anything else — clay, soil and daylight rather than steel and glass. Structure comes from hairline borders and tonal shifts rather than drop shadows, so surfaces read as laid down rather than floating. Colour is used sparingly: a single warm accent carries every action, and the rest of the palette stays quiet enough that a number or a status can be the loudest thing on screen.\n\nThree surfaces exist and they are not identical. OneHub and the customer quote share the warm world described here. The staff dashboard still runs on an older blue-and-slate palette across 21 routes; it is documented as the incumbent Operate world, not as an aspiration.",
     "keyCharacteristics": [
       "Warm neutrals (cream and clay) instead of grey",
       "One accent, used rarely, always meaning \"act here\"",
@@ -318,7 +326,7 @@
       },
       {
         "name": "The Numbers Are Tabular Rule",
-        "body": "Any column of figures \u2014 rates, totals, quantities, counts \u2014 uses tabular numerals so digits line up down the column.",
+        "body": "Any column of figures — rates, totals, quantities, counts — uses tabular numerals so digits line up down the column.",
         "section": "typography"
       },
       {
@@ -333,7 +341,7 @@
       }
     ],
     "dos": [
-      "Do put the number the reader came for first, at the top, in tabular figures \u2014 the quote block is the model.",
+      "Do put the number the reader came for first, at the top, in tabular figures — the quote block is the model.",
       "Do use Red Soil (#c0562f) for exactly one action per screen region.",
       "Do set text in Ink (#4a3428) on warm surfaces and give every control a 44px touch target.",
       "Do carry status in a wash-plus-dark-text pair (#e4f1e3/#3f7d4d, #f8ecd4/#b3781a, #fbe4df/#c1453e).",
@@ -341,11 +349,11 @@
       "Do let a section render nothing when it has no content, rather than showing an empty shell."
     ],
     "donts": [
-      "Don't introduce a second warm accent. #C46A2B and cream #FBF7F2 appear in the Smart Quote tokens and are drift, not design \u2014 they are being unified onto #c0562f and #fbf5ea. Do not add more near-misses.",
-      "Don't set body copy in Ink Muted Soft (#9c8676) \u2014 it measures 3.18:1 and fails AA. Use Ink Muted (#7d6653).",
+      "Don't introduce a second warm accent. #C46A2B and cream #FBF7F2 appear in the Smart Quote tokens and are drift, not design — they are being unified onto #c0562f and #fbf5ea. Do not add more near-misses.",
+      "Don't set body copy in Ink Muted Soft (#9c8676) — it measures 3.18:1 and fails AA. Use Ink Muted (#7d6653).",
       "Don't put a drop shadow on a resting surface.",
       "Don't use pure black, pure grey borders on warm grounds, or Brick Red on a button.",
-      "Don't reach for urgency devices \u2014 countdowns, \"BEST PRICE\", flashing badges. The price is stated once, plainly, and stands.",
+      "Don't reach for urgency devices — countdowns, \"BEST PRICE\", flashing badges. The price is stated once, plainly, and stands.",
       "Don't present stock photography as Maiyuri's own work. There are almost no real project photographs; show none rather than a purchased one captioned as a local site.",
       "Don't extend the blue-and-slate dashboard palette into new surfaces, and don't half-convert an existing dashboard screen to the warm world."
     ]

@@ -411,6 +411,18 @@ export const factorySettingsSchema = z.object({
   address: z.string().nullable().optional(),
   transport_rate_per_km: z.number().positive("Rate must be positive"),
   min_transport_charge: z.number().min(0, "Minimum charge cannot be negative"),
+  // Company identity + standing terms for the PDF quotation. All optional and
+  // nullable: an unset field prints nothing rather than a placeholder.
+  legal_name: z.string().nullable().optional(),
+  gstin: z.string().nullable().optional(),
+  registered_address: z.string().nullable().optional(),
+  contact_phone: z.string().nullable().optional(),
+  contact_email: z.string().email("Invalid email").nullable().optional(),
+  website: z.string().nullable().optional(),
+  payment_terms: z.string().nullable().optional(),
+  delivery_terms: z.string().nullable().optional(),
+  quote_footer_note: z.string().nullable().optional(),
+  quote_validity_days: z.number().int().min(1).max(365).nullable().optional(),
 });
 
 export const updateFactorySettingsSchema = factorySettingsSchema.partial();
