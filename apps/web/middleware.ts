@@ -131,8 +131,13 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
   // `blob:` is required so the voice-feedback mic capture can load its
   // AudioWorklet processor, which is shipped as an inline Blob URL. Without it
   // `audioWorklet.addModule(blob:...)` throws AbortError and the call drops.
+  // Dev-only allowance so impeccable live mode (the element picker served from
+  // localhost:8400) can load its script and call back. Collapses to an empty
+  // string outside development, so the production CSP is unchanged.
+  const impeccableLive = isDev ? " http://localhost:8400" : "";
+
   const scriptSrc = isDev
-    ? "'self' 'unsafe-inline' 'unsafe-eval' blob:"
+    ? "'self' 'unsafe-inline' 'unsafe-eval' blob:" + impeccableLive
     : "'self' 'unsafe-inline' blob:";
 
   response.headers.set(
@@ -152,7 +157,7 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
       // Gemini Live runs over a WebSocket (wss://) — CSP treats https: and wss:
       // as distinct schemes, so the wss: origin must be listed explicitly or the
       // browser silently blocks the voice-feedback socket (onerror).
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com",
+      `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com${impeccableLive}`,
       "frame-ancestors 'none'",
       // Hardening (no app impact): block <base> tag hijacking, plugin/object
       // execution, and cross-origin form posts; clickjacking already covered by
