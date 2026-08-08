@@ -28,6 +28,18 @@ interface InteractiveEstimateProps {
   pricing: Partial<SmartQuotePricingConfig> | null | undefined;
   quoteUrl: string;
   onCtaTrack: (payload: Record<string, unknown>) => void;
+  /** AI copy (cost.section_headline); blank keeps the brand default. */
+  headline?: string;
+  /** AI copy (cost.range_frame) — how to read the number, shown under it. */
+  rangeFrame?: string;
+  /** AI copy (cta.primary_cta) so the button matches the routed next step. */
+  ctaLabel?: string;
+  /**
+   * Show the inline WhatsApp button. Set false when the page closes with the
+   * routed CTA section, so the quote keeps ONE primary call to action rather
+   * than asking for WhatsApp here and a booking form moments later.
+   */
+  showWhatsAppCta?: boolean;
 }
 
 const t = (lang: SmartQuoteLanguage, en: string, ta: string) =>
@@ -43,6 +55,10 @@ export function InteractiveEstimate({
   pricing,
   quoteUrl,
   onCtaTrack,
+  headline,
+  rangeFrame,
+  ctaLabel,
+  showWhatsAppCta = true,
 }: InteractiveEstimateProps) {
   const defaultProductId =
     pricing?.default_product ?? products[0]?.id ?? null;
@@ -119,7 +135,8 @@ export function InteractiveEstimate({
   return (
     <div className="mx-auto max-w-2xl px-5 py-12">
       <h2 className="text-center text-2xl font-bold text-slate-900 sm:text-3xl">
-        {t(language, "Your instant estimate", "உங்கள் உடனடி மதிப்பீடு")}
+        {headline?.trim() ||
+          t(language, "Your instant estimate", "உங்கள் உடனடி மதிப்பீடு")}
       </h2>
       <p className="mt-2 text-center text-sm text-slate-500">
         {t(
@@ -141,7 +158,7 @@ export function InteractiveEstimate({
                 <button
                   key={p.id}
                   onClick={() => setProductId(p.id)}
-                  className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+                  className={`inline-flex min-h-[44px] items-center rounded-full px-4 py-2 text-sm font-medium transition ${
                     productId === p.id
                       ? "bg-slate-900 text-white"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -191,7 +208,7 @@ export function InteractiveEstimate({
                 value={distanceKm || ""}
                 onChange={(e) => setDistanceKm(Number(e.target.value) || 0)}
                 placeholder="0"
-                className="w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="min-h-[44px] w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c0562f]"
               />
               <span className="text-sm text-slate-500">
                 km {t(language, "from our factory", "எங்கள் தொழிற்சாலையிலிருந்து")}
@@ -240,6 +257,12 @@ export function InteractiveEstimate({
         {pricing?.price_note && (
           <p className="mt-3 text-center text-xs text-slate-400">{pricing.price_note}</p>
         )}
+        {/* AI's framing for how this customer should read the number */}
+        {rangeFrame?.trim() && (
+          <p className="mt-3 text-center text-sm text-slate-600">
+            {rangeFrame}
+          </p>
+        )}
         <p className="mt-2 text-center text-[11px] text-slate-400">
           {t(
             language,
@@ -248,16 +271,23 @@ export function InteractiveEstimate({
           )}
         </p>
 
-        {/* WhatsApp CTA */}
-        <button
-          onClick={handleWhatsApp}
-          className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-5 py-3.5 text-base font-semibold text-white shadow-md transition hover:bg-[#1ebe5b]"
-        >
-          <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden>
-            <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.978-1.595z"/>
-          </svg>
-          {t(language, "Confirm on WhatsApp", "WhatsApp-ல் உறுதிப்படுத்தவும்")}
-        </button>
+        {/* WhatsApp CTA — hidden when the routed CTA section closes the page */}
+        {showWhatsAppCta && (
+          <button
+            onClick={handleWhatsApp}
+            /* WhatsApp's dark brand green. The familiar #25D366 renders white
+               text at 1.98:1 — below WCAG AA at any size — which is fatal on
+               the page's primary action, read outdoors on a phone. #0F7A6C is
+               still unmistakably WhatsApp and clears AA at 5.22:1. */
+            className="mt-5 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-[#0F7A6C] px-5 py-3.5 text-base font-semibold text-white shadow-md transition hover:bg-[#0b5f54]"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden>
+              <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.978-1.595z"/>
+            </svg>
+            {ctaLabel?.trim() ||
+              t(language, "Confirm on WhatsApp", "WhatsApp-ல் உறுதிப்படுத்தவும்")}
+          </button>
+        )}
       </div>
     </div>
   );

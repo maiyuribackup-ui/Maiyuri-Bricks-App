@@ -57,6 +57,25 @@ export async function POST(
       return error("Product unavailable", 400);
     }
 
+    // ENGINEER RATE WINS. When the engineer entered a rate in the app, that is
+    // the quote: no rate card, no base_price, no transport maths. The customer
+    // may change the quantity, but every rupee per unit is the engineer's.
+    if (pricing.quoted_rate != null && pricing.quoted_rate > 0) {
+      const unit_price = pricing.quoted_rate;
+      const subtotal = unit_price * quantity;
+      return success({
+        product: { id: product.id, name: product.name, unit: product.unit },
+        quantity,
+        distance_km: distance_km ?? null,
+        unit_price,
+        subtotal,
+        transport_cost: 0,
+        transport_included: true,
+        total: subtotal,
+        pricing_source: "engineer",
+      });
+    }
+
     const { data: factory } = await supabaseAdmin
       .from("factory_settings")
       .select("transport_rate_per_km, min_transport_charge")

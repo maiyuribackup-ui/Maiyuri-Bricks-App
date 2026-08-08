@@ -324,6 +324,8 @@ export interface Product {
   unit: string;
   base_price: number;
   description: string | null;
+  /** HSN/SAC code printed beside the line item on a quotation, e.g. 681011. */
+  hsn_code?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -339,6 +341,37 @@ export interface FactorySettings {
   min_transport_charge: number;
   /** Founder-owned global template for the wall-cost comparison. */
   wall_cost_config?: WallCostConfig | null;
+  // --- Company identity + standing terms printed on the PDF quotation. ---
+  // Every one is null until the business enters it. The document omits any
+  // block whose facts are missing; software must never invent a GST number,
+  // an address or a payment term.
+  legal_name?: string | null;
+  gstin?: string | null;
+  registered_address?: string | null;
+  contact_phone?: string | null;
+  contact_email?: string | null;
+  website?: string | null;
+  payment_terms?: string | null;
+  delivery_terms?: string | null;
+  /** Standing terms beyond payment/delivery. One per line. */
+  additional_terms?: string | null;
+  /**
+   * How tax is treated on the quoted total, in the business's own words
+   * ("GST extra, as per actual"). Printed under the total — a total with no
+   * tax statement reads as final.
+   */
+  tax_note?: string | null;
+  // Where the advance is paid. The terms ask for 20% up front, so a quotation
+  // without these is a document the customer cannot act on.
+  bank_account_name?: string | null;
+  bank_account_number?: string | null;
+  bank_ifsc?: string | null;
+  bank_name?: string | null;
+  bank_branch?: string | null;
+  upi_number?: string | null;
+  quote_footer_note?: string | null;
+  /** Days a quotation stays valid; drives `smart_quotes.valid_until`. */
+  quote_validity_days?: number | null;
   updated_at: string;
   updated_by?: string | null;
 }
@@ -567,13 +600,21 @@ export interface SmartQuoteCopyMap {
 // Smart Quote 2.0 — interactive instant-estimate config (staff-reviewed)
 export interface SmartQuotePricingConfig {
   allowed_products: string[]; // product ids offered on the quote
-  default_product: string | null; // product id pre-selected
-  default_area_sqft: number | null; // default quantity in the product's unit
+  default_product: string | null; // the quoted product
+  default_area_sqft: number | null; // the quoted quantity, in the product's unit
   default_distance_km: number | null; // delivery distance for transport calc
   locality_label: string | null; // human label for the delivery area
   show_transport: boolean; // include delivery in the headline total
   price_note: string | null; // optional caveat shown under the estimate
   rep_phone: string | null; // WhatsApp number for the CTA (E.164-ish digits)
+  /**
+   * Rate per unit (₹) set by the engineer in the app. When present this is
+   * THE price: the rate card and product base_price are not consulted at all,
+   * so the customer never sees a number the engineer did not authorise.
+   * Null on quotes created before engineer pricing, which keep the rate-card
+   * behaviour.
+   */
+  quoted_rate: number | null;
 }
 
 // ============================================================================
@@ -636,6 +677,14 @@ export interface SmartQuote {
   pricing_config?: SmartQuotePricingConfig | null;
   /** Per-quote snapshot of wall-system costs (personalizable; frozen on share). */
   wall_cost_config?: WallCostConfig | null;
+  /**
+   * Human quotation reference (e.g. MB-2026-0042), assigned the first time a
+   * PDF is produced and never reassigned — a document already in a customer's
+   * hands must keep its number.
+   */
+  quote_number?: string | null;
+  /** ISO date the quotation expires (derived from quote_validity_days). */
+  valid_until?: string | null;
   created_at: string;
   updated_at: string;
   // Joined fields

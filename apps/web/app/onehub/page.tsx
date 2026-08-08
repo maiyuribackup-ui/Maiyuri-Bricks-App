@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { onehub } from "./theme";
 import { RenewalsCard } from "./RenewalsCard";
+import { VideoCarousel } from "./VideoCarousel";
 
 /* ------------------------------------------------------------------ types */
 type Sop = {
@@ -197,6 +198,14 @@ export default function OneHubPage() {
             </blockquote>
           </div>
         </div>
+      </section>
+
+      {/* ------------------------------------------------------------ Videos */}
+      {/* The carousel from maiyuri.com/start. Renders nothing until videos
+          are added, so the page never shows an empty shell. */}
+      <section id="videos" className="scroll-mt-24">
+        <SectionHeader icon={<span>🎬</span>} title="Watch &amp; Learn" />
+        <VideoCarousel />
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">

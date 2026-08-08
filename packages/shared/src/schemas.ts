@@ -411,6 +411,26 @@ export const factorySettingsSchema = z.object({
   address: z.string().nullable().optional(),
   transport_rate_per_km: z.number().positive("Rate must be positive"),
   min_transport_charge: z.number().min(0, "Minimum charge cannot be negative"),
+  // Company identity + standing terms for the PDF quotation. All optional and
+  // nullable: an unset field prints nothing rather than a placeholder.
+  legal_name: z.string().nullable().optional(),
+  gstin: z.string().nullable().optional(),
+  registered_address: z.string().nullable().optional(),
+  contact_phone: z.string().nullable().optional(),
+  contact_email: z.string().email("Invalid email").nullable().optional(),
+  website: z.string().nullable().optional(),
+  payment_terms: z.string().nullable().optional(),
+  delivery_terms: z.string().nullable().optional(),
+  additional_terms: z.string().nullable().optional(),
+  tax_note: z.string().nullable().optional(),
+  bank_account_name: z.string().nullable().optional(),
+  bank_account_number: z.string().nullable().optional(),
+  bank_ifsc: z.string().nullable().optional(),
+  bank_name: z.string().nullable().optional(),
+  bank_branch: z.string().nullable().optional(),
+  upi_number: z.string().nullable().optional(),
+  quote_footer_note: z.string().nullable().optional(),
+  quote_validity_days: z.number().int().min(1).max(365).nullable().optional(),
 });
 
 export const updateFactorySettingsSchema = factorySettingsSchema.partial();
@@ -620,6 +640,8 @@ export const smartQuotePricingConfigSchema = z.object({
   show_transport: z.boolean().default(true),
   price_note: z.string().nullable().optional(),
   rep_phone: z.string().nullable().optional(),
+  // Engineer-set rate per unit (₹). Authoritative when present.
+  quoted_rate: z.number().positive().nullable().optional(),
 });
 
 // Public instant-estimate request (slug-gated, from the customer page)

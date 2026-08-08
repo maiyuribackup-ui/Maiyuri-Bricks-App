@@ -57,7 +57,7 @@ export function PersonalizationCard({
             radius["2xl"],
             shadow.card,
             "p-6 md:p-8 lg:p-10",
-            "border border-[#C87941]/10",
+            "border border-[#c0562f]/10",
           )}
         >
           {/* Header with decorative line */}
@@ -76,7 +76,7 @@ export function PersonalizationCard({
                 className={cn(
                   "inline-block px-3 py-1",
                   radius.full,
-                  "bg-[#C87941]/10",
+                  "bg-[#c0562f]/10",
                   typography.label.small,
                   colors.accent.primary,
                 )}

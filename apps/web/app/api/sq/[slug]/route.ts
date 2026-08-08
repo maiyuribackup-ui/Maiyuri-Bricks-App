@@ -107,8 +107,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       products = prods ?? [];
     }
 
-    // Track view event (fire and forget)
-    trackViewEvent(quote.id).catch(console.error);
+    // NO view tracking here. This route is hit during server render — which
+    // also happens for WhatsApp/social link previews and crawlers, none of
+    // which are a customer opening the quote. The browser logs the view via
+    // POST /api/sq/[slug]/events on mount instead, so one open = one event.
+    // (Both fired previously: 17 of 35 view events in production were
+    // duplicate pairs less than 5 seconds apart.)
 
     // Return quote with resolved images + offered products
     const result: SmartQuoteWithImages & {
@@ -124,17 +128,4 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     console.error("[SmartQuote] Error fetching quote:", err);
     return error("Internal server error", 500);
   }
-}
-
-/**
- * Track a view event for analytics
- */
-async function trackViewEvent(smartQuoteId: string): Promise<void> {
-  await supabaseAdmin.from("smart_quote_events").insert({
-    smart_quote_id: smartQuoteId,
-    event_type: "view",
-    payload: {
-      timestamp: new Date().toISOString(),
-    },
-  });
 }
