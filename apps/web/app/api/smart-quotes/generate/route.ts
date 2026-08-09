@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     const { data: lead, error: leadError } = await supabaseAdmin
       .from("leads")
       .select(
-        "id, name, assigned_staff, created_by, product_interests, site_location",
+        "id, name, assigned_staff, created_by, product_interests, site_location, area",
       )
       .eq("id", lead_id)
       .single();
@@ -171,7 +171,10 @@ export async function POST(request: NextRequest) {
     const pricingConfig = buildPricingConfig({
       products: products ?? [],
       interests: lead.product_interests,
-      siteLocation: lead.site_location,
+      // The locality chip beside the estimate wants "Kotturpuram", not a full
+      // postal address. `area` holds the short form; site_location the address.
+      siteLocation:
+        (lead as { area?: string | null }).area ?? lead.site_location,
       repPhone,
     });
 
@@ -224,7 +227,10 @@ export async function POST(request: NextRequest) {
         .from("smart_quotes")
         .update({
           ...aiFields,
-          pricing_config: existingQuote.pricing_config ?? pricingConfig,
+          pricing_config: mergePricingConfig(
+            existingQuote.pricing_config,
+            pricingConfig as unknown as Record<string, unknown>,
+          ),
           wall_cost_config: existingQuote.wall_cost_config ?? wallCostSnapshot,
           valid_until: existingQuote.valid_until ?? validUntil,
         })
@@ -260,4 +266,47 @@ export async function POST(request: NextRequest) {
     console.error("[SmartQuotes] Error generating quote:", err);
     return error("Internal server error", 500);
   }
+}
+
+/**
+ * Carry the engineer's pricing decisions across a regenerate, and let
+ * everything the lead owns refresh.
+ *
+ * pricing_config holds two different kinds of thing. Some of it is a human
+ * decision — the rate, the product, the quantity, the distance. The rest is
+ * derived from the lead: the locality label, which products may be offered,
+ * the rep's phone. Preserving the whole object froze the second kind, so a
+ * lead whose address had been corrected kept showing the old locality after a
+ * regenerate. Preserving none of it wiped the rate. This preserves exactly the
+ * first kind.
+ */
+function mergePricingConfig(
+  previous: unknown,
+  seeded: Record<string, unknown>,
+): Record<string, unknown> {
+  const prev = (previous ?? {}) as Record<string, unknown>;
+  const merged: Record<string, unknown> = { ...seeded };
+
+  const HUMAN_KEYS = [
+    "quoted_rate",
+    "default_product",
+    "default_area_sqft",
+    "default_distance_km",
+    "price_note",
+    "show_transport",
+  ] as const;
+
+  for (const key of HUMAN_KEYS) {
+    if (prev[key] !== undefined && prev[key] !== null) merged[key] = prev[key];
+  }
+
+  // The catalogue is reseeded from the lead's interests, so a product the
+  // engineer had already chosen could fall outside it. Keep it selectable.
+  const chosen = merged.default_product;
+  const allowed = merged.allowed_products;
+  if (typeof chosen === "string" && Array.isArray(allowed) && !allowed.includes(chosen)) {
+    merged.allowed_products = [chosen, ...allowed];
+  }
+
+  return merged;
 }
