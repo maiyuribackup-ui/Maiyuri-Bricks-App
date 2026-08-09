@@ -130,6 +130,14 @@ export async function GET(
     // start in the serverless runtime.
     const wantsSimple = _request.nextUrl.searchParams.get("format") === "simple";
 
+    // Which renderer actually served this download. The branded path can fall
+    // back silently, and a silent degrade is worse than a loud one: the
+    // customer would receive the one-page document and nobody would know.
+    let renderer: "branded" | "simple" | "fallback" = wantsSimple
+      ? "simple"
+      : "branded";
+    const renderStartedAt = Date.now();
+
     let buffer: Buffer;
     if (wantsSimple) {
       // renderToBuffer is typed as taking a <Document> element specifically, so
@@ -146,6 +154,7 @@ export async function GET(
         // A customer clicking "Download quotation" must always get a document.
         // If Chromium cannot start in this runtime, fall back to the one-page
         // renderer rather than returning a 500 on a live quote link.
+        renderer = "fallback";
         console.error("[sq/pdf] branded render failed, falling back:", err);
         type PdfRoot = Parameters<typeof renderToBuffer>[0];
         buffer = await renderToBuffer(
@@ -154,13 +163,24 @@ export async function GET(
       }
     }
 
+    const renderMs = Date.now() - renderStartedAt;
+    console.log(
+      `[sq/pdf] renderer=${renderer} ms=${renderMs} bytes=${buffer.length} ` +
+        `slug=${slug} quote=${quoteNumber ?? "none"}`,
+    );
+
     // Downloads are a strong buying signal — stronger than a page view, since
     // the customer is forwarding the price to someone else.
     await supabaseAdmin.from("smart_quote_events").insert({
       smart_quote_id: quote.id,
       event_type: "cta_click",
       section_key: "pdf_download",
-      payload: { quote_number: quoteNumber, timestamp: new Date().toISOString() },
+      payload: {
+        quote_number: quoteNumber,
+        renderer,
+        render_ms: renderMs,
+        timestamp: new Date().toISOString(),
+      },
     });
 
     return new NextResponse(new Uint8Array(buffer), {
@@ -173,6 +193,8 @@ export async function GET(
         )}"`,
         // Regenerated on every request so an updated rate is never served stale.
         "Cache-Control": "no-store",
+        // Lets a degrade be spotted from outside, without log access.
+        "X-Quote-Renderer": renderer,
       },
     });
   } catch (err) {
