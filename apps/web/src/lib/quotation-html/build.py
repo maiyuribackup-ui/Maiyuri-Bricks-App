@@ -49,7 +49,7 @@ def main() -> None:
     assets = {name: os.path.join(ART, f"{name}.png") for name in
               ("corner", "temple", "skyline", "feather", "divider-leaf",
                "divider-knot", "house", "page-frame", "lockup", "lockup-wide",
-               "truck", "mascot-welcome", "mascot-brick", "advance-banner")}
+               "truck", "mascot-welcome", "mascot-brick", "advance-banner", "brick")}
 
     used = []
     for name, path in assets.items():

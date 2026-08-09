@@ -65,7 +65,7 @@ export interface QuotationConfig {
 const ASSETS = [
   "corner", "temple", "skyline", "feather", "divider-leaf", "house",
   "lockup", "lockup-wide", "truck", "mascot-welcome", "mascot-brick",
-  "advance-banner",
+  "advance-banner", "brick",
 ] as const;
 
 const FACES: [string, number, string, string][] = [
