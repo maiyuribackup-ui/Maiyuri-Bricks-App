@@ -72,6 +72,8 @@ const FACES: [string, number, string, string][] = [
   ["Playfair Display", 400, "normal", "PlayfairDisplay-Regular.ttf"],
   ["Playfair Display", 700, "normal", "PlayfairDisplay-Bold.ttf"],
   ["Playfair Display", 400, "italic", "PlayfairDisplay-Italic.ttf"],
+  // Tamil has no glyphs in Playfair; the cover's Tamil line needs its own face.
+  ["Noto Serif Tamil", 400, "normal", "NotoSerifTamil-Regular.ttf"],
 ];
 
 /**

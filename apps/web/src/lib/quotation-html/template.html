@@ -156,6 +156,14 @@
 
   .head-logo { width: 46mm; height: auto; }
 
+  /* Tamil has its own face — the display serif has no Tamil glyphs. */
+  .tamil {
+    font-family: 'Noto Serif Tamil', var(--serif);
+    font-size: 11.5pt;
+    color: var(--peacock);
+    line-height: 1.45;
+  }
+
   /* — Logo lockup — */
   .lockup { display: flex; align-items: center; gap: 3.5mm; }
   .lockup img { width: 13mm; height: auto; }
@@ -316,17 +324,32 @@
   <img class="wm wm-skyline" src="{{ASSET:skyline}}" alt="" />
 
   <div style="margin-top:2mm; display:flex; justify-content:center;">
-    <img src="{{ASSET:lockup}}" alt="Maiyuri Bricks — Smart Interlock Bricks" style="width:54mm; height:auto;" />
+    <img src="{{ASSET:lockup}}" alt="Maiyuri Bricks — Smart Interlock Bricks" style="width:48mm; height:auto;" />
   </div>
 
-  <div style="text-align:center; margin-top:9mm;">
-    <h1 style="font-size:34pt;">Quotation &amp;<br />Material Proposal</h1>
-    <img class="divider" src="{{ASSET:divider-leaf}}" alt="" style="margin:5mm auto;" />
-    <div class="lede" style="margin:0;">A guided proposal for better homes</div>
+  <div style="text-align:center; margin-top:5mm;">
+    <div class="eyebrow" style="letter-spacing:0.22em;">For the home you build once</div>
+    <h1 style="font-size:31pt; margin-top:3mm;">Quotation &amp;<br />Material Proposal</h1>
+    <img class="divider" src="{{ASSET:divider-leaf}}" alt="" style="margin:4mm auto;" />
+    <div style="font-family:var(--serif); font-size:16pt; color:var(--terracotta); line-height:1.22;">
+      Build a home rooted in Tamil wisdom.
+    </div>
+    <p class="small" style="max-width:118mm; margin:3mm auto 0;">
+      Smart red-soil interlock bricks for cooler Chennai homes — inspired by Tamil
+      building wisdom, engineered for modern living.
+    </p>
+    <div class="lede" style="margin:3mm 0 0; font-size:9.5pt;">A guided proposal for better homes</div>
   </div>
 
-  <div style="margin-top:9mm; display:flex; justify-content:center;">
-    <img src="{{ASSET:house}}" alt="" style="width:124mm; height:auto;" />
+  <div style="margin-top:4mm; display:flex; justify-content:center;">
+    <img src="{{ASSET:house}}" alt="" style="width:96mm; height:auto;" />
+  </div>
+
+  <!-- The line the website closes on. Tamil needs its own face: the display
+       serif carries no Tamil glyphs, so without this it would render as boxes. -->
+  <div style="text-align:center; margin-top:4mm;">
+    <div class="tamil">நம் மண். நம் வீடு. நம் அறிவு.</div>
+    <div class="lede" style="margin:1.5mm 0 0; font-size:9pt;">Our soil. Our home. Our wisdom.</div>
   </div>
 
   <div style="margin-top:auto; display:flex; justify-content:space-between; align-items:flex-end; gap:8mm;">
