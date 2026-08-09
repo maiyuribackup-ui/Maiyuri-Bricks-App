@@ -61,7 +61,7 @@ export async function GET(
     const [{ data: lead }, { data: factory }] = await Promise.all([
       supabaseAdmin
         .from("leads")
-        .select("name, contact, site_location, site_region, assigned_staff")
+        .select("name, contact, site_location, site_region, area, assigned_staff")
         .eq("id", quote.lead_id)
         .maybeSingle(),
       supabaseAdmin
@@ -149,7 +149,12 @@ export async function GET(
       );
     } else {
       try {
-        buffer = await renderQuotationPdf(toQuotationConfig(data, quoteNumber));
+        buffer = await renderQuotationPdf(
+          toQuotationConfig(data, quoteNumber, {
+            area: (lead as { area?: string | null } | null)?.area ?? null,
+            region: lead?.site_region ?? null,
+          }),
+        );
       } catch (err) {
         // A customer clicking "Download quotation" must always get a document.
         // If Chromium cannot start in this runtime, fall back to the one-page
@@ -212,19 +217,28 @@ export async function GET(
  * quietly invented a wall thickness would be worse than one that admits the
  * field is blank.
  */
+/** "KOTTURPURAM" is data entry; "Kotturpuram" is a document. */
+function titleCase(v: string): string {
+  return v.toLowerCase().replace(/(^|[\s/(-])([a-z])/g, (m, p, c) => p + c.toUpperCase());
+}
+
 function toQuotationConfig(
   data: QuoteDocumentData,
   quoteNumber: string | null,
+  site: { area: string | null; region: string | null },
 ): QuotationConfig {
   const first = data.lines[0];
   const money = (n: number) => Math.round(n).toLocaleString("en-IN");
 
   return {
     customerName: data.customer.name,
-    projectName: data.customer.location
-      ? `${data.customer.name} — ${data.customer.location}`
-      : "<<Project Name>>",
-    projectLocation: data.customer.location ?? "<<Project Location>>",
+    // The header identifies; it does not archive. The full postal address made
+    // the running header wrap five lines, so the print carries the locality
+    // and the full address stays in the quote's data.
+    projectName: data.customer.name,
+    projectLocation: site.area
+      ? titleCase(site.area) + (site.region ? `, ${site.region}` : "")
+      : site.region ?? data.customer.location ?? "<<Project Location>>",
     quotationNumber: quoteNumber ?? "<<Quotation Number>>",
     quotationDate: data.quotedOn,
     validUntil: data.validUntil ?? "<<Validity>>",

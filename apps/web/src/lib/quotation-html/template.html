@@ -199,9 +199,10 @@
   /* — Running header on content pages — */
   .runhead {
     display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 10mm; /* a long company name must never crowd the logo */
     padding-bottom: 3mm; border-bottom: 0.4pt solid var(--rule);
   }
-  .runhead .meta { display: flex; gap: 7mm; text-align: right; }
+  .runhead .meta { display: flex; gap: 7mm; text-align: right; max-width: 128mm; }
   .runhead .meta div { line-height: 1.5; }
   .runhead .k { font-size: 5.8pt; letter-spacing: 0.16em; color: var(--muted); text-transform: uppercase; }
   .runhead .v { font-size: 8.4pt; color: var(--charcoal); font-weight: 600; }
@@ -314,6 +315,10 @@
   }
   .pageno { font-family: var(--serif); font-size: 9pt; color: var(--gold); }
 
+  /* A quotation number or date must never break across lines — "MB-2026-"
+     over "0026" reads as a typo on a commercial document. */
+  .meta .v.nw { white-space: nowrap; }
+
   .strap {
     display: flex; justify-content: center; gap: 6mm; align-items: center;
     font-size: 7pt; letter-spacing: 0.22em; color: var(--muted); text-transform: uppercase;
@@ -368,7 +373,7 @@
   </div>
 
   <div style="margin-top:3mm; display:flex; justify-content:center;">
-    <img src="{{ASSET:house}}" alt="" style="width:86mm; height:auto;" />
+    <img src="{{ASSET:house}}" alt="" style="width:83mm; height:auto;" />
   </div>
 
   <!-- The line the website closes on. Tamil needs its own face: the display
@@ -381,7 +386,7 @@
   <div style="margin-top:auto; display:flex; justify-content:space-between; align-items:flex-end; gap:8mm;">
     <div style="display:grid; grid-template-columns:auto 1fr; gap:2.4mm 5mm; align-items:baseline;">
       <div class="k eyebrow">Prepared for</div><div style="font-family:var(--serif); font-size:12pt; color:var(--peacock);" data-k="customerName"></div>
-      <div class="k eyebrow">Project</div><div style="font-size:9pt;" data-k="projectName"></div>
+      <div class="k eyebrow" id="cover-project-k">Project</div><div style="font-size:9pt;" id="cover-project-v" data-k="projectName"></div>
       <div class="k eyebrow">Location</div><div style="font-size:9pt;" data-k="projectLocation"></div>
       <div class="k eyebrow">Quotation No.</div><div style="font-size:9pt;" data-k="quotationNumber"></div>
       <div class="k eyebrow">Date</div><div style="font-size:9pt;" data-k="quotationDate"></div>
@@ -401,8 +406,8 @@
   <div class="runhead">
     <img class="head-logo" src="{{ASSET:lockup-wide}}" alt="Maiyuri Bricks — Smart Interlock Bricks" />
     <div class="meta">
-      <div><div class="k">Quotation No.</div><div class="v" data-k="quotationNumber"></div></div>
-      <div><div class="k">Date</div><div class="v" data-k="quotationDate"></div></div>
+      <div><div class="k">Quotation No.</div><div class="v nw" data-k="quotationNumber"></div></div>
+      <div><div class="k">Date</div><div class="v nw" data-k="quotationDate"></div></div>
       <div><div class="k">Project</div><div class="v" data-k="projectName"></div></div>
       <div><div class="k">Location</div><div class="v" data-k="projectLocation"></div></div>
     </div>
@@ -480,8 +485,8 @@
   <div class="runhead">
     <img class="head-logo" src="{{ASSET:lockup-wide}}" alt="Maiyuri Bricks — Smart Interlock Bricks" />
     <div class="meta">
-      <div><div class="k">Quotation No.</div><div class="v" data-k="quotationNumber"></div></div>
-      <div><div class="k">Date</div><div class="v" data-k="quotationDate"></div></div>
+      <div><div class="k">Quotation No.</div><div class="v nw" data-k="quotationNumber"></div></div>
+      <div><div class="k">Date</div><div class="v nw" data-k="quotationDate"></div></div>
       <div><div class="k">Project</div><div class="v" data-k="projectName"></div></div>
       <div><div class="k">Location</div><div class="v" data-k="projectLocation"></div></div>
     </div>
@@ -572,7 +577,7 @@
   <div class="runhead">
     <img class="head-logo" src="{{ASSET:lockup-wide}}" alt="Maiyuri Bricks — Smart Interlock Bricks" />
     <div class="meta">
-      <div><div class="k">Quotation No.</div><div class="v" data-k="quotationNumber"></div></div>
+      <div><div class="k">Quotation No.</div><div class="v nw" data-k="quotationNumber"></div></div>
       <div><div class="k">Prepared for</div><div class="v" data-k="customerName"></div></div>
     </div>
   </div>
@@ -621,22 +626,42 @@
     </table>
   </div>
 
-  <div class="grid g3" style="margin-top:3mm;">
-    <div class="card">
-      <div class="eyebrow">Laboratory snapshot</div>
-      <table style="margin-top:2.5mm;" id="lab-table"></table>
-      <p class="small" style="margin-top:2.5mm; font-size:6.8pt;" data-k="labFootnote"></p>
+  <div class="grid g3" style="margin-top:4mm; gap:6mm;">
+    <div style="text-align:center;">
+      <div style="font-family:var(--serif); font-size:17pt; color:var(--terracotta);">&#8377;35K &ndash; &#8377;55K</div>
+      <div class="eyebrow" style="margin-top:1.5mm;">Saved on walling for 1,000 sq.ft.</div>
     </div>
-    <div class="card">
-      <div class="eyebrow">Before you compare quotations</div>
-      <ul style="margin:2.5mm 0 0; padding-left:4mm;" class="small" id="ask-list"></ul>
+    <div style="text-align:center;">
+      <div style="font-family:var(--serif); font-size:17pt; color:var(--terracotta);">20 &ndash; 30%</div>
+      <div class="eyebrow" style="margin-top:1.5mm;">Less material</div>
     </div>
-    <div class="card">
-      <div class="eyebrow">Client voice</div>
-      <p style="margin-top:2.5mm; font-family:var(--serif); font-style:italic; font-size:9.4pt; color:var(--peacock-soft); line-height:1.55;"
-         id="testimonial-quote"></p>
-      <p class="small" style="margin-top:3mm;">— <span id="testimonial-name"></span><br /><span id="testimonial-loc"></span></p>
+    <div style="text-align:center;">
+      <div style="font-family:var(--serif); font-size:17pt; color:var(--terracotta);">5 &ndash; 10%</div>
+      <div class="eyebrow" style="margin-top:1.5mm;">Lower lifetime electricity</div>
     </div>
+  </div>
+  <p class="small" style="margin-top:2.5mm; text-align:center;">
+    Savings vary by project design, labour rate, finish choice, wall area, and site
+    execution. Ask for a side-by-side estimate.
+  </p>
+
+  <div class="card" style="margin-top:4mm;">
+    <div class="eyebrow">Reports. Stamped. Open to read.</div>
+    <div class="grid g3" style="margin-top:2.5mm; gap:5mm;">
+      <div>
+        <div style="font-size:8.6pt; font-weight:600; color:var(--ink);">Density &amp; water absorption</div>
+        <p class="small" style="margin-top:1mm;">3.00% avg absorption &middot; 2,169.76 kg/m&sup3; &middot; IS 3495 / IS 12894</p>
+      </div>
+      <div>
+        <div style="font-size:8.6pt; font-weight:600; color:var(--ink);">Compressive strength &middot; 6&#8243;</div>
+        <p class="small" style="margin-top:1mm;">11.13 N/mm&sup2; avg of 3 &middot; IS 15658</p>
+      </div>
+      <div>
+        <div style="font-size:8.6pt; font-weight:600; color:var(--ink);">Compressive strength &middot; 8&#8243;</div>
+        <p class="small" style="margin-top:1mm;">9.52 N/mm&sup2; avg of 3 &middot; IS 15658</p>
+      </div>
+    </div>
+    <p class="small" style="margin-top:2.5mm; font-size:6.8pt;" data-k="labFootnote"></p>
   </div>
 
   <div class="foot">
@@ -652,7 +677,7 @@
   <div class="runhead">
     <img class="head-logo" src="{{ASSET:lockup-wide}}" alt="Maiyuri Bricks — Smart Interlock Bricks" />
     <div class="meta">
-      <div><div class="k">Quotation No.</div><div class="v" data-k="quotationNumber"></div></div>
+      <div><div class="k">Quotation No.</div><div class="v nw" data-k="quotationNumber"></div></div>
       <div><div class="k">Valid until</div><div class="v" data-k="validUntil"></div></div>
     </div>
   </div>
@@ -783,30 +808,11 @@
     `<td style="font-weight:600;">Lower value.<br />Hidden costs.</td>` +
     `<td class="small" style="padding-left:3mm;">Compare the finished wall.</td></tr>`;
 
-  /* Lab results — verified values only; placeholders stay visible. */
-  document.getElementById("lab-table").innerHTML = CONFIG.verifiedLabResults
-    .map((r) => {
-      const ph = isPlaceholder(r.value) ? ' class="ph"' : "";
-      const method = r.method && !isPlaceholder(r.method) ? `<div class="small" style="font-size:6.6pt;">${r.method}</div>` : "";
-      return `<tr><td style="font-size:7.6pt; padding:1.6mm 0; color:var(--muted); width:52%;">${esc(r.label)}</td>` +
-             `<td style="font-size:8.4pt; padding:1.6mm 0; font-weight:600; text-align:right;"><span${ph}>${esc(r.value)}</span>${method}</td></tr>`;
-    }).join("");
 
-  document.getElementById("ask-list").innerHTML = [
-    "Are the block dimensions the same?",
-    "How many blocks for the same wall area?",
-    "Are mortar, cement and sand counted?",
-    "Are loading and transport included?",
-    "What is the expected build time?",
-    "Who helps if there is a site issue?",
-  ].map((q) => `<li style="margin-bottom:1.4mm;">${q}</li>`).join("");
-
-  const t = CONFIG.verifiedTestimonial;
-  const tq = document.getElementById("testimonial-quote");
-  tq.textContent = isPlaceholder(t.quote) ? t.quote : `"${t.quote}"`;
-  if (isPlaceholder(t.quote)) tq.classList.add("ph");
-  put(document.getElementById("testimonial-name"), t.name);
-  put(document.getElementById("testimonial-loc"), t.location);
+  if (CONFIG.projectName === CONFIG.customerName) {
+    document.getElementById("cover-project-k").style.display = "none";
+    document.getElementById("cover-project-v").style.display = "none";
+  }
 
   /* Commercial table */
   const cur = CONFIG.currency;

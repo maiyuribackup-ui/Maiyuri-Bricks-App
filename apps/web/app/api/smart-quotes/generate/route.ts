@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     const { data: lead, error: leadError } = await supabaseAdmin
       .from("leads")
       .select(
-        "id, name, assigned_staff, created_by, product_interests, site_location",
+        "id, name, assigned_staff, created_by, product_interests, site_location, area",
       )
       .eq("id", lead_id)
       .single();
@@ -171,7 +171,10 @@ export async function POST(request: NextRequest) {
     const pricingConfig = buildPricingConfig({
       products: products ?? [],
       interests: lead.product_interests,
-      siteLocation: lead.site_location,
+      // The locality chip beside the estimate wants "Kotturpuram", not a full
+      // postal address. `area` holds the short form; site_location the address.
+      siteLocation:
+        (lead as { area?: string | null }).area ?? lead.site_location,
       repPhone,
     });
 
