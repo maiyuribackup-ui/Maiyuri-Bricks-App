@@ -140,7 +140,18 @@ export async function GET(
         React.createElement(QuoteDocument, { data }) as unknown as PdfRoot,
       );
     } else {
-      buffer = await renderQuotationPdf(toQuotationConfig(data, quoteNumber));
+      try {
+        buffer = await renderQuotationPdf(toQuotationConfig(data, quoteNumber));
+      } catch (err) {
+        // A customer clicking "Download quotation" must always get a document.
+        // If Chromium cannot start in this runtime, fall back to the one-page
+        // renderer rather than returning a 500 on a live quote link.
+        console.error("[sq/pdf] branded render failed, falling back:", err);
+        type PdfRoot = Parameters<typeof renderToBuffer>[0];
+        buffer = await renderToBuffer(
+          React.createElement(QuoteDocument, { data }) as unknown as PdfRoot,
+        );
+      }
     }
 
     // Downloads are a strong buying signal — stronger than a page view, since

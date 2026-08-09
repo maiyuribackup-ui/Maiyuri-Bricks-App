@@ -47,9 +47,13 @@ const nextConfig = {
     experimental: {
         // Loads instrumentation.ts (server-side Sentry init) on boot.
         instrumentationHook: true,
-        // The quotation PDF reads its .ttf files from disk at render time.
-        // Nothing imports them, so tracing cannot infer them — without this
-        // they are absent from the deployed function and the route throws.
+        // Chromium ships a real binary. Bundling it through webpack leaves the
+        // executable behind, so chromium.executablePath() resolves to nothing
+        // and the launch fails — which is exactly what production did.
+        serverComponentsExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
+        // The quotation reads its .ttf files, artwork and HTML template from
+        // disk at render time. Nothing imports them, so tracing cannot infer
+        // them — without this they are absent from the deployed function.
         outputFileTracingIncludes: {
             "/api/sq/[slug]/pdf": [
                 "./src/lib/pdf/fonts/**",
