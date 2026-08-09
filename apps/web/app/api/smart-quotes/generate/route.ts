@@ -96,7 +96,9 @@ export async function POST(request: NextRequest) {
     // Check if quote already exists
     const { data: existingQuote } = await supabaseAdmin
       .from("smart_quotes")
-      .select("id, link_slug")
+      .select(
+        "id, link_slug, quote_number, valid_until, pricing_config, wall_cost_config",
+      )
       .eq("lead_id", lead_id)
       .single();
 
@@ -111,13 +113,10 @@ export async function POST(request: NextRequest) {
       return success<SmartQuote>(fullQuote!);
     }
 
-    // Delete existing quote if regenerating
-    if (existingQuote && regenerate) {
-      await supabaseAdmin
-        .from("smart_quotes")
-        .delete()
-        .eq("id", existingQuote.id);
-    }
+    // Regenerating updates the quote in place — see the update below. It used
+    // to DELETE the row and insert a fresh one, which silently destroyed the
+    // engineer's rate, the issued quote number, the customer's link and its
+    // engagement history.
 
     // Get call recordings for this lead
     const { data: recordings } = await supabaseAdmin
@@ -180,36 +179,79 @@ export async function POST(request: NextRequest) {
     // rep can personalize it and the shared numbers stay frozen.
     const { data: factory } = await supabaseAdmin
       .from("factory_settings")
-      .select("wall_cost_config")
+      .select("wall_cost_config, quote_validity_days")
       .limit(1)
       .single();
     const wallCostSnapshot = factory?.wall_cost_config ?? null;
 
-    // Insert smart quote
-    const { data: smartQuote, error: insertError } = await supabaseAdmin
-      .from("smart_quotes")
-      .insert({
-        lead_id,
-        link_slug: linkSlug,
-        language_default: aiResult.strategy.language_default,
-        persona: aiResult.insights.persona,
-        stage: aiResult.insights.stage,
-        primary_angle: aiResult.insights.primary_angle,
-        secondary_angle: aiResult.insights.secondary_angle,
-        route_decision: aiResult.strategy.route_decision,
-        top_objections: aiResult.insights.top_objections,
-        risk_flags: aiResult.insights.risk_flags,
-        scores: aiResult.insights.scores,
-        page_config: aiResult.strategy.page_config,
-        copy_map: aiResult.copyMap,
-        pricing_config: pricingConfig,
-        wall_cost_config: wallCostSnapshot,
-      })
-      .select()
-      .single();
+    // A quotation is an offer, and an offer has to end. Without this the PDF
+    // prints no validity date and isExpired() reads NULL as "never expires",
+    // so today's rate stays presentable as current forever. The business sets
+    // the window in Settings; 15 days matches the column default.
+    const validityDays = factory?.quote_validity_days ?? 15;
+    const validUntilDate = new Date();
+    validUntilDate.setDate(validUntilDate.getDate() + validityDays);
+    const validUntil = validUntilDate.toISOString().slice(0, 10);
 
-    if (insertError) {
-      console.error("[SmartQuotes] Insert error:", insertError);
+    // What the AI just decided. These are the only fields a regenerate should
+    // touch: regenerating re-reads the lead, it does not re-price the job.
+    const aiFields = {
+      language_default: aiResult.strategy.language_default,
+      persona: aiResult.insights.persona,
+      stage: aiResult.insights.stage,
+      primary_angle: aiResult.insights.primary_angle,
+      secondary_angle: aiResult.insights.secondary_angle,
+      route_decision: aiResult.strategy.route_decision,
+      top_objections: aiResult.insights.top_objections,
+      risk_flags: aiResult.insights.risk_flags,
+      scores: aiResult.insights.scores,
+      page_config: aiResult.strategy.page_config,
+      copy_map: aiResult.copyMap,
+    };
+
+    let smartQuote: SmartQuote | null = null;
+    let writeError: { message: string } | null = null;
+
+    if (existingQuote && regenerate) {
+      // Update in place. The row keeps its id, link_slug and quote_number, so
+      // a link already with the customer keeps working, a document already in
+      // their hands keeps its reference, and view tracking survives.
+      //
+      // The rate is the engineer's decision, not the AI's — it is carried
+      // forward untouched. Only a quote that never had one falls back to the
+      // freshly seeded config.
+      const { data, error: updateError } = await supabaseAdmin
+        .from("smart_quotes")
+        .update({
+          ...aiFields,
+          pricing_config: existingQuote.pricing_config ?? pricingConfig,
+          wall_cost_config: existingQuote.wall_cost_config ?? wallCostSnapshot,
+          valid_until: existingQuote.valid_until ?? validUntil,
+        })
+        .eq("id", existingQuote.id)
+        .select()
+        .single();
+      smartQuote = data;
+      writeError = updateError;
+    } else {
+      const { data, error: insertError } = await supabaseAdmin
+        .from("smart_quotes")
+        .insert({
+          lead_id,
+          link_slug: linkSlug,
+          ...aiFields,
+          pricing_config: pricingConfig,
+          wall_cost_config: wallCostSnapshot,
+          valid_until: validUntil,
+        })
+        .select()
+        .single();
+      smartQuote = data;
+      writeError = insertError;
+    }
+
+    if (writeError || !smartQuote) {
+      console.error("[SmartQuotes] Write error:", writeError);
       return error("Failed to create Smart Quote", 500);
     }
 
