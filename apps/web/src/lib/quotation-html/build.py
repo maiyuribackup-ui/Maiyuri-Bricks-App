@@ -69,6 +69,8 @@ def main() -> None:
         ("Playfair Display", 400, "normal", "PlayfairDisplay-Regular.ttf"),
         ("Playfair Display", 700, "normal", "PlayfairDisplay-Bold.ttf"),
         ("Playfair Display", 400, "italic", "PlayfairDisplay-Italic.ttf"),
+        # Tamil has no glyphs in Playfair; the cover line needs its own face.
+        ("Noto Serif Tamil", 400, "normal", "NotoSerifTamil-Regular.ttf"),
     ]
     css = []
     for family, weight, style, fname in faces:
