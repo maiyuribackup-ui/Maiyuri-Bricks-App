@@ -54,6 +54,8 @@ const nextConfig = {
             "/api/sq/[slug]/pdf": [
                 "./src/lib/pdf/fonts/**",
                 "./src/lib/pdf/art/**",
+                // The HTML proposal template, read at render time.
+                "./src/lib/quotation-html/template.html",
             ],
         },
     },
