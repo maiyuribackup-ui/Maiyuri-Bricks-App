@@ -6,7 +6,11 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { error, notFound } from "@/lib/api-utils";
-import { QuoteDocument } from "@/lib/pdf/QuoteDocument";
+import { QuoteDocument, type QuoteDocumentData } from "@/lib/pdf/QuoteDocument";
+import {
+  renderQuotationPdf,
+  type QuotationConfig,
+} from "@/lib/quotation-html/render";
 import {
   buildQuoteDocumentData,
   isExpired,
@@ -120,13 +124,24 @@ export async function GET(
       }
     }
 
-    // renderToBuffer is typed as taking a <Document> element specifically, so a
-    // component that *returns* one does not match by structure. The cast is
-    // safe because QuoteDocument's root element is <Document>.
-    type PdfRoot = Parameters<typeof renderToBuffer>[0];
-    const buffer = await renderToBuffer(
-      React.createElement(QuoteDocument, { data }) as unknown as PdfRoot,
-    );
+    // The branded four-page proposal is the document customers receive. The
+    // one-page react-pdf original is kept behind ?format=simple: it embeds no
+    // browser, so it stays the reliable fallback if Chromium ever fails to
+    // start in the serverless runtime.
+    const wantsSimple = _request.nextUrl.searchParams.get("format") === "simple";
+
+    let buffer: Buffer;
+    if (wantsSimple) {
+      // renderToBuffer is typed as taking a <Document> element specifically, so
+      // a component that *returns* one does not match by structure. The cast is
+      // safe because QuoteDocument's root element is <Document>.
+      type PdfRoot = Parameters<typeof renderToBuffer>[0];
+      buffer = await renderToBuffer(
+        React.createElement(QuoteDocument, { data }) as unknown as PdfRoot,
+      );
+    } else {
+      buffer = await renderQuotationPdf(toQuotationConfig(data, quoteNumber));
+    }
 
     // Downloads are a strong buying signal — stronger than a page view, since
     // the customer is forwarding the price to someone else.
@@ -153,4 +168,74 @@ export async function GET(
     console.error("[SmartQuote] PDF render failed:", err);
     return error("Failed to generate the quotation PDF", 500);
   }
+}
+
+/**
+ * Quote data as the proposal template's CONFIG.
+ *
+ * Fields the quote genuinely does not carry — project name, wall thicknesses,
+ * the reasoning behind a recommendation — stay as << >> placeholders. The
+ * template renders those visibly unfilled, which is the point: a proposal that
+ * quietly invented a wall thickness would be worse than one that admits the
+ * field is blank.
+ */
+function toQuotationConfig(
+  data: QuoteDocumentData,
+  quoteNumber: string | null,
+): QuotationConfig {
+  const first = data.lines[0];
+  const money = (n: number) => Math.round(n).toLocaleString("en-IN");
+
+  return {
+    customerName: data.customer.name,
+    projectName: data.customer.location
+      ? `${data.customer.name} — ${data.customer.location}`
+      : "<<Project Name>>",
+    projectLocation: data.customer.location ?? "<<Project Location>>",
+    quotationNumber: quoteNumber ?? "<<Quotation Number>>",
+    quotationDate: data.quotedOn,
+    validUntil: data.validUntil ?? "<<Validity>>",
+
+    externalWallProduct: first?.product ?? "<<Recommended Product>>",
+    externalWallThickness: "<<Wall Thickness>>",
+    externalWallReason: "<<Reason for Recommendation>>",
+    internalWallProduct: data.lines[1]?.product ?? "<<Recommended Product>>",
+    internalWallThickness: "<<Wall Thickness>>",
+    internalWallReason: "<<Reason for Recommendation>>",
+    estimatedQuantity: first
+      ? `${first.quantity.toLocaleString("en-IN")} ${first.unit}`
+      : "<<Estimated Quantity>>",
+    deliveryTimeline: "<<Estimated Dispatch Timeline>>",
+
+    currency: "Rs.",
+    pricingItems: data.lines.map((l) => ({
+      description: l.product,
+      detail: l.hsnCode ? `HSN/SAC ${l.hsnCode}` : "",
+      qty: `${l.quantity.toLocaleString("en-IN")} ${l.unit}`,
+      rate: money(l.rate),
+      amount: money(l.amount),
+    })),
+    subtotal: money(data.total),
+    // The business states GST is extra; the total is the quoted total.
+    showGst: false,
+    gstRate: "",
+    gstAmount: "",
+    taxNote: data.taxNote ?? "",
+    grandTotal: money(data.total),
+
+    advancePercentage: 20,
+    paymentTerms: data.terms.payment ?? "<<Payment Terms>>",
+    unloadingResponsibility: "<<Responsibility>>",
+
+    accountName: data.bank?.accountName ?? "<<Account Name>>",
+    bankName: data.bank?.bankName ?? "<<Bank Name>>",
+    accountNumber: data.bank?.accountNumber ?? "<<Account Number>>",
+    ifsc: data.bank?.ifsc ?? "<<IFSC>>",
+    upi: data.bank?.upiNumber ?? "<<UPI / GPay>>",
+
+    salesPersonName: data.rep.name ?? data.company.name,
+    salesPersonPhone: data.rep.phone ?? data.company.phone ?? "",
+    whatsappNumber: data.rep.phone ?? "",
+    website: data.company.website ?? "",
+  };
 }

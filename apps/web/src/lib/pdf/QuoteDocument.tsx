@@ -20,19 +20,104 @@ import {
   Page,
   Text,
   View,
+  Image,
+  Svg,
+  Defs,
+  LinearGradient,
+  Stop,
+  Rect,
   StyleSheet,
 } from "@react-pdf/renderer";
+import { MAIYURI_MARK_PNG } from "./brand-mark";
+import { registerQuoteFonts, F } from "./fonts";
+import { art } from "./art";
 
-// DESIGN.md palette. Kept literal: the PDF renderer has no access to CSS tokens.
+registerQuoteFonts();
+
+/**
+ * The gilt border, laid behind the page content.
+ *
+ * Absolutely positioned and drawn first so text sits inside it. The frame is
+ * artwork, not a drawn rule — it carries the peacock-and-brick corners, which
+ * no amount of vector approximation would match.
+ */
+function PageFrame() {
+  return <Image src={art("page-frame")} style={s.pageFrame} fixed />;
+}
+
+/**
+ * The peacock feather, dropped to a whisper behind the content. Watermarks
+ * have to stay under the text they sit behind, so this is heavily reduced —
+ * present at arm's length, invisible when reading.
+ */
+function Watermark() {
+  return <Image src={art("feather")} style={s.watermark} fixed />;
+}
+
+/** The leaf rule from the artwork, used between sections. */
+function LeafDivider() {
+  return <Image src={art("divider-leaf")} style={s.dividerLeaf} />;
+}
+
+/**
+ * Sampled from the logo artwork, not guessed. Each hue is the median of the
+ * most saturated quarter of that family's pixels in the master PNG, so the
+ * document carries the mark's own colours rather than an approximation of them.
+ *
+ * Kept literal: the PDF renderer has no access to CSS tokens.
+ */
 const C = {
-  brick: "#7a2817",
-  redSoil: "#c0562f",
-  ink: "#4a3428",
-  inkMuted: "#7d6653",
-  cream: "#fbf5ea",
-  border: "#efe3d2",
-  good: "#3f7d4d",
+  brick: "#a14c29", // the M — brand terracotta
+  brickDeep: "#7a3218", // its emboss shadow — rules and headings
+  brickLight: "#ae5931", // its emboss highlight — gradient top
+  peacock: "#233d3a", // the bird's neck — section headings
+  gold: "#a77f4d", // the gilt outline — hairlines
+  ink: "#212b22", // the wordmark
+  inkMuted: "#6e6455",
+  cream: "#fbf7ef",
+  border: "#e7dcc9",
+  good: "#30592c", // the feather green — savings and confirmations
+  redSoil: "#ae5931",
 };
+
+/**
+ * The letterhead rule, and the one place this document has real depth.
+ *
+ * A flat 2pt line read as clip-art next to an embossed mark. This is the
+ * brick's own shading ramp — shadow, body, highlight — under a gold hairline,
+ * echoing the gilt edge the peacock is drawn with. react-pdf renders true PDF
+ * gradients, so it stays crisp at any zoom and adds nothing to the file size.
+ */
+function BrandRule({ width = 515 }: { width?: number }) {
+  return (
+    <Svg width={width} height={4} viewBox={`0 0 ${width} 4`}>
+      <Defs>
+        <LinearGradient id="brickRule" x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0" stopColor={C.brickDeep} />
+          <Stop offset="0.45" stopColor={C.brick} />
+          <Stop offset="1" stopColor={C.brickLight} />
+        </LinearGradient>
+      </Defs>
+      <Rect x="0" y="0" width={width} height="3" fill="url(#brickRule)" />
+      <Rect x="0" y="3" width={width} height="0.6" fill={C.gold} />
+    </Svg>
+  );
+}
+
+/**
+ * The stacked brick course from the right of the monogram, reused as a
+ * section marker. Four courses, drawn in the same terracotta, so the eye
+ * carries the mark's motif down the page.
+ */
+function BrickCourse() {
+  return (
+    <View style={s.course}>
+      {[0, 1, 2, 3].map((i) => (
+        <View key={i} style={s.courseBrick} />
+      ))}
+    </View>
+  );
+}
 
 export interface QuoteLine {
   product: string;
@@ -138,38 +223,86 @@ const inr = (n: number) =>
 
 const s = StyleSheet.create({
   page: {
-    paddingTop: 36,
-    paddingBottom: 56,
-    paddingHorizontal: 40,
+    // Measured off the frame artwork, not guessed: its rules sit ~60pt in at
+    // the sides, and the leaf motifs centred top and bottom reach ~82pt and
+    // ~75pt. Content clears all of them, so nothing collides with the border.
+    paddingTop: 88,
+    paddingBottom: 84,
+    paddingHorizontal: 66,
     fontSize: 10,
     color: C.ink,
-    fontFamily: "Helvetica",
-    backgroundColor: "#ffffff",
+    fontFamily: F.display,
+    // The artwork is drawn on cream, not white — a white page would leave the
+    // frame floating on a brighter ground than it was designed for.
+    backgroundColor: "#fdfaf3",
   },
+  pageFrame: {
+    position: "absolute",
+    top: 18,
+    left: 18,
+    width: 559, // A4 595pt less 18pt each side
+    height: 806, // A4 842pt less 18pt each side
+  },
+  watermark: {
+    position: "absolute",
+    top: 250,
+    right: 30,
+    width: 150,
+    opacity: 0.07,
+  },
+  dividerLeaf: { width: 120, alignSelf: "center", marginVertical: 2 },
   // Letterhead
   head: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    borderBottomWidth: 2,
-    borderBottomColor: C.brick,
-    paddingBottom: 12,
+    paddingBottom: 10,
   },
-  brand: { fontSize: 20, fontFamily: "Helvetica-Bold", color: C.brick },
-  tagline: { fontSize: 8, color: C.inkMuted, marginTop: 3 },
+  // The logo's own lockup: mark left, wordmark and descriptor stacked right.
+  lockup: { flexDirection: "row", alignItems: "center", gap: 10 },
+  mark: { width: 46, height: 46 },
+  brand: {
+    fontSize: 19,
+    fontFamily: F.display, fontWeight: 700,
+    color: C.ink,
+    letterSpacing: 1.4,
+  },
+  // Letterspaced peacock green, as it is set in the artwork.
+  descriptor: {
+    fontSize: 6.5,
+    fontFamily: F.display, fontWeight: 700,
+    color: C.peacock,
+    letterSpacing: 1.6,
+    marginTop: 3,
+  },
+  tagline: { fontSize: 7.5, color: C.inkMuted, marginTop: 3 },
   companyMeta: { fontSize: 8, color: C.inkMuted, textAlign: "right", lineHeight: 1.5 },
+
+  titleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 16,
+  },
+  // The monogram's brick stack, reused as a section marker.
+  course: { gap: 1.5 },
+  courseBrick: {
+    width: 22,
+    height: 3.2,
+    backgroundColor: C.brick,
+    borderRadius: 0.5,
+  },
 
   docTitle: {
     fontSize: 13,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: F.display, fontWeight: 700,
     color: C.ink,
-    marginTop: 18,
     letterSpacing: 1.2,
   },
   metaRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
   metaBlock: { flexDirection: "row", gap: 22 },
   metaLabel: { fontSize: 7.5, color: C.inkMuted, letterSpacing: 0.6 },
-  metaValue: { fontSize: 10, fontFamily: "Helvetica-Bold", color: C.ink, marginTop: 2 },
+  metaValue: { fontSize: 10, fontFamily: F.display, fontWeight: 700, color: C.ink, marginTop: 2 },
 
   // Customer
   card: {
@@ -181,7 +314,7 @@ const s = StyleSheet.create({
     backgroundColor: C.cream,
   },
   cardLabel: { fontSize: 7.5, color: C.inkMuted, letterSpacing: 0.6, marginBottom: 4 },
-  customerName: { fontSize: 12, fontFamily: "Helvetica-Bold", color: C.ink },
+  customerName: { fontSize: 12, fontFamily: F.display, fontWeight: 700, color: C.ink },
   customerMeta: { fontSize: 9, color: C.inkMuted, marginTop: 2 },
 
   // Table
@@ -204,27 +337,38 @@ const s = StyleSheet.create({
   thText: { fontSize: 7.5, color: C.inkMuted, letterSpacing: 0.6 },
   cellProduct: { flex: 3 },
   cellNum: { flex: 1.2, textAlign: "right" },
-  productName: { fontSize: 10, fontFamily: "Helvetica-Bold", color: C.ink },
+  productName: { fontSize: 10, fontFamily: F.display, fontWeight: 700, color: C.ink },
   productUnit: { fontSize: 8, color: C.inkMuted, marginTop: 2 },
   num: { fontSize: 10, color: C.ink },
 
+  // The number the whole page exists to deliver, so it gets the depth: a warm
+  // panel edged in gold, with the brick carrying the left edge the way it
+  // carries the left of the mark.
   totalRow: {
     flexDirection: "row",
     justifyContent: "flex-end",
     alignItems: "center",
     paddingVertical: 12,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     backgroundColor: C.cream,
+    borderLeftWidth: 3,
+    borderLeftColor: C.brick,
+    borderTopWidth: 0.6,
+    borderBottomWidth: 0.6,
+    borderRightWidth: 0.6,
+    borderTopColor: C.gold,
+    borderBottomColor: C.gold,
+    borderRightColor: C.gold,
   },
   totalLabel: { fontSize: 9, color: C.inkMuted, marginRight: 14 },
-  totalValue: { fontSize: 17, fontFamily: "Helvetica-Bold", color: C.brick },
+  totalValue: { fontSize: 17, fontFamily: F.display, fontWeight: 700, color: C.brick },
 
   note: { fontSize: 8, color: C.inkMuted, marginTop: 8, lineHeight: 1.5 },
   // The tax statement is not a footnote. It changes what the customer will
   // actually pay, so it gets the weight of a line item.
   taxNote: {
     fontSize: 9,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: F.display, fontWeight: 700,
     color: C.brick,
     marginTop: 8,
   },
@@ -248,7 +392,7 @@ const s = StyleSheet.create({
   bankGrid: { flexDirection: "row", flexWrap: "wrap", marginTop: 2 },
   bankCell: { width: "33%", marginTop: 6 },
   bankLabel: { fontSize: 7, color: C.inkMuted, letterSpacing: 0.5 },
-  bankValue: { fontSize: 9.5, fontFamily: "Helvetica-Bold", color: C.ink, marginTop: 2 },
+  bankValue: { fontSize: 9.5, fontFamily: F.display, fontWeight: 700, color: C.ink, marginTop: 2 },
 
   // Why Maiyuri
   whyRow: { flexDirection: "row", gap: 10, marginTop: 20 },
@@ -259,13 +403,15 @@ const s = StyleSheet.create({
     borderRadius: 4,
     padding: 10,
   },
-  whyTitle: { fontSize: 9, fontFamily: "Helvetica-Bold", color: C.brick },
+  whyTitle: { fontSize: 9, fontFamily: F.display, fontWeight: 700, color: C.brick },
   whyBody: { fontSize: 8, color: C.inkMuted, marginTop: 4, lineHeight: 1.5 },
 
+  // Peacock green, letterspaced — the descriptor's voice, carried down the page.
   sectionTitle: {
     fontSize: 8,
-    color: C.inkMuted,
-    letterSpacing: 0.8,
+    fontFamily: F.display, fontWeight: 700,
+    color: C.peacock,
+    letterSpacing: 1.1,
     marginTop: 20,
     marginBottom: 6,
   },
@@ -274,13 +420,13 @@ const s = StyleSheet.create({
   signRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 26 },
   signBlock: { width: 200 },
   signLine: { borderTopWidth: 1, borderTopColor: C.inkMuted, marginTop: 30, paddingTop: 4 },
-  signName: { fontSize: 9, fontFamily: "Helvetica-Bold", color: C.ink },
+  signName: { fontSize: 9, fontFamily: F.display, fontWeight: 700, color: C.ink },
   signRole: { fontSize: 8, color: C.inkMuted, marginTop: 1 },
 
   // --- Page 2: the argument ---
   pageTitle: {
     fontSize: 15,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: F.display, fontWeight: 700,
     color: C.brick,
     marginBottom: 4,
   },
@@ -304,8 +450,8 @@ const s = StyleSheet.create({
   cellSystem: { flex: 2.4, paddingHorizontal: 8 },
   cellCompare: { flex: 1.3, textAlign: "right", paddingHorizontal: 8 },
   systemName: { fontSize: 10, color: C.ink },
-  systemNameOurs: { fontSize: 10, fontFamily: "Helvetica-Bold", color: C.brick },
-  deltaGood: { fontSize: 10, fontFamily: "Helvetica-Bold", color: C.good },
+  systemNameOurs: { fontSize: 10, fontFamily: F.display, fontWeight: 700, color: C.brick },
+  deltaGood: { fontSize: 10, fontFamily: F.display, fontWeight: 700, color: C.good },
   deltaCost: { fontSize: 10, color: C.ink },
 
   callout: {
@@ -318,7 +464,7 @@ const s = StyleSheet.create({
     borderTopRightRadius: 4,
     borderBottomRightRadius: 4,
   },
-  calloutTitle: { fontSize: 10, fontFamily: "Helvetica-Bold", color: C.brick },
+  calloutTitle: { fontSize: 10, fontFamily: F.display, fontWeight: 700, color: C.brick },
   calloutBody: { fontSize: 9.5, color: C.ink, marginTop: 5, lineHeight: 1.6 },
   calloutMuted: { fontSize: 9, color: C.inkMuted, marginTop: 5, lineHeight: 1.6 },
 
@@ -329,22 +475,24 @@ const s = StyleSheet.create({
     borderRadius: 4,
     padding: 14,
   },
-  nextStepTitle: { fontSize: 12, fontFamily: "Helvetica-Bold", color: C.ink },
+  nextStepTitle: { fontSize: 12, fontFamily: F.display, fontWeight: 700, color: C.ink },
   nextStepBody: { fontSize: 9.5, color: C.inkMuted, marginTop: 5, lineHeight: 1.6 },
   nextStepContact: {
     fontSize: 10,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: F.display, fontWeight: 700,
     color: C.brick,
     marginTop: 9,
   },
 
   footer: {
     position: "absolute",
-    bottom: 24,
-    left: 40,
-    right: 40,
-    borderTopWidth: 1,
-    borderTopColor: C.border,
+    // Fixed elements ignore page padding, so the frame clearance is repeated
+    // here — otherwise the footer prints straight through the bottom border.
+    bottom: 52,
+    left: 66,
+    right: 66,
+    borderTopWidth: 0.6,
+    borderTopColor: C.gold,
     paddingTop: 8,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -382,11 +530,17 @@ export function QuoteDocument({ data }: { data: QuoteDocumentData }) {
       subject={`Quotation for ${customer.name}`}
     >
       <Page size="A4" style={s.page}>
-        {/* Letterhead */}
+        <PageFrame />
+        <Watermark />
+        {/* Letterhead — the logo lockup: mark, wordmark, descriptor */}
         <View style={s.head}>
-          <View>
-            <Text style={s.brand}>MAIYURI BRICKS</Text>
-            <Text style={s.tagline}>Built on Strength. Rooted in Trust.</Text>
+          <View style={s.lockup}>
+            <Image src={MAIYURI_MARK_PNG} style={s.mark} />
+            <View>
+              <Text style={s.brand}>MAIYURI BRICKS</Text>
+              <Text style={s.descriptor}>SMART INTERLOCK BRICKS</Text>
+              <Text style={s.tagline}>Built on Strength. Rooted in Trust.</Text>
+            </View>
           </View>
           <View style={s.companyMeta}>
             {company.legalName ? <Text>{company.legalName}</Text> : null}
@@ -398,8 +552,12 @@ export function QuoteDocument({ data }: { data: QuoteDocumentData }) {
             {company.gstin ? <Text>GSTIN: {company.gstin}</Text> : null}
           </View>
         </View>
+        <BrandRule />
 
-        <Text style={s.docTitle}>QUOTATION</Text>
+        <View style={s.titleRow}>
+          <Text style={s.docTitle}>QUOTATION</Text>
+          <BrickCourse />
+        </View>
 
         <View style={s.metaRow}>
           <View style={s.metaBlock}>
@@ -484,6 +642,7 @@ export function QuoteDocument({ data }: { data: QuoteDocumentData }) {
         {/* Terms — printed only when the business has entered them */}
         {hasTerms ? (
           <>
+            <LeafDivider />
             <Text style={s.sectionTitle}>TERMS</Text>
             {terms.payment ? (
               <View style={s.termItem}>
@@ -572,6 +731,8 @@ export function QuoteDocument({ data }: { data: QuoteDocumentData }) {
           and the routed next step. Nothing is generated here.
           ================================================================== */}
       <Page size="A4" style={s.page}>
+        <PageFrame />
+        <Watermark />
           <Text style={s.pageTitle}>Before you decide</Text>
 
           {/* The three confirmed positioning claims (PRODUCT.md). No

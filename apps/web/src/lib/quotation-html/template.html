@@ -1,0 +1,717 @@
+<meta charset="utf-8" />
+<title>Maiyuri Bricks — Quotation &amp; Material Proposal</title>
+
+<!-- ===================================================================
+     DATA
+     Everything customer-specific lives here and nowhere else. Swapping
+     these values is the whole job of the future generator; nothing below
+     this block should need editing per quotation.
+     =================================================================== -->
+<script>
+  const CONFIG = {
+    // — Customer & project ————————————————————————————————
+    customerName: "<<Customer Name>>",
+    projectName: "<<Project Name>>",
+    projectLocation: "<<Project Location>>",
+    quotationNumber: "<<Quotation Number>>",
+    quotationDate: "<<Quotation Date>>",
+    validUntil: "<<Validity>>",
+
+    // — Product family (brochure technical sheet, p12) ————————————
+    // Reference data for whoever fills the recommendation below. Strength is
+    // tested per IS-3495; load-bearing suitability is for the structural
+    // engineer to confirm, not for this document to assert.
+    productCatalogue: [
+      { sku: '8" Mud Interlock',    size: "10 × 8 × 5 in", weight: "13.0–13.5 kg", strength: "9.5 N/mm²",   colour: "Rich Natural Brown", use: "External load-bearing walls" },
+      { sku: '6" Mud Interlock',    size: "10 × 6 × 5 in", weight: "~10 kg",       strength: "11+ N/mm²",   colour: "Rich Natural Brown", use: "Internal walls, partitions" },
+      { sku: '8" Cement Interlock', size: "10 × 8 × 5 in", weight: "~14 kg",       strength: "8+ N/mm²",    colour: "Stone Grey",         use: "Boundary walls, structural" },
+      { sku: '6" Cement Interlock', size: "11 × 6 × 5 in", weight: "~11 kg",       strength: "9.98+ N/mm²", colour: "Stone Grey",         use: "Compound walls, partitions" },
+    ],
+
+    // — Recommendation ————————————————————————————————————
+    externalWallProduct: "<<Recommended Product>>",
+    externalWallThickness: "<<Wall Thickness>>",
+    externalWallReason: "<<Reason for Recommendation>>",
+    internalWallProduct: "<<Recommended Product>>",
+    internalWallThickness: "<<Wall Thickness>>",
+    internalWallReason: "<<Reason for Recommendation>>",
+    estimatedQuantity: "<<Estimated Quantity>>",
+    deliveryTimeline: "<<Estimated Dispatch Timeline>>",
+
+    // — Commercial ————————————————————————————————————————
+    currency: "₹",
+    pricingItems: [
+      { description: "<<Item 1>>", detail: "<<Detail>>", qty: "<<Qty>>", rate: "<<Rate>>", amount: "<<Amount>>" },
+      { description: "<<Item 2>>", detail: "<<Detail>>", qty: "<<Qty>>", rate: "<<Rate>>", amount: "<<Amount>>" },
+      { description: "Loading", detail: "Factory loading & stacking", qty: "<<Qty>>", rate: "<<Rate>>", amount: "<<Amount>>" },
+      { description: "Transportation", detail: "To site", qty: "<<Qty>>", rate: "<<Rate>>", amount: "<<Amount>>" },
+    ],
+    subtotal: "<<Subtotal>>",
+
+    // Tax. The business states "GST extra, as per actual." on the quotations
+    // it sends today, so that is the default. Set showGst true and fill the
+    // rate only when the quotation genuinely carries GST in the total —
+    // a total printed as final when tax is extra is misleading.
+    showGst: false,
+    gstRate: "<<GST Rate>>",
+    gstAmount: "<<GST Amount>>",
+    taxNote: "GST extra, as per actual.",
+    grandTotal: "<<Grand Total>>",
+
+    advancePercentage: 20,
+    paymentTerms: "<<Payment Terms>>",
+    unloadingResponsibility: "<<Responsibility>>",
+
+    // — Payment ————————————————————————————————————————————
+    accountName: "<<Account Name>>",
+    bankName: "<<Bank Name>>",
+    accountNumber: "<<Account Number>>",
+    ifsc: "<<IFSC>>",
+    upi: "<<UPI / GPay>>",
+
+    // — Contact ————————————————————————————————————————————
+    salesPersonName: "<<Sales Contact>>",
+    salesPersonPhone: "<<Phone>>",
+    whatsappNumber: "<<WhatsApp>>",
+    website: "<<Website>>",
+
+    // — Evidence ———————————————————————————————————————————
+    // EVIDENCE BEFORE PROMISE. Anything still in << >> prints as a visible
+    // placeholder, deliberately: an unverified number must never slip into a
+    // customer's hands looking like a fact.
+    verifiedLabResults: [
+      { label: "Compressive strength — 8\"", value: "9.52 N/mm²", method: "avg of 3 · IS 15658" },
+      { label: "Compressive strength — 6\"", value: "11.13 N/mm²", method: "avg of 3 · IS 15658" },
+      { label: "Water absorption", value: "3.00% avg", method: "1.88–4.37% · IS 3495 · limit 20%" },
+      { label: "Density", value: "2,169.76 kg/m³", method: "IS 12894:2002" },
+    ],
+    labFootnote: "Con-Tech Research Lab, Chennai (ISO 9001:2015), Jul 2024 and May 2025. Mud Interlock. Results vary by batch; full reports on request.",
+    verifiedTestimonial: {
+      quote: "<<Verified Customer Testimonial>>",
+      name: "<<Customer Name>>",
+      location: "<<Location>>",
+    },
+  };
+</script>
+
+<style>
+  /* ===================================================================
+     DESIGN
+     =================================================================== */
+  :root {
+    /* Palette sampled from the logo artwork — median of the most saturated
+       quarter of each hue family, so the document carries the mark's own
+       colours rather than an approximation. */
+    --ivory: #fbf7ef;
+    --paper: #fffdf8;
+    --peacock: #1e3d36;
+    --peacock-soft: #2f5449;
+    --terracotta: #a14c29;
+    --terracotta-deep: #7a3218;
+    --gold: #a77f4d;
+    --gold-soft: #d9c39a;
+    --charcoal: #262a26;
+    --muted: #6e6455;
+    --rule: #e7dcc9;
+
+    --serif: "Playfair Display", Georgia, "Times New Roman", serif;
+    --sans: Inter, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+
+    --margin: 18mm;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #6d6d6d;
+    font-family: var(--sans);
+    color: var(--charcoal);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    position: relative;
+    width: 210mm;
+    height: 297mm;
+    margin: 8mm auto;
+    padding: var(--margin);
+    background: var(--ivory);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    page-break-after: always;
+    break-after: page;
+  }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+
+  /* — Heritage accents. Watermark behaviour only: never foreground. — */
+  .wm { position: absolute; pointer-events: none; user-select: none; }
+  .wm-temple { top: 14mm; right: 8mm; width: 52mm; opacity: 0.10; }
+  .wm-temple-lg { top: 30mm; right: -6mm; width: 78mm; opacity: 0.07; }
+  .wm-skyline { bottom: 6mm; left: 0; width: 100%; opacity: 0.10; }
+  .wm-corner { top: 6mm; left: 6mm; width: 32mm; opacity: 0.55; }
+  .wm-feather { bottom: -10mm; left: -12mm; width: 46mm; opacity: 0.06; transform: rotate(12deg); }
+
+  .head-logo { width: 46mm; height: auto; }
+
+  /* — Logo lockup — */
+  .lockup { display: flex; align-items: center; gap: 3.5mm; }
+  .lockup img { width: 13mm; height: auto; }
+  .lockup .wordmark {
+    font-family: var(--serif); font-weight: 700; font-size: 14pt;
+    letter-spacing: 0.10em; color: var(--charcoal); line-height: 1.05;
+  }
+  .lockup .descriptor {
+    font-family: var(--sans); font-size: 5.6pt; letter-spacing: 0.26em;
+    color: var(--peacock); margin-top: 1.2mm;
+  }
+
+  /* — Running header on content pages — */
+  .runhead {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding-bottom: 3mm; border-bottom: 0.4pt solid var(--rule);
+  }
+  .runhead .meta { display: flex; gap: 7mm; text-align: right; }
+  .runhead .meta div { line-height: 1.5; }
+  .runhead .k { font-size: 5.8pt; letter-spacing: 0.16em; color: var(--muted); text-transform: uppercase; }
+  .runhead .v { font-size: 8.4pt; color: var(--charcoal); font-weight: 600; }
+
+  /* — Type — */
+  h1 { font-family: var(--serif); font-weight: 400; font-size: 29pt; line-height: 1.06; margin: 0; color: var(--peacock); }
+  h1 em { font-style: normal; color: var(--terracotta); }
+  h2 { font-family: var(--serif); font-weight: 400; font-size: 21pt; line-height: 1.12; margin: 0; color: var(--peacock); }
+  h2 em { font-style: normal; color: var(--terracotta); }
+  h3 { font-family: var(--serif); font-weight: 700; font-size: 10.5pt; margin: 0; color: var(--peacock); }
+  .lede { font-family: var(--serif); font-style: italic; font-size: 10pt; color: var(--muted); margin: 2.5mm 0 0; line-height: 1.45; }
+  p { font-size: 9.5pt; line-height: 1.62; margin: 0; color: var(--charcoal); }
+  .small { font-size: 7.6pt; line-height: 1.5; color: var(--muted); }
+  .eyebrow { font-size: 6.2pt; letter-spacing: 0.24em; text-transform: uppercase; color: var(--gold); font-weight: 600; }
+
+  .section-title {
+    font-family: var(--serif); font-size: 12pt; color: var(--peacock);
+    display: flex; align-items: center; gap: 4mm; margin: 0 0 2.5mm;
+  }
+  .section-title::after { content: ""; flex: 1; height: 0.4pt; background: var(--rule); }
+
+  /* — Mascot guidance. A slot, not a decoration: it stays empty and silent
+       until a real mascot asset is supplied. — */
+  .guide { display: flex; align-items: center; gap: 4mm; }
+  .guide .mascot {
+    width: 26mm; height: 30mm; flex: 0 0 26mm;
+    background: transparent;
+  }
+  .guide .mascot img { width: 100%; height: 100%; object-fit: contain; object-position: bottom; }
+  /* No asset for this pose: the slot collapses and the guidance line stands
+     on its own, rather than printing an empty box at a customer. */
+  .guide .mascot.empty { display: none; }
+  .guide .say {
+    font-family: var(--serif); font-style: italic; font-size: 9.6pt;
+    color: var(--peacock-soft); line-height: 1.5; max-width: 78mm;
+  }
+
+  /* — Cards — */
+  .card { background: var(--paper); border: 0.4pt solid var(--rule); border-radius: 2mm; padding: 3.2mm; }
+  .grid { display: grid; gap: 4mm; }
+  .g2 { grid-template-columns: repeat(2, 1fr); }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  .g6 { grid-template-columns: repeat(6, 1fr); }
+
+  .num { font-family: var(--serif); font-size: 8.5pt; color: var(--gold); letter-spacing: 0.1em; }
+
+  /* — Comparison table: the page-2 highlight — */
+  table { width: 100%; border-collapse: collapse; }
+  .cmp th {
+    font-family: var(--sans); font-size: 6.6pt; letter-spacing: 0.14em;
+    text-transform: uppercase; padding: 2.2mm 3mm; text-align: left; font-weight: 600;
+  }
+  .cmp thead th { color: var(--muted); border-bottom: 0.6pt solid var(--rule); }
+  .cmp thead th.mine { background: var(--peacock); color: #f3e9d2; border-bottom: none; }
+  .cmp td { font-size: 7.8pt; padding: 1.25mm 2.6mm; border-bottom: 0.4pt solid var(--rule); line-height: 1.4; }
+  .cmp td.cat { font-weight: 600; color: var(--charcoal); }
+  .cmp td.mine { background: rgba(30, 61, 54, 0.045); color: var(--peacock); font-weight: 600; }
+  .cmp tr.total td { border-bottom: none; padding-top: 3.6mm; font-size: 8.8pt; }
+  .cmp tr.total td.cat { font-family: var(--serif); font-size: 10pt; color: var(--peacock); }
+  .cmp tr.total td.mine { background: var(--peacock); color: #f3e9d2; }
+
+  /* — Commercial table — */
+  .bill th {
+    font-size: 6.6pt; letter-spacing: 0.14em; text-transform: uppercase;
+    color: #f3e9d2; background: var(--peacock); padding: 2.2mm 3mm; text-align: left; font-weight: 600;
+  }
+  .bill th.r, .bill td.r { text-align: right; }
+  .bill td { font-size: 8.2pt; padding: 0.95mm 3mm; border-bottom: 0.4pt solid var(--rule); }
+  .bill .desc { font-weight: 600; color: var(--charcoal); }
+  .bill .sub { font-size: 6.9pt; color: var(--muted); }
+  .bill tr.sum td { border-bottom: none; padding: 1mm 3mm; font-size: 8.8pt; color: var(--muted); }
+  .bill tr.grand td {
+    background: var(--terracotta); color: #fff; padding: 3.2mm 3mm; border: none;
+    font-family: var(--serif); font-size: 12.5pt;
+  }
+
+  /* — Conversion blocks — */
+  .advance {
+    background: var(--peacock); color: #f3e9d2; border-radius: 2mm; padding: 3.4mm 4mm;
+    display: flex; align-items: center; gap: 5mm;
+  }
+  .advance .big { font-family: var(--serif); font-size: 12.5pt; line-height: 1.15; color: #f3e9d2; }
+  .advance .why { font-size: 8.2pt; line-height: 1.55; color: #d9c9a7; }
+
+  .cta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; }
+  .cta .act { border: 0.5pt solid var(--gold-soft); border-radius: 2mm; padding: 2.2mm; background: var(--paper); }
+  .cta .act .t { font-family: var(--serif); font-size: 9.6pt; color: var(--peacock); line-height: 1.15; }
+  .cta .act .d { font-size: 6.9pt; color: var(--muted); margin-top: 1mm; line-height: 1.35; }
+  .cta .act .b {
+    margin-top: 2mm; font-size: 7.2pt; letter-spacing: 0.14em; text-transform: uppercase;
+    font-weight: 600; color: var(--terracotta);
+  }
+  .cta .act.primary { background: var(--peacock); border-color: var(--peacock); }
+  .cta .act.primary .t { color: #f3e9d2; }
+  .cta .act.primary .d { color: #cbbfa4; }
+  .cta .act.primary .b { color: var(--gold-soft); }
+
+  /* — Footer — */
+  .foot {
+    margin-top: auto; padding-top: 3mm; border-top: 0.4pt solid var(--rule);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 7pt; color: var(--muted); letter-spacing: 0.12em;
+  }
+  .pageno { font-family: var(--serif); font-size: 9pt; color: var(--gold); }
+
+  .strap {
+    display: flex; justify-content: center; gap: 6mm; align-items: center;
+    font-size: 7pt; letter-spacing: 0.22em; color: var(--muted); text-transform: uppercase;
+  }
+  .strap span.dot { color: var(--gold); }
+
+  .divider { display: block; margin: 0 auto; width: 34mm; opacity: 0.9; }
+
+  .ph { color: var(--terracotta); font-style: italic; }
+  .bill td.r .ph, .bill .desc .ph { font-style: italic; }
+
+  /* ===================================================================
+     PRINT
+     =================================================================== */
+  @page { size: A4 portrait; margin: 0; }
+  @media print {
+    html, body { background: #fff; }
+    .page { margin: 0; box-shadow: none; }
+    .card, .advance, .cta .act, table, .guide { break-inside: avoid; page-break-inside: avoid; }
+  }
+  @media screen {
+    .page { box-shadow: 0 2mm 8mm rgba(0,0,0,0.35); }
+  }
+</style>
+
+<!-- ===================================================================
+     CONTENT
+     =================================================================== -->
+
+<!-- ============================ COVER ============================ -->
+<section class="page cover">
+  <img class="wm wm-corner" src="{{ASSET:corner}}" alt="" />
+  <img class="wm wm-temple" src="{{ASSET:temple}}" alt="" />
+  <img class="wm wm-skyline" src="{{ASSET:skyline}}" alt="" />
+
+  <div style="margin-top:2mm; display:flex; justify-content:center;">
+    <img src="{{ASSET:lockup}}" alt="Maiyuri Bricks — Smart Interlock Bricks" style="width:54mm; height:auto;" />
+  </div>
+
+  <div style="text-align:center; margin-top:9mm;">
+    <h1 style="font-size:34pt;">Quotation &amp;<br />Material Proposal</h1>
+    <img class="divider" src="{{ASSET:divider-leaf}}" alt="" style="margin:5mm auto;" />
+    <div class="lede" style="margin:0;">A guided proposal for better homes</div>
+  </div>
+
+  <div style="margin-top:9mm; display:flex; justify-content:center;">
+    <img src="{{ASSET:house}}" alt="" style="width:124mm; height:auto;" />
+  </div>
+
+  <div style="margin-top:auto; display:flex; justify-content:space-between; align-items:flex-end; gap:8mm;">
+    <div style="display:grid; grid-template-columns:auto 1fr; gap:2.4mm 5mm; align-items:baseline;">
+      <div class="k eyebrow">Prepared for</div><div style="font-family:var(--serif); font-size:12pt; color:var(--peacock);" data-k="customerName"></div>
+      <div class="k eyebrow">Project</div><div style="font-size:9pt;" data-k="projectName"></div>
+      <div class="k eyebrow">Location</div><div style="font-size:9pt;" data-k="projectLocation"></div>
+      <div class="k eyebrow">Quotation No.</div><div style="font-size:9pt;" data-k="quotationNumber"></div>
+      <div class="k eyebrow">Date</div><div style="font-size:9pt;" data-k="quotationDate"></div>
+    </div>
+
+    <div class="guide" style="align-items:flex-end;">
+      <div class="say" style="max-width:52mm; text-align:right;">Welcome — I'll guide you through your Maiyuri proposal.</div>
+      <div class="mascot" data-mascot="welcome"></div>
+    </div>
+  </div>
+
+
+</section>
+
+<!-- ======================= PAGE 01 — RECOMMENDATION ======================= -->
+<section class="page">
+  <div class="runhead">
+    <img class="head-logo" src="{{ASSET:lockup-wide}}" alt="Maiyuri Bricks — Smart Interlock Bricks" />
+    <div class="meta">
+      <div><div class="k">Quotation No.</div><div class="v" data-k="quotationNumber"></div></div>
+      <div><div class="k">Date</div><div class="v" data-k="quotationDate"></div></div>
+      <div><div class="k">Project</div><div class="v" data-k="projectName"></div></div>
+      <div><div class="k">Location</div><div class="v" data-k="projectLocation"></div></div>
+    </div>
+  </div>
+
+  <div style="margin-top:7mm; display:flex; justify-content:space-between; align-items:flex-start; gap:8mm;">
+    <div style="max-width:112mm;">
+      <h1>Your Recommended<br /><em>Maiyuri Solution</em></h1>
+      <div class="lede">A clear starting point for your home.</div>
+    </div>
+    <div class="guide">
+      
+      <div class="say" style="max-width:44mm;">Based on your project, this is our recommended wall system.</div>
+    </div>
+  </div>
+
+  <div class="grid g4" style="margin-top:12mm;">
+    <div class="card">
+      <div class="num">01</div>
+      <h3 style="margin-top:2mm;">External Wall</h3>
+      <p style="margin-top:2.5mm; font-weight:600;" data-k="externalWallProduct"></p>
+      <p class="small" data-k="externalWallThickness"></p>
+      <p class="small" style="margin-top:2.5mm;" data-k="externalWallReason"></p>
+    </div>
+    <div class="card">
+      <div class="num">02</div>
+      <h3 style="margin-top:2mm;">Internal Wall</h3>
+      <p style="margin-top:2.5mm; font-weight:600;" data-k="internalWallProduct"></p>
+      <p class="small" data-k="internalWallThickness"></p>
+      <p class="small" style="margin-top:2.5mm;" data-k="internalWallReason"></p>
+    </div>
+    <div class="card">
+      <div class="num">03</div>
+      <h3 style="margin-top:2mm;">Delivery</h3>
+      <img src="{{ASSET:truck}}" alt="" style="width:100%; height:auto; margin-top:2mm;" />
+      <p style="margin-top:2mm; font-weight:600;" data-k="deliveryTimeline"></p>
+      <p class="small" style="margin-top:1.5mm;">From order confirmation, subject to quantity and site readiness.</p>
+    </div>
+    <div class="card">
+      <div class="num">04</div>
+      <h3 style="margin-top:2mm;">Project Location</h3>
+      <p style="margin-top:2.5mm; font-weight:600;" data-k="projectLocation"></p>
+      <p class="small" style="margin-top:2.5mm;">Estimated quantity <span data-k="estimatedQuantity"></span>.</p>
+    </div>
+  </div>
+
+  <div style="margin-top:12mm;">
+    <div class="section-title">Why this solution</div>
+    <div class="grid g4">
+      <div class="card">
+        <h3>Cooler &amp; more comfortable homes</h3>
+        <p class="small" style="margin-top:2.5mm;">Red soil holds and releases heat slowly. Actual comfort depends on roof, ventilation, shading, orientation and workmanship.</p>
+      </div>
+      <div class="card">
+        <h3>Strong &amp; precision-engineered</h3>
+        <p class="small" style="margin-top:2.5mm;">Hydraulic double compression, tested to 9.52 N/mm² (8") and 11.13 N/mm² (6") per IS 15658. Load-bearing to G+2, subject to your engineer.</p>
+      </div>
+      <div class="card">
+        <h3>Lower water absorption</h3>
+        <p class="small" style="margin-top:2.5mm;">Tested at 3.00% average against a 20% permitted limit. The report is on the evidence page.</p>
+      </div>
+      <div class="card">
+        <h3>Factory-direct guidance</h3>
+        <p class="small" style="margin-top:2.5mm;">You deal with the people who make the block — from planning through to the last course laid.</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:11mm;">
+    <div class="section-title">What you can expect from Maiyuri</div>
+    <div class="grid g4">
+      <div><div class="eyebrow">Site guidance</div><p class="small" style="margin-top:1.5mm;">Someone senior visits your plot, measures, and recommends the right SKU mix. No charge.</p></div>
+      <div><div class="eyebrow">On-site mason training</div><p class="small" style="margin-top:1.5mm;">Interlocking is a different skill. We send a trained mason to teach yours on day one.</p></div>
+      <div><div class="eyebrow">Technical support to handover</div><p class="small" style="margin-top:1.5mm;">A WhatsApp line to our engineer. Photo a problem, get a same-day answer.</p></div>
+      <div><div class="eyebrow">Brick-laying, if you want it</div><p class="small" style="margin-top:1.5mm;">We can arrange laying support at additional cost — quoted separately, never assumed.</p></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div>MAIYURI BRICKS &nbsp;&bull;&nbsp; SMART INTERLOCK BRICKS</div>
+    <div class="pageno">01</div>
+  </div>
+</section>
+
+<!-- ======================= PAGE 02 — PROOF ======================= -->
+<section class="page">
+  <img class="wm wm-temple-lg" src="{{ASSET:temple}}" alt="" />
+
+  <div class="runhead">
+    <img class="head-logo" src="{{ASSET:lockup-wide}}" alt="Maiyuri Bricks — Smart Interlock Bricks" />
+    <div class="meta">
+      <div><div class="k">Quotation No.</div><div class="v" data-k="quotationNumber"></div></div>
+      <div><div class="k">Prepared for</div><div class="v" data-k="customerName"></div></div>
+    </div>
+  </div>
+
+  <div style="margin-top:7mm; display:flex; justify-content:space-between; align-items:flex-start; gap:8mm;">
+    <div style="max-width:110mm;">
+      <h1>Proof first.<br /><em>Promise lasts.</em></h1>
+      <div class="lede">Evidence before promise — because your wall should perform for generations.</div>
+    </div>
+    <div class="guide">
+      <div class="mascot" data-mascot="brick"></div>
+      <div class="say" style="max-width:44mm;">Don't compare only brick price. Compare the full wall system.</div>
+    </div>
+  </div>
+
+  <div class="grid g3" style="margin-top:4mm;">
+    <div>
+      <div class="eyebrow">01 — Product trust</div>
+      <h3 style="margin-top:1.5mm;">Lab-tested performance</h3>
+      <p class="small" style="margin-top:1.5mm;">Figures printed below, not summarised.</p>
+    </div>
+    <div>
+      <div class="eyebrow">02 — Manufacturing</div>
+      <h3 style="margin-top:1.5mm;">Hydraulic double compression</h3>
+      <p class="small" style="margin-top:1.5mm;">Pressed twice for consistent density. Red soil, gravel, stone dust, ~10% cement binder — no fly ash, no kiln firing.</p>
+    </div>
+    <div>
+      <div class="eyebrow">03 — Company trust</div>
+      <h3 style="margin-top:1.5mm;">Factory visit &amp; open process</h3>
+      <p class="small" style="margin-top:1.5mm;">Come and see how your bricks are made.</p>
+    </div>
+  </div>
+
+  <div style="margin-top:4mm;">
+    <div class="section-title">Compare the wall, not just the brick</div>
+    <table class="cmp">
+      <thead>
+        <tr>
+          <th style="width:26%;">Category</th>
+          <th class="mine" style="width:24%;">Maiyuri wall system</th>
+          <th style="width:22%;">Conventional wall system</th>
+          <th style="width:28%;">Why it matters</th>
+        </tr>
+      </thead>
+      <tbody id="cmp-body"></tbody>
+    </table>
+  </div>
+
+  <div class="grid g3" style="margin-top:3mm;">
+    <div class="card">
+      <div class="eyebrow">Laboratory snapshot</div>
+      <table style="margin-top:2.5mm;" id="lab-table"></table>
+      <p class="small" style="margin-top:2.5mm; font-size:6.8pt;" data-k="labFootnote"></p>
+    </div>
+    <div class="card">
+      <div class="eyebrow">Before you compare quotations</div>
+      <ul style="margin:2.5mm 0 0; padding-left:4mm;" class="small" id="ask-list"></ul>
+    </div>
+    <div class="card">
+      <div class="eyebrow">Client voice</div>
+      <p style="margin-top:2.5mm; font-family:var(--serif); font-style:italic; font-size:9.4pt; color:var(--peacock-soft); line-height:1.55;"
+         id="testimonial-quote"></p>
+      <p class="small" style="margin-top:3mm;">— <span id="testimonial-name"></span><br /><span id="testimonial-loc"></span></p>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div>A better wall is more than a cheaper brick.</div>
+    <div class="pageno">02</div>
+  </div>
+</section>
+
+<!-- ==================== PAGE 03 — COMMERCIAL ==================== -->
+<section class="page">
+  <img class="wm wm-feather" src="{{ASSET:feather}}" alt="" />
+
+  <div class="runhead">
+    <img class="head-logo" src="{{ASSET:lockup-wide}}" alt="Maiyuri Bricks — Smart Interlock Bricks" />
+    <div class="meta">
+      <div><div class="k">Quotation No.</div><div class="v" data-k="quotationNumber"></div></div>
+      <div><div class="k">Valid until</div><div class="v" data-k="validUntil"></div></div>
+    </div>
+  </div>
+
+  <div style="margin-top:4mm;">
+    <h2>Commercial <em>Proposal</em></h2>
+    <div class="lede" style="font-size:10pt;">Your recommended Maiyuri solution</div>
+  </div>
+
+  <div class="grid g4" style="margin-top:3mm;">
+    <div><div class="eyebrow">External wall</div><p class="small" style="margin-top:1.5mm;" data-k="externalWallProduct"></p></div>
+    <div><div class="eyebrow">Internal wall</div><p class="small" style="margin-top:1.5mm;" data-k="internalWallProduct"></p></div>
+    <div><div class="eyebrow">Estimated quantity</div><p class="small" style="margin-top:1.5mm;" data-k="estimatedQuantity"></p></div>
+    <div><div class="eyebrow">Dispatch timeline</div><p class="small" style="margin-top:1.5mm;" data-k="deliveryTimeline"></p></div>
+  </div>
+
+  <table class="bill" style="margin-top:3mm;">
+    <thead>
+      <tr>
+        <th style="width:46%;">Description</th>
+        <th class="r" style="width:16%;">Qty</th>
+        <th class="r" style="width:18%;">Rate</th>
+        <th class="r" style="width:20%;">Amount</th>
+      </tr>
+    </thead>
+    <tbody id="bill-body"></tbody>
+    <tfoot id="bill-foot"></tfoot>
+  </table>
+  <p class="small" style="margin-top:2.5mm;" id="tax-note"></p>
+  <p class="small" style="margin-top:1mm;">Brick-laying labour is not included in the above and is quoted separately if required.</p>
+
+  <div class="grid g2" style="margin-top:2mm; gap:6mm;">
+    <div>
+      <div class="section-title">Commercial terms</div>
+      <div style="display:grid; grid-template-columns:auto 1fr; gap:1.2mm 5mm; font-size:7.4pt;">
+        <div class="small">Quotation validity</div><div data-k="validUntil"></div>
+        <div class="small">Payment terms</div><div data-k="paymentTerms"></div>
+        <div class="small">Advance to confirm order</div><div><span data-k="advancePercentage"></span>%</div>
+        <div class="small">Production slot</div><div>Confirmed on receipt of advance</div>
+        <div class="small">Unloading</div><div data-k="unloadingResponsibility"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="eyebrow">Bank details for advance payment</div>
+        <div style="display:grid; grid-template-columns:auto 1fr; gap:1.4mm 4mm; font-size:7.6pt; margin-top:2mm;">
+          <div class="small">Account name</div><div data-k="accountName"></div>
+          <div class="small">IFSC</div><div data-k="ifsc"></div>
+          <div class="small">Account no.</div><div data-k="accountNumber"></div>
+          <div class="small">UPI / GPay</div><div data-k="upi"></div>
+          <div class="small">Bank</div><div data-k="bankName"></div>
+          <div class="small">QR</div><div class="ph">&lt;&lt;Payment QR&gt;&gt;</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:2mm;">
+    <div class="cta">
+      <div class="act primary">
+        <div class="t">Confirm this quotation</div>
+        <div class="d">Approve and lock your order today.</div>
+        <div class="b">Confirm now</div>
+      </div>
+      <div class="act">
+        <div class="t">Send your floor plan</div>
+        <div class="d">We'll help plan your wall requirement.</div>
+        <div class="b">Send floor plan</div>
+      </div>
+      <div class="act">
+        <div class="t">Book a factory visit</div>
+        <div class="d">See the process and judge for yourself.</div>
+        <div class="b">Book visit</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:2mm; text-align:center;">
+    <img src="{{ASSET:advance-banner}}" alt="Pay 20% advance to book your production slot" style="width:80mm; height:auto;" />
+  </div>
+
+  <div style="margin-top:2mm; text-align:center;">
+    <div style="font-family:var(--serif); font-size:10.5pt; color:var(--peacock); line-height:1.28;">
+      Maiyuri Bricks is not just a supplier.<br />
+      <em style="font-style:normal; color:var(--terracotta);">It is your local interlock construction partner.</em>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    <div><span data-k="salesPersonName"></span> &nbsp;&bull;&nbsp; <span data-k="salesPersonPhone"></span> &nbsp;&bull;&nbsp; <span data-k="website"></span></div>
+    <div class="pageno">03</div>
+  </div>
+</section>
+
+<script>
+  /* ===================================================================
+     BIND — data into content. Nothing here knows a customer's name.
+     =================================================================== */
+  const isPlaceholder = (v) => typeof v === "string" && /^<<.*>>$/.test(v.trim());
+  /* Placeholders carry << >>. Interpolated raw into innerHTML the browser
+     reads them as tags and drops them, so everything is escaped. */
+  const esc = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const put = (el, v) => {
+    el.textContent = v ?? "";
+    if (isPlaceholder(v)) el.classList.add("ph");
+  };
+
+  document.querySelectorAll("[data-k]").forEach((el) => put(el, CONFIG[el.dataset.k]));
+
+  /* Comparison rows. Language stays conditional wherever a project-specific
+     calculation has not been supplied — "lower usage", never "saves 18%". */
+  const COMPARE = [
+    ["Brick cost", "Premium pressed block", "Lower upfront block", "Value per wall, not per piece"],
+    ["Mortar", "Lower usage potential", "Higher usage", "Thin joints need less mortar"],
+    ["Cement &amp; sand", "Lower usage potential", "Higher usage", "Less material, same wall"],
+    ["Labour", "Lower requirement", "Higher requirement", "Interlocking speeds up laying"],
+    ["Plastering / finishing", "Thinner finish possible", "Thicker plaster", "Smoother face, fewer coats"],
+    ["Construction time", "Faster completion", "Longer duration", "Site freed up sooner"],
+    ["Wastage", "Lower wastage", "Higher wastage", "Consistent sizing, fewer breakages"],
+    ["Long-term performance", "Strong and durable", "Varies with batch", "The wall outlives the invoice"],
+  ];
+  document.getElementById("cmp-body").innerHTML =
+    COMPARE.map(([c, m, o, w]) =>
+      `<tr><td class="cat">${c}</td><td class="mine">${m}</td><td>${o}</td><td class="small" style="padding-left:3mm;">${w}</td></tr>`
+    ).join("") +
+    `<tr class="total"><td class="cat">Total wall value</td>` +
+    `<td class="mine">Higher value.<br />Better returns.</td>` +
+    `<td style="font-weight:600;">Lower value.<br />Hidden costs.</td>` +
+    `<td class="small" style="padding-left:3mm;">Compare the finished wall.</td></tr>`;
+
+  /* Lab results — verified values only; placeholders stay visible. */
+  document.getElementById("lab-table").innerHTML = CONFIG.verifiedLabResults
+    .map((r) => {
+      const ph = isPlaceholder(r.value) ? ' class="ph"' : "";
+      const method = r.method && !isPlaceholder(r.method) ? `<div class="small" style="font-size:6.6pt;">${r.method}</div>` : "";
+      return `<tr><td style="font-size:7.6pt; padding:1.6mm 0; color:var(--muted); width:52%;">${esc(r.label)}</td>` +
+             `<td style="font-size:8.4pt; padding:1.6mm 0; font-weight:600; text-align:right;"><span${ph}>${esc(r.value)}</span>${method}</td></tr>`;
+    }).join("");
+
+  document.getElementById("ask-list").innerHTML = [
+    "Are the block dimensions the same?",
+    "How many blocks for the same wall area?",
+    "Are mortar, cement and sand counted?",
+    "Are loading and transport included?",
+    "What is the expected build time?",
+    "Who helps if there is a site issue?",
+  ].map((q) => `<li style="margin-bottom:1.4mm;">${q}</li>`).join("");
+
+  const t = CONFIG.verifiedTestimonial;
+  const tq = document.getElementById("testimonial-quote");
+  tq.textContent = isPlaceholder(t.quote) ? t.quote : `"${t.quote}"`;
+  if (isPlaceholder(t.quote)) tq.classList.add("ph");
+  put(document.getElementById("testimonial-name"), t.name);
+  put(document.getElementById("testimonial-loc"), t.location);
+
+  /* Commercial table */
+  const cur = CONFIG.currency;
+  document.getElementById("bill-body").innerHTML = CONFIG.pricingItems
+    .map((it, i) => `<tr>
+        <td><span class="desc">${esc(it.description)}</span>${it.detail ? `<div class="sub">${esc(it.detail)}</div>` : ""}</td>
+        <td class="r">${esc(it.qty)}</td>
+        <td class="r">${isPlaceholder(it.rate) ? esc(it.rate) : cur + " " + esc(it.rate)}</td>
+        <td class="r">${isPlaceholder(it.amount) ? esc(it.amount) : cur + " " + esc(it.amount)}</td>
+      </tr>`).join("");
+
+  const rows = [`<tr class="sum"><td colspan="3" class="r">Subtotal</td><td class="r">${esc(CONFIG.subtotal)}</td></tr>`];
+  if (CONFIG.showGst) {
+    rows.push(`<tr class="sum"><td colspan="3" class="r">GST @ ${esc(CONFIG.gstRate)}</td><td class="r">${esc(CONFIG.gstAmount)}</td></tr>`);
+  }
+  rows.push(`<tr class="grand"><td colspan="3">Total project investment</td><td class="r">${esc(CONFIG.grandTotal)}</td></tr>`);
+  document.getElementById("bill-foot").innerHTML = rows.join("");
+
+  const note = document.getElementById("tax-note");
+  note.textContent = CONFIG.showGst ? "" : CONFIG.taxNote ?? "";
+
+  /* Mascot slots fill only when a real asset is supplied. */
+  /* Supplied poses. A pose with no asset simply does not appear. */
+  const MASCOTS = Object.assign({
+    welcome: "{{ASSET:mascot-welcome}}",
+    brick: "{{ASSET:mascot-brick}}",
+  }, window.MASCOTS || {});
+  document.querySelectorAll("[data-mascot]").forEach((el) => {
+    const src = MASCOTS[el.dataset.mascot];
+    if (!src) return;
+    el.classList.remove("empty");
+    el.innerHTML = `<img src="${src}" alt="" />`;
+  });
+</script>

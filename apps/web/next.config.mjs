@@ -47,6 +47,17 @@ const nextConfig = {
     experimental: {
         // Loads instrumentation.ts (server-side Sentry init) on boot.
         instrumentationHook: true,
+        // The quotation PDF reads its .ttf files from disk at render time.
+        // Nothing imports them, so tracing cannot infer them — without this
+        // they are absent from the deployed function and the route throws.
+        outputFileTracingIncludes: {
+            "/api/sq/[slug]/pdf": [
+                "./src/lib/pdf/fonts/**",
+                "./src/lib/pdf/art/**",
+                // The HTML proposal template, read at render time.
+                "./src/lib/quotation-html/template.html",
+            ],
+        },
     },
 };
 
