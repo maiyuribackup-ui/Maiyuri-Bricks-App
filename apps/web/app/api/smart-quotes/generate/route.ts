@@ -180,10 +180,19 @@ export async function POST(request: NextRequest) {
     // rep can personalize it and the shared numbers stay frozen.
     const { data: factory } = await supabaseAdmin
       .from("factory_settings")
-      .select("wall_cost_config")
+      .select("wall_cost_config, quote_validity_days")
       .limit(1)
       .single();
     const wallCostSnapshot = factory?.wall_cost_config ?? null;
+
+    // A quotation is an offer, and an offer has to end. Without this the PDF
+    // prints no validity date and isExpired() reads NULL as "never expires",
+    // so today's rate stays presentable as current forever. The business sets
+    // the window in Settings; 15 days matches the column default.
+    const validityDays = factory?.quote_validity_days ?? 15;
+    const validUntilDate = new Date();
+    validUntilDate.setDate(validUntilDate.getDate() + validityDays);
+    const validUntil = validUntilDate.toISOString().slice(0, 10);
 
     // Insert smart quote
     const { data: smartQuote, error: insertError } = await supabaseAdmin
@@ -204,6 +213,7 @@ export async function POST(request: NextRequest) {
         copy_map: aiResult.copyMap,
         pricing_config: pricingConfig,
         wall_cost_config: wallCostSnapshot,
+        valid_until: validUntil,
       })
       .select()
       .single();
