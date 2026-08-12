@@ -273,18 +273,31 @@
 
   /* — Commercial table — */
   .bill th {
-    font-size: 6.6pt; letter-spacing: 0.14em; text-transform: uppercase;
-    color: #f3e9d2; background: var(--peacock); padding: 2.2mm 3mm; text-align: left; font-weight: 600;
+    font-size: 6.8pt; letter-spacing: 0.14em; text-transform: uppercase;
+    color: #f3e9d2; background: var(--peacock); padding: 2.6mm 3.5mm; text-align: left; font-weight: 600;
   }
   .bill th.r, .bill td.r { text-align: right; }
-  .bill td { font-size: 8.2pt; padding: 0.95mm 3mm; border-bottom: 0.4pt solid var(--rule); }
-  .bill .desc { font-weight: 600; color: var(--charcoal); }
-  .bill .sub { font-size: 6.9pt; color: var(--muted); }
-  .bill tr.sum td { border-bottom: none; padding: 1mm 3mm; font-size: 8.8pt; color: var(--muted); }
-  .bill tr.grand td {
-    background: var(--terracotta); color: #fff; padding: 3.2mm 3mm; border: none;
-    font-family: var(--serif); font-size: 12.5pt;
+  .bill td { font-size: 8.6pt; padding: 1.9mm 3.5mm; border-bottom: 0.4pt solid var(--rule); }
+  .bill .desc { font-weight: 600; color: var(--charcoal); font-size: 9pt; }
+  .bill .sub { font-size: 7pt; color: var(--muted); }
+  /* Money is the reason this page exists: set it larger, in the serif, and
+     tabular so the columns align on the decimal rather than drifting. */
+  .bill td.r {
+    font-family: var(--serif); font-size: 10pt; font-weight: 600;
+    color: var(--charcoal); font-variant-numeric: tabular-nums;
   }
+  .bill td.qty {
+    font-family: inherit; font-size: 8.6pt; font-weight: 400; color: var(--muted);
+  }
+  .bill tr.sum td {
+    border-bottom: none; padding: 1.8mm 3.5mm; font-size: 9pt; color: var(--muted);
+  }
+  .bill tr.sum td.r { font-size: 10.5pt; color: var(--charcoal); }
+  .bill tr.grand td {
+    background: var(--terracotta); color: #fff; padding: 4.2mm 3.5mm; border: none;
+    font-family: var(--serif); font-size: 13pt; letter-spacing: 0.01em;
+  }
+  .bill tr.grand td.r { color: #fff; font-size: 19pt; font-weight: 700; }
 
   /* — Conversion blocks — */
   .advance {
@@ -295,9 +308,9 @@
   .advance .why { font-size: 8.2pt; line-height: 1.55; color: #d9c9a7; }
 
   .cta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; }
-  .cta .act { border: 0.5pt solid var(--gold-soft); border-radius: 2mm; padding: 2.2mm; background: var(--paper); }
+  .cta .act { border: 0.5pt solid var(--gold-soft); border-radius: 2mm; padding: 1.8mm; background: var(--paper); }
   .cta .act .t { font-family: var(--serif); font-size: 9.6pt; color: var(--peacock); line-height: 1.15; }
-  .cta .act .d { font-size: 6.9pt; color: var(--muted); margin-top: 1mm; line-height: 1.35; }
+  .cta .act .d { font-size: 6.5pt; color: var(--muted); margin-top: 0.8mm; line-height: 1.3; }
   .cta .act .b {
     margin-top: 2mm; font-size: 7.2pt; letter-spacing: 0.14em; text-transform: uppercase;
     font-weight: 600; color: var(--terracotta);
@@ -717,14 +730,14 @@
     <div class="lede" style="font-size:10pt;">Your recommended Maiyuri solution</div>
   </div>
 
-  <div class="grid g4" style="margin-top:3mm;">
+  <div class="grid g4" style="margin-top:4mm;">
     <div><div class="eyebrow">External wall</div><p class="small" style="margin-top:1.5mm;" data-k="externalWallProduct"></p></div>
     <div><div class="eyebrow">Internal wall</div><p class="small" style="margin-top:1.5mm;" data-k="internalWallProduct"></p></div>
     <div><div class="eyebrow">Estimated quantity</div><p class="small" style="margin-top:1.5mm;" data-k="estimatedQuantity"></p></div>
     <div><div class="eyebrow">Dispatch timeline</div><p class="small" style="margin-top:1.5mm;" data-k="deliveryTimeline"></p></div>
   </div>
 
-  <table class="bill" style="margin-top:3mm;">
+  <table class="bill" style="margin-top:4mm;">
     <thead>
       <tr>
         <th style="width:46%;">Description</th>
@@ -739,10 +752,10 @@
   <p class="small" style="margin-top:2.5mm;" id="tax-note"></p>
   <p class="small" style="margin-top:1mm;">Brick-laying labour is not included in the above and is quoted separately if required.</p>
 
-  <div class="grid g2" style="margin-top:2mm; gap:6mm;">
+  <div class="grid g2" style="margin-top:4mm; gap:7mm;">
     <div>
       <div class="section-title">Commercial terms</div>
-      <div style="display:grid; grid-template-columns:auto 1fr; gap:1.2mm 5mm; font-size:7.4pt;">
+      <div style="display:grid; grid-template-columns:auto 1fr; gap:1mm 5mm; font-size:7.1pt;">
         <div class="small">Quotation validity</div><div data-k="validUntil"></div>
         <div class="small">Payment terms</div><div data-k="paymentTerms"></div>
         <div class="small">Advance to confirm order</div><div><span data-k="advancePercentage"></span>%</div>
@@ -764,7 +777,7 @@
     </div>
   </div>
 
-  <div style="margin-top:2mm;">
+  <div style="margin-top:4mm;">
     <div class="cta">
       <div class="act primary">
         <div class="t">Confirm this quotation</div>
@@ -784,8 +797,8 @@
     </div>
   </div>
 
-  <div style="margin-top:2mm; text-align:center;">
-    <img src="{{ASSET:advance-banner}}" alt="Pay 20% advance to book your production slot" style="width:80mm; height:auto;" />
+  <div style="margin-top:1.5mm; text-align:center;">
+    <img src="{{ASSET:advance-banner}}" alt="Pay 20% advance to book your production slot" style="width:46mm; height:auto;" />
   </div>
 
   <div style="margin-top:2mm; text-align:center;">
@@ -830,7 +843,7 @@
   document.getElementById("bill-body").innerHTML = CONFIG.pricingItems
     .map((it, i) => `<tr>
         <td><span class="desc">${esc(it.description)}</span>${it.detail ? `<div class="sub">${esc(it.detail)}</div>` : ""}</td>
-        <td class="r">${esc(it.qty)}</td>
+        <td class="r qty">${esc(it.qty)}</td>
         <td class="r">${isPlaceholder(it.rate) ? esc(it.rate) : cur + " " + esc(it.rate)}</td>
         <td class="r">${isPlaceholder(it.amount) ? esc(it.amount) : cur + " " + esc(it.amount)}</td>
       </tr>`).join("");
