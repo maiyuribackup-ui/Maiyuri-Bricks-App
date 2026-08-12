@@ -315,6 +315,15 @@
   }
   .pageno { font-family: var(--serif); font-size: 9pt; color: var(--gold); }
 
+  /* Report links stay ink-coloured with a gold underline — a link, but a
+     considered one, not browser blue. */
+  .report-link {
+    font-size: 8.6pt; font-weight: 600; color: var(--ink);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-underline-offset: 2px;
+  }
+
   /* A quotation number or date must never break across lines — "MB-2026-"
      over "0026" reads as a typo on a commercial document. */
   .meta .v.nw { white-space: nowrap; }
@@ -613,17 +622,37 @@
 
   <div style="margin-top:4mm;">
     <div class="section-title">Compare the wall, not just the brick</div>
-    <table class="cmp">
+    <p class="small" style="margin-top:1.5mm;">
+      An honest, like-for-like look at how red-soil interlock stands against the
+      walling materials Chennai builds with today. No exaggeration.
+    </p>
+    <table class="cmp" style="margin-top:2.5mm;">
       <thead>
         <tr>
-          <th style="width:26%;">Category</th>
-          <th class="mine" style="width:24%;">Maiyuri wall system</th>
-          <th style="width:22%;">Conventional wall system</th>
-          <th style="width:28%;">Why it matters</th>
+          <th style="width:21%;">Feature</th>
+          <th class="mine" style="width:25%;">&#9733; Maiyuri Interlock</th>
+          <th style="width:18%;">Red Brick</th>
+          <th style="width:18%;">Concrete Block</th>
+          <th style="width:18%;">AAC Block</th>
         </tr>
       </thead>
-      <tbody id="cmp-body"></tbody>
+      <tbody>
+        <tr><td class="cat">Thermal comfort</td><td class="mine">Excellent &middot; high thermal mass</td><td>Good</td><td>Poor &mdash; retains heat</td><td>Good</td></tr>
+        <tr><td class="cat">Breathability</td><td class="mine">High &middot; vapour-permeable</td><td>Medium</td><td>Low</td><td>Medium</td></tr>
+        <tr><td class="cat">Compressive strength</td><td class="mine">9.5&ndash;11+ N/mm&sup2;</td><td>3&ndash;5 N/mm&sup2;</td><td>5&ndash;7 N/mm&sup2;</td><td>3&ndash;4 N/mm&sup2;</td></tr>
+        <tr><td class="cat">Mortar required</td><td class="mine">Minimal &middot; reduced dependency</td><td>Full mortar bed</td><td>Full mortar bed</td><td>Thin-bed adhesive</td></tr>
+        <tr><td class="cat">Plastering</td><td class="mine">Optional</td><td>Required</td><td>Required</td><td>Required</td></tr>
+        <tr><td class="cat">Construction speed</td><td class="mine">Fast &middot; interlock system</td><td>Slow</td><td>Medium</td><td>Fast</td></tr>
+        <tr><td class="cat">Manufacturing</td><td class="mine">No kiln firing &middot; low-carbon</td><td>Kiln-fired, high CO&sup2;</td><td>Cement-heavy</td><td>Factory process</td></tr>
+        <tr><td class="cat">Rain resistance</td><td class="mine">&#10003; Stabilised</td><td>&#10003; Fired</td><td>&#10003;</td><td>&#9888; Absorbs water</td></tr>
+        <tr><td class="cat">Load-bearing (G+2)</td><td class="mine">&#10003; With engineer approval</td><td>&#10003;</td><td>&#10003;</td><td>&#10007; Needs frame</td></tr>
+      </tbody>
     </table>
+    <p class="small" style="margin-top:2mm; font-size:6.8pt; font-style:italic;">
+      Indicative comparison for typical Chennai walling. Actual performance depends
+      on product grade, design, finish, workmanship and site execution. Strength
+      tested per IS-3495.
+    </p>
   </div>
 
   <div class="grid g3" style="margin-top:4mm; gap:6mm;">
@@ -647,17 +676,18 @@
 
   <div class="card" style="margin-top:4mm;">
     <div class="eyebrow">Reports. Stamped. Open to read.</div>
+    <p class="small" style="margin-top:1mm; font-size:6.9pt;">Tap a report to open the original PDF.</p>
     <div class="grid g3" style="margin-top:2.5mm; gap:5mm;">
       <div>
-        <div style="font-size:8.6pt; font-weight:600; color:var(--ink);">Density &amp; water absorption</div>
+        <a class="report-link" href="https://maiyuri.com/wp-content/uploads/2026/05/MB-Water-Absorption-Density.pdf">Density &amp; water absorption &#8599;</a>
         <p class="small" style="margin-top:1mm;">3.00% avg absorption &middot; 2,169.76 kg/m&sup3; &middot; IS 3495 / IS 12894</p>
       </div>
       <div>
-        <div style="font-size:8.6pt; font-weight:600; color:var(--ink);">Compressive strength &middot; 6&#8243;</div>
+        <a class="report-link" href="https://maiyuri.com/wp-content/uploads/2026/05/MIB-6-Strength.pdf">Compressive strength &middot; 6&#8243; &#8599;</a>
         <p class="small" style="margin-top:1mm;">11.13 N/mm&sup2; avg of 3 &middot; IS 15658</p>
       </div>
       <div>
-        <div style="font-size:8.6pt; font-weight:600; color:var(--ink);">Compressive strength &middot; 8&#8243;</div>
+        <a class="report-link" href="https://maiyuri.com/wp-content/uploads/2026/05/MIB-8-Strength.pdf">Compressive strength &middot; 8&#8243; &#8599;</a>
         <p class="small" style="margin-top:1mm;">9.52 N/mm&sup2; avg of 3 &middot; IS 15658</p>
       </div>
     </div>
@@ -787,26 +817,7 @@
 
   document.querySelectorAll("[data-k]").forEach((el) => put(el, CONFIG[el.dataset.k]));
 
-  /* Comparison rows. Language stays conditional wherever a project-specific
-     calculation has not been supplied — "lower usage", never "saves 18%". */
-  const COMPARE = [
-    ["Brick cost", "Premium pressed block", "Lower upfront block", "Value per wall, not per piece"],
-    ["Mortar", "Lower usage potential", "Higher usage", "Thin joints need less mortar"],
-    ["Cement &amp; sand", "Lower usage potential", "Higher usage", "Less material, same wall"],
-    ["Labour", "Lower requirement", "Higher requirement", "Interlocking speeds up laying"],
-    ["Plastering / finishing", "Thinner finish possible", "Thicker plaster", "Smoother face, fewer coats"],
-    ["Construction time", "Faster completion", "Longer duration", "Site freed up sooner"],
-    ["Wastage", "Lower wastage", "Higher wastage", "Consistent sizing, fewer breakages"],
-    ["Long-term performance", "Strong and durable", "Varies with batch", "The wall outlives the invoice"],
-  ];
-  document.getElementById("cmp-body").innerHTML =
-    COMPARE.map(([c, m, o, w]) =>
-      `<tr><td class="cat">${c}</td><td class="mine">${m}</td><td>${o}</td><td class="small" style="padding-left:3mm;">${w}</td></tr>`
-    ).join("") +
-    `<tr class="total"><td class="cat">Total wall value</td>` +
-    `<td class="mine">Higher value.<br />Better returns.</td>` +
-    `<td style="font-weight:600;">Lower value.<br />Hidden costs.</td>` +
-    `<td class="small" style="padding-left:3mm;">Compare the finished wall.</td></tr>`;
+
 
 
   if (CONFIG.projectName === CONFIG.customerName) {
