@@ -14,7 +14,13 @@ import {
 import { useLead } from '@/hooks/use-leads';
 import { useAddNote, useLeadNotes } from '@/hooks/use-notes';
 import { usePromiseDate, useProductParams } from '@/hooks/use-ops-planning';
-import { quoteUrl, useGenerateSmartQuote } from '@/hooks/use-smart-quote';
+import {
+  getQuoteReadiness,
+  quotePdfUrl,
+  quoteUrl,
+  useGenerateSmartQuote,
+  useSmartQuote,
+} from '@/hooks/use-smart-quote';
 import { QuickActionsModal } from '@/components/LeadQuickActions';
 import { toast } from '@/lib/toast';
 
@@ -40,25 +46,50 @@ function SmartQuoteSection({
   contact: string;
 }) {
   const generate = useGenerateSmartQuote();
-  const slug = generate.data?.data?.link_slug;
+  const existing = useSmartQuote(leadId);
+  // Freshly generated wins; otherwise whatever the lead already has.
+  const quote = generate.data?.data ?? existing.data ?? null;
+  const slug = quote?.link_slug;
   const url = slug ? quoteUrl(slug) : null;
   const phone = contact.replace(/[^0-9]/g, '');
+
+  // Same gate as the web staff UI: nothing reaches the customer until an
+  // engineer has set the rate. Preview stays open — staff may look, the
+  // customer may not.
+  const readiness = getQuoteReadiness(quote?.pricing_config);
 
   return (
     <View className="mx-5 mt-4 rounded-xl border border-slate-200 bg-white p-4">
       <Text className="text-base font-bold text-ink">🧾 Smart Quote</Text>
       <Text className="mt-0.5 text-xs text-slate-400">
         AI builds a personalised quote page for this customer — share the link
-        on WhatsApp.
+        or the PDF on WhatsApp.
       </Text>
+
+      {existing.isLoading && !url ? (
+        <View className="mt-3 flex-row items-center gap-2">
+          <ActivityIndicator size="small" color="#94a3b8" />
+          <Text className="text-xs text-slate-400">Checking for an existing quote…</Text>
+        </View>
+      ) : null}
 
       {url ? (
         <>
           <Text className="mt-2 text-xs text-sky-600" numberOfLines={1}>
             {url}
           </Text>
+          {!readiness.ready ? (
+            <View className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+              <Text className="text-xs font-semibold text-amber-700">Not ready to send</Text>
+              <Text className="mt-0.5 text-xs text-amber-700">{readiness.reason}</Text>
+              <Text className="mt-1 text-[10px] text-amber-600">
+                Set the rate from the web app’s lead page, then share from here.
+              </Text>
+            </View>
+          ) : null}
           <View className="mt-2 flex-row gap-2">
             <Pressable
+              disabled={!readiness.ready}
               onPress={() =>
                 Linking.openURL(
                   `https://wa.me/${phone}?text=${encodeURIComponent(
@@ -66,9 +97,34 @@ function SmartQuoteSection({
                   )}`,
                 )
               }
-              className="flex-1 items-center rounded-lg bg-green-500 py-2.5 active:opacity-80"
+              className={`flex-1 items-center rounded-lg py-2.5 ${
+                readiness.ready ? 'bg-green-500 active:opacity-80' : 'bg-slate-200'
+              }`}
             >
-              <Text className="text-sm font-semibold text-white">📲 Send on WhatsApp</Text>
+              <Text
+                className={`text-sm font-semibold ${
+                  readiness.ready ? 'text-white' : 'text-slate-400'
+                }`}
+              >
+                📲 WhatsApp
+              </Text>
+            </Pressable>
+            <Pressable
+              disabled={!readiness.ready}
+              onPress={() => slug && Linking.openURL(quotePdfUrl(slug))}
+              className={`flex-1 items-center rounded-lg py-2.5 ${
+                readiness.ready
+                  ? 'border border-brand bg-white active:opacity-70'
+                  : 'bg-slate-200'
+              }`}
+            >
+              <Text
+                className={`text-sm font-semibold ${
+                  readiness.ready ? 'text-ink' : 'text-slate-400'
+                }`}
+              >
+                📄 PDF
+              </Text>
             </Pressable>
             <Pressable
               onPress={() => Linking.openURL(url)}
@@ -92,7 +148,7 @@ function SmartQuoteSection({
             </Text>
           </Pressable>
         </>
-      ) : (
+      ) : existing.isLoading ? null : (
         <Pressable
           disabled={generate.isPending}
           onPress={() =>
