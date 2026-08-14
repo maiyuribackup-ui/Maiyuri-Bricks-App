@@ -16,6 +16,7 @@ import {
   generateLinkSlug,
 } from "@/lib/smart-quote-ai";
 import { buildPricingConfig } from "@/lib/pricing/seed-pricing-config";
+import { canWorkOnLead } from "@/lib/sales-access";
 
 /**
  * POST /api/smart-quotes/generate
@@ -80,14 +81,10 @@ export async function POST(request: NextRequest) {
       return notFound("Lead not found");
     }
 
-    // Check access (founders + the machine pipeline have full access,
-    // others need assignment)
-    const isFounder = userData?.role === "founder";
+    // Sales roles reach every lead; everyone else keeps the ownership rule.
+    // The machine pipeline (call-recording auto-draft) has full access.
     const hasAccess =
-      isMachine ||
-      isFounder ||
-      (user != null &&
-        (lead.assigned_staff === user.id || lead.created_by === user.id));
+      isMachine || canWorkOnLead(userData?.role, user?.id, lead);
 
     if (!hasAccess) {
       return forbidden("You don't have access to this lead");
