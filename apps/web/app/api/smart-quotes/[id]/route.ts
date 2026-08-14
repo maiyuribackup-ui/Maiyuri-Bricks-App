@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getUserFromRequest } from "@/lib/supabase-server";
+import { canWorkOnLead } from "@/lib/sales-access";
 import { success, error, notFound, forbidden, parseBody } from "@/lib/api-utils";
 import { updateSmartQuoteSchema, type SmartQuote } from "@maiyuri/shared";
 
@@ -44,8 +45,7 @@ export async function PATCH(
     if (!quote) return notFound("Quote not found");
 
     const lead = (quote as { lead?: { assigned_staff?: string; created_by?: string } }).lead;
-    const isFounder = userData.role === "founder";
-    if (!isFounder && lead?.assigned_staff !== user.id && lead?.created_by !== user.id) {
+    if (!canWorkOnLead(userData.role, user.id, lead ?? null)) {
       return forbidden("You don't have access to this quote");
     }
 
