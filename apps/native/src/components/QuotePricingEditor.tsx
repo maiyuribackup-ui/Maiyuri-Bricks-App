@@ -165,7 +165,8 @@ export function QuotePricingEditor({
                 value={line.quantity}
                 onChangeText={(v) => update(i, { quantity: v.replace(/[^0-9.]/g, '') })}
                 keyboardType="numeric"
-                placeholder="40000"
+                placeholder="e.g. 40000"
+                placeholderTextColor="#cbd5e1"
                 className="mt-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-ink"
               />
             </View>
@@ -177,7 +178,8 @@ export function QuotePricingEditor({
                 value={line.rate}
                 onChangeText={(v) => update(i, { rate: v.replace(/[^0-9.]/g, '') })}
                 keyboardType="numeric"
-                placeholder="52"
+                placeholder="e.g. 52"
+                placeholderTextColor="#cbd5e1"
                 className="mt-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm font-semibold text-ink"
               />
             </View>
@@ -187,7 +189,11 @@ export function QuotePricingEditor({
             <Text className="mt-1.5 text-xs text-slate-500">
               {nameOf(line.productId)} · {inr(Number(line.quantity) * Number(line.rate))}
             </Text>
-          ) : null}
+          ) : (
+            <Text className="mt-1.5 text-xs text-amber-600">
+              Not counted yet — this line needs a quantity and a rate.
+            </Text>
+          )}
         </View>
       ))}
 
@@ -208,7 +214,8 @@ export function QuotePricingEditor({
           value={distance}
           onChangeText={(v) => setDistance(v.replace(/[^0-9.]/g, ''))}
           keyboardType="numeric"
-          placeholder="108"
+          placeholder="e.g. 108"
+          placeholderTextColor="#cbd5e1"
           className="mt-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-ink"
         />
       </View>
@@ -222,7 +229,8 @@ export function QuotePricingEditor({
           onChangeText={setSpecialTerms}
           multiline
           numberOfLines={3}
-          placeholder={'Delivery in two lots' + String.fromCharCode(10) + 'Rate held until 30 September'}
+          placeholder={'e.g. Delivery in two lots' + String.fromCharCode(10) + 'Rate held until 30 September'}
+          placeholderTextColor="#cbd5e1"
           className="mt-1 min-h-[64px] rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-ink"
           textAlignVertical="top"
         />

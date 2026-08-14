@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { createSupabaseRouteClient } from "@/lib/supabase-server";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import { success, error, notFound, parseBody } from "@/lib/api-utils";
 import {
   filterByPushPref,
@@ -54,11 +54,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const parsed = await parseBody(request, updateLeadSchema);
     if (parsed.error) return parsed.error;
 
-    // Get the authenticated user (optional - for archived_by tracking)
-    const supabase = createSupabaseRouteClient(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Get the authenticated user (optional - for archived_by tracking).
+    // Cookies for the browser, Bearer for the phone: this was cookie-only, so
+    // an edit made on mobile was recorded against nobody.
+    const user = await getUserFromRequest(request);
 
     // Get current lead state to detect pipeline transitions
     const { data: currentLead } = await supabaseAdmin
@@ -296,3 +295,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return error("Internal server error", 500);
   }
 }
+
+/**
+ * PATCH is the same operation as PUT here.
+ *
+ * The mobile app sends PATCH, which is the honest verb: this handler strips
+ * undefined keys and writes only what was supplied, so it has always been a
+ * partial update despite the name. Without this export Next answers 405, and
+ * every lead edited from a phone failed — silently, because the client only
+ * surfaced a generic error.
+ */
+export const PATCH = PUT;
