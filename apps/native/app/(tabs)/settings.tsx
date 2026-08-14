@@ -19,6 +19,7 @@ import {
   useSendTestPush,
   useUpdatePrefs,
 } from '@/hooks/use-push-settings';
+import { AppUpdateSection } from '@/components/AppUpdateSection';
 import { registerForPush } from '@/lib/push';
 import { useAuth } from '@/store/auth';
 import { toast } from '@/lib/toast';
@@ -341,6 +342,7 @@ export default function SettingsScreen() {
           ) : null}
         </View>
 
+        <AppUpdateSection />
         <PushSection />
         {userId ? <PreferencesSection userId={userId} /> : null}
         {/* Factory capacity knobs are leadership/supervisor-only (audit S4) */}
