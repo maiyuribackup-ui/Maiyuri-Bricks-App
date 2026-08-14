@@ -42,6 +42,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # The mobile app addresses the API by string, so nothing type-checks a
+      # call site against its route. Two bugs reached production that way: a
+      # route missing the verb the app sends (405) and a route authenticating
+      # from cookies only (401 for a Bearer token). Both were invisible on a
+      # phone. This closes that gap.
+      - name: Mobile API contract
+        run: node scripts/check-mobile-api.mjs
+
       - name: Run tests
         run: npm run test
         env:

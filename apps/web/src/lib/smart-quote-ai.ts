@@ -550,6 +550,55 @@ function getDefaultCopyMap(route: SmartQuoteRoute): SmartQuoteCopyMap {
  * @param leadName - Optional lead name for personalization
  * @returns Complete Smart Quote AI result with insights, strategy, and copy
  */
+/**
+ * A quotation for a lead we have not spoken to yet.
+ *
+ * The AI pipeline reads call transcripts. A brand-new enquiry has none, and
+ * the route used to refuse outright — "No transcripts available. Upload call
+ * recordings first." — which blocked the ordinary case: a lead arrives, the
+ * engineer knows the price, and a quotation should go out today. Nothing about
+ * quoting depends on having recorded a call.
+ *
+ * So the quote is built from the same defaults the AI falls back to whenever
+ * it fails or returns nothing usable. The customer-facing copy is the standard
+ * copy; the insight fields say "unknown" rather than inventing a persona,
+ * urgency or objection nobody has evidence for. Regenerating after the first
+ * call replaces all of it with the real reading.
+ */
+export function buildBaselineQuoteContent(
+  language: SmartQuoteLanguage = "en",
+): SmartQuoteAIResult {
+  const route: SmartQuoteRoute = "technical_call";
+  return {
+    insights: {
+      language_detected: "unknown",
+      persona: "unknown",
+      stage: "warm",
+      // Neutral midpoints. These drive presentation only, and asserting
+      // interest or urgency we have not heard would be a fabrication.
+      scores: { interest: 0.5, urgency: 0.5, price_sensitivity: 0.5, trust: 0.5 },
+      primary_angle: null,
+      secondary_angle: null,
+      top_objections: [],
+      risk_flags: [],
+    },
+    strategy: {
+      language_default: language,
+      route_decision: route,
+      page_config: {
+        pages: [
+          { key: "entry", blocks: getDefaultBlocks("entry") },
+          { key: "climate", blocks: getDefaultBlocks("climate") },
+          { key: "cost", blocks: getDefaultBlocks("cost") },
+          { key: "objection", blocks: getDefaultBlocks("objection") },
+          { key: "cta", blocks: getDefaultBlocks("cta") },
+        ],
+      },
+    },
+    copyMap: getDefaultCopyMap(route),
+  };
+}
+
 export async function generateSmartQuoteContent(
   transcript: string,
   leadName?: string | null,
