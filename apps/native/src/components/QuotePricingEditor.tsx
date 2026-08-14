@@ -56,6 +56,9 @@ export function QuotePricingEditor({
   const save = useSaveQuotePricing(leadId);
 
   const [lines, setLines] = useState<DraftLine[]>(() => toDraft(quote));
+  const [specialTerms, setSpecialTerms] = useState(
+    quote.pricing_config?.special_terms ?? '',
+  );
   const [distance, setDistance] = useState(
     quote.pricing_config?.default_distance_km != null
       ? String(quote.pricing_config.default_distance_km)
@@ -90,7 +93,12 @@ export function QuotePricingEditor({
     }
 
     save.mutate(
-      { quoteId: quote.id, items, distanceKm: distance ? Number(distance) : null },
+      {
+        quoteId: quote.id,
+        items,
+        distanceKm: distance ? Number(distance) : null,
+        specialTerms: specialTerms.trim() || null,
+      },
       {
         onSuccess: () => {
           toast.success('Pricing saved');
@@ -203,6 +211,24 @@ export function QuotePricingEditor({
           placeholder="108"
           className="mt-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-ink"
         />
+      </View>
+
+      <View className="mt-3">
+        <Text className="text-[10px] font-medium uppercase text-slate-400">
+          Terms for this project (one per line)
+        </Text>
+        <TextInput
+          value={specialTerms}
+          onChangeText={setSpecialTerms}
+          multiline
+          numberOfLines={3}
+          placeholder={'Delivery in two lots' + String.fromCharCode(10) + 'Rate held until 30 September'}
+          className="mt-1 min-h-[64px] rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-ink"
+          textAlignVertical="top"
+        />
+        <Text className="mt-1 text-[10px] text-slate-400">
+          Prints on this quotation only. The standing terms come from Settings.
+        </Text>
       </View>
 
       {total > 0 ? (

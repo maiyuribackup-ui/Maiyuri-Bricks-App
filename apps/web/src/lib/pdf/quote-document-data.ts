@@ -354,6 +354,7 @@ export function buildQuoteDocumentData(
         payment: clean(factory?.payment_terms),
         delivery: clean(factory?.delivery_terms),
         additional: splitLines(factory?.additional_terms),
+        special: splitLines(pricing?.special_terms),
       },
       bank: buildBankDetails(factory),
       rep: {

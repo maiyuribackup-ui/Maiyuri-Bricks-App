@@ -49,6 +49,8 @@ export interface QuotationConfig {
   advancePercentage: number;
   paymentTerms: string;
   unloadingResponsibility: string;
+  /** Terms agreed with this customer only, one per line. */
+  specialTerms: string[];
 
   accountName: string;
   bankName: string;

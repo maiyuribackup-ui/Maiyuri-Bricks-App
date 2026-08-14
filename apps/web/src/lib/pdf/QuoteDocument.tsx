@@ -204,6 +204,8 @@ export interface QuoteDocumentData {
     delivery: string | null;
     /** Everything else, one term per line. */
     additional: string[];
+    /** Agreed with this customer only. Printed apart, so it reads as theirs. */
+    special: string[];
   };
   bank: BankDetails | null;
   rep: { name: string | null; phone: string | null };
@@ -507,8 +509,12 @@ export function QuoteDocument({ data }: { data: QuoteDocumentData }) {
     rep, footerNote, wallCost, objection, nextStep,
   } = data;
 
+  const specialTerms = terms.special ?? [];
   const hasTerms = Boolean(
-    terms.payment || terms.delivery || terms.additional.length,
+    terms.payment ||
+      terms.delivery ||
+      terms.additional.length ||
+      specialTerms.length,
   );
 
   const bankLines: Array<[string, string]> = bank
@@ -656,7 +662,7 @@ export function QuoteDocument({ data }: { data: QuoteDocumentData }) {
                 <Text style={s.termText}>Delivery: {terms.delivery}</Text>
               </View>
             ) : null}
-            {terms.additional.map((term, i) => (
+            {[...terms.additional, ...specialTerms].map((term, i) => (
               <View style={s.termItem} key={i}>
                 <Text style={s.termBullet}>
                   {i +

@@ -54,6 +54,7 @@ const full: QuoteDocumentData = {
       "The price is inclusive of loading, unloading and transportation.",
       "Road access suitable for an Eicher vehicle is required at the site.",
     ],
+      special: [],
   },
   bank: {
     accountName: "Maiyuri Bricks",

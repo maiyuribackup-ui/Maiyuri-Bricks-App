@@ -153,6 +153,7 @@ export function useSaveQuotePricing(leadId: string) {
       quoteId: string;
       items: SmartQuoteLineItem[];
       distanceKm: number | null;
+      specialTerms: string | null;
     }) => {
       const [first] = vars.items;
       return api.patch<SmartQuote>(`/api/smart-quotes/${vars.quoteId}`, {
@@ -162,6 +163,7 @@ export function useSaveQuotePricing(leadId: string) {
           default_area_sqft: first?.quantity ?? null,
           quoted_rate: first?.rate ?? null,
           default_distance_km: vars.distanceKm,
+          special_terms: vars.specialTerms,
         },
       });
     },

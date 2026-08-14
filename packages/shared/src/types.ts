@@ -632,6 +632,15 @@ export interface SmartQuotePricingConfig {
   locality_label: string | null; // human label for the delivery area
   show_transport: boolean; // include delivery in the headline total
   price_note: string | null; // optional caveat shown under the estimate
+  /**
+   * Terms that apply to THIS quotation only, one per line.
+   *
+   * factory_settings.additional_terms is the standing set and prints on every
+   * quotation. A term agreed with one customer — a staged delivery, a site
+   * condition, a price held to a date — must not be written there, because it
+   * would silently attach itself to everyone else's quote too.
+   */
+  special_terms?: string | null;
   rep_phone: string | null; // WhatsApp number for the CTA (E.164-ish digits)
   /**
    * Rate per unit (₹) set by the engineer in the app. When present this is

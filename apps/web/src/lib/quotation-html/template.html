@@ -61,6 +61,8 @@
     advancePercentage: 20,
     paymentTerms: "<<Payment Terms>>",
     unloadingResponsibility: "<<Responsibility>>",
+    // Terms for this quotation alone; the standing set lives in Settings.
+    specialTerms: [],
 
     // — Payment ————————————————————————————————————————————
     accountName: "<<Account Name>>",
@@ -762,6 +764,13 @@
         <div class="small">Production slot</div><div>Confirmed on receipt of advance</div>
         <div class="small">Unloading</div><div data-k="unloadingResponsibility"></div>
       </div>
+
+      <!-- Terms agreed with this customer alone. Set apart from the standing
+           terms so it is obvious which ones are theirs. -->
+      <div id="special-terms-block" style="display:none; margin-top:3mm;">
+        <div class="eyebrow" style="color:var(--terracotta);">Agreed for this project</div>
+        <ul class="ticks" id="special-terms-list" style="margin-top:1.5mm;"></ul>
+      </div>
     </div>
     <div>
       <div class="card">
@@ -870,4 +879,14 @@
     el.classList.remove("empty");
     el.innerHTML = `<img src="${src}" alt="" />`;
   });
+
+  /* Terms agreed with this customer only. The block stays hidden unless there
+     is something in it — an empty "Agreed for this project" heading would
+     read as an omission. */
+  const specials = Array.isArray(CONFIG.specialTerms) ? CONFIG.specialTerms.filter(Boolean) : [];
+  if (specials.length) {
+    document.getElementById("special-terms-block").style.display = "";
+    document.getElementById("special-terms-list").innerHTML =
+      specials.map((t) => `<li>${esc(t)}</li>`).join("");
+  }
 </script>
