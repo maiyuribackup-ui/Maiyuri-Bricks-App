@@ -631,8 +631,18 @@ export const smartQuoteObjectionSeveritySchema = z.enum([
 export const smartQuoteImageScopeSchema = z.enum(["template", "lead_override"]);
 
 // Smart Quote 2.0 — interactive pricing config (staff-editable)
+/** One priced line: product, quantity, and the engineer's rate for it. */
+export const smartQuoteLineItemSchema = z.object({
+  product_id: z.string().uuid(),
+  quantity: z.number().positive(),
+  rate: z.number().positive(),
+});
+
 export const smartQuotePricingConfigSchema = z.object({
   allowed_products: z.array(z.string().uuid()).default([]),
+  // Multi-product quotes. Capped because these print on one A4 table, and a
+  // quotation with fifty lines is a bill of materials, not a quotation.
+  items: z.array(smartQuoteLineItemSchema).max(12).optional(),
   default_product: z.string().uuid().nullable().optional(),
   default_area_sqft: z.number().positive().nullable().optional(),
   default_distance_km: z.number().min(0).nullable().optional(),
