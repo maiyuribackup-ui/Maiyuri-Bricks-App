@@ -1,5 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { SmartQuote, SmartQuotePricingConfig } from '@maiyuri/shared';
+import type {
+  SmartQuote,
+  SmartQuoteLineItem,
+  SmartQuotePricingConfig,
+} from '@maiyuri/shared';
 import { api } from '@/lib/api';
 
 const BASE_URL =
@@ -30,6 +34,29 @@ export function quotePdfUrl(slug: string): string {
 export function getQuoteReadiness(
   pricing: Partial<SmartQuotePricingConfig> | null | undefined,
 ): { ready: boolean; reason: string | null } {
+  // Multi-product quotes are judged line by line, naming the line that fails:
+  // a half-priced quote is worse than an unpriced one, because the total
+  // still looks authoritative.
+  const items = pricing?.items;
+  if (items && items.length > 0) {
+    for (const [i, item] of items.entries()) {
+      const label = `Line ${i + 1}`;
+      if (!item.product_id) {
+        return { ready: false, reason: `${label}: choose the product being quoted.` };
+      }
+      if (item.rate == null || !(item.rate > 0)) {
+        return {
+          ready: false,
+          reason: `${label}: set the rate before sharing — without it the customer sees rate-card pricing, not yours.`,
+        };
+      }
+      if (item.quantity == null || !(item.quantity > 0)) {
+        return { ready: false, reason: `${label}: enter the quantity being quoted.` };
+      }
+    }
+    return { ready: true, reason: null };
+  }
+
   const rate = pricing?.quoted_rate;
   if (rate == null) {
     return {
@@ -87,6 +114,59 @@ export function useGenerateSmartQuote() {
       // keeps any other lead-derived views honest.
       queryClient.setQueryData(['smart-quote', vars.lead_id], res.data ?? null);
       void queryClient.invalidateQueries({ queryKey: ['leads', vars.lead_id] });
+    },
+  });
+}
+
+/** A product the engineer can quote. */
+export interface QuotableProduct {
+  id: string;
+  name: string;
+  unit: string | null;
+  category: string | null;
+}
+
+/** The live catalogue, for the line editor's product picker. */
+export function useQuotableProducts() {
+  return useQuery({
+    queryKey: ['products', 'quotable'],
+    queryFn: async () => {
+      const res = await api.get<QuotableProduct[]>('/api/products');
+      return res.data ?? [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Save the engineer's pricing.
+ *
+ * The first line is mirrored onto default_product / default_area_sqft /
+ * quoted_rate. Those fields are what the older single-product paths still
+ * read, so a multi-product quote written here stays coherent for anything
+ * that has not learned about items[] yet.
+ */
+export function useSaveQuotePricing(leadId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: {
+      quoteId: string;
+      items: SmartQuoteLineItem[];
+      distanceKm: number | null;
+    }) => {
+      const [first] = vars.items;
+      return api.patch<SmartQuote>(`/api/smart-quotes/${vars.quoteId}`, {
+        pricing_config: {
+          items: vars.items,
+          default_product: first?.product_id ?? null,
+          default_area_sqft: first?.quantity ?? null,
+          quoted_rate: first?.rate ?? null,
+          default_distance_km: vars.distanceKm,
+        },
+      });
+    },
+    onSuccess: (res) => {
+      queryClient.setQueryData(['smart-quote', leadId], res.data ?? null);
     },
   });
 }

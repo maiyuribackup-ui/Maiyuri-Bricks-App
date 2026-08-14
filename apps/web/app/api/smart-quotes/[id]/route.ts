@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { createSupabaseRouteClient } from "@/lib/supabase-server";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import { success, error, notFound, forbidden, parseBody } from "@/lib/api-utils";
 import { updateSmartQuoteSchema, type SmartQuote } from "@maiyuri/shared";
 
@@ -23,10 +23,9 @@ export async function PATCH(
     const parsed = await parseBody(request, updateSmartQuoteSchema);
     if (parsed.error) return parsed.error;
 
-    const supabase = createSupabaseRouteClient(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Cookies for the web app, Bearer for the phone. This route was
+    // cookie-only, so every attempt to set a rate from mobile came back 401.
+    const user = await getUserFromRequest(request);
     if (!user) return error("Authentication required", 401);
 
     const { data: userData } = await supabaseAdmin

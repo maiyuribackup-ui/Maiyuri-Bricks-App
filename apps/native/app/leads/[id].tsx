@@ -14,6 +14,7 @@ import {
 import { useLead } from '@/hooks/use-leads';
 import { useAddNote, useLeadNotes } from '@/hooks/use-notes';
 import { usePromiseDate, useProductParams } from '@/hooks/use-ops-planning';
+import { QuotePricingEditor } from '@/components/QuotePricingEditor';
 import {
   getQuoteReadiness,
   quotePdfUrl,
@@ -47,6 +48,7 @@ function SmartQuoteSection({
 }) {
   const generate = useGenerateSmartQuote();
   const existing = useSmartQuote(leadId);
+  const [pricingOpen, setPricingOpen] = useState(false);
   // Freshly generated wins; otherwise whatever the lead already has.
   const quote = generate.data?.data ?? existing.data ?? null;
   const slug = quote?.link_slug;
@@ -82,10 +84,24 @@ function SmartQuoteSection({
             <View className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
               <Text className="text-xs font-semibold text-amber-700">Not ready to send</Text>
               <Text className="mt-0.5 text-xs text-amber-700">{readiness.reason}</Text>
-              <Text className="mt-1 text-[10px] text-amber-600">
-                Set the rate from the web app’s lead page, then share from here.
-              </Text>
             </View>
+          ) : null}
+
+          <Pressable
+            onPress={() => setPricingOpen((v) => !v)}
+            className="mt-2 items-center rounded-lg border border-brand py-2 active:opacity-70"
+          >
+            <Text className="text-sm font-bold text-ink">
+              {pricingOpen ? 'Close pricing' : readiness.ready ? '₹ Edit pricing' : '₹ Set the price'}
+            </Text>
+          </Pressable>
+
+          {pricingOpen && quote ? (
+            <QuotePricingEditor
+              quote={quote}
+              leadId={leadId}
+              onSaved={() => setPricingOpen(false)}
+            />
           ) : null}
           <View className="mt-2 flex-row gap-2">
             <Pressable
