@@ -13,6 +13,7 @@ import {
 import { generateSmartQuoteSchema, type SmartQuote } from "@maiyuri/shared";
 import {
   generateSmartQuoteContent,
+  buildBaselineQuoteContent,
   generateLinkSlug,
 } from "@/lib/smart-quote-ai";
 import { buildPricingConfig } from "@/lib/pricing/seed-pricing-config";
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
     const { data: lead, error: leadError } = await supabaseAdmin
       .from("leads")
       .select(
-        "id, name, assigned_staff, created_by, product_interests, site_location, area",
+        "id, name, assigned_staff, created_by, product_interests, site_location, area, language_preference",
       )
       .eq("id", lead_id)
       .single();
@@ -134,18 +135,16 @@ export async function POST(request: NextRequest) {
             .join("\n\n---\n\n")
         : null;
 
-    if (!combinedTranscript) {
-      return error(
-        "No transcripts available. Upload call recordings first.",
-        400,
-      );
-    }
-
-    // Generate Smart Quote content using AI pipeline
-    const aiResult = await generateSmartQuoteContent(
-      combinedTranscript,
-      lead.name,
-    );
+    // A new enquiry has no recorded call, and quoting does not depend on one:
+    // the engineer knows the price and the customer wants it today. Without a
+    // transcript the quote is built from the standard copy, with the insight
+    // fields left "unknown" rather than invented. Regenerating after the first
+    // call replaces all of it with the real reading.
+    const aiResult = combinedTranscript
+      ? await generateSmartQuoteContent(combinedTranscript, lead.name)
+      : buildBaselineQuoteContent(
+          lead.language_preference === "ta" ? "ta" : "en",
+        );
 
     // Generate unique slug
     const linkSlug = generateLinkSlug(12);
