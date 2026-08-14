@@ -73,14 +73,24 @@ export async function GET(
         .maybeSingle(),
     ]);
 
-    const [{ data: product }, { data: rep }] = await Promise.all([
-      pricing.default_product
+    // Every product the quote prices: the items when it is multi-product,
+    // otherwise just the single default. One query either way.
+    const productIds = Array.from(
+      new Set(
+        (pricing.items?.length
+          ? pricing.items.map((i) => i.product_id)
+          : [pricing.default_product]
+        ).filter((id): id is string => Boolean(id)),
+      ),
+    );
+
+    const [{ data: products }, { data: rep }] = await Promise.all([
+      productIds.length
         ? supabaseAdmin
             .from("products")
-            .select("name, unit, hsn_code")
-            .eq("id", pricing.default_product)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
+            .select("id, name, unit, hsn_code")
+            .in("id", productIds)
+        : Promise.resolve({ data: [] }),
       lead?.assigned_staff
         ? supabaseAdmin
             .from("users")
@@ -89,6 +99,20 @@ export async function GET(
             .maybeSingle()
         : Promise.resolve({ data: null }),
     ]);
+
+    type ProductRow = {
+      id: string;
+      name: string | null;
+      unit: string | null;
+      hsn_code: string | null;
+    };
+    const productRows = (products ?? []) as ProductRow[];
+    const productsById = Object.fromEntries(
+      productRows.map((p) => [p.id, p]),
+    );
+    const product = pricing.default_product
+      ? (productsById[pricing.default_product] ?? null)
+      : (productRows[0] ?? null);
 
     const { data, reason } = buildQuoteDocumentData({
       quote: {
@@ -100,6 +124,7 @@ export async function GET(
       lead: lead ?? null,
       factory: factory ?? null,
       product: product ?? null,
+      productsById,
       rep: rep ?? null,
       wallCostConfig: quote.wall_cost_config,
       copyMap: quote.copy_map,

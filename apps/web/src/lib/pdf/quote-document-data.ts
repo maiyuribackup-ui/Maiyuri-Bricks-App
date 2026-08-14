@@ -61,11 +61,24 @@ export interface QuoteDocumentSources {
     quote_footer_note?: string | null;
   } | null;
   /** The quoted product, resolved from `pricing_config.default_product`. */
+  /**
+   * The single quoted product. Still the only thing a one-product quote
+   * needs, and still what the caller passes for those.
+   */
   product: {
     name?: string | null;
     unit?: string | null;
     hsn_code?: string | null;
   } | null;
+  /**
+   * Every product referenced by pricing_config.items, keyed by id. Only
+   * required for multi-product quotes; a missing entry drops that line rather
+   * than printing a nameless charge.
+   */
+  productsById?: Record<
+    string,
+    { name?: string | null; unit?: string | null; hsn_code?: string | null }
+  > | null;
   /** The staff member who owns the lead — signs the quotation. */
   rep: { name?: string | null; phone?: string | null } | null;
   /** Per-quote snapshot of the founder's build costs, for page 2. */
@@ -243,7 +256,7 @@ export function buildArgument(copyMap: SmartQuoteCopyMap | null | undefined): {
 export function buildQuoteDocumentData(
   sources: QuoteDocumentSources,
 ): QuoteDocumentResult {
-  const { quote, lead, factory, product, rep, wallCostConfig, copyMap } =
+  const { quote, lead, factory, product, productsById, rep, wallCostConfig, copyMap } =
     sources;
   const pricing = quote.pricing_config ?? null;
 
@@ -253,15 +266,41 @@ export function buildQuoteDocumentData(
   if (!readiness.ready) {
     return { data: null, reason: readiness.reason };
   }
-  if (!product) {
+  // Multi-product quotes price line by line; single-product quotes keep the
+  // original three fields and render exactly as before.
+  const items = pricing?.items?.length ? pricing.items : null;
+
+  const lines = items
+    ? items.flatMap((item) => {
+        const p = productsById?.[item.product_id];
+        // A line whose product has been deleted is dropped rather than
+        // printed as an unnamed charge on a commercial document.
+        if (!p) return [];
+        return [
+          {
+            product: clean(p.name) ?? "Interlocking bricks",
+            unit: clean(p.unit) ?? "unit",
+            quantity: item.quantity,
+            rate: item.rate,
+            amount: item.rate * item.quantity,
+            hsnCode: clean(p.hsn_code),
+          },
+        ];
+      })
+    : null;
+
+  if (items && (!lines || lines.length === 0)) {
+    return { data: null, reason: "The quoted products no longer exist." };
+  }
+  if (!items && !product) {
     return { data: null, reason: "The quoted product no longer exists." };
   }
 
   // Non-null by the readiness check above; asserted once, here.
   const rate = pricing?.quoted_rate as number;
   const quantity = pricing?.default_area_sqft as number;
-  const unit = clean(product.unit) ?? "unit";
-  const productName = clean(product.name) ?? "Interlocking bricks";
+  const unit = clean(product?.unit) ?? "unit";
+  const productName = clean(product?.name) ?? "Interlocking bricks";
 
   const customerName = clean(lead?.name) ?? "Customer";
   const quotedOn = formatQuoteDate(quote.created_at);
@@ -291,17 +330,19 @@ export function buildQuoteDocumentData(
         phone: clean(lead?.contact),
         location: clean(lead?.site_location) ?? clean(lead?.site_region),
       },
-      lines: [
+      lines: lines ?? [
         {
           product: productName,
           unit,
           quantity,
           rate,
           amount: rate * quantity,
-          hsnCode: clean(product.hsn_code),
+          hsnCode: clean(product?.hsn_code),
         },
       ],
-      total: rate * quantity,
+      total: lines
+        ? lines.reduce((sum, l) => sum + l.amount, 0)
+        : rate * quantity,
       // The engineer's rate is quoted delivered — that is the whole point of
       // "the price is the price". `show_transport: false` means the business
       // deliberately quoted ex-factory on this one.

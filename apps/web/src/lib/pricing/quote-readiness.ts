@@ -18,6 +18,30 @@ export interface QuoteReadiness {
 export function getQuoteReadiness(
   pricing: Partial<SmartQuotePricingConfig> | null | undefined,
 ): QuoteReadiness {
+  // Multi-product quotes are judged line by line. The same rule applies to
+  // each: a line the engineer has not priced cannot go to a customer, and a
+  // half-priced quote is worse than an unpriced one because the total looks
+  // authoritative.
+  const items = pricing?.items;
+  if (items && items.length > 0) {
+    for (const [i, item] of items.entries()) {
+      const label = `Line ${i + 1}`;
+      if (!item.product_id) {
+        return { ready: false, reason: `${label}: choose the product being quoted.` };
+      }
+      if (item.rate == null || !(item.rate > 0)) {
+        return {
+          ready: false,
+          reason: `${label}: set the rate before sharing — without it the customer sees rate-card pricing, not yours.`,
+        };
+      }
+      if (item.quantity == null || !(item.quantity > 0)) {
+        return { ready: false, reason: `${label}: enter the quantity being quoted.` };
+      }
+    }
+    return { ready: true, reason: null };
+  }
+
   const rate = pricing?.quoted_rate;
   if (rate == null) {
     return {

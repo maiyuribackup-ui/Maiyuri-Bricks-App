@@ -597,9 +597,35 @@ export interface SmartQuoteCopyMap {
   ta: Record<string, string>;
 }
 
+/**
+ * One priced line on the quotation.
+ *
+ * A house needs 8" for the external walls and 6" for the internal ones — which
+ * the proposal recommends on its own pages — so a quote has to carry more than
+ * one product. Each line holds its own rate: the engineer prices per product,
+ * not per quote.
+ */
+export interface SmartQuoteLineItem {
+  product_id: string;
+  quantity: number;
+  /** Rate per unit (₹) for this line, set by the engineer. */
+  rate: number;
+}
+
 // Smart Quote 2.0 — interactive instant-estimate config (staff-reviewed)
 export interface SmartQuotePricingConfig {
   allowed_products: string[]; // product ids offered on the quote
+  /**
+   * The quoted lines, when the quote prices more than one product.
+   *
+   * Absent on every quote written before multi-product, and optional after:
+   * a single-product quote may keep using default_product / default_area_sqft
+   * / quoted_rate below and renders exactly as it did. When `items` is present
+   * and non-empty it is authoritative for the document, and those three fields
+   * mirror its first line so the customer-facing interactive estimate — which
+   * prices one product at a time — keeps working unchanged.
+   */
+  items?: SmartQuoteLineItem[];
   default_product: string | null; // the quoted product
   default_area_sqft: number | null; // the quoted quantity, in the product's unit
   default_distance_km: number | null; // delivery distance for transport calc

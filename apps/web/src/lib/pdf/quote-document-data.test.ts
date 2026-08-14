@@ -389,3 +389,83 @@ describe("quoteFilename", () => {
     expect(quoteFilename(null, "Murali")).toBe("Maiyuri-Quote-Murali.pdf");
   });
 });
+
+describe("multi-product quotes", () => {
+  const twoLines: QuoteDocumentSources = {
+    ...base,
+    quote: {
+      ...base.quote,
+      pricing_config: {
+        ...base.quote.pricing_config,
+        items: [
+          { product_id: "prod-1", quantity: 40_000, rate: 52 },
+          { product_id: "prod-2", quantity: 5_000, rate: 44 },
+        ],
+      },
+    },
+    productsById: {
+      "prod-1": { name: '8" Mud Interlock', unit: "piece", hsn_code: "681011" },
+      "prod-2": { name: '6" Mud Interlock', unit: "piece", hsn_code: "681011" },
+    },
+  };
+
+  it("prints one line per item, each at its own rate", () => {
+    const { data } = buildQuoteDocumentData(twoLines);
+    expect(data?.lines).toHaveLength(2);
+    expect(data?.lines[0]).toMatchObject({
+      product: '8" Mud Interlock',
+      quantity: 40_000,
+      rate: 52,
+      amount: 2_080_000,
+    });
+    expect(data?.lines[1]).toMatchObject({
+      product: '6" Mud Interlock',
+      rate: 44,
+      amount: 220_000,
+    });
+  });
+
+  it("totals every line, not just the first", () => {
+    const { data } = buildQuoteDocumentData(twoLines);
+    expect(data?.total).toBe(2_080_000 + 220_000);
+  });
+
+  it("drops a line whose product has been deleted rather than printing a nameless charge", () => {
+    const { data } = buildQuoteDocumentData({
+      ...twoLines,
+      productsById: { "prod-1": { name: '8" Mud Interlock', unit: "piece", hsn_code: null } },
+    });
+    expect(data?.lines).toHaveLength(1);
+    expect(data?.total).toBe(2_080_000);
+  });
+
+  it("refuses the document when every quoted product has gone", () => {
+    const { data, reason } = buildQuoteDocumentData({ ...twoLines, productsById: {} });
+    expect(data).toBeNull();
+    expect(reason).toMatch(/no longer exist/i);
+  });
+
+  it("leaves single-product quotes exactly as they were", () => {
+    const { data } = buildQuoteDocumentData(base);
+    expect(data?.lines).toHaveLength(1);
+    expect(data?.total).toBe(32 * 5000);
+  });
+
+  it("blocks sharing when any line is unpriced, naming the line", () => {
+    const { data, reason } = buildQuoteDocumentData({
+      ...twoLines,
+      quote: {
+        ...twoLines.quote,
+        pricing_config: {
+          ...twoLines.quote.pricing_config,
+          items: [
+            { product_id: "prod-1", quantity: 40_000, rate: 52 },
+            { product_id: "prod-2", quantity: 5_000, rate: 0 },
+          ],
+        },
+      },
+    });
+    expect(data).toBeNull();
+    expect(reason).toMatch(/Line 2/);
+  });
+});
