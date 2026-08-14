@@ -469,3 +469,34 @@ describe("multi-product quotes", () => {
     expect(reason).toMatch(/Line 2/);
   });
 });
+
+describe("per-quote special terms", () => {
+  const withSpecial = (special: string | null) => ({
+    ...base,
+    quote: {
+      ...base.quote,
+      pricing_config: { ...base.quote.pricing_config, special_terms: special },
+    },
+  });
+
+  it("carries this quote's own terms, one per line", () => {
+    const { data } = buildQuoteDocumentData(
+      withSpecial("Delivery in two lots.\nRate held until 30 September."),
+    );
+    expect(data?.terms.special).toEqual([
+      "Delivery in two lots.",
+      "Rate held until 30 September.",
+    ]);
+  });
+
+  it("keeps them apart from the standing terms", () => {
+    const { data } = buildQuoteDocumentData(withSpecial("Site access via the rear gate."));
+    expect(data?.terms.additional).not.toContain("Site access via the rear gate.");
+    expect(data?.terms.additional.length).toBeGreaterThan(0);
+  });
+
+  it("is empty when the quote has none", () => {
+    expect(buildQuoteDocumentData(withSpecial(null)).data?.terms.special).toEqual([]);
+    expect(buildQuoteDocumentData(base).data?.terms.special).toEqual([]);
+  });
+});

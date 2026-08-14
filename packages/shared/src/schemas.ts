@@ -649,6 +649,8 @@ export const smartQuotePricingConfigSchema = z.object({
   locality_label: z.string().nullable().optional(),
   show_transport: z.boolean().default(true),
   price_note: z.string().nullable().optional(),
+  // Terms for this quotation alone; the standing set lives in factory_settings.
+  special_terms: z.string().max(2000).nullable().optional(),
   rep_phone: z.string().nullable().optional(),
   // Engineer-set rate per unit (₹). Authoritative when present.
   quoted_rate: z.number().positive().nullable().optional(),
