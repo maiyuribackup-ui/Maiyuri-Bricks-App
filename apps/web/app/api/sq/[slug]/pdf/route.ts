@@ -297,7 +297,6 @@ function toQuotationConfig(
 
     advancePercentage: 20,
     paymentTerms: data.terms.payment ?? "<<Payment Terms>>",
-    unloadingResponsibility: "<<Responsibility>>",
     specialTerms: data.terms.special,
 
     accountName: data.bank?.accountName ?? "<<Account Name>>",

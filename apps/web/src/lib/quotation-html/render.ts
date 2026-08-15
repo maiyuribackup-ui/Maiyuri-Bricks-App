@@ -48,9 +48,13 @@ export interface QuotationConfig {
 
   advancePercentage: number;
   paymentTerms: string;
-  unloadingResponsibility: string;
   /** Terms agreed with this customer only, one per line. */
   specialTerms: string[];
+  // The standing terms are deliberately NOT here. They are the company's
+  // fixed position on delivery, unloading and site readiness, and they live
+  // in the template alongside the lab results, preserved by withConfig for
+  // the same reason: a caller must not be able to quietly drop a liability
+  // clause from one customer's quotation.
 
   accountName: string;
   bankName: string;
@@ -143,12 +147,25 @@ function withConfig(html: string, config: QuotationConfig): string {
   const end = html.indexOf("</script>", start);
   if (start < 0 || end < 0) throw new Error("Quotation template has no CONFIG block");
 
-  // Only the customer-facing values are replaced. The evidence block —
-  // verified lab results, the testimonial — stays exactly as the template
-  // declares it, so a caller cannot inject an unverified claim.
+  // Only the customer-facing values are replaced. Everything from the
+  // standing terms onward — the delivery and site-readiness clauses, then the
+  // verified lab results and the testimonial — stays exactly as the template
+  // declares it. A caller cannot inject an unverified claim, and it cannot
+  // drop a liability clause from one customer's copy either.
+  //
+  // This is a slice, so the marker must stay the LAST thing in CONFIG before
+  // the preserved region, and the template must keep the comment verbatim.
+  // If it is ever renamed, the fallback silently truncates CONFIG to `};` and
+  // every quotation loses its terms and its lab results — hence the throw.
   const tail = html.slice(start, end);
-  const evidenceAt = tail.indexOf("    // — Evidence");
-  const evidence = evidenceAt >= 0 ? tail.slice(evidenceAt) : "  };\n";
+  const preservedAt = tail.indexOf("    // — Standing terms");
+  if (preservedAt < 0) {
+    throw new Error(
+      "Quotation template has no '// — Standing terms' marker; " +
+        "withConfig cannot tell which values it must preserve",
+    );
+  }
+  const preserved = tail.slice(preservedAt);
 
   const head =
     "const CONFIG = {\n" +
@@ -156,7 +173,7 @@ function withConfig(html: string, config: QuotationConfig): string {
       .map(([k, v]) => `    ${k}: ${JSON.stringify(v)},`)
       .join("\n") +
     "\n\n" +
-    evidence;
+    preserved;
 
   return html.slice(0, start) + head + html.slice(end);
 }
@@ -191,6 +208,36 @@ export async function renderQuotationPdf(
     // Everything is inlined, so nothing is fetched; waiting on the network
     // would only cost time.
     await page.setContent(html, { waitUntil: "load" });
+
+    // An uncaught error in the template's fill script does not fail
+    // setContent or page.pdf — the browser logs it and carries on rendering
+    // whatever was already in the DOM. That produced a quotation with the
+    // heading "Standard terms & conditions" above an empty list and a
+    // testimonial card reading "— ,": a document that looks finished and is
+    // not. It happened because one element the script wrote to had been
+    // removed, and everything after that line silently stopped running.
+    //
+    // So the page is asked whether the blocks that must never be empty
+    // actually filled. Failing here is safe: the caller falls back to the
+    // simple renderer, which is a plainer quotation but a complete one.
+    const empty = await page.evaluate(() => {
+      const required: Record<string, string | null> = {
+        "standard terms": document.getElementById("standard-terms")?.textContent ?? null,
+        "pricing table": document.getElementById("bill-body")?.textContent ?? null,
+        "quotation total": document.getElementById("bill-foot")?.textContent ?? null,
+      };
+      return Object.entries(required)
+        .filter(([, text]) => !text || !text.trim())
+        .map(([name]) => name);
+    });
+    if (empty.length) {
+      throw new Error(
+        `Quotation rendered with empty ${empty.join(", ")} — the template's ` +
+          "fill script did not complete. Check the browser console for the " +
+          "first error it threw.",
+      );
+    }
+
     const pdf = await page.pdf({
       format: "a4",
       printBackground: true,

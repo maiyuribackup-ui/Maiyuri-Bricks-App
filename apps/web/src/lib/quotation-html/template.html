@@ -60,8 +60,8 @@
 
     advancePercentage: 20,
     paymentTerms: "<<Payment Terms>>",
-    unloadingResponsibility: "<<Responsibility>>",
-    // Terms for this quotation alone; the standing set lives in Settings.
+    // Terms agreed for this quotation alone. The standing set is below, and
+    // is not something a caller can set.
     specialTerms: [],
 
     // — Payment ————————————————————————————————————————————
@@ -76,6 +76,23 @@
     salesPersonPhone: "<<Phone>>",
     whatsappNumber: "<<WhatsApp>>",
     website: "<<Website>>",
+
+    // — Standing terms —————————————————————————————————————
+    // PRESERVED. Everything from this marker down is copied through verbatim
+    // when a quotation is generated — see withConfig() in render.ts, which
+    // slices from this exact comment. A caller supplies the customer's name
+    // and the prices; it cannot touch anything below this line.
+    //
+    // Printed on every quotation, numbered so a clause can be cited. Delivery
+    // is where the arguments happen — a lorry that cannot reach the plot, or
+    // a customer expecting bricks carried to the back of the site. Writing
+    // the limit down before the order beats arguing it at the gate.
+    standardTerms: [
+      "Delivery is made to the point on the site that the transport vehicle can safely reach by a motorable road. The vehicle will not be taken beyond that point.",
+      "Unloading is carried out alongside the vehicle. Carrying, stacking or shifting the material away from the unloading point is not included in this quotation.",
+      "The customer is responsible for ensuring that, on the agreed delivery date, the approach road and the unloading area are clear, level, and firm enough to take a loaded vehicle, and that any permission required for the vehicle to reach the site has been obtained.",
+      "Quantities are to be confirmed by the customer before dispatch. Material once dispatched is not taken back except in the case of a manufacturing defect.",
+    ],
 
     // — Evidence ———————————————————————————————————————————
     // EVIDENCE BEFORE PROMISE. Anything still in << >> prints as a visible
@@ -177,6 +194,8 @@
     margin-bottom: 1.8mm;
     position: relative;
   }
+  /* Four across rather than stacked, so they read as labels. */
+  .ticks.tight li { font-size: 7.4pt; margin-bottom: 0; padding-left: 3.8mm; line-height: 1.35; }
   .ticks li::before {
     content: "";
     position: absolute;
@@ -363,10 +382,62 @@
   .page.dense .advance { padding: 3.6mm 4.5mm; }
   .page.dense .advance .big { font-size: 11pt; }
   .page.dense .advance .why { font-size: 7.6pt; }
+  /* Page 3's variable part is the standing terms, which are the last thing
+     that may be dropped — so the decoration yields instead. */
+  .page.dense .closing img { width: 46mm; }
+  .page.dense .closing > div { font-size: 10pt; margin-top: 1.5mm; }
+  .page.dense .terms li { font-size: 6.9pt; margin-bottom: 0.8mm; }
+  .page.dense .cta .act { padding: 1.4mm; }
+
   /* Last resort. The three reasons are a précis of pages 2 and 3, so losing
      them costs the customer nothing; losing the footer costs them the phone
-     number they are meant to call. */
+     number they are meant to call. The closing banner goes the same way —
+     it is a picture of a sentence already printed on page 1. */
   .page.dense-2 #why-trio { display: none; }
+  .page.dense-2 .closing img { display: none; }
+
+  /* Drawn diagrams. Brick tones are their own tokens rather than the text
+     palette: the wall wants the product's colour, not the document's. */
+  .anatomy { --brick-face: #dda87d; --brick-edge: #8f4423; }
+  /* Sized by HEIGHT, not width. At full sheet width this drawing is 62mm
+     tall and pushes the page 14mm past the sheet, where `overflow: hidden`
+     eats the footer without saying so. Capping the height and letting the
+     width follow keeps the page honest, and the drawing is legible well
+     below the size at which it stops fitting. */
+  .anatomy svg { display: block; height: 54mm; width: auto; max-width: 100%; margin: 3mm auto 0; }
+  .anatomy .callout text { font-size: 15px; }
+  .page.dense .anatomy svg { height: 42mm; }
+  .anatomy .callout polyline { stroke: var(--gold); stroke-width: 1.2; fill: none; }
+  .anatomy .callout circle { fill: var(--terracotta); stroke: #fff; stroke-width: 1.5; }
+  .anatomy .callout text { font-family: var(--sans); fill: var(--muted); }
+  .anatomy .callout .lbl { fill: var(--peacock); font-weight: 700; }
+
+  /* From approval to delivery. The standing terms say where a lorry stops in
+     the language of a contract; this says it in the language of a customer
+     picturing the day it arrives. */
+  .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; position: relative; }
+  .flow::before {
+    content: ""; position: absolute; left: 10%; right: 10%; top: 4.4mm;
+    height: 0.5pt; background: var(--rule);
+  }
+  .flow .step { text-align: center; padding: 0 1.6mm; position: relative; }
+  .flow .n {
+    width: 8.8mm; height: 8.8mm; margin: 0 auto; border-radius: 50%;
+    background: var(--peacock); color: var(--gold-soft);
+    font-family: var(--serif); font-size: 11pt; line-height: 8.8mm;
+  }
+  .flow .step:last-child .n { background: var(--terracotta); color: #fdf6e8; }
+  .flow .t { font-size: 7.4pt; font-weight: 600; color: var(--charcoal); margin-top: 1.8mm; line-height: 1.3; }
+  .flow .d { font-size: 6.6pt; color: var(--muted); margin-top: 0.8mm; line-height: 1.35; }
+
+  /* Numbered so they can be cited — "clause 3" has to mean something when a
+     delivery is disputed at the site gate. */
+  .terms { margin: 2mm 0 0; padding-left: 4.6mm; }
+  .terms li {
+    font-size: 7.2pt; line-height: 1.5; color: var(--muted);
+    margin-bottom: 1.2mm; padding-left: 1mm;
+  }
+  .terms li::marker { color: var(--gold); font-weight: 600; }
 
   .divider { display: block; margin: 0 auto; width: 34mm; opacity: 0.9; }
 
@@ -513,7 +584,7 @@
     <div class="lede">A brick is a line item. A wall is what you live in.</div>
   </div>
 
-  <table class="cmp" style="margin-top:6mm;">
+  <table class="cmp" style="margin-top:5mm;">
     <thead>
       <tr>
         <th style="width:30%;">Your wall</th>
@@ -535,7 +606,7 @@
     product grade, design, finish, workmanship and site execution.
   </p>
 
-  <div style="margin-top:7mm;">
+  <div style="margin-top:6mm;">
     <div class="section-title">Tested. Not just claimed.</div>
     <div class="grid g3" style="margin-top:4mm;">
       <div class="card" style="text-align:center;">
@@ -565,34 +636,71 @@
     </div>
   </div>
 
-  <!-- The obvious next question after "is it strong enough" is "which size do
-       I need where". The brochure's technical sheet answers it, so it belongs
-       here rather than in a follow-up call. -->
-  <div style="margin-top:7mm;">
-    <div class="section-title">The range</div>
-    <table class="cmp" style="margin-top:3.5mm;">
-      <thead>
-        <tr>
-          <th style="width:24%;">Product</th>
-          <th style="width:19%;">Size</th>
-          <th style="width:15%;">Weight</th>
-          <th style="width:15%;">Strength</th>
-          <th style="width:27%;">Typically used for</th>
-        </tr>
-      </thead>
-      <tbody id="range-body"></tbody>
-    </table>
-  </div>
+  <!-- The table above asserts "reduced mortar" and "plaster optional". This
+       shows WHY, which a table cannot: the key is the whole argument, and one
+       drawing of it does more than another row of adjectives. Drawn rather
+       than photographed so it prints at any size, costs no kilobytes, and
+       takes the document's own colours. -->
+  <div style="margin-top:5mm;">
+    <div class="section-title">How the wall goes up</div>
+    <div class="anatomy">
+      <svg viewBox="0 0 700 250" role="img"
+           aria-label="Section through an interlock wall: three courses stacked, each located by a moulded key, with reduced mortar and a finished face.">
+        <defs>
+          <!-- One brick in section, 160 × 76 — close to the real 10 × 5 in
+               proportion, so the drawing reads as the product and not as a
+               diagram of some other brick. Two keys stand proud of the top
+               face; two matching notches are cut into the underside. Courses
+               are laid in running bond, offset by half a brick, which lines
+               every key up with the notch above it. -->
+          <path id="mb-brick"
+                d="M0 0 L28 0 L32 -10 L48 -10 L52 0 L108 0 L112 -10 L128 -10 L132 0 L160 0
+                   L160 76 L132 76 L128 66 L112 66 L108 76 L52 76 L48 66 L32 66 L28 76 L0 76 Z" />
+          <!-- The wall is clipped to the left of the sheet; the right is left
+               clear for the labels, so nothing can collide with the drawing
+               however long a label runs. -->
+          <clipPath id="mb-clip"><rect x="0" y="18" width="410" height="250" /></clipPath>
+        </defs>
 
-  <div style="margin-top:auto; text-align:center;">
-    <img class="divider" src="{{ASSET:divider-leaf}}" alt="" style="margin:0 auto 3mm;" />
-    <div class="lede" style="margin:0; font-size:9pt;">
-      Ask us for a side-by-side wall cost estimate for your project.
+        <g clip-path="url(#mb-clip)" fill="var(--brick-face)" stroke="var(--brick-edge)"
+           stroke-width="2" stroke-linejoin="round">
+          <use href="#mb-brick" x="-40" y="40" /><use href="#mb-brick" x="120" y="40" />
+          <use href="#mb-brick" x="280" y="40" />
+
+          <use href="#mb-brick" x="-120" y="116" /><use href="#mb-brick" x="40" y="116" />
+          <use href="#mb-brick" x="200" y="116" /><use href="#mb-brick" x="360" y="116" />
+
+          <use href="#mb-brick" x="-40" y="192" /><use href="#mb-brick" x="120" y="192" />
+          <use href="#mb-brick" x="280" y="192" />
+        </g>
+
+        <!-- Leaders run from the feature to a common gutter, so the three
+             labels line up instead of stepping raggedly across the sheet. -->
+        <g class="callout">
+          <polyline points="200,116 200,86 430,86" />
+          <circle cx="200" cy="116" r="4" />
+          <text x="442" y="82"><tspan class="lbl">Moulded key</tspan></text>
+          <text x="442" y="98">locates every course as it is laid</text>
+
+          <polyline points="300,192 300,160 430,160" />
+          <circle cx="300" cy="192" r="4" />
+          <text x="442" y="156"><tspan class="lbl">Reduced mortar</tspan></text>
+          <text x="442" y="172">the key does the aligning, not the bed</text>
+
+          <polyline points="150,240 150,228 430,228" />
+          <circle cx="150" cy="240" r="4" />
+          <text x="442" y="224"><tspan class="lbl">Finished face</tspan></text>
+          <text x="442" y="240">plaster optional, inside and out</text>
+        </g>
+      </svg>
     </div>
   </div>
 
+  <!-- The invitation that used to close this page moved into the footer: the
+       drawing above is a better last thing to look at than a line of italic,
+       and the page had no room for both. -->
   <div class="foot">
-    <div>A better wall is more than a cheaper brick.</div>
+    <div>Ask us for a side-by-side wall cost estimate for your project.</div>
     <div class="pageno">02</div>
   </div>
 </section>
@@ -612,34 +720,66 @@
     <div class="lede">We don't just deliver bricks. We help you build the wall right.</div>
   </div>
 
-  <div class="grid g2" style="margin-top:5mm; gap:2mm 8mm;">
-    <ul class="ticks">
-      <li>Local Chennai support</li>
-      <li>Guidance for your mason</li>
-      <li>Additional bricks when the site runs short</li>
-    </ul>
-    <ul class="ticks">
-      <li>Help with quantity planning</li>
-      <li>Factory visit before you buy</li>
-      <li>Support after delivery</li>
-    </ul>
+  <!-- Six bullets used to sit here. They listed what we do; this shows what
+       happens to the customer, in order, which is the question actually being
+       asked at this point in the document — and it lands step 5 before the
+       standing terms state the same limit in contract language. -->
+  <div class="flow" style="margin-top:5mm;">
+    <div class="step">
+      <div class="n">1</div>
+      <div class="t">You approve</div>
+      <div class="d">Confirm this quotation with your sales contact.</div>
+    </div>
+    <div class="step">
+      <div class="n">2</div>
+      <div class="t">Advance booked</div>
+      <div class="d"><span data-k="advancePercentage"></span>% holds the rate and your production slot.</div>
+    </div>
+    <div class="step">
+      <div class="n">3</div>
+      <div class="t">We produce</div>
+      <div class="d">Your order is made to the agreed quantity.</div>
+    </div>
+    <div class="step">
+      <div class="n">4</div>
+      <div class="t">Dispatch</div>
+      <div class="d">Loaded and sent on the date agreed with you.</div>
+    </div>
+    <div class="step">
+      <div class="n">5</div>
+      <div class="t">Delivered to site</div>
+      <div class="d">To the point the vehicle can reach, unloaded alongside.</div>
+    </div>
   </div>
 
-  <div class="card" style="margin-top:5mm;">
+  <!-- One row rather than two columns: the timeline above already took the
+       vertical budget, and these are labels, not sentences. -->
+  <ul class="ticks tight" style="margin-top:4.5mm; display:grid; grid-template-columns:repeat(4, 1fr); gap:2mm 4mm;">
+    <li>Guidance for your mason</li>
+    <li>Help with quantity planning</li>
+    <li>Extra bricks if the site runs short</li>
+    <li>Support after delivery</li>
+  </ul>
+
+  <div class="card" style="margin-top:4mm;">
     <div class="eyebrow">What a customer said</div>
     <p style="margin-top:2mm; font-family:var(--serif); font-style:italic; font-size:9.6pt; color:var(--peacock-soft); line-height:1.5;"
        id="testimonial-quote"></p>
     <p class="small" style="margin-top:2mm;">— <span id="testimonial-name"></span>, <span id="testimonial-loc"></span></p>
   </div>
 
-  <div class="grid g2" style="margin-top:5mm; gap:7mm;">
+  <div class="grid g2" style="margin-top:4mm; gap:7mm;">
     <div>
       <div class="section-title">Commercial terms</div>
       <div style="display:grid; grid-template-columns:auto 1fr; gap:1.2mm 5mm; font-size:7.6pt; margin-top:2mm;">
         <div class="small">Payment</div><div data-k="paymentTerms"></div>
         <div class="small">Advance to confirm</div><div><span data-k="advancePercentage"></span>% — reserves your production slot</div>
         <div class="small">Validity</div><div data-k="validUntil"></div>
-        <div class="small">Unloading</div><div data-k="unloadingResponsibility"></div>
+        <!-- Unloading used to sit here, wired to a value the route never
+             supplied, so every live quotation printed "<<Responsibility>>"
+             against it. It is a delivery term, and the standard terms below
+             now state it in full — one line summarising it here would only
+             disagree with them. -->
       </div>
     </div>
     <div class="card">
@@ -654,7 +794,12 @@
     </div>
   </div>
 
-  <div style="margin-top:5mm;">
+  <div style="margin-top:4mm;">
+    <div class="section-title">Standard terms &amp; conditions</div>
+    <ol class="terms" id="standard-terms"></ol>
+  </div>
+
+  <div style="margin-top:4mm;">
     <div class="cta">
       <div class="act primary">
         <div class="t">Confirm this quotation</div>
@@ -671,9 +816,9 @@
     </div>
   </div>
 
-  <div style="margin-top:auto; text-align:center;">
-    <img src="{{ASSET:advance-banner}}" alt="Pay 20% advance to book your production slot" style="width:96mm; height:auto;" />
-    <div style="font-family:var(--serif); font-size:12.5pt; color:var(--peacock); line-height:1.35; margin-top:3mm;">
+  <div class="closing" style="margin-top:auto; text-align:center;">
+    <img src="{{ASSET:advance-banner}}" alt="Pay 20% advance to book your production slot" style="width:58mm; height:auto;" />
+    <div style="font-family:var(--serif); font-size:10.5pt; color:var(--peacock); line-height:1.3; margin-top:2mm;">
       Maiyuri Bricks is not just a supplier.<br />
       <span style="color:var(--terracotta);">It is your local interlock construction partner.</span>
     </div>
@@ -718,35 +863,6 @@
   document.getElementById("quoted-strength").textContent = strength
     ? `Lab-tested at ${strength} per IS 15658. `
     : "Lab-tested per IS 15658. ";
-
-  /* The range. Quoted products are marked, so the table doubles as a
-     "you are buying this one" without a second column of prose. */
-  const quoted = new Set(
-    (CONFIG.pricingItems || [])
-      .map((it) => String(it.description || "").replace(/\s+/g, " ").toLowerCase()),
-  );
-  /* A SKU is on this quotation when every word of it appears in a line item:
-     '8" Mud Interlock' matches '8" Mud Interlock Brick' but not the 6" or the
-     cement variant. Loose enough to survive a renamed product, strict enough
-     not to star one the customer is not buying. */
-  const isQuoted = (sku) => {
-    const words = sku.toLowerCase().split(/\s+/).filter(Boolean);
-    for (const d of quoted) if (words.every((w) => d.includes(w))) return true;
-    return false;
-  };
-  document.getElementById("range-body").innerHTML = (CONFIG.productCatalogue || [])
-    .map((p) => {
-      const mine = isQuoted(p.sku);
-      const cls = mine ? ' class="mine"' : "";
-      return `<tr>
-        <td class="cat">${esc(p.sku)}${mine ? ' <span style="color:var(--gold);">&#9733;</span>' : ""}</td>
-        <td${cls}>${esc(p.size)}</td>
-        <td${cls}>${esc(p.weight)}</td>
-        <td${cls}>${esc(p.strength)}</td>
-        <td${cls}>${esc(p.use)}</td>
-      </tr>`;
-    })
-    .join("");
 
   /* Testimonial — a real, attributable Google review or nothing at all. */
   const t = CONFIG.verifiedTestimonial || {};
@@ -797,22 +913,47 @@
       specials.map((t) => `<li>${esc(t)}</li>`).join("");
   }
 
+  /* Standard terms. Always printed — a quotation that reaches a customer
+     without them is the one that gets argued over at the site gate. */
+  const standard = Array.isArray(CONFIG.standardTerms)
+    ? CONFIG.standardTerms.filter(Boolean)
+    : [];
+  document.getElementById("standard-terms").innerHTML =
+    standard.map((t) => `<li>${esc(t)}</li>`).join("");
+
   /* Fit. Runs last, once every page holds its real content.
-     `overflow: hidden` on a fixed-height page hides the overflow but still
-     reports it in scrollHeight, so the page can be asked whether it fits and
-     tightened until it does. Two steps, in order of what costs the customer
-     least: compress the bill, then drop the summary trio. Anything past that
-     is a genuinely oversized order and wants a covering note, not a smaller
-     typeface — it is left alone and logged. */
+
+     A page is a fixed 297mm with `overflow: hidden`, so it does not warn when
+     it runs out — it silently swallows whatever falls off the bottom, and
+     what falls off last is the advance block and the footer. Two steps, in
+     order of what costs the customer least: compress, then drop the summary
+     block. Anything past that is a genuinely oversized order and wants a
+     covering note, not a smaller typeface — it is left alone and logged.
+
+     Measured against the IN-FLOW content only. scrollHeight is the obvious
+     thing to ask and it is the wrong one here: the watermarks are absolutely
+     positioned to bleed off the edges, and scrollHeight counts a deliberate
+     bleed as overflow. It reported page 2 as 14mm over while its content
+     ended well short, and the routine dutifully shrank a page that had room
+     to spare. So what is asked is where the last in-flow element ends,
+     against the bottom of the page's content box. */
+  const overflowOf = (page) => {
+    const pad = parseFloat(getComputedStyle(page).paddingBottom) || 0;
+    const limit = page.getBoundingClientRect().bottom - pad;
+    let lowest = 0;
+    for (const el of page.children) {
+      if (getComputedStyle(el).position !== "static") continue; // a bleed, not content
+      lowest = Math.max(lowest, el.getBoundingClientRect().bottom);
+    }
+    return Math.round(lowest - limit);
+  };
+
   for (const page of document.querySelectorAll(".page")) {
     for (const step of ["dense", "dense-2"]) {
-      if (page.scrollHeight <= page.clientHeight) break;
+      if (overflowOf(page) <= 0) break;
       page.classList.add(step);
     }
-    if (page.scrollHeight > page.clientHeight) {
-      console.warn(
-        `quotation: page overflows by ${page.scrollHeight - page.clientHeight}px after fitting`,
-      );
-    }
+    const over = overflowOf(page);
+    if (over > 0) console.warn(`quotation: page overflows by ${over}px after fitting`);
   }
 </script>
