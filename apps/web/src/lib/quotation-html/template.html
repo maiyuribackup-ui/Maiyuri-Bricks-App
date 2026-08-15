@@ -1,5 +1,5 @@
 <meta charset="utf-8" />
-<title>Maiyuri Bricks — Quotation &amp; Material Proposal</title>
+<title>Maiyuri Bricks — Quotation</title>
 
 <!-- ===================================================================
      DATA
@@ -349,6 +349,25 @@
   }
   .strap span.dot { color: var(--gold); }
 
+  /* Page 1 carries a variable-length bill: one line item or six, no special
+     terms or four. A page that is a fixed 297mm and `overflow: hidden` does
+     not warn when it runs out — it silently swallows whatever falls off the
+     bottom, and what falls off last is the advance block and the footer, the
+     two things the page exists to deliver. So the page is measured after it
+     fills and tightened in steps. See the fit routine at the end. */
+  .page.dense .bill td { padding: 1.15mm 3.5mm; font-size: 8pt; }
+  .page.dense .bill .desc { font-size: 8.4pt; }
+  .page.dense .bill .sub { font-size: 6.6pt; }
+  .page.dense .bill tr.grand td.r { font-size: 16pt; }
+  .page.dense .bill tr.grand td { padding: 2.6mm 3.5mm; }
+  .page.dense .advance { padding: 3.6mm 4.5mm; }
+  .page.dense .advance .big { font-size: 11pt; }
+  .page.dense .advance .why { font-size: 7.6pt; }
+  /* Last resort. The three reasons are a précis of pages 2 and 3, so losing
+     them costs the customer nothing; losing the footer costs them the phone
+     number they are meant to call. */
+  .page.dense-2 #why-trio { display: none; }
+
   .divider { display: block; margin: 0 auto; width: 34mm; opacity: 0.9; }
 
   .ph { color: var(--terracotta); font-style: italic; }
@@ -372,129 +391,102 @@
      CONTENT
      =================================================================== -->
 
-<!-- ============================ COVER ============================ -->
-<section class="page cover">
+<!-- ==================== PAGE 01 — THE QUOTATION ==================== -->
+<!--
+  The customer asked for a price, so the price is on the first page, above
+  the fold, before any argument. What follows it on the same page is the
+  justification — three proof points, not fourteen. The cover page is gone:
+  a standalone cover earns its keep on a tender, not on a retail quotation
+  someone opens in WhatsApp.
+-->
+<section class="page">
   <img class="wm wm-corner" src="{{ASSET:corner}}" alt="" />
   <img class="wm wm-temple" src="{{ASSET:temple}}" alt="" />
-  <img class="wm wm-skyline" src="{{ASSET:skyline}}" alt="" />
 
-  <div style="margin-top:2mm; display:flex; justify-content:center;">
-    <img src="{{ASSET:lockup}}" alt="Maiyuri Bricks — Smart Interlock Bricks" style="width:48mm; height:auto;" />
-  </div>
-
-  <div style="text-align:center; margin-top:5mm;">
-    <div class="eyebrow" style="letter-spacing:0.22em;">For the home you build once</div>
-    <h1 style="font-size:31pt; margin-top:3mm;">Quotation &amp;<br />Material Proposal</h1>
-    <img class="divider" src="{{ASSET:divider-leaf}}" alt="" style="margin:4mm auto;" />
-    <div style="font-family:var(--serif); font-size:16pt; color:var(--terracotta); line-height:1.22;">
-      Build a home rooted in Tamil wisdom.
-    </div>
-    <p class="small" style="max-width:118mm; margin:3mm auto 0;">
-      Smart red-soil interlock bricks for cooler Chennai homes — inspired by Tamil
-      building wisdom, engineered for modern living.
-    </p>
-    <div class="lede" style="margin:3mm 0 0; font-size:9.5pt;">A guided proposal for better homes</div>
-  </div>
-
-  <div style="margin-top:3mm; display:flex; justify-content:center;">
-    <img src="{{ASSET:house}}" alt="" style="width:83mm; height:auto;" />
-  </div>
-
-  <!-- The line the website closes on. Tamil needs its own face: the display
-       serif carries no Tamil glyphs, so without this it would render as boxes. -->
-  <div style="text-align:center; margin-top:3mm;">
-    <div class="tamil">நம் மண். நம் வீடு. நம் அறிவு.</div>
-    <div class="lede" style="margin:1.5mm 0 0; font-size:9pt;">Our soil. Our home. Our wisdom.</div>
-  </div>
-
-  <div style="margin-top:auto; display:flex; justify-content:space-between; align-items:flex-end; gap:8mm;">
-    <div style="display:grid; grid-template-columns:auto 1fr; gap:2.4mm 5mm; align-items:baseline;">
-      <div class="k eyebrow">Prepared for</div><div style="font-family:var(--serif); font-size:12pt; color:var(--peacock);" data-k="customerName"></div>
-      <div class="k eyebrow" id="cover-project-k">Project</div><div style="font-size:9pt;" id="cover-project-v" data-k="projectName"></div>
-      <div class="k eyebrow">Location</div><div style="font-size:9pt;" data-k="projectLocation"></div>
-      <div class="k eyebrow">Quotation No.</div><div style="font-size:9pt;" data-k="quotationNumber"></div>
-      <div class="k eyebrow">Date</div><div style="font-size:9pt;" data-k="quotationDate"></div>
-    </div>
-
-    <div class="guide" style="align-items:flex-end;">
-      <div class="say" style="max-width:52mm; text-align:right;">Welcome — I'll guide you through your Maiyuri proposal.</div>
-      <div class="mascot" data-mascot="welcome"></div>
-    </div>
-  </div>
-
-
-</section>
-
-<!-- ==================== PAGE 01 — WHY MUD INTERLOCK ==================== -->
-<section class="page">
-  <div class="runhead">
+  <div class="runhead" style="border:0; padding-bottom:0;">
     <img class="head-logo" src="{{ASSET:lockup-wide}}" alt="Maiyuri Bricks — Smart Interlock Bricks" />
     <div class="meta">
-      <div><div class="k">Quotation No.</div><div class="v nw" data-k="quotationNumber"></div></div>
-      <div><div class="k">Date</div><div class="v nw" data-k="quotationDate"></div></div>
-      <div><div class="k">Project</div><div class="v" data-k="projectName"></div></div>
-      <div><div class="k">Location</div><div class="v" data-k="projectLocation"></div></div>
+      <div><div class="k">Quotation No.</div><div class="v" data-k="quotationNumber"></div></div>
+      <div><div class="k">Date</div><div class="v" data-k="quotationDate"></div></div>
+      <div><div class="k">Valid until</div><div class="v" data-k="validUntil"></div></div>
     </div>
   </div>
 
-  <div style="margin-top:7mm; display:flex; justify-content:space-between; align-items:flex-start; gap:8mm;">
-    <div style="max-width:118mm;">
-      <h1>Why <em>mud interlock</em></h1>
-      <div class="lede">Not an alternative. An upgrade.</div>
-      <p class="small" style="margin-top:3mm; max-width:108mm;">
-        Red soil, pressed and cured — never kiln fired. The same material Tamil
-        homes were built from, made to a modern tolerance so the blocks lock
-        together and the wall runs true.
-      </p>
-    </div>
-    <img src="{{ASSET:brick}}" alt="" style="width:32mm; height:auto;" />
-  </div>
-
-  <div class="grid g2" style="margin-top:6mm; gap:7mm;">
-    <div class="card">
-      <div class="eyebrow">Conventional red brick</div>
-      <div style="font-family:var(--serif); font-size:11pt; color:var(--ink); margin-top:2mm;">
-        Traps heat like a pressure cooker.
+  <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:8mm; margin-top:5mm;">
+    <div style="max-width:105mm;">
+      <h1 style="font-size:23pt;">Quotation</h1>
+      <div class="lede" style="margin-top:1mm;">
+        Prepared for <span style="color:var(--peacock); font-style:normal;" data-k="customerName"></span>
       </div>
-      <ul class="ticks" style="margin-top:3mm;">
-        <li>Higher cement and plaster usage</li>
-        <li>Traps humidity indoors</li>
-        <li>Hotter interiors through the afternoon</li>
-        <li>Kiln fired</li>
-      </ul>
+      <div class="small" style="margin-top:1mm;" data-k="projectLocation"></div>
+      <div class="tamil" style="font-size:9.5pt; margin-top:3mm;">நம் மண். நம் வீடு. நம் அறிவு.</div>
+      <div class="lede" style="margin:0.5mm 0 0; font-size:8pt;">Our soil. Our home. Our wisdom.</div>
     </div>
-    <div class="card" style="border-color:var(--gold); background:var(--paper-2);">
-      <div class="eyebrow" style="color:var(--terracotta);">Maiyuri mud interlock</div>
-      <div style="font-family:var(--serif); font-size:11pt; color:var(--peacock); margin-top:2mm;">
-        Breathes naturally like a clay pot.
+    <img src="{{ASSET:house}}" alt="" style="width:62mm; height:auto;" />
+  </div>
+
+  <!-- The number, as the hero. -->
+  <table class="bill" style="margin-top:6mm;">
+    <thead>
+      <tr>
+        <th style="width:40%;">Description</th>
+        <th class="r" style="width:18%;">Qty</th>
+        <th class="r" style="width:19%;">Rate</th>
+        <th class="r" style="width:23%;">Amount</th>
+      </tr>
+    </thead>
+    <tbody id="bill-body"></tbody>
+    <tfoot id="bill-foot"></tfoot>
+  </table>
+  <p class="small" style="margin-top:2.5mm;" id="tax-note"></p>
+  <p class="small" style="margin-top:1mm;">Brick-laying labour is not included and is quoted separately if required.</p>
+
+  <div id="special-terms-block" style="display:none; margin-top:3mm;">
+    <div class="eyebrow" style="color:var(--terracotta);">Agreed for this project</div>
+    <ul class="ticks" id="special-terms-list" style="margin-top:1.5mm;"></ul>
+  </div>
+
+  <!-- Why it costs that, immediately under what it costs. Three reasons, not
+       a page of them — pages 2 and 3 make the full case, and on a long bill
+       the fit routine drops this block first for exactly that reason. -->
+  <div style="margin-top:6mm;" id="why-trio">
+    <div class="section-title">Why homeowners choose Maiyuri</div>
+    <div class="grid g3" style="margin-top:3.5mm;">
+      <div>
+        <div class="eyebrow">Naturally comfortable walls</div>
+        <p class="small" style="margin-top:1.5mm;">
+          Red soil holds and releases heat slowly. Comfort also depends on roof,
+          ventilation, shading and workmanship.
+        </p>
       </div>
-      <ul class="ticks" style="margin-top:3mm;">
-        <li>Less mortar, and no plaster needed</li>
-        <li>Breathable walls</li>
-        <li>Naturally cooler interiors</li>
-        <li>No firing, and recyclable</li>
-      </ul>
+      <div>
+        <div class="eyebrow">Strong, and tested</div>
+        <p class="small" style="margin-top:1.5mm;">
+          <span id="quoted-strength"></span>Load-bearing to G+2, subject to your engineer.
+        </p>
+      </div>
+      <div>
+        <div class="eyebrow">We help you build the wall right</div>
+        <p class="small" style="margin-top:1.5mm;">
+          Bricks, plus mason guidance and local support in Chennai — not a
+          delivery slip.
+        </p>
+      </div>
     </div>
   </div>
 
-  <div style="margin-top:6mm;">
-    <div class="section-title">What that means at home</div>
-    <div class="grid g4" style="margin-top:4mm;">
-      <div><div class="eyebrow">Thermal comfort</div><p class="small" style="margin-top:1.5mm;">Red soil holds heat slowly and gives it back slowly.</p></div>
-      <div><div class="eyebrow">Healthier living</div><p class="small" style="margin-top:1.5mm;">Walls that breathe rather than trap damp.</p></div>
-      <div><div class="eyebrow">Strong and load-bearing</div><p class="small" style="margin-top:1.5mm;">Tested to IS 15658; load-bearing to G+2, subject to your engineer.</p></div>
-      <div><div class="eyebrow">No kiln, no toxins</div><p class="small" style="margin-top:1.5mm;">No fly ash, no kiln firing, no chemical hardeners.</p></div>
-    </div>
-    <p class="small" style="margin-top:3mm;">
-      Comfort at home also depends on roof treatment, ventilation, shading,
-      orientation and workmanship — the wall is one part of it.
-    </p>
-  </div>
-
-  <div style="margin-top:auto; text-align:center;">
-    <img class="divider" src="{{ASSET:divider-leaf}}" alt="" style="margin:0 auto 3mm;" />
-    <div style="font-family:var(--serif); font-size:11pt; color:var(--peacock);">
-      Traditional wisdom &nbsp;&bull;&nbsp; Modern engineering &nbsp;&bull;&nbsp; Designed for Chennai
+  <div style="margin-top:auto;">
+    <div class="advance" style="align-items:center;">
+      <div>
+        <div class="big">Pay <span data-k="advancePercentage"></span>% advance to book your production slot</div>
+        <div class="why" style="margin-top:1.5mm;">
+          The advance confirms the order, holds this rate for the validity period,
+          and reserves your slot on the production schedule.
+        </div>
+      </div>
+      <div class="guide" style="margin:0;">
+        <div class="mascot" data-mascot="brick"></div>
+      </div>
     </div>
   </div>
 
@@ -504,316 +496,192 @@
   </div>
 </section>
 
-<!-- ======================= PAGE 02 — WHY MAIYURI ======================= -->
-<section class="page">
-  <div class="runhead">
-    <img class="head-logo" src="{{ASSET:lockup-wide}}" alt="Maiyuri Bricks — Smart Interlock Bricks" />
-    <div class="meta">
-      <div><div class="k">Quotation No.</div><div class="v nw" data-k="quotationNumber"></div></div>
-      <div><div class="k">Date</div><div class="v nw" data-k="quotationDate"></div></div>
-      <div><div class="k">Project</div><div class="v" data-k="projectName"></div></div>
-      <div><div class="k">Location</div><div class="v" data-k="projectLocation"></div></div>
-    </div>
-  </div>
-
-  <div style="margin-top:7mm; display:flex; justify-content:space-between; align-items:flex-start; gap:8mm;">
-    <div style="max-width:112mm;">
-      <h1>Why <em>Maiyuri</em></h1>
-      <div class="lede">Don't compare only the brick price.</div>
-      <p class="small" style="margin-top:3mm; max-width:104mm;">
-        In interlock construction the material matters — but expert local
-        support matters even more.
-      </p>
-    </div>
-    <div class="guide">
-      <div class="say" style="max-width:44mm;">A home is not built by brick price alone.</div>
-      <div class="mascot" data-mascot="brick"></div>
-    </div>
-  </div>
-
-  <div style="margin-top:5mm;">
-    <div class="section-title">What makes a good interlock brick</div>
-    <div class="grid g3" style="margin-top:3mm; gap:3mm 6mm;">
-      <div class="eyebrow">Soil quality</div>
-      <div class="eyebrow">Compression</div>
-      <div class="eyebrow">Curing</div>
-      <div class="eyebrow">Dimensions</div>
-      <div class="eyebrow">Workmanship</div>
-      <div class="eyebrow">Site support</div>
-    </div>
-    <p class="small" style="margin-top:3mm;">
-      The real question is not just the soil. It is how the brick is made — and
-      who supports you on site.
-    </p>
-  </div>
-
-  <div class="grid g2" style="margin-top:6mm; gap:7mm;">
-    <div class="card">
-      <div class="eyebrow">Buying bricks alone</div>
-      <ul class="ticks" style="margin-top:3mm;">
-        <li>Slightly cheaper upfront</li>
-        <li>Limited guidance on site</li>
-        <li>Delay or shortage risk</li>
-        <li>More rework and confusion</li>
-        <li>Problems take longer to solve</li>
-      </ul>
-    </div>
-    <div class="card" style="border-color:var(--gold); background:var(--paper-2);">
-      <div class="eyebrow" style="color:var(--terracotta);">With Maiyuri</div>
-      <ul class="ticks" style="margin-top:3mm;">
-        <li>Available locally in Chennai</li>
-        <li>Quick support when you need it</li>
-        <li>Extra quantity when the site runs short</li>
-        <li>Guidance for your masons</li>
-        <li>Faster resolution when something goes wrong</li>
-      </ul>
-    </div>
-  </div>
-
-  <div style="margin-top:6mm;">
-    <div class="section-title">Why that matters</div>
-    <div class="grid g4" style="margin-top:4mm;">
-      <div><div class="eyebrow">Local in Chennai</div><p class="small" style="margin-top:1.5mm;">Close by, so response times are short.</p></div>
-      <div><div class="eyebrow">More than brick supply</div><p class="small" style="margin-top:1.5mm;">Planning, execution and problem-solving.</p></div>
-      <div><div class="eyebrow">Practical interlock expertise</div><p class="small" style="margin-top:1.5mm;">On-ground experience, not just a product.</p></div>
-      <div><div class="eyebrow">Support beyond delivery</div><p class="small" style="margin-top:1.5mm;">We stay with you after the bricks arrive.</p></div>
-    </div>
-  </div>
-
-  <div style="margin-top:auto; text-align:center;">
-    <img class="divider" src="{{ASSET:divider-leaf}}" alt="" style="margin:0 auto 3mm;" />
-    <div style="font-family:var(--serif); font-size:11.5pt; color:var(--peacock); line-height:1.3;">
-      Maiyuri Bricks is not just a supplier.<br />
-      <span style="color:var(--terracotta);">It is your local interlock construction partner.</span>
-    </div>
-  </div>
-
-  <div class="foot">
-    <div>MAIYURI BRICKS &nbsp;&bull;&nbsp; SMART INTERLOCK BRICKS</div>
-    <div class="pageno">02</div>
-  </div>
-</section>
-
-<!-- ======================= PAGE 03 — PROOF ======================= -->
-<section class="page">
-  <img class="wm wm-temple-lg" src="{{ASSET:temple}}" alt="" />
-
-  <div class="runhead">
-    <img class="head-logo" src="{{ASSET:lockup-wide}}" alt="Maiyuri Bricks — Smart Interlock Bricks" />
-    <div class="meta">
-      <div><div class="k">Quotation No.</div><div class="v nw" data-k="quotationNumber"></div></div>
-      <div><div class="k">Prepared for</div><div class="v" data-k="customerName"></div></div>
-    </div>
-  </div>
-
-  <div style="margin-top:7mm; display:flex; justify-content:space-between; align-items:flex-start; gap:8mm;">
-    <div style="max-width:110mm;">
-      <h1>Proof first.<br /><em>Promise lasts.</em></h1>
-      <div class="lede">Evidence before promise — because your wall should perform for generations.</div>
-    </div>
-    <div class="guide">
-      <div class="mascot" data-mascot="brick"></div>
-      <div class="say" style="max-width:44mm;">Don't compare only brick price. Compare the full wall system.</div>
-    </div>
-  </div>
-
-  <div class="grid g3" style="margin-top:4mm;">
-    <div>
-      <div class="eyebrow">01 — Product trust</div>
-      <h3 style="margin-top:1.5mm;">Lab-tested performance</h3>
-      <p class="small" style="margin-top:1.5mm;">Figures printed below, not summarised.</p>
-    </div>
-    <div>
-      <div class="eyebrow">02 — Manufacturing</div>
-      <h3 style="margin-top:1.5mm;">Hydraulic double compression</h3>
-      <p class="small" style="margin-top:1.5mm;">Pressed twice for consistent density. Red soil, gravel, stone dust, ~10% cement binder — no fly ash, no kiln firing.</p>
-    </div>
-    <div>
-      <div class="eyebrow">03 — Company trust</div>
-      <h3 style="margin-top:1.5mm;">Factory visit &amp; open process</h3>
-      <p class="small" style="margin-top:1.5mm;">Come and see how your bricks are made.</p>
-    </div>
-  </div>
-
-  <div style="margin-top:4mm;">
-    <div class="section-title">Compare the wall, not just the brick</div>
-    <p class="small" style="margin-top:1.5mm;">
-      An honest, like-for-like look at how red-soil interlock stands against the
-      walling materials Chennai builds with today. No exaggeration.
-    </p>
-    <table class="cmp" style="margin-top:2.5mm;">
-      <thead>
-        <tr>
-          <th style="width:21%;">Feature</th>
-          <th class="mine" style="width:25%;">&#9733; Maiyuri Interlock</th>
-          <th style="width:18%;">Red Brick</th>
-          <th style="width:18%;">Concrete Block</th>
-          <th style="width:18%;">AAC Block</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr><td class="cat">Thermal comfort</td><td class="mine">Excellent &middot; high thermal mass</td><td>Good</td><td>Poor &mdash; retains heat</td><td>Good</td></tr>
-        <tr><td class="cat">Breathability</td><td class="mine">High &middot; vapour-permeable</td><td>Medium</td><td>Low</td><td>Medium</td></tr>
-        <tr><td class="cat">Compressive strength</td><td class="mine">9.5&ndash;11+ N/mm&sup2;</td><td>3&ndash;5 N/mm&sup2;</td><td>5&ndash;7 N/mm&sup2;</td><td>3&ndash;4 N/mm&sup2;</td></tr>
-        <tr><td class="cat">Mortar required</td><td class="mine">Minimal &middot; reduced dependency</td><td>Full mortar bed</td><td>Full mortar bed</td><td>Thin-bed adhesive</td></tr>
-        <tr><td class="cat">Plastering</td><td class="mine">Optional</td><td>Required</td><td>Required</td><td>Required</td></tr>
-        <tr><td class="cat">Construction speed</td><td class="mine">Fast &middot; interlock system</td><td>Slow</td><td>Medium</td><td>Fast</td></tr>
-        <tr><td class="cat">Manufacturing</td><td class="mine">No kiln firing &middot; low-carbon</td><td>Kiln-fired, high CO&sup2;</td><td>Cement-heavy</td><td>Factory process</td></tr>
-        <tr><td class="cat">Rain resistance</td><td class="mine">&#10003; Stabilised</td><td>&#10003; Fired</td><td>&#10003;</td><td>&#9888; Absorbs water</td></tr>
-        <tr><td class="cat">Load-bearing (G+2)</td><td class="mine">&#10003; With engineer approval</td><td>&#10003;</td><td>&#10003;</td><td>&#10007; Needs frame</td></tr>
-      </tbody>
-    </table>
-    <p class="small" style="margin-top:2mm; font-size:6.8pt; font-style:italic;">
-      Indicative comparison for typical Chennai walling. Actual performance depends
-      on product grade, design, finish, workmanship and site execution. Strength
-      tested per IS-3495.
-    </p>
-  </div>
-
-  <div class="grid g3" style="margin-top:4mm; gap:6mm;">
-    <div style="text-align:center;">
-      <div style="font-family:var(--serif); font-size:17pt; color:var(--terracotta);">&#8377;35K &ndash; &#8377;55K</div>
-      <div class="eyebrow" style="margin-top:1.5mm;">Saved on walling for 1,000 sq.ft.</div>
-    </div>
-    <div style="text-align:center;">
-      <div style="font-family:var(--serif); font-size:17pt; color:var(--terracotta);">20 &ndash; 30%</div>
-      <div class="eyebrow" style="margin-top:1.5mm;">Less material</div>
-    </div>
-    <div style="text-align:center;">
-      <div style="font-family:var(--serif); font-size:17pt; color:var(--terracotta);">5 &ndash; 10%</div>
-      <div class="eyebrow" style="margin-top:1.5mm;">Lower lifetime electricity</div>
-    </div>
-  </div>
-  <p class="small" style="margin-top:2.5mm; text-align:center;">
-    Savings vary by project design, labour rate, finish choice, wall area, and site
-    execution. Ask for a side-by-side estimate.
-  </p>
-
-  <div class="card" style="margin-top:4mm;">
-    <div class="eyebrow">Reports. Stamped. Open to read.</div>
-    <p class="small" style="margin-top:1mm; font-size:6.9pt;">Tap a report to open the original PDF.</p>
-    <div class="grid g3" style="margin-top:2.5mm; gap:5mm;">
-      <div>
-        <a class="report-link" href="https://maiyuri.com/wp-content/uploads/2026/05/MB-Water-Absorption-Density.pdf">Density &amp; water absorption &#8599;</a>
-        <p class="small" style="margin-top:1mm;">3.00% avg absorption &middot; 2,169.76 kg/m&sup3; &middot; IS 3495 / IS 12894</p>
-      </div>
-      <div>
-        <a class="report-link" href="https://maiyuri.com/wp-content/uploads/2026/05/MIB-6-Strength.pdf">Compressive strength &middot; 6&#8243; &#8599;</a>
-        <p class="small" style="margin-top:1mm;">11.13 N/mm&sup2; avg of 3 &middot; IS 15658</p>
-      </div>
-      <div>
-        <a class="report-link" href="https://maiyuri.com/wp-content/uploads/2026/05/MIB-8-Strength.pdf">Compressive strength &middot; 8&#8243; &#8599;</a>
-        <p class="small" style="margin-top:1mm;">9.52 N/mm&sup2; avg of 3 &middot; IS 15658</p>
-      </div>
-    </div>
-    <p class="small" style="margin-top:2.5mm; font-size:6.8pt;" data-k="labFootnote"></p>
-  </div>
-
-  <div class="foot">
-    <div>A better wall is more than a cheaper brick.</div>
-    <div class="pageno">03</div>
-  </div>
-</section>
-
-<!-- ==================== PAGE 04 — COMMERCIAL ==================== -->
+<!-- ==================== PAGE 02 — WHY THIS WALL ==================== -->
 <section class="page">
   <img class="wm wm-feather" src="{{ASSET:feather}}" alt="" />
 
   <div class="runhead">
     <img class="head-logo" src="{{ASSET:lockup-wide}}" alt="Maiyuri Bricks — Smart Interlock Bricks" />
     <div class="meta">
-      <div><div class="k">Quotation No.</div><div class="v nw" data-k="quotationNumber"></div></div>
+      <div><div class="k">Quotation No.</div><div class="v" data-k="quotationNumber"></div></div>
+      <div><div class="k">Prepared for</div><div class="v" data-k="customerName"></div></div>
+    </div>
+  </div>
+
+  <div style="margin-top:7mm;">
+    <h1>Don't compare the brick.<br /><em>Compare the wall.</em></h1>
+    <div class="lede">A brick is a line item. A wall is what you live in.</div>
+  </div>
+
+  <table class="cmp" style="margin-top:6mm;">
+    <thead>
+      <tr>
+        <th style="width:30%;">Your wall</th>
+        <th style="width:33%;">Conventional red brick</th>
+        <th class="mine" style="width:37%;">&#9733; Maiyuri Interlock</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="cat">Thermal comfort</td><td>Good</td><td class="mine">Excellent &middot; high thermal mass</td></tr>
+      <tr><td class="cat">Mortar</td><td>Full mortar bed</td><td class="mine">Reduced</td></tr>
+      <tr><td class="cat">Plaster</td><td>Normally required</td><td class="mine">Optional</td></tr>
+      <tr><td class="cat">Construction</td><td>Conventional</td><td class="mine">Interlocking system</td></tr>
+      <tr><td class="cat">Manufacturing</td><td>Kiln fired</td><td class="mine">No kiln firing</td></tr>
+      <tr><td class="cat">Site support</td><td>Depends on supplier</td><td class="mine">Maiyuri support</td></tr>
+    </tbody>
+  </table>
+  <p class="small" style="margin-top:2mm; font-size:6.8pt; font-style:italic;">
+    Indicative comparison for typical Chennai walling. Actual performance depends on
+    product grade, design, finish, workmanship and site execution.
+  </p>
+
+  <div style="margin-top:7mm;">
+    <div class="section-title">Tested. Not just claimed.</div>
+    <div class="grid g3" style="margin-top:4mm;">
+      <div class="card" style="text-align:center;">
+        <div style="font-family:var(--serif); font-size:21pt; color:var(--terracotta);">11.13</div>
+        <div class="eyebrow" style="margin-top:1mm;">N/mm&sup2; &middot; 6&#8243;</div>
+        <p class="small" style="margin-top:1.5mm;">Compressive strength, avg of 3</p>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-family:var(--serif); font-size:21pt; color:var(--terracotta);">9.52</div>
+        <div class="eyebrow" style="margin-top:1mm;">N/mm&sup2; &middot; 8&#8243;</div>
+        <p class="small" style="margin-top:1.5mm;">Compressive strength, avg of 3</p>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-family:var(--serif); font-size:21pt; color:var(--terracotta);">3.00%</div>
+        <div class="eyebrow" style="margin-top:1mm;">Water absorption</div>
+        <p class="small" style="margin-top:1.5mm;">Average, against a 20% limit</p>
+      </div>
+    </div>
+    <p class="small" style="margin-top:3mm;">
+      Tested by Con-Tech Research Lab, Chennai (ISO 9001:2015), per IS 3495 and IS 15658.
+      Results vary by batch.
+    </p>
+    <div style="margin-top:2.5mm; display:flex; gap:6mm; flex-wrap:wrap;">
+      <a class="report-link" href="https://maiyuri.com/wp-content/uploads/2026/05/MIB-8-Strength.pdf">Strength report &middot; 8&#8243; &#8599;</a>
+      <a class="report-link" href="https://maiyuri.com/wp-content/uploads/2026/05/MIB-6-Strength.pdf">Strength report &middot; 6&#8243; &#8599;</a>
+      <a class="report-link" href="https://maiyuri.com/wp-content/uploads/2026/05/MB-Water-Absorption-Density.pdf">Water absorption &#8599;</a>
+    </div>
+  </div>
+
+  <!-- The obvious next question after "is it strong enough" is "which size do
+       I need where". The brochure's technical sheet answers it, so it belongs
+       here rather than in a follow-up call. -->
+  <div style="margin-top:7mm;">
+    <div class="section-title">The range</div>
+    <table class="cmp" style="margin-top:3.5mm;">
+      <thead>
+        <tr>
+          <th style="width:24%;">Product</th>
+          <th style="width:19%;">Size</th>
+          <th style="width:15%;">Weight</th>
+          <th style="width:15%;">Strength</th>
+          <th style="width:27%;">Typically used for</th>
+        </tr>
+      </thead>
+      <tbody id="range-body"></tbody>
+    </table>
+  </div>
+
+  <div style="margin-top:auto; text-align:center;">
+    <img class="divider" src="{{ASSET:divider-leaf}}" alt="" style="margin:0 auto 3mm;" />
+    <div class="lede" style="margin:0; font-size:9pt;">
+      Ask us for a side-by-side wall cost estimate for your project.
+    </div>
+  </div>
+
+  <div class="foot">
+    <div>A better wall is more than a cheaper brick.</div>
+    <div class="pageno">02</div>
+  </div>
+</section>
+
+<!-- ==================== PAGE 03 — WHY MAIYURI + ORDER ==================== -->
+<section class="page">
+  <div class="runhead">
+    <img class="head-logo" src="{{ASSET:lockup-wide}}" alt="Maiyuri Bricks — Smart Interlock Bricks" />
+    <div class="meta">
+      <div><div class="k">Quotation No.</div><div class="v" data-k="quotationNumber"></div></div>
       <div><div class="k">Valid until</div><div class="v" data-k="validUntil"></div></div>
     </div>
   </div>
 
-  <div style="margin-top:4mm;">
-    <h2>Commercial <em>Proposal</em></h2>
-    <div class="lede" style="font-size:10pt;">Your recommended Maiyuri solution</div>
+  <div style="margin-top:7mm;">
+    <h1>Bricks are only <em>the beginning.</em></h1>
+    <div class="lede">We don't just deliver bricks. We help you build the wall right.</div>
   </div>
 
-  <table class="bill" style="margin-top:4mm;">
-    <thead>
-      <tr>
-        <th style="width:46%;">Description</th>
-        <th class="r" style="width:16%;">Qty</th>
-        <th class="r" style="width:18%;">Rate</th>
-        <th class="r" style="width:20%;">Amount</th>
-      </tr>
-    </thead>
-    <tbody id="bill-body"></tbody>
-    <tfoot id="bill-foot"></tfoot>
-  </table>
-  <p class="small" style="margin-top:2.5mm;" id="tax-note"></p>
-  <p class="small" style="margin-top:1mm;">Brick-laying labour is not included in the above and is quoted separately if required.</p>
+  <div class="grid g2" style="margin-top:5mm; gap:2mm 8mm;">
+    <ul class="ticks">
+      <li>Local Chennai support</li>
+      <li>Guidance for your mason</li>
+      <li>Additional bricks when the site runs short</li>
+    </ul>
+    <ul class="ticks">
+      <li>Help with quantity planning</li>
+      <li>Factory visit before you buy</li>
+      <li>Support after delivery</li>
+    </ul>
+  </div>
 
-  <div class="grid g2" style="margin-top:4mm; gap:7mm;">
+  <div class="card" style="margin-top:5mm;">
+    <div class="eyebrow">What a customer said</div>
+    <p style="margin-top:2mm; font-family:var(--serif); font-style:italic; font-size:9.6pt; color:var(--peacock-soft); line-height:1.5;"
+       id="testimonial-quote"></p>
+    <p class="small" style="margin-top:2mm;">— <span id="testimonial-name"></span>, <span id="testimonial-loc"></span></p>
+  </div>
+
+  <div class="grid g2" style="margin-top:5mm; gap:7mm;">
     <div>
       <div class="section-title">Commercial terms</div>
-      <div style="display:grid; grid-template-columns:auto 1fr; gap:1mm 5mm; font-size:7.1pt;">
-        <div class="small">Quotation validity</div><div data-k="validUntil"></div>
-        <div class="small">Payment terms</div><div data-k="paymentTerms"></div>
-        <div class="small">Advance to confirm order</div><div><span data-k="advancePercentage"></span>%</div>
-        <div class="small">Production slot</div><div>Confirmed on receipt of advance</div>
+      <div style="display:grid; grid-template-columns:auto 1fr; gap:1.2mm 5mm; font-size:7.6pt; margin-top:2mm;">
+        <div class="small">Payment</div><div data-k="paymentTerms"></div>
+        <div class="small">Advance to confirm</div><div><span data-k="advancePercentage"></span>% — reserves your production slot</div>
+        <div class="small">Validity</div><div data-k="validUntil"></div>
         <div class="small">Unloading</div><div data-k="unloadingResponsibility"></div>
       </div>
-
-      <!-- Terms agreed with this customer alone. Set apart from the standing
-           terms so it is obvious which ones are theirs. -->
-      <div id="special-terms-block" style="display:none; margin-top:3mm;">
-        <div class="eyebrow" style="color:var(--terracotta);">Agreed for this project</div>
-        <ul class="ticks" id="special-terms-list" style="margin-top:1.5mm;"></ul>
-      </div>
     </div>
-    <div>
-      <div class="card">
-        <div class="eyebrow">Bank details for advance payment</div>
-        <div style="display:grid; grid-template-columns:auto 1fr; gap:1.4mm 4mm; font-size:7.6pt; margin-top:2mm;">
-          <div class="small">Account name</div><div data-k="accountName"></div>
-          <div class="small">IFSC</div><div data-k="ifsc"></div>
-          <div class="small">Account no.</div><div data-k="accountNumber"></div>
-          <div class="small">UPI / GPay</div><div data-k="upi"></div>
-          <div class="small">Bank</div><div data-k="bankName"></div>
-        </div>
+    <div class="card">
+      <div class="eyebrow">Bank details for advance payment</div>
+      <div style="display:grid; grid-template-columns:auto 1fr; gap:1.2mm 4mm; font-size:7.6pt; margin-top:2mm;">
+        <div class="small">Account name</div><div data-k="accountName"></div>
+        <div class="small">Account no.</div><div data-k="accountNumber"></div>
+        <div class="small">IFSC</div><div data-k="ifsc"></div>
+        <div class="small">Bank</div><div data-k="bankName"></div>
+        <div class="small">UPI / GPay</div><div data-k="upi"></div>
       </div>
     </div>
   </div>
 
-  <div style="margin-top:4mm;">
+  <div style="margin-top:5mm;">
     <div class="cta">
       <div class="act primary">
         <div class="t">Confirm this quotation</div>
-        <div class="d">Approve and lock your order today.</div>
-        <div class="b">Confirm now</div>
+        <div class="d">Approve and reserve your production slot.</div>
       </div>
       <div class="act">
         <div class="t">Send your floor plan</div>
         <div class="d">We'll help plan your wall requirement.</div>
-        <div class="b">Send floor plan</div>
       </div>
       <div class="act">
         <div class="t">Book a factory visit</div>
         <div class="d">See the process and judge for yourself.</div>
-        <div class="b">Book visit</div>
       </div>
     </div>
   </div>
 
-  <div style="margin-top:1.5mm; text-align:center;">
-    <img src="{{ASSET:advance-banner}}" alt="Pay 20% advance to book your production slot" style="width:46mm; height:auto;" />
-  </div>
-
-  <div style="margin-top:2mm; text-align:center;">
-    <div style="font-family:var(--serif); font-size:10.5pt; color:var(--peacock); line-height:1.28;">
+  <div style="margin-top:auto; text-align:center;">
+    <img src="{{ASSET:advance-banner}}" alt="Pay 20% advance to book your production slot" style="width:96mm; height:auto;" />
+    <div style="font-family:var(--serif); font-size:12.5pt; color:var(--peacock); line-height:1.35; margin-top:3mm;">
       Maiyuri Bricks is not just a supplier.<br />
-      <em style="font-style:normal; color:var(--terracotta);">It is your local interlock construction partner.</em>
+      <span style="color:var(--terracotta);">It is your local interlock construction partner.</span>
     </div>
-
   </div>
 
   <div class="foot">
     <div><span data-k="salesPersonName"></span> &nbsp;&bull;&nbsp; <span data-k="salesPersonPhone"></span> &nbsp;&bull;&nbsp; <span data-k="website"></span></div>
-    <div class="pageno">04</div>
+    <div class="pageno">03</div>
   </div>
 </section>
 
@@ -835,10 +703,56 @@
 
 
 
-  if (CONFIG.projectName === CONFIG.customerName) {
-    document.getElementById("cover-project-k").style.display = "none";
-    document.getElementById("cover-project-v").style.display = "none";
-  }
+  /* The strength figure printed on page 1 must belong to the product being
+     quoted: 9.52 N/mm² is the 8", 11.13 the 6". Quoting the higher number
+     against an 8" wall is the kind of thing an engineer picks apart. When the
+     product cannot be identified, the claim is made without a number rather
+     than with the wrong one. */
+  const firstItem = (CONFIG.pricingItems && CONFIG.pricingItems[0]) || null;
+  const desc = firstItem ? String(firstItem.description) : "";
+  const strength = /\b8\b|8"|8&#8243;/.test(desc)
+    ? "9.52 N/mm²"
+    : /\b6\b|6"|6&#8243;/.test(desc)
+      ? "11.13 N/mm²"
+      : null;
+  document.getElementById("quoted-strength").textContent = strength
+    ? `Lab-tested at ${strength} per IS 15658. `
+    : "Lab-tested per IS 15658. ";
+
+  /* The range. Quoted products are marked, so the table doubles as a
+     "you are buying this one" without a second column of prose. */
+  const quoted = new Set(
+    (CONFIG.pricingItems || [])
+      .map((it) => String(it.description || "").replace(/\s+/g, " ").toLowerCase()),
+  );
+  /* A SKU is on this quotation when every word of it appears in a line item:
+     '8" Mud Interlock' matches '8" Mud Interlock Brick' but not the 6" or the
+     cement variant. Loose enough to survive a renamed product, strict enough
+     not to star one the customer is not buying. */
+  const isQuoted = (sku) => {
+    const words = sku.toLowerCase().split(/\s+/).filter(Boolean);
+    for (const d of quoted) if (words.every((w) => d.includes(w))) return true;
+    return false;
+  };
+  document.getElementById("range-body").innerHTML = (CONFIG.productCatalogue || [])
+    .map((p) => {
+      const mine = isQuoted(p.sku);
+      const cls = mine ? ' class="mine"' : "";
+      return `<tr>
+        <td class="cat">${esc(p.sku)}${mine ? ' <span style="color:var(--gold);">&#9733;</span>' : ""}</td>
+        <td${cls}>${esc(p.size)}</td>
+        <td${cls}>${esc(p.weight)}</td>
+        <td${cls}>${esc(p.strength)}</td>
+        <td${cls}>${esc(p.use)}</td>
+      </tr>`;
+    })
+    .join("");
+
+  /* Testimonial — a real, attributable Google review or nothing at all. */
+  const t = CONFIG.verifiedTestimonial || {};
+  put(document.getElementById("testimonial-quote"), t.quote ? `“${t.quote}”` : "");
+  put(document.getElementById("testimonial-name"), t.name);
+  put(document.getElementById("testimonial-loc"), t.location);
 
   /* Commercial table */
   const cur = CONFIG.currency;
@@ -881,5 +795,24 @@
     document.getElementById("special-terms-block").style.display = "";
     document.getElementById("special-terms-list").innerHTML =
       specials.map((t) => `<li>${esc(t)}</li>`).join("");
+  }
+
+  /* Fit. Runs last, once every page holds its real content.
+     `overflow: hidden` on a fixed-height page hides the overflow but still
+     reports it in scrollHeight, so the page can be asked whether it fits and
+     tightened until it does. Two steps, in order of what costs the customer
+     least: compress the bill, then drop the summary trio. Anything past that
+     is a genuinely oversized order and wants a covering note, not a smaller
+     typeface — it is left alone and logged. */
+  for (const page of document.querySelectorAll(".page")) {
+    for (const step of ["dense", "dense-2"]) {
+      if (page.scrollHeight <= page.clientHeight) break;
+      page.classList.add(step);
+    }
+    if (page.scrollHeight > page.clientHeight) {
+      console.warn(
+        `quotation: page overflows by ${page.scrollHeight - page.clientHeight}px after fitting`,
+      );
+    }
   }
 </script>
