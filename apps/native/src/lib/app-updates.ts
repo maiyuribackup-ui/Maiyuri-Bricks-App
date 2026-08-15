@@ -21,7 +21,11 @@ export async function checkForAppUpdate(): Promise<void> {
       void Updates.reloadAsync();
     }, 1200);
   } catch (err) {
-    // Never let update-checking break app startup.
+    // Never let update-checking break app startup — but do not fail silently
+    // either. A console.warn is unreadable on a phone, so staff carried on
+    // with stale code believing they were current. Settings > App version
+    // shows the running bundle and can retry.
     console.warn('App update check failed:', err);
+    toast.error('Could not check for app updates. See Settings > App version.');
   }
 }
