@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -379,6 +379,7 @@ function NotesSection({ leadId }: { leadId: string }) {
 
 export default function LeadDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const { data, isLoading, isError, error } = useLead(id);
   const lead = data?.data;
   const [qaOpen, setQaOpen] = useState(false);
@@ -424,10 +425,16 @@ export default function LeadDetailScreen() {
             <Text className="font-semibold text-white">WhatsApp</Text>
           </Pressable>
           <Pressable
+            onPress={() => router.push(`/leads/edit/${lead.id}`)}
+            className="rounded-lg bg-white/15 px-4 py-2"
+          >
+            <Text className="font-semibold text-white">✎ Edit</Text>
+          </Pressable>
+          <Pressable
             onPress={() => setQaOpen(true)}
             className="rounded-lg bg-white/15 px-4 py-2"
           >
-            <Text className="font-semibold text-white">⚡ Edit</Text>
+            <Text className="font-semibold text-white">⚡ Status</Text>
           </Pressable>
         </View>
       </View>

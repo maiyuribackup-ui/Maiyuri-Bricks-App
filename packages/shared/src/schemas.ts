@@ -173,6 +173,10 @@ export const createLeadSchema = z.object({
 
 export const updateLeadSchema = z.object({
   name: z.string().min(1).optional(),
+  // Internal notes. The column and the Lead type have always had it, but it
+  // was missing here — zod strips unknown keys, so anything written to it was
+  // dropped without a word.
+  staff_notes: z.string().nullable().optional(),
   contact: z.string().min(10).optional(),
   source: z.string().min(1).optional(),
   lead_type: z.string().min(1).optional(),
