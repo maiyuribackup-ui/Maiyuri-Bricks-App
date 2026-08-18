@@ -92,6 +92,7 @@
       "Unloading is carried out alongside the vehicle. Carrying, stacking or shifting the material away from the unloading point is not included in this quotation.",
       "The customer is responsible for ensuring that, on the agreed delivery date, the approach road and the unloading area are clear, level, and firm enough to take a loaded vehicle, and that any permission required for the vehicle to reach the site has been obtained.",
       "Quantities are to be confirmed by the customer before dispatch. Material once dispatched is not taken back except in the case of a manufacturing defect.",
+      "If the vehicle cannot reach the delivery point, or cannot be unloaded within the free unloading time, because the site is not ready, any resulting waiting charges, return freight and re-delivery cost are to the customer's account.",
     ],
 
     // — Evidence ———————————————————————————————————————————
@@ -396,21 +397,23 @@
   .page.dense-2 #why-trio { display: none; }
   .page.dense-2 .closing img { display: none; }
 
-  /* Drawn diagrams. Brick tones are their own tokens rather than the text
-     palette: the wall wants the product's colour, not the document's. */
-  .anatomy { --brick-face: #dda87d; --brick-edge: #8f4423; }
-  /* Sized by HEIGHT, not width. At full sheet width this drawing is 62mm
-     tall and pushes the page 14mm past the sheet, where `overflow: hidden`
-     eats the footer without saying so. Capping the height and letting the
-     width follow keeps the page honest, and the drawing is legible well
-     below the size at which it stops fitting. */
-  .anatomy svg { display: block; height: 54mm; width: auto; max-width: 100%; margin: 3mm auto 0; }
-  .anatomy .callout text { font-size: 15px; }
-  .page.dense .anatomy svg { height: 42mm; }
-  .anatomy .callout polyline { stroke: var(--gold); stroke-width: 1.2; fill: none; }
-  .anatomy .callout circle { fill: var(--terracotta); stroke: #fff; stroke-width: 1.5; }
-  .anatomy .callout text { font-family: var(--sans); fill: var(--muted); }
-  .anatomy .callout .lbl { fill: var(--peacock); font-weight: 700; }
+  /* Photographs of real work.
+
+     Sized by HEIGHT so the row is a fixed band whatever the images are: the
+     page is a fixed 297mm with `overflow: hidden`, and a photo strip that
+     grows with its content is the sort of thing that quietly eats a footer.
+     `object-fit: cover` crops rather than distorts — a stretched brick would
+     undo the point of showing one. */
+  .shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; margin-top: 3.5mm; }
+  .shots figure { margin: 0; }
+  .shots img {
+    display: block; width: 100%; height: 50mm; object-fit: cover;
+    border-radius: 2mm; border: 0.4pt solid var(--rule);
+  }
+  .shots figcaption {
+    font-size: 6.8pt; line-height: 1.35; color: var(--muted); margin-top: 1.6mm;
+  }
+  .page.dense .shots img { height: 38mm; }
 
   /* From approval to delivery. The standing terms say where a lorry stops in
      the language of a contract; this says it in the language of a customer
@@ -636,63 +639,25 @@
     </div>
   </div>
 
-  <!-- The table above asserts "reduced mortar" and "plaster optional". This
-       shows WHY, which a table cannot: the key is the whole argument, and one
-       drawing of it does more than another row of adjectives. Drawn rather
-       than photographed so it prints at any size, costs no kilobytes, and
-       takes the document's own colours. -->
+  <!-- The table above asserts "reduced mortar" and "plaster optional". A
+       drawing of the joint explained why; photographs of the thing itself do
+       the same job and carry something a drawing cannot — that this is a
+       system already standing in finished houses, not a specification. -->
   <div style="margin-top:5mm;">
-    <div class="section-title">How the wall goes up</div>
-    <div class="anatomy">
-      <svg viewBox="0 0 700 250" role="img"
-           aria-label="Section through an interlock wall: three courses stacked, each located by a moulded key, with reduced mortar and a finished face.">
-        <defs>
-          <!-- One brick in section, 160 × 76 — close to the real 10 × 5 in
-               proportion, so the drawing reads as the product and not as a
-               diagram of some other brick. Two keys stand proud of the top
-               face; two matching notches are cut into the underside. Courses
-               are laid in running bond, offset by half a brick, which lines
-               every key up with the notch above it. -->
-          <path id="mb-brick"
-                d="M0 0 L28 0 L32 -10 L48 -10 L52 0 L108 0 L112 -10 L128 -10 L132 0 L160 0
-                   L160 76 L132 76 L128 66 L112 66 L108 76 L52 76 L48 66 L32 66 L28 76 L0 76 Z" />
-          <!-- The wall is clipped to the left of the sheet; the right is left
-               clear for the labels, so nothing can collide with the drawing
-               however long a label runs. -->
-          <clipPath id="mb-clip"><rect x="0" y="18" width="410" height="250" /></clipPath>
-        </defs>
-
-        <g clip-path="url(#mb-clip)" fill="var(--brick-face)" stroke="var(--brick-edge)"
-           stroke-width="2" stroke-linejoin="round">
-          <use href="#mb-brick" x="-40" y="40" /><use href="#mb-brick" x="120" y="40" />
-          <use href="#mb-brick" x="280" y="40" />
-
-          <use href="#mb-brick" x="-120" y="116" /><use href="#mb-brick" x="40" y="116" />
-          <use href="#mb-brick" x="200" y="116" /><use href="#mb-brick" x="360" y="116" />
-
-          <use href="#mb-brick" x="-40" y="192" /><use href="#mb-brick" x="120" y="192" />
-          <use href="#mb-brick" x="280" y="192" />
-        </g>
-
-        <!-- Leaders run from the feature to a common gutter, so the three
-             labels line up instead of stepping raggedly across the sheet. -->
-        <g class="callout">
-          <polyline points="200,116 200,86 430,86" />
-          <circle cx="200" cy="116" r="4" />
-          <text x="442" y="82"><tspan class="lbl">Moulded key</tspan></text>
-          <text x="442" y="98">locates every course as it is laid</text>
-
-          <polyline points="300,192 300,160 430,160" />
-          <circle cx="300" cy="192" r="4" />
-          <text x="442" y="156"><tspan class="lbl">Reduced mortar</tspan></text>
-          <text x="442" y="172">the key does the aligning, not the bed</text>
-
-          <polyline points="150,240 150,228 430,228" />
-          <circle cx="150" cy="240" r="4" />
-          <text x="442" y="224"><tspan class="lbl">Finished face</tspan></text>
-          <text x="442" y="240">plaster optional, inside and out</text>
-        </g>
-      </svg>
+    <div class="section-title">Built, not rendered</div>
+    <div class="shots">
+      <figure>
+        <img src="{{ASSET:photo-wall}}" alt="Close view of an interlock wall, laid without plaster." />
+        <figcaption>The joint, close up. No plaster, and the face is the finish.</figcaption>
+      </figure>
+      <figure>
+        <img src="{{ASSET:photo-site}}" alt="A two-storey house under construction in interlock brick." />
+        <figcaption>A house going up. Interlock throughout, walls and roof.</figcaption>
+      </figure>
+      <figure>
+        <img src="{{ASSET:photo-home}}" alt="The finished entrance of a house built in interlock brick, lit at night." />
+        <figcaption>The same walls, finished and lived in.</figcaption>
+      </figure>
     </div>
   </div>
 

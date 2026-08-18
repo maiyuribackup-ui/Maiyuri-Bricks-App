@@ -1,5 +1,5 @@
 /**
- * Render the four-page quotation to PDF, server-side.
+ * Render the three-page quotation to PDF, server-side.
  *
  * The document is HTML because that is what the design is authored in — the
  * template carries its own DATA / CONTENT / DESIGN split and is the thing the
@@ -72,6 +72,10 @@ const ASSETS = [
   "corner", "temple", "skyline", "feather", "divider-leaf", "house",
   "lockup", "lockup-wide", "truck", "mascot-welcome", "mascot-brick",
   "advance-banner", "brick",
+  // Photographs of real work. JPEG, unlike the artwork above — these are
+  // continuous-tone camera images, and PNG would multiply their weight for
+  // no visible gain in a document that is often sent over WhatsApp.
+  "photo-wall", "photo-site", "photo-home",
 ] as const;
 
 const FACES: [string, number, string, string][] = [
@@ -120,9 +124,12 @@ function templateWithAssets(): string {
 
   for (const name of ASSETS) {
     const token = `{{ASSET:${name}}}`;
-    if (html.includes(token)) {
-      html = html.split(token).join(dataUri(path.join(artDir, `${name}.png`), "image/png"));
-    }
+    if (!html.includes(token)) continue;
+    // Artwork is PNG, photographs are JPEG; the token does not say which.
+    const jpeg = path.join(artDir, `${name}.jpg`);
+    const file = fs.existsSync(jpeg) ? jpeg : path.join(artDir, `${name}.png`);
+    const mime = file.endsWith(".jpg") ? "image/jpeg" : "image/png";
+    html = html.split(token).join(dataUri(file, mime));
   }
   // The mark is the one asset the template takes from public/.
   if (html.includes("{{ASSET:mark}}")) {

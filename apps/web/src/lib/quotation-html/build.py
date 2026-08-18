@@ -46,17 +46,22 @@ def main() -> None:
     with open(os.path.join(HERE, "template.html"), encoding="utf-8") as fh:
         html = fh.read()
 
-    assets = {name: os.path.join(ART, f"{name}.png") for name in
-              ("corner", "temple", "skyline", "feather", "divider-leaf",
-               "divider-knot", "house", "page-frame", "lockup", "lockup-wide",
-               "truck", "mascot-welcome", "mascot-brick", "advance-banner", "brick")}
+    names = ("corner", "temple", "skyline", "feather", "divider-leaf",
+             "divider-knot", "house", "page-frame", "lockup", "lockup-wide",
+             "truck", "mascot-welcome", "mascot-brick", "advance-banner", "brick",
+             # Photographs of real work — JPEG, unlike the artwork above.
+             "photo-wall", "photo-site", "photo-home")
 
     used = []
-    for name, path in assets.items():
+    for name in names:
         token = "{{ASSET:%s}}" % name
-        if token in html:
-            html = html.replace(token, data_uri(path, "image/png"))
-            used.append((name, os.path.getsize(path) / 1024))
+        if token not in html:
+            continue
+        jpeg = os.path.join(ART, f"{name}.jpg")
+        path = jpeg if os.path.exists(jpeg) else os.path.join(ART, f"{name}.png")
+        mime = "image/jpeg" if path.endswith(".jpg") else "image/png"
+        html = html.replace(token, data_uri(path, mime))
+        used.append((name, os.path.getsize(path) / 1024))
 
     if "{{ASSET:mark}}" in html:
         html = html.replace("{{ASSET:mark}}", build_mark())
