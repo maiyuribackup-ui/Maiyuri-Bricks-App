@@ -49,8 +49,20 @@ function SmartQuoteSection({
   const generate = useGenerateSmartQuote();
   const existing = useSmartQuote(leadId);
   const [pricingOpen, setPricingOpen] = useState(false);
-  // Freshly generated wins; otherwise whatever the lead already has.
-  const quote = generate.data?.data ?? existing.data ?? null;
+
+  // The query cache is the ONLY source of truth for the quote.
+  //
+  // This used to read `generate.data?.data ?? existing.data`. A mutation's
+  // `.data` is its last result and it survives for the life of the component,
+  // so once you generated a quote, that pre-price snapshot outranked the
+  // query for the rest of the visit. Saving a rate updates the query cache —
+  // and the screen went on rendering the stale object: the readiness gate
+  // stayed shut, WhatsApp and PDF stayed greyed out, and the editor reopened
+  // empty and asked for a price that was already in the database.
+  //
+  // useGenerateSmartQuote writes its result into this same cache on success,
+  // so nothing is lost by reading only from here.
+  const quote = existing.data ?? null;
   const slug = quote?.link_slug;
   const url = slug ? quoteUrl(slug) : null;
   const phone = contact.replace(/[^0-9]/g, '');
