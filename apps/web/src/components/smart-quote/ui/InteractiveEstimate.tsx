@@ -81,9 +81,45 @@ export function InteractiveEstimate({
     : t(language, "sq.ft", "சதுர அடி");
   const showTransport = pricing?.show_transport !== false;
 
+  // The lines the engineer actually quoted.
+  //
+  // This component was built when a quote was one product, and it still reads
+  // `default_product` / `default_area_sqft` — which are only ever the FIRST
+  // line. A two-product quote therefore showed the customer one product and a
+  // total for that product alone, while the PDF for the same quote showed
+  // both and a total roughly twice as large. Two documents, one quote, two
+  // prices; whichever the customer read second destroyed the first.
+  //
+  // Everything needed is already in pricing.items, so the lines are computed
+  // here rather than re-derived by the estimate endpoint, which prices one
+  // product per call.
+  const quotedLines = useMemo(() => {
+    const items = pricing?.items ?? [];
+    return items
+      .map((it) => {
+        const product = products.find((p) => p.id === it.product_id);
+        if (!product || !(it.rate > 0) || !(it.quantity > 0)) return null;
+        return {
+          id: it.product_id,
+          name: product.name,
+          unit: product.unit,
+          quantity: it.quantity,
+          rate: it.rate,
+          amount: it.rate * it.quantity,
+        };
+      })
+      .filter((l): l is NonNullable<typeof l> => l !== null);
+  }, [pricing?.items, products]);
+
+  // One line is still the calculator's job — it can price a single product
+  // live, and letting the customer move the quantity is the point of the page.
+  // More than one and the quote is fixed, so it is shown as quoted.
+  const isMultiLine = quotedLines.length > 1;
+  const quotedTotal = quotedLines.reduce((sum, l) => sum + l.amount, 0);
+
   // Debounced live estimate
   useEffect(() => {
-    if (!productId || !quantity || quantity <= 0) {
+    if (isMultiLine || !productId || !quantity || quantity <= 0) {
       setResult(null);
       return;
     }
@@ -108,7 +144,7 @@ export function InteractiveEstimate({
       }
     }, 350);
     return () => clearTimeout(handle);
-  }, [slug, productId, quantity, distanceKm, showTransport]);
+  }, [slug, productId, quantity, distanceKm, showTransport, isMultiLine]);
 
   const handleWhatsApp = useCallback(() => {
     const phone = pricing?.rep_phone;
@@ -139,14 +175,53 @@ export function InteractiveEstimate({
           t(language, "Your instant estimate", "உங்கள் உடனடி மதிப்பீடு")}
       </h2>
       <p className="mt-2 text-center text-sm text-slate-500">
-        {t(
-          language,
-          "Adjust the details to see your price — built from our live rates.",
-          "விவரங்களை மாற்றி உங்கள் விலையைப் பாருங்கள் — எங்கள் நேரடி விலையிலிருந்து.",
-        )}
+        {isMultiLine
+          ? t(
+              language,
+              "Prepared for you by our team — these are the products and rates quoted.",
+              "எங்கள் குழுவால் உங்களுக்காகத் தயாரிக்கப்பட்டது — இவை மேற்கோள் காட்டப்பட்ட தயாரிப்புகளும் விலைகளும்.",
+            )
+          : t(
+              language,
+              "Adjust the details to see your price — built from our live rates.",
+              "விவரங்களை மாற்றி உங்கள் விலையைப் பாருங்கள் — எங்கள் நேரடி விலையிலிருந்து.",
+            )}
       </p>
 
       <div className="mt-7 rounded-3xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50">
+        {isMultiLine ? (
+          <>
+            <ul className="divide-y divide-slate-100">
+              {quotedLines.map((l) => (
+                <li key={l.id} className="flex items-baseline justify-between gap-4 py-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-slate-800">{l.name}</div>
+                    <div className="mt-0.5 text-xs text-slate-500">
+                      {l.quantity.toLocaleString("en-IN")}{" "}
+                      {l.unit === "piece"
+                        ? t(language, "bricks", "செங்கற்கள்")
+                        : t(language, "sq.ft", "சதுர அடி")}{" "}
+                      &times; {inr(l.rate)}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-sm font-semibold text-slate-900">
+                    {inr(l.amount)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-5 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-5 text-white">
+              <div className="flex items-end justify-between gap-4">
+                <span className="text-sm text-slate-300">
+                  {t(language, "Your quote total", "உங்கள் மொத்தத் தொகை")}
+                </span>
+                <span className="whitespace-nowrap text-3xl font-bold">{inr(quotedTotal)}</span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
         {/* Product selector */}
         {products.length > 1 && (
           <div className="mb-5">
@@ -253,6 +328,8 @@ export function InteractiveEstimate({
             </div>
           )}
         </div>
+          </>
+        )}
 
         {pricing?.price_note && (
           <p className="mt-3 text-center text-xs text-slate-400">{pricing.price_note}</p>
@@ -264,11 +341,17 @@ export function InteractiveEstimate({
           </p>
         )}
         <p className="mt-2 text-center text-[11px] text-slate-400">
-          {t(
-            language,
-            "Indicative estimate for materials & delivery. Final quote confirmed by our team.",
-            "பொருட்கள் & டெலிவரிக்கான தோராய மதிப்பீடு. இறுதி விலை எங்கள் குழுவால் உறுதி செய்யப்படும்.",
-          )}
+          {isMultiLine
+            ? t(
+                language,
+                "Quoted rates for materials. GST extra, as per actual.",
+                "பொருட்களுக்கான மேற்கோள் விலை. GST தனி, உண்மையின்படி.",
+              )
+            : t(
+                language,
+                "Indicative estimate for materials & delivery. Final quote confirmed by our team.",
+                "பொருட்கள் & டெலிவரிக்கான தோராய மதிப்பீடு. இறுதி விலை எங்கள் குழுவால் உறுதி செய்யப்படும்.",
+              )}
         </p>
 
         {/* WhatsApp CTA — hidden when the routed CTA section closes the page */}

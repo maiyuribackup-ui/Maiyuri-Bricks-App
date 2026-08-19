@@ -319,7 +319,13 @@
     background: var(--terracotta); color: #fff; padding: 4.2mm 3.5mm; border: none;
     font-family: var(--serif); font-size: 13pt; letter-spacing: 0.01em;
   }
-  .bill tr.grand td.r { color: #fff; font-size: 19pt; font-weight: 700; }
+  /* The total is one number and must read as one: adding the currency
+     pushed "Rs. 1,05,000" past the column and it broke after "Rs.".
+     Never wrap, and start a size smaller so a lakh-scale figure with a
+     prefix still fits the band. */
+  .bill tr.grand td.r {
+    color: #fff; font-size: 17pt; font-weight: 700; white-space: nowrap;
+  }
 
   /* — Conversion blocks — */
   .advance {
@@ -845,11 +851,23 @@
         <td class="r">${isPlaceholder(it.amount) ? esc(it.amount) : cur + " " + esc(it.amount)}</td>
       </tr>`).join("");
 
-  const rows = [`<tr class="sum"><td colspan="3" class="r">Subtotal</td><td class="r">${esc(CONFIG.subtotal)}</td></tr>`];
+  /* Totals carry the currency, same as the lines above them.
+     They did not, and the effect was absurd on the one number that matters:
+     every line read "Rs. 55" while the grand total read a bare "1,05,000".
+     A total without a unit is the last thing a commercial document should
+     print. Values that already carry a symbol are left alone, so a caller
+     passing "Rs. 1,05,000" does not end up with it twice. */
+  const withCur = (v) => {
+    const str = String(v ?? "");
+    if (!str || isPlaceholder(str)) return esc(str);
+    return /^(₹|Rs\.?)\s/i.test(str) ? esc(str) : cur + " " + esc(str);
+  };
+
+  const rows = [`<tr class="sum"><td colspan="3" class="r">Subtotal</td><td class="r">${withCur(CONFIG.subtotal)}</td></tr>`];
   if (CONFIG.showGst) {
-    rows.push(`<tr class="sum"><td colspan="3" class="r">GST @ ${esc(CONFIG.gstRate)}</td><td class="r">${esc(CONFIG.gstAmount)}</td></tr>`);
+    rows.push(`<tr class="sum"><td colspan="3" class="r">GST @ ${esc(CONFIG.gstRate)}</td><td class="r">${withCur(CONFIG.gstAmount)}</td></tr>`);
   }
-  rows.push(`<tr class="grand"><td colspan="3">Total project investment</td><td class="r">${esc(CONFIG.grandTotal)}</td></tr>`);
+  rows.push(`<tr class="grand"><td colspan="3">Total project investment</td><td class="r">${withCur(CONFIG.grandTotal)}</td></tr>`);
   document.getElementById("bill-foot").innerHTML = rows.join("");
 
   const note = document.getElementById("tax-note");
