@@ -957,6 +957,51 @@ function getSupabase() {
 }
 ```
 
+---
+
+### [2026-06-06] BUG-015: API - Cookie-Only Auth on an Endpoint the Native App Calls
+
+**Severity:** Critical (App push notifications never delivered)
+**Files Affected:**
+
+- `apps/web/app/api/push/register/route.ts`
+- `apps/web/app/api/push/test/route.ts`
+- `apps/web/src/lib/native/capacitor.ts`
+
+**Context:** Registering a device's FCM token so the user can receive push
+notifications in the Android (Capacitor) app.
+
+**Mistake:** The register endpoint authenticated cookie-only
+(`createSupabaseRouteClient` → `auth.getUser()`), and the client sent the token
+with **no `Authorization` header** and no retry. The Capacitor webview manages
+the Supabase session in JS and does not reliably carry the session cookie, so
+the request returned **401**. `device_tokens` stayed empty and every send found
+zero devices — notifications silently never arrived.
+
+**Root Cause:** Auth-mechanism mismatch. The app authenticates API calls with a
+**Bearer token** from the Supabase session (see `/api/users/me`), but the push
+routes assumed a browser cookie session. Fire-and-forget registration also lost
+the token on any transient failure (e.g. token arrives before session is ready).
+
+**Prevention Rule:** Any endpoint a native/mobile client calls MUST authenticate
+via `getUserFromRequest` (Bearer **or** cookie), never cookie-only. Client-side,
+attach the session Bearer token AND retry idempotent registration with backoff.
+
+**Code Example:**
+
+```typescript
+❌ Wrong (cookie-only; 401 in the native webview):
+const supabase = createSupabaseRouteClient(request);
+const { data: { user } } = await supabase.auth.getUser();
+
+✅ Correct (Bearer or cookie):
+const user = await getUserFromRequest(request);
+if (!user) return error("Unauthorized", 401);
+```
+
+**Verification:** Settings → Notifications → "Send Test" shows live device count
+and triggers an end-to-end push. See `docs/PUSH_NOTIFICATIONS.md`.
+
 **Solution:**
 
 The centralized `supabaseAdmin` in `@/lib/supabase` has proper lazy initialization with null checks:

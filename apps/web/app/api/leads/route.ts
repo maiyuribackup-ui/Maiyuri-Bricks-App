@@ -11,7 +11,12 @@ import {
   sanitizeSearchTerm,
 } from "@/lib/api-utils";
 import { notifyNewLeadDetailed } from "@/lib/telegram";
-import { notifyLeadPush } from "@/lib/push/fcm";
+import {
+  filterByPushPref,
+  getUserIdsByRoles,
+  notifyLeadPush,
+} from "@/lib/push/fcm";
+import { createFirstResponseTask } from "@/lib/golden-hour";
 import {
   createLeadSchema,
   paginationSchema,
@@ -20,18 +25,17 @@ import {
 } from "@maiyuri/shared";
 
 /**
- * Resolve which users should receive a "new lead" push:
- * the assigned rep if set, otherwise leadership (founder/owner).
+ * Resolve which users should receive a "new lead" push: leadership
+ * (founder/owner) ALWAYS — the founder asked to hear about every new lead —
+ * plus the assigned rep when set. Respects the push_leads opt-out.
  */
 async function resolveNewLeadRecipients(
   assignedStaff: string | null,
 ): Promise<string[]> {
-  if (assignedStaff) return [assignedStaff];
-  const { data } = await supabaseAdmin
-    .from("users")
-    .select("id")
-    .in("role", ["founder", "owner"]);
-  return (data ?? []).map((u) => u.id);
+  const leadership = await getUserIdsByRoles(["founder", "owner"]);
+  const ids = new Set(leadership);
+  if (assignedStaff) ids.add(assignedStaff);
+  return filterByPushPref([...ids], "push_leads");
 }
 
 // GET /api/leads - List all leads with filtering and pagination
@@ -133,6 +137,9 @@ export async function POST(request: NextRequest) {
     }).catch((err) => {
       console.error("Failed to send Telegram notification:", err);
     });
+
+    // Golden Hour: first-response task due in 30 min (awaited; never throws).
+    await createFirstResponseTask(lead);
 
     // Native push for the new lead (awaited before response so Vercel doesn't kill it).
     const recipients = await resolveNewLeadRecipients(

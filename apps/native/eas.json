@@ -1,0 +1,37 @@
+{
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "development"
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://pailepomvvwjkrhkwdqt.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhaWxlcG9tdnZ3amtyaGt3ZHF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1MzkzNzksImV4cCI6MjA4MzExNTM3OX0.LPqNxVCbBYIpsIeg5lGMro-Ubj8JPmHrDFLT8X0XVVc",
+        "EXPO_PUBLIC_API_BASE_URL": "https://mb.maiyuri.com",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://41fa7620487df297e55a6de17384b1d4@o4511721437659136.ingest.de.sentry.io/4511721448013904",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      },
+      "channel": "preview"
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "channel": "production"
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

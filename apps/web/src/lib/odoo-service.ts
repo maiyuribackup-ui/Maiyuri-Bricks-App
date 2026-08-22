@@ -5,13 +5,26 @@
 
 import { supabaseAdmin } from "./supabase-admin";
 
-// Odoo connection config
+// Odoo connection config — env-only, no committed fallbacks (security audit).
+// Missing config surfaces as a clear error instead of a silent auth failure.
 const ODOO_CONFIG = {
-  url: process.env.ODOO_URL || "https://CRM.MAIYURI.COM",
-  db: process.env.ODOO_DB || "lite2",
-  username: process.env.ODOO_USER || "maiyuribricks@gmail.com",
-  password: process.env.ODOO_PASSWORD || "",
+  url: process.env.ODOO_URL ?? "",
+  db: process.env.ODOO_DB ?? "",
+  username: process.env.ODOO_USER ?? "",
+  password: process.env.ODOO_PASSWORD ?? "",
 };
+
+function assertOdooConfigured(): void {
+  const missing = [
+    !ODOO_CONFIG.url && "ODOO_URL",
+    !ODOO_CONFIG.db && "ODOO_DB",
+    !ODOO_CONFIG.username && "ODOO_USER",
+    !ODOO_CONFIG.password && "ODOO_PASSWORD",
+  ].filter(Boolean);
+  if (missing.length) {
+    throw new Error(`Odoo is not configured: set ${missing.join(", ")}`);
+  }
+}
 
 // Default salesperson: Ms.Nithya (Odoo user_id: 10)
 const DEFAULT_SALESPERSON_ID = 10;
@@ -66,11 +79,28 @@ async function odooXmlRpc(
   </params>
 </methodCall>`;
 
-  const response = await fetch(`${ODOO_CONFIG.url}/xmlrpc/2/${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "text/xml" },
-    body: xmlBody,
-  });
+  assertOdooConfigured();
+
+  // Hard timeout: a hung Odoo must not pin the serverless function until the
+  // platform kills it (reliability audit). 25s covers slow ERP reads.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 25_000);
+  let response: Response;
+  try {
+    response = await fetch(`${ODOO_CONFIG.url}/xmlrpc/2/${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "text/xml" },
+      body: xmlBody,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error(`Odoo timed out after 25s (${endpoint}/${method})`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 
   const text = await response.text();
   return parseXmlResponse(text);
@@ -835,4 +865,17 @@ export async function fullSync(
       pull: pullResult.data,
     },
   };
+}
+
+/**
+ * Generic Odoo RPC access for other modules (ops planning). Exposed here so
+ * the auth + XML-RPC plumbing stays in one place.
+ */
+export async function odooExecute(
+  model: string,
+  method: string,
+  args: unknown[],
+  kwargs: Record<string, unknown> = {},
+): Promise<unknown> {
+  return execute(model, method, args, kwargs);
 }

@@ -525,7 +525,7 @@ async function assessLeadHandlingQuality(
 
   let positiveCount = 0;
   let negativeCount = 0;
-  let totalCalls = recordings?.length || 0;
+  const totalCalls = recordings?.length || 0;
 
   const issues: Record<string, number> = {};
   const goodPractices: Set<string> = new Set();
@@ -876,12 +876,9 @@ async function handleWeeklyBriefing(request: NextRequest): Promise<NextResponse>
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
 
-  // In production, CRON_SECRET is required for cron calls
-  // Allow manual triggers without secret if coming from POST
-  const isManualTrigger = request.method === "POST";
-  const requiresAuth = cronSecret && !isManualTrigger;
-
-  if (requiresAuth && authHeader !== `Bearer ${cronSecret}`) {
+  // Fail closed: if CRON_SECRET is missing or the bearer token doesn't match,
+  // deny access. This route uses supabaseAdmin and reads sensitive business data.
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
