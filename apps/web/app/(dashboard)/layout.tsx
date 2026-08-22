@@ -62,6 +62,12 @@ const navigation: NavItem[] = [
   { name: "Reimbursements", href: "/expenses", icon: KPIIcon, key: "expenses" },
   { name: "Rate Card", href: "/rate-card", icon: KPIIcon, key: "rate-card" },
   {
+    name: "Unit Economics",
+    href: "/unit-economics",
+    icon: KPIIcon,
+    key: "unit-economics",
+  },
+  {
     name: "Approvals",
     href: "/approvals",
     icon: ApprovalsIcon,
@@ -95,6 +101,7 @@ const roleModuleAccess: Record<UserRole, string[]> = {
     "projects",
     "expenses",
     "rate-card",
+    "unit-economics",
   ],
   engineer: [
     "dashboard",

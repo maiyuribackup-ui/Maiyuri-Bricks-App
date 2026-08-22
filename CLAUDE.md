@@ -141,6 +141,7 @@ bun typecheck && bun lint && bun test
 | [TESTING.md](docs/TESTING.md) | Testing and debugging protocol |
 | [DATABASE_PATTERNS.md](docs/DATABASE_PATTERNS.md) | SQL safety and patterns |
 | [OBSERVABILITY.md](docs/OBSERVABILITY.md) | Logging and monitoring |
+| [UNIT_ECONOMICS.md](docs/UNIT_ECONOMICS.md) | Standard cost module + frozen Intelligence Layer contract |
 | [ISSUE_WORKFLOW.md](docs/ISSUE_WORKFLOW.md) | Issue fixing workflow |
 | [GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md) | Git and release process |
 
