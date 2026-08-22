@@ -16,9 +16,13 @@
 --
 -- Two axes of component breakdown, both optional:
 --   'cost_element'  material · labour · electricity · depreciation · fixed ·
---                   other — mutually exclusive, they sum to the reference
---                   total, and each maps 1:1 onto a computed number. The
---                   UNEXPLAINED residual is measured on this axis only.
+--                   other — mutually exclusive parts of the reference total,
+--                   each mapping 1:1 onto a computed number. The UNEXPLAINED
+--                   residual is measured on this axis only. (A later migration,
+--                   ..._partial_breakdown.sql, adds breakdown_status so these
+--                   may cover only PART of the total while a reconciliation is
+--                   still in progress; equality is required only when the
+--                   breakdown is declared complete.)
 --   'raw_material'  cement · chemical · … — a drill-down INSIDE the material
 --                   element, so "cement consumption differs by ₹0.62" is
 --                   answerable. Deliberately NOT added to the cost_element
