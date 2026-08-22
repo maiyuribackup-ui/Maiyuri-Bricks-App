@@ -6,10 +6,17 @@ import { requireAuth, AuthError } from "@/lib/api-helpers";
 import {
   canPublishStandardCost,
   listPublishedVersions,
+  listReferences,
   loadCurrentPublishedBundle,
   loadDraftBundle,
 } from "@/lib/unit-economics";
-import { computeBundle, diffBundles, publishBlockers, publishWarnings } from "@maiyuri/shared";
+import {
+  computeAllReferenceVariances,
+  computeBundle,
+  diffBundles,
+  publishBlockers,
+  publishWarnings,
+} from "@maiyuri/shared";
 
 /**
  * GET /api/unit-economics — everything the Standard Costs screen needs:
@@ -22,10 +29,11 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireAuth(request);
 
-    const [draft, published, history] = await Promise.all([
+    const [draft, published, history, references] = await Promise.all([
       loadDraftBundle(),
       loadCurrentPublishedBundle(),
       listPublishedVersions(),
+      listReferences(),
     ]);
 
     return success({
@@ -37,6 +45,12 @@ export async function GET(request: NextRequest) {
       blockers: draft ? publishBlockers(draft) : [],
       warnings: draft ? publishWarnings(draft, published) : [],
       history,
+      references,
+      // Reconciliation against the PUBLISHED standard — the screen recomputes
+      // it live for the draft as you type.
+      reference_variances: published
+        ? computeAllReferenceVariances(published, references)
+        : [],
       can_publish: canPublishStandardCost(user.role),
     });
   } catch (err) {

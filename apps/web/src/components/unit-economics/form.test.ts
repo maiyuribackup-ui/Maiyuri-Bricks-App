@@ -42,7 +42,15 @@ const bundle: StdCostBundle = {
 describe("toForm / toBundle round trip", () => {
   it("survives the trip unchanged", () => {
     const round = toBundle(toForm(bundle), version);
-    expect(round.rm_prices).toEqual(bundle.rm_prices);
+    // The round trip normalises the optional verification fields to explicit
+    // defaults; every typed value must come back identical.
+    expect(round.rm_prices).toEqual(
+      bundle.rm_prices.map((rm) => ({
+        ...rm,
+        needs_verification: false,
+        verification_note: null,
+      })),
+    );
     expect(round.fixed_items).toEqual(bundle.fixed_items);
     expect(round.brick_types[0]).toMatchObject({
       brick_type: "8 CIB",
@@ -71,6 +79,42 @@ describe("toForm / toBundle round trip", () => {
     expect(payload.version_id).toBe(version.id);
     expect(payload.monthly_production_basis).toBe(15000);
     expect(payload.brick_types[0].sort_order).toBe(0);
+  });
+});
+
+describe("verification flags", () => {
+  it("carries an unconfirmed-input flag through the form round trip", () => {
+    const flagged: StdCostBundle = {
+      ...bundle,
+      rm_prices: [
+        {
+          ...bundle.rm_prices[0],
+          needs_verification: true,
+          verification_note: "Load weight unconfirmed",
+        },
+      ],
+    };
+    const round = toBundle(toForm(flagged), version);
+    expect(round.rm_prices[0].needs_verification).toBe(true);
+    expect(round.rm_prices[0].verification_note).toBe("Load weight unconfirmed");
+  });
+
+  it("defaults to unflagged when the field is absent", () => {
+    const round = toBundle(toForm(bundle), version);
+    expect(round.rm_prices[0].needs_verification).toBe(false);
+    expect(round.rm_prices[0].verification_note).toBeNull();
+  });
+
+  it("does not change any computed number", () => {
+    // A flag records doubt about an input; it must never alter how that input
+    // is used, or the flag itself would become a balancing adjustment.
+    const flagged: StdCostBundle = {
+      ...bundle,
+      rm_prices: [{ ...bundle.rm_prices[0], needs_verification: true }],
+    };
+    expect(computeBundle(flagged).brick_types[0].total_cost_per_unit).toBe(
+      computeBundle(bundle).brick_types[0].total_cost_per_unit,
+    );
   });
 });
 

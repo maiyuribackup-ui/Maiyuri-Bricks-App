@@ -91,6 +91,8 @@ where the role gate lives (`canPublishStandardCost`).
 ```
 supabase/migrations/20260822120000_std_cost_unit_economics.sql   tables, guards, views, RLS, publish()
 supabase/migrations/20260822120100_std_cost_seed_v1.sql          go-live seed (v1) + first draft
+supabase/migrations/20260822120200_std_cost_reference_costs.sql  benchmarks + variance views
+supabase/migrations/20260822120300_std_cost_reference_seed.sql   legacy benchmarks + verification flags
 packages/shared/src/unit-economics.ts                            types, formulas, diff, zod schemas
 apps/web/src/lib/unit-economics.ts                               server-side load/save/publish
 apps/web/app/api/unit-economics/…                                GET overview · PUT draft · POST publish · versions
@@ -98,27 +100,103 @@ apps/web/app/(dashboard)/unit-economics/page.tsx                 the screen
 apps/web/src/components/unit-economics/…                         editor, diff, publish, history
 ```
 
-## Go-live: two things to settle with Ram
+## Reference (benchmark) costs — reconciliation
 
-**1. Two seeded inputs are guesses.** The PRD contradicts itself on both, so
-each was seeded to match the per-kg cost the sheet actually costs with, and
-needs the real load weight confirmed (one edit in the app, then publish):
+Legacy sheet totals, manual benchmarks and past actuals are stored in
+`std_cost_reference_costs`, **separately from the standard and never inside
+it**. The rule is structural, not a convention:
 
-| Material | PRD says | Seeded | Why |
+- `computeBundle()` takes no reference argument. There is no code path by which
+  a benchmark can influence a computed cost.
+- `v_std_cost_brick_type_computed` and the two frozen contract views do not
+  reference the benchmark tables at all.
+- The only operation defined between a computed cost and a reference is
+  subtraction, and the residual is reported as **unexplained** rather than
+  absorbed.
+
+A computed cost moves only one way: correct a business input in the draft and
+publish a new version. Never by adjusting a formula, and never by adding a
+balancing factor.
+
+### What the screen shows
+
+```
+Computed Cost:  ₹27.06
+Legacy Sheet:   ₹32.83
+Variance:      −₹5.77  (−17.6%)
+⚠ Significant variance
+```
+
+Expanded, once a breakdown exists:
+
+```
+Raw material   −₹3.20
+Labour         −₹1.45
+Fixed overhead −₹1.13
+  cement       −₹0.62   (inside raw material — detail, not added again)
+Unexplained     ₹0.00
+```
+
+With no breakdown recorded, the whole variance shows as unexplained. That is
+deliberate: a missing breakdown should look like a missing breakdown, not like a
+reconciled zero.
+
+### Two axes of breakdown
+
+| Kind | Keys | Role |
+|---|---|---|
+| `cost_element` | material · labour · electricity · depreciation · fixed · other | Mutually exclusive, must sum to the reference total (enforced in the zod schema). Each maps 1:1 onto a computed number. **The unexplained residual is measured on this axis only.** |
+| `raw_material` | any `rm_key` (cement, chemical, …) | A drill-down *inside* the material element. Never added to the cost-element sum — that would double-count material. |
+
+### Views for the Intelligence Layer
+
+- `v_std_cost_reference_variance` — one row per brick type per active
+  benchmark: computed, reference, `variance_amount`, `variance_pct`,
+  `explained_difference`, `unexplained_difference`, `has_component_breakdown`.
+- `v_std_cost_reference_component_variance` — per component: reference amount,
+  computed amount (NULL where there is no counterpart, e.g. `other`), and the
+  difference.
+
+Between them these answer "why is 8 CIB ₹5.77 below the old costing?" from
+stored data, and expose the pattern across products (both CIB around −17.5%,
+both MIB around −3.8%) for exception analysis. The narrative is the Intelligence
+Layer's job; the app's job is to make the numbers unambiguous.
+
+Note the percentages round to 1 dp in the UI and 2 dp in the views — same
+figure, different display precision.
+
+## Unconfirmed inputs
+
+`std_cost_rm_prices.needs_verification` + `verification_note` mark an input that
+is in use but not yet confirmed. The flag changes nothing about how the number
+is used — that is the point. It records doubt so it can be chased, and it
+travels forward on every publish so it cannot be lost.
+
+Two inputs are flagged at go-live, both because §9 of the PRD contradicts itself
+and both seeded to match the per-kg cost the standard has actually been costing
+with:
+
+| Material | Source says | In use | Why |
 |---|---|---|---|
-| `red_soil` | `4712.50 / 37050 kg (≈1.27/kg)` | 4712.50 / **3705 kg** = 1.2719/kg | 4712.50/37050 is 0.127, off by 10× from the stated ≈1.27 |
+| `red_soil` | `4712.50 / 37050 kg (≈1.27/kg)` | 4712.50 / **3705 kg** = 1.2719/kg | 4712.50/37050 is 0.127 — off by 10× from the stated ≈1.27 |
 | `red_soil_gravel` | `3600 / 28900-for-8 (≈0.80/kg)` | 3600 / **4500 kg** = 0.80/kg | matches the stated ≈0.80; no recipe consumes it, so no total depends on it |
 
-**2. The computed totals do not match the sheet's.** The inputs below are the
-sheet's own inputs — where the totals differ, the sheet's totals were stale.
-Review before flipping the Intelligence Layer over:
+When the real load weight is known: edit the draft, publish, and version history
+shows exactly what changed and what it did to every brick cost.
 
-| Brick type | Computed | Sheet | Delta |
+## Go-live
+
+The four legacy sheet totals are seeded as `legacy_excel` benchmarks, with no
+component breakdown (the sheet never published one), so every rupee shows as
+unexplained until someone supplies real figures:
+
+| Brick type | Computed | Legacy sheet | Variance |
 |---|---|---|---|
-| 8 CIB | 27.06 | 32.83 | −5.77 |
-| 6 CIB | 26.24 | 31.80 | −5.56 |
-| 8 MIB | 34.77 | 36.12 | −1.35 |
-| 6 MIB | 27.94 | 29.04 | −1.10 |
+| 8 CIB | 27.06 | 32.83 | −5.77 (−17.6%) |
+| 6 CIB | 26.24 | 31.80 | −5.56 (−17.5%) |
+| 8 MIB | 34.77 | 36.12 | −1.35 (−3.7%) |
+| 6 MIB | 27.94 | 29.04 | −1.10 (−3.8%) |
 
-Then tell Ram, and the Intelligence Layer flips its standard-cost source from
-JSON snapshots to `v_standard_costs_current`.
+These are test cases for the reconciliation feature, not blockers. Deploy, then
+the Intelligence Layer flips its standard-cost source from JSON snapshots to
+`v_standard_costs_current`.

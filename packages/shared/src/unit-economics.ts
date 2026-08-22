@@ -46,6 +46,14 @@ export interface StdCostRmPrice {
   purchase_amount: number;
   purchase_unit_label: string;
   purchase_unit_kg: number;
+  /**
+   * This input is in use but unconfirmed (e.g. a load weight nobody has
+   * weighed). It changes nothing about how the number is used — it records
+   * doubt so it can be chased, and so nobody "fixes" a variance by editing a
+   * formula instead of confirming the input.
+   */
+  needs_verification?: boolean;
+  verification_note?: string | null;
 }
 
 export interface StdCostRecipeLine {
@@ -439,6 +447,8 @@ export const stdCostRmPriceSchema = z.object({
   purchase_amount: z.number().min(0).finite(),
   purchase_unit_label: z.string().min(1).max(120),
   purchase_unit_kg: z.number().positive().finite(),
+  needs_verification: z.boolean().optional(),
+  verification_note: z.string().max(1000).nullable().optional(),
 });
 
 export const stdCostRecipeLineSchema = z.object({
@@ -484,3 +494,326 @@ export const stdCostPublishSchema = z.object({
   valid_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "valid_from must be YYYY-MM-DD"),
   notes: z.string().max(2000).nullable().optional(),
 });
+
+// ==========================================================================
+// Reference (benchmark) costs — legacy sheet totals, manual benchmarks, past
+// actuals. Stored SEPARATELY from the standard and never fed back into it.
+//
+// The whole point: the computed cost is what the recipes and prices say, full
+// stop. A reference is a second opinion recorded next to it. The only
+// operation defined between them is subtraction, and the residual is reported
+// as UNEXPLAINED rather than absorbed. There is deliberately no code path here
+// that lets a reference influence computeBundle().
+//
+// Mirrors the SQL views v_std_cost_reference_variance and
+// v_std_cost_reference_component_variance.
+// ==========================================================================
+
+export type StdCostReferenceSource =
+  | "legacy_excel"
+  | "manual_benchmark"
+  | "historical_actual"
+  | "competitor"
+  | "other";
+
+export const STD_COST_REFERENCE_SOURCES: {
+  value: StdCostReferenceSource;
+  label: string;
+}[] = [
+  { value: "legacy_excel", label: "Legacy Excel" },
+  { value: "manual_benchmark", label: "Manual Benchmark" },
+  { value: "historical_actual", label: "Historical Actual" },
+  { value: "competitor", label: "Competitor" },
+  { value: "other", label: "Other" },
+];
+
+/**
+ * Cost elements are mutually exclusive and sum to the reference total; each
+ * maps 1:1 onto a computed number, which is what makes the residual meaningful.
+ */
+export type StdCostElementKey =
+  | "material"
+  | "labour"
+  | "electricity"
+  | "depreciation"
+  | "fixed"
+  | "other";
+
+export const STD_COST_ELEMENT_KEYS: StdCostElementKey[] = [
+  "material",
+  "labour",
+  "electricity",
+  "depreciation",
+  "fixed",
+  "other",
+];
+
+export const STD_COST_ELEMENT_LABELS: Record<StdCostElementKey, string> = {
+  material: "Raw material",
+  labour: "Labour",
+  electricity: "Electricity",
+  depreciation: "Depreciation",
+  fixed: "Fixed overhead",
+  other: "Other",
+};
+
+export interface StdCostReferenceComponent {
+  id?: string;
+  /**
+   * 'cost_element' rows are the exclusive breakdown of the total.
+   * 'raw_material' rows drill down INSIDE the material element (cement,
+   * chemical, …) and are never added to the cost_element sum — doing so would
+   * double-count material.
+   */
+  component_kind: "cost_element" | "raw_material";
+  component_key: string;
+  amount: number;
+}
+
+export interface StdCostReference {
+  id?: string;
+  brick_type: string;
+  reference_cost: number;
+  source: StdCostReferenceSource;
+  source_label: string | null;
+  reference_date: string;
+  notes: string | null;
+  is_active: boolean;
+  components: StdCostReferenceComponent[];
+}
+
+export interface StdCostComponentVariance {
+  component_kind: "cost_element" | "raw_material";
+  component_key: string;
+  label: string;
+  reference_amount: number;
+  /** null where the reference component has no computed counterpart. */
+  computed_amount: number | null;
+  difference: number | null;
+}
+
+export interface StdCostReferenceVariance {
+  reference_id: string | null;
+  brick_type: string;
+  source: StdCostReferenceSource;
+  source_label: string | null;
+  reference_date: string;
+  notes: string | null;
+  computed_cost_per_unit: number;
+  reference_cost: number;
+  /** computed − reference. Negative means the standard is below the benchmark. */
+  variance_amount: number;
+  variance_pct: number | null;
+  is_significant: boolean;
+  has_component_breakdown: boolean;
+  /** Σ of cost_element differences — the part the breakdown accounts for. */
+  explained_difference: number;
+  /** What no stored component explains. The whole variance when there is no breakdown. */
+  unexplained_difference: number;
+  cost_elements: StdCostComponentVariance[];
+  raw_materials: StdCostComponentVariance[];
+}
+
+/** A variance beyond this deserves a flag on screen. */
+export const STD_COST_VARIANCE_SIGNIFICANT_PCT = 10;
+
+/**
+ * Reconcile one computed brick type against one reference.
+ *
+ * `perUnitByRmKey` supplies the per-unit cost of each raw material for the
+ * raw_material drill-down; pass an empty map to skip that axis.
+ */
+export function computeReferenceVariance(
+  computed: ComputedBrickType,
+  reference: StdCostReference,
+  options?: {
+    electricityPerUnit?: number;
+    depreciationPerUnit?: number;
+    perUnitByRmKey?: Map<string, number>;
+  },
+): StdCostReferenceVariance {
+  const computedByElement: Record<StdCostElementKey, number | null> = {
+    material: computed.material_cost_per_unit,
+    labour: computed.labor_cost_per_unit,
+    electricity: options?.electricityPerUnit ?? null,
+    depreciation: options?.depreciationPerUnit ?? null,
+    fixed: computed.fixed_cost_per_unit,
+    // 'other' has no computed counterpart by definition — leaving it null keeps
+    // it visible as unmatched instead of reading as a zero difference.
+    other: null,
+  };
+
+  const components = reference.components ?? [];
+
+  const costElements: StdCostComponentVariance[] = components
+    .filter((component) => component.component_kind === "cost_element")
+    .map((component) => {
+      const key = component.component_key as StdCostElementKey;
+      const computedAmount = computedByElement[key] ?? null;
+      return {
+        component_kind: "cost_element" as const,
+        component_key: key,
+        label: STD_COST_ELEMENT_LABELS[key] ?? key,
+        reference_amount: component.amount,
+        computed_amount: computedAmount,
+        difference: computedAmount === null ? null : computedAmount - component.amount,
+      };
+    });
+
+  const perUnitByRmKey = options?.perUnitByRmKey ?? new Map<string, number>();
+  const rawMaterials: StdCostComponentVariance[] = components
+    .filter((component) => component.component_kind === "raw_material")
+    .map((component) => {
+      const computedAmount = perUnitByRmKey.get(component.component_key) ?? 0;
+      return {
+        component_kind: "raw_material" as const,
+        component_key: component.component_key,
+        label: component.component_key,
+        reference_amount: component.amount,
+        computed_amount: computedAmount,
+        difference: computedAmount - component.amount,
+      };
+    });
+
+  const varianceAmount = computed.total_cost_per_unit - reference.reference_cost;
+  const explained = costElements.reduce((sum, row) => sum + (row.difference ?? 0), 0);
+  const variancePct =
+    reference.reference_cost > 0 ? (varianceAmount / reference.reference_cost) * 100 : null;
+
+  return {
+    reference_id: reference.id ?? null,
+    brick_type: reference.brick_type,
+    source: reference.source,
+    source_label: reference.source_label,
+    reference_date: reference.reference_date,
+    notes: reference.notes,
+    computed_cost_per_unit: roundMoney(computed.total_cost_per_unit),
+    reference_cost: reference.reference_cost,
+    variance_amount: roundMoney(varianceAmount),
+    variance_pct: variancePct === null ? null : roundMoney(variancePct, 1),
+    is_significant:
+      variancePct !== null && Math.abs(variancePct) > STD_COST_VARIANCE_SIGNIFICANT_PCT,
+    has_component_breakdown: components.length > 0,
+    explained_difference: roundMoney(explained),
+    // No breakdown → the whole variance is unexplained. That is the honest
+    // answer, and it is what makes a missing breakdown visible rather than
+    // looking like a reconciled zero.
+    unexplained_difference: roundMoney(varianceAmount - explained),
+    cost_elements: costElements,
+    raw_materials: rawMaterials,
+  };
+}
+
+/**
+ * Per-unit cost of each raw material in a brick type's recipe — the input for
+ * the raw_material drill-down (e.g. "cement differs by ₹0.62").
+ */
+export function perUnitCostByRmKey(
+  brickType: StdCostBrickType,
+  rmPrices: StdCostRmPrice[],
+): Map<string, number> {
+  const costPerKg = new Map(rmPrices.map((rm) => [rm.rm_key, computeRmCostPerKg(rm)]));
+  const perBatch = brickType.bricks_per_batch ?? 0;
+  const result = new Map<string, number>();
+  if (!(perBatch > 0)) return result;
+  for (const line of brickType.recipe ?? []) {
+    result.set(
+      line.rm_key,
+      ((line.kg_per_batch ?? 0) * (costPerKg.get(line.rm_key) ?? 0)) / perBatch,
+    );
+  }
+  return result;
+}
+
+/** Reconcile a whole version against every active reference for its brick types. */
+export function computeAllReferenceVariances(
+  bundle: StdCostBundle,
+  references: StdCostReference[],
+): StdCostReferenceVariance[] {
+  const computed = computeBundle(bundle);
+  const computedByType = new Map(computed.brick_types.map((bt) => [bt.brick_type, bt]));
+  const inputByType = new Map((bundle.brick_types ?? []).map((bt) => [bt.brick_type, bt]));
+
+  return (references ?? [])
+    .filter((reference) => reference.is_active && computedByType.has(reference.brick_type))
+    .map((reference) => {
+      const computedBrickType = computedByType.get(reference.brick_type);
+      const input = inputByType.get(reference.brick_type);
+      if (!computedBrickType) throw new Error(`No computed brick type ${reference.brick_type}`);
+      return computeReferenceVariance(computedBrickType, reference, {
+        electricityPerUnit: input?.electricity_per_unit,
+        depreciationPerUnit: input?.depreciation_per_unit,
+        perUnitByRmKey: input ? perUnitCostByRmKey(input, bundle.rm_prices ?? []) : undefined,
+      });
+    });
+}
+
+// ------------------------------------------------------- reference schemas --
+
+export const stdCostReferenceComponentSchema = z.object({
+  component_kind: z.enum(["cost_element", "raw_material"]),
+  component_key: z.string().min(1).max(64),
+  amount: z.number().min(0).finite(),
+});
+
+export const stdCostReferenceSchema = z
+  .object({
+    id: z.string().uuid().optional(),
+    brick_type: z.string().min(1).max(64),
+    reference_cost: z.number().min(0).finite(),
+    source: z.enum([
+      "legacy_excel",
+      "manual_benchmark",
+      "historical_actual",
+      "competitor",
+      "other",
+    ]),
+    source_label: z.string().max(200).nullable().optional(),
+    reference_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "reference_date must be YYYY-MM-DD"),
+    notes: z.string().max(2000).nullable().optional(),
+    is_active: z.boolean().optional(),
+    components: z.array(stdCostReferenceComponentSchema).max(40).optional(),
+  })
+  .superRefine((value, ctx) => {
+    // A cost_element breakdown claims to BE the total. If it does not add up,
+    // the residual it produces would be meaningless — so refuse it here rather
+    // than let it quietly distort every variance downstream.
+    const elements = (value.components ?? []).filter(
+      (component) => component.component_kind === "cost_element",
+    );
+    if (elements.length === 0) return;
+    const sum = elements.reduce((total, component) => total + component.amount, 0);
+    if (Math.abs(sum - value.reference_cost) > 0.01) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["components"],
+        message: `Cost element breakdown adds up to ${sum.toFixed(2)}, but the reference cost is ${value.reference_cost.toFixed(2)}`,
+      });
+    }
+    // cost_element keys are a closed set (the DB CHECKs it too) — catch it
+    // here so the API answers with a field message, not a constraint error.
+    for (const component of elements) {
+      if (!STD_COST_ELEMENT_KEYS.includes(component.component_key as StdCostElementKey)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["components"],
+          message: `Unknown cost element "${component.component_key}" — expected one of ${STD_COST_ELEMENT_KEYS.join(", ")}`,
+        });
+      }
+    }
+
+    const seen = new Set<string>();
+    for (const component of value.components ?? []) {
+      const key = `${component.component_kind}:${component.component_key}`;
+      if (seen.has(key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["components"],
+          message: `Duplicate component: ${component.component_key}`,
+        });
+      }
+      seen.add(key);
+    }
+  });
+
+export type StdCostReferencePayload = z.infer<typeof stdCostReferenceSchema>;

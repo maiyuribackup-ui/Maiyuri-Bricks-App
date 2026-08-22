@@ -109,6 +109,22 @@ export function DraftEditor({ form, computed, issues, onChange, readOnly = false
                       issue={issueFor(issues, `rm.${i}.display_name`)}
                     />
                     <span className="mt-0.5 block font-mono text-[11px] text-slate-400">{rm.rm_key}</span>
+                    <label className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
+                      <input
+                        type="checkbox"
+                        checked={rm.needs_verification}
+                        disabled={readOnly}
+                        onChange={(e) =>
+                          onChange((prev) => ({
+                            ...prev,
+                            rm_prices: prev.rm_prices.map((row, j) =>
+                              j === i ? { ...row, needs_verification: e.target.checked } : row,
+                            ),
+                          }))
+                        }
+                      />
+                      needs verification
+                    </label>
                   </td>
                   <td className="py-2 pr-3">
                     <NumberField
@@ -139,6 +155,13 @@ export function DraftEditor({ form, computed, issues, onChange, readOnly = false
                     <span className="inline-block rounded-lg bg-slate-100 px-3 py-1.5 font-semibold tabular-nums text-slate-700">
                       {inr(costPerKg.get(rm.rm_key) ?? 0, 4)}
                     </span>
+                    {rm.needs_verification ? (
+                      <span className="mt-1 block rounded-lg bg-amber-50 px-2 py-1 text-left text-[11px] text-amber-800">
+                        ⚠ Unconfirmed input.{" "}
+                        {rm.verification_note ||
+                          "Confirm the real figure, correct it here and publish — never adjust a formula to compensate."}
+                      </span>
+                    ) : null}
                   </td>
                 </tr>
               ))}

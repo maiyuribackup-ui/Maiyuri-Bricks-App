@@ -18,6 +18,9 @@ export interface RmPriceForm {
   purchase_amount: string;
   purchase_unit_label: string;
   purchase_unit_kg: string;
+  /** In use but unconfirmed — carried through saves and publishes untouched. */
+  needs_verification: boolean;
+  verification_note: string;
 }
 
 export interface RecipeLineForm {
@@ -68,6 +71,8 @@ export function toForm(bundle: StdCostBundle): DraftForm {
       purchase_amount: str(rm.purchase_amount),
       purchase_unit_label: rm.purchase_unit_label,
       purchase_unit_kg: str(rm.purchase_unit_kg),
+      needs_verification: rm.needs_verification === true,
+      verification_note: rm.verification_note ?? "",
     })),
     brick_types: (bundle.brick_types ?? []).map((bt) => ({
       brick_type: bt.brick_type,
@@ -118,6 +123,8 @@ export function toBundle(form: DraftForm, version: StdCostVersion): StdCostBundl
       purchase_amount: toNumber(rm.purchase_amount),
       purchase_unit_label: rm.purchase_unit_label,
       purchase_unit_kg: toNumber(rm.purchase_unit_kg),
+      needs_verification: rm.needs_verification,
+      verification_note: rm.verification_note || null,
     })),
     brick_types: form.brick_types.map((bt, index) => ({
       brick_type: bt.brick_type,

@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  computeAllReferenceVariances,
   computeBundle,
   diffBundles,
   publishBlockers,
@@ -23,11 +24,14 @@ import {
   type PublishWarning,
   type StdCostBundle,
   type StdCostDiffRow,
+  type StdCostReference,
+  type StdCostReferenceVariance,
   type StdCostVersionSummary,
 } from "@maiyuri/shared";
 import { DraftEditor } from "@/components/unit-economics/DraftEditor";
 import { HistoryPanel } from "@/components/unit-economics/HistoryPanel";
 import { PublishPanel } from "@/components/unit-economics/PublishPanel";
+import { ReconciliationPanel } from "@/components/unit-economics/ReconciliationPanel";
 import { toBundle, toForm, toPayload, validateForm, type DraftForm } from "@/components/unit-economics/form";
 
 interface OverviewResponse {
@@ -39,6 +43,8 @@ interface OverviewResponse {
   blockers: PublishBlocker[];
   warnings: PublishWarning[];
   history: StdCostVersionSummary[];
+  references: StdCostReference[];
+  reference_variances: StdCostReferenceVariance[];
   can_publish: boolean;
 }
 
@@ -50,7 +56,7 @@ async function getJson<T>(url: string): Promise<T> {
   return body.data as T;
 }
 
-async function sendJson(url: string, method: "PUT" | "POST", payload?: unknown) {
+async function sendJson(url: string, method: "PUT" | "POST" | "DELETE", payload?: unknown) {
   const res = await fetch(url, {
     method,
     headers: { "Content-Type": "application/json" },
@@ -61,7 +67,7 @@ async function sendJson(url: string, method: "PUT" | "POST", payload?: unknown) 
   return body.data;
 }
 
-type Tab = "draft" | "publish" | "history";
+type Tab = "draft" | "reconcile" | "publish" | "history";
 
 export default function UnitEconomicsPage() {
   const queryClient = useQueryClient();
@@ -114,6 +120,17 @@ export default function UnitEconomicsPage() {
     [liveBundle, data?.published],
   );
 
+  // Reconciliation follows what you are looking at: the live draft while
+  // editing, the published standard once the draft matches it. Benchmarks
+  // never enter computeBundle() — they are only ever subtracted from it.
+  const liveVariances = useMemo(
+    () =>
+      liveBundle && data?.references
+        ? computeAllReferenceVariances(liveBundle, data.references)
+        : (data?.reference_variances ?? []),
+    [liveBundle, data?.references, data?.reference_variances],
+  );
+
   const save = useMutation({
     mutationFn: () => {
       if (!form || !draftVersion) throw new Error("Nothing to save");
@@ -154,6 +171,20 @@ export default function UnitEconomicsPage() {
     },
   });
 
+  const saveReference = useMutation({
+    mutationFn: (reference: StdCostReference) =>
+      sendJson("/api/unit-economics/references", "POST", reference),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["unit-economics"] }),
+  });
+
+  const deactivateReference = useMutation({
+    mutationFn: (referenceId: string) =>
+      sendJson(`/api/unit-economics/references/${referenceId}`, "DELETE"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["unit-economics"] }),
+  });
+
+  const significantVariances = liveVariances.filter((variance) => variance.is_significant).length;
+
   const onFormChange = (updater: (previous: DraftForm) => DraftForm) => {
     setForm((previous) => (previous ? updater(previous) : previous));
     setDirty(true);
@@ -184,6 +215,7 @@ export default function UnitEconomicsPage() {
         {(
           [
             ["draft", "Standard costs (draft)"],
+            ["reconcile", "Reconciliation"],
             ["publish", "Publish"],
             ["history", "History"],
           ] as const
@@ -202,6 +234,11 @@ export default function UnitEconomicsPage() {
             {key === "publish" && liveDiff.length > 0 ? (
               <span className="ml-1.5 rounded-full bg-orange-100 px-1.5 text-xs text-orange-700">
                 {liveDiff.length}
+              </span>
+            ) : null}
+            {key === "reconcile" && significantVariances > 0 ? (
+              <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 text-xs text-amber-800">
+                ⚠ {significantVariances}
               </span>
             ) : null}
           </button>
@@ -260,6 +297,20 @@ export default function UnitEconomicsPage() {
 
           <DraftEditor form={form} computed={computed} issues={issues} onChange={onFormChange} />
         </>
+      ) : tab === "reconcile" ? (
+        <ReconciliationPanel
+          variances={liveVariances}
+          brickTypes={form.brick_types.map((bt) => bt.brick_type)}
+          publishedValidFrom={data.published?.version.valid_from ?? null}
+          isDraftPreview={dirty || liveDiff.length > 0}
+          onSaveReference={(reference) => saveReference.mutate(reference)}
+          onDeactivateReference={(referenceId) => deactivateReference.mutate(referenceId)}
+          saving={saveReference.isPending}
+          deactivating={deactivateReference.isPending}
+          errorMessage={
+            saveReference.isError ? message(saveReference.error, "Could not save") : null
+          }
+        />
       ) : tab === "publish" ? (
         <PublishPanel
           diff={liveDiff}

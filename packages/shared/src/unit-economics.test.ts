@@ -333,3 +333,250 @@ describe("stdCostDraftSchema", () => {
     expect(parsed.success).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Reference (benchmark) costs
+// ---------------------------------------------------------------------------
+
+import {
+  computeAllReferenceVariances,
+  computeReferenceVariance,
+  perUnitCostByRmKey,
+  stdCostReferenceSchema,
+  type StdCostReference,
+} from "./unit-economics";
+
+const legacy = (overrides: Partial<StdCostReference> = {}): StdCostReference => ({
+  id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  brick_type: "8 CIB",
+  reference_cost: 32.83,
+  source: "legacy_excel",
+  source_label: "Mb Unit Economics sheet",
+  reference_date: "2026-08-22",
+  notes: null,
+  is_active: true,
+  components: [],
+  ...overrides,
+});
+
+describe("computeReferenceVariance", () => {
+  const computed = () => byType(seedBundle(), "8 CIB");
+
+  it("reports the headline reconciliation the screen shows", () => {
+    const variance = computeReferenceVariance(computed(), legacy());
+    expect(variance.computed_cost_per_unit).toBe(27.06);
+    expect(variance.reference_cost).toBe(32.83);
+    expect(variance.variance_amount).toBe(-5.77);
+    expect(variance.variance_pct).toBe(-17.6);
+    expect(variance.is_significant).toBe(true);
+  });
+
+  it("calls the whole gap unexplained when no breakdown is stored", () => {
+    // The honest answer, and the one that keeps a missing breakdown visible
+    // instead of looking like a reconciled zero.
+    const variance = computeReferenceVariance(computed(), legacy());
+    expect(variance.has_component_breakdown).toBe(false);
+    expect(variance.explained_difference).toBe(0);
+    expect(variance.unexplained_difference).toBe(-5.77);
+  });
+
+  it("attributes the gap once a cost element breakdown exists", () => {
+    const c = computed();
+    // A breakdown that accounts for part of the gap; the rest stays unexplained.
+    const reference = legacy({
+      components: [
+        { component_kind: "cost_element", component_key: "material", amount: 16.02 },
+        { component_kind: "cost_element", component_key: "labour", amount: 8.45 },
+        { component_kind: "cost_element", component_key: "electricity", amount: 1 },
+        { component_kind: "cost_element", component_key: "depreciation", amount: 1 },
+        { component_kind: "cost_element", component_key: "fixed", amount: 6.36 },
+      ],
+    });
+    const variance = computeReferenceVariance(c, reference, {
+      electricityPerUnit: 1,
+      depreciationPerUnit: 1,
+    });
+
+    const material = variance.cost_elements.find((row) => row.component_key === "material");
+    const labour = variance.cost_elements.find((row) => row.component_key === "labour");
+    expect(material?.difference).toBeCloseTo(c.material_cost_per_unit - 16.02, 6);
+    expect(labour?.difference).toBeCloseTo(7 - 8.45, 6);
+
+    // explained + unexplained must always reconstruct the total variance
+    expect(variance.explained_difference + variance.unexplained_difference).toBeCloseTo(
+      variance.variance_amount,
+      2,
+    );
+  });
+
+  it("drills into raw materials without double-counting them as elements", () => {
+    const bundle = seedBundle();
+    const brickType = bundle.brick_types[0];
+    const perUnit = perUnitCostByRmKey(brickType, bundle.rm_prices);
+    const reference = legacy({
+      components: [
+        { component_kind: "cost_element", component_key: "material", amount: 16.02 },
+        { component_kind: "cost_element", component_key: "labour", amount: 8.45 },
+        { component_kind: "cost_element", component_key: "electricity", amount: 1 },
+        { component_kind: "cost_element", component_key: "depreciation", amount: 1 },
+        { component_kind: "cost_element", component_key: "fixed", amount: 6.36 },
+        { component_kind: "raw_material", component_key: "cement", amount: 6.66 },
+      ],
+    });
+    const variance = computeReferenceVariance(byType(bundle, "8 CIB"), reference, {
+      electricityPerUnit: 1,
+      depreciationPerUnit: 1,
+      perUnitByRmKey: perUnit,
+    });
+
+    // 8.5 kg cement × 6.40 / 9 bricks = 6.044…
+    const cement = variance.raw_materials.find((row) => row.component_key === "cement");
+    expect(cement?.computed_amount).toBeCloseTo((8.5 * 6.4) / 9, 6);
+    expect(cement?.difference).toBeCloseTo((8.5 * 6.4) / 9 - 6.66, 6);
+
+    // The raw-material row lives INSIDE material, so it must not move the
+    // explained total — that would count material twice.
+    const elementSum = variance.cost_elements.reduce((sum, row) => sum + (row.difference ?? 0), 0);
+    expect(variance.explained_difference).toBeCloseTo(elementSum, 2);
+  });
+
+  it("leaves an 'other' component unmatched rather than scoring it as zero", () => {
+    const reference = legacy({
+      reference_cost: 32.83,
+      components: [
+        { component_kind: "cost_element", component_key: "material", amount: 26.83 },
+        { component_kind: "cost_element", component_key: "other", amount: 6 },
+      ],
+    });
+    const variance = computeReferenceVariance(computed(), reference);
+    const other = variance.cost_elements.find((row) => row.component_key === "other");
+    expect(other?.computed_amount).toBeNull();
+    expect(other?.difference).toBeNull();
+  });
+
+  it("does not flag a small variance", () => {
+    const variance = computeReferenceVariance(computed(), legacy({ reference_cost: 27.5 }));
+    expect(variance.is_significant).toBe(false);
+  });
+
+  it("survives a zero reference cost without dividing by it", () => {
+    const variance = computeReferenceVariance(computed(), legacy({ reference_cost: 0 }));
+    expect(variance.variance_pct).toBeNull();
+    expect(variance.is_significant).toBe(false);
+  });
+});
+
+describe("references never touch the standard", () => {
+  it("computes identical totals with and without references present", () => {
+    // The structural guarantee: computeBundle() has no reference input at all,
+    // so a benchmark cannot leak into a published cost.
+    const bundle = seedBundle();
+    const before = computeBundle(bundle);
+    computeAllReferenceVariances(bundle, [
+      legacy(),
+      legacy({ brick_type: "6 CIB", reference_cost: 31.8 }),
+    ]);
+    expect(computeBundle(bundle)).toEqual(before);
+  });
+
+  it("reconciles every brick type that has a reference, ignoring the rest", () => {
+    const variances = computeAllReferenceVariances(seedBundle(), [
+      legacy(),
+      legacy({ brick_type: "6 CIB", reference_cost: 31.8 }),
+      legacy({ brick_type: "9 XYZ", reference_cost: 10 }), // no such brick type
+      legacy({ brick_type: "8 MIB", reference_cost: 36.12, is_active: false }),
+    ]);
+    expect(variances.map((v) => v.brick_type)).toEqual(["8 CIB", "6 CIB"]);
+  });
+
+  it("reproduces the seeded legacy gaps end to end", () => {
+    const variances = computeAllReferenceVariances(seedBundle(), [
+      legacy({ brick_type: "8 CIB", reference_cost: 32.83 }),
+      legacy({ brick_type: "6 CIB", reference_cost: 31.8 }),
+      legacy({ brick_type: "8 MIB", reference_cost: 36.12 }),
+      legacy({ brick_type: "6 MIB", reference_cost: 29.04 }),
+    ]);
+    expect(variances.map((v) => [v.brick_type, v.variance_amount, v.variance_pct])).toEqual([
+      ["8 CIB", -5.77, -17.6],
+      ["6 CIB", -5.56, -17.5],
+      ["8 MIB", -1.35, -3.7],
+      ["6 MIB", -1.1, -3.8],
+    ]);
+  });
+});
+
+describe("stdCostReferenceSchema", () => {
+  const base = {
+    brick_type: "8 CIB",
+    reference_cost: 32.83,
+    source: "legacy_excel" as const,
+    reference_date: "2026-08-22",
+  };
+
+  it("accepts a reference with no breakdown", () => {
+    expect(stdCostReferenceSchema.safeParse(base).success).toBe(true);
+  });
+
+  it("accepts a cost element breakdown that adds up", () => {
+    const parsed = stdCostReferenceSchema.safeParse({
+      ...base,
+      components: [
+        { component_kind: "cost_element", component_key: "material", amount: 26.83 },
+        { component_kind: "cost_element", component_key: "labour", amount: 6 },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects a breakdown that does not add up to the reference cost", () => {
+    // Otherwise the residual it produces would be arithmetic noise.
+    const parsed = stdCostReferenceSchema.safeParse({
+      ...base,
+      components: [{ component_kind: "cost_element", component_key: "material", amount: 10 }],
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("ignores raw material rows when checking that the breakdown adds up", () => {
+    const parsed = stdCostReferenceSchema.safeParse({
+      ...base,
+      components: [
+        { component_kind: "cost_element", component_key: "material", amount: 26.83 },
+        { component_kind: "cost_element", component_key: "labour", amount: 6 },
+        { component_kind: "raw_material", component_key: "cement", amount: 6.66 },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects a duplicate component", () => {
+    const parsed = stdCostReferenceSchema.safeParse({
+      ...base,
+      components: [
+        { component_kind: "cost_element", component_key: "material", amount: 16.42 },
+        { component_kind: "cost_element", component_key: "material", amount: 16.41 },
+      ],
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects an unknown cost element key", () => {
+    const parsed = stdCostReferenceSchema.safeParse({
+      ...base,
+      components: [
+        { component_kind: "cost_element", component_key: "vibes", amount: 32.83 },
+      ],
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("still allows any raw material key — those match rm_key, an open set", () => {
+    const parsed = stdCostReferenceSchema.safeParse({
+      ...base,
+      components: [
+        { component_kind: "raw_material", component_key: "some_new_sand", amount: 3 },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+  });
+});

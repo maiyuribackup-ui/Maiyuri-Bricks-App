@@ -16,6 +16,8 @@ import type {
   StdCostBundle,
   StdCostDraftPayload,
   StdCostFixedItem,
+  StdCostReference,
+  StdCostReferencePayload,
   StdCostRmPrice,
   StdCostVersion,
   StdCostVersionSummary,
@@ -74,7 +76,9 @@ export async function loadBundle(versionId: string): Promise<StdCostBundle | nul
   const [rmResult, btResult, fixedResult] = await Promise.all([
     db
       .from("std_cost_rm_prices")
-      .select("id, rm_key, display_name, purchase_amount, purchase_unit_label, purchase_unit_kg")
+      .select(
+        "id, rm_key, display_name, purchase_amount, purchase_unit_label, purchase_unit_kg, needs_verification, verification_note",
+      )
       .eq("version_id", versionId)
       .order("rm_key"),
     db
@@ -120,6 +124,8 @@ export async function loadBundle(versionId: string): Promise<StdCostBundle | nul
     purchase_amount: num(row.purchase_amount),
     purchase_unit_label: String(row.purchase_unit_label),
     purchase_unit_kg: num(row.purchase_unit_kg),
+    needs_verification: row.needs_verification === true,
+    verification_note: (row.verification_note as string | null) ?? null,
   }));
 
   const brick_types: StdCostBrickType[] = (btResult.data ?? []).map((row) => ({
@@ -371,4 +377,142 @@ export class StdCostError extends Error {
     this.name = "StdCostError";
     this.status = status;
   }
+}
+
+// ==========================================================================
+// Reference (benchmark) costs.
+//
+// Deliberately a separate read path from loadBundle(): nothing that computes a
+// standard cost may so much as see a reference. The only place the two meet is
+// computeAllReferenceVariances(), which subtracts and reports — it cannot feed
+// anything back.
+// ==========================================================================
+
+/** All benchmarks, newest first. Inactive ones included — history matters. */
+export async function listReferences(): Promise<StdCostReference[]> {
+  const db = supabaseAdmin;
+
+  const { data, error } = await db
+    .from("std_cost_reference_costs")
+    .select(
+      "id, brick_type, reference_cost, source, source_label, reference_date, notes, is_active",
+    )
+    .order("brick_type")
+    .order("reference_date", { ascending: false });
+  if (error) throw new Error(`Failed to load reference costs: ${error.message}`);
+
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+
+  const { data: componentRows, error: componentError } = await db
+    .from("std_cost_reference_components")
+    .select("id, reference_cost_id, component_kind, component_key, amount")
+    .in(
+      "reference_cost_id",
+      rows.map((row) => String(row.id)),
+    );
+  if (componentError) {
+    throw new Error(`Failed to load reference components: ${componentError.message}`);
+  }
+
+  const componentsByReference = new Map<string, StdCostReference["components"]>();
+  for (const row of componentRows ?? []) {
+    const key = String(row.reference_cost_id);
+    const list = componentsByReference.get(key) ?? [];
+    list.push({
+      id: String(row.id),
+      component_kind: row.component_kind as "cost_element" | "raw_material",
+      component_key: String(row.component_key),
+      amount: num(row.amount),
+    });
+    componentsByReference.set(key, list);
+  }
+
+  return rows.map((row) => ({
+    id: String(row.id),
+    brick_type: String(row.brick_type),
+    reference_cost: num(row.reference_cost),
+    source: row.source as StdCostReference["source"],
+    source_label: (row.source_label as string | null) ?? null,
+    reference_date: String(row.reference_date),
+    notes: (row.notes as string | null) ?? null,
+    is_active: row.is_active !== false,
+    components: componentsByReference.get(String(row.id)) ?? [],
+  }));
+}
+
+/** Create or update one benchmark, replacing its component breakdown. */
+export async function saveReference(
+  payload: StdCostReferencePayload,
+  userId: string,
+): Promise<StdCostReference> {
+  const db = supabaseAdmin;
+
+  const row = {
+    brick_type: payload.brick_type,
+    reference_cost: payload.reference_cost,
+    source: payload.source,
+    source_label: payload.source_label ?? null,
+    reference_date: payload.reference_date,
+    notes: payload.notes ?? null,
+    is_active: payload.is_active ?? true,
+    updated_by: userId,
+  };
+
+  let referenceId = payload.id ?? null;
+
+  if (referenceId) {
+    const { error } = await db.from("std_cost_reference_costs").update(row).eq("id", referenceId);
+    if (error) throw new StdCostError(`Failed to update the reference: ${error.message}`, 422);
+  } else {
+    const { data, error } = await db
+      .from("std_cost_reference_costs")
+      .insert({ ...row, created_by: userId })
+      .select("id")
+      .single();
+    if (error) {
+      // The unique key is (brick_type, source, reference_date) — say so plainly.
+      const duplicate = error.code === "23505";
+      throw new StdCostError(
+        duplicate
+          ? `A ${payload.source} reference for ${payload.brick_type} on ${payload.reference_date} already exists`
+          : `Failed to save the reference: ${error.message}`,
+        422,
+      );
+    }
+    referenceId = String(data.id);
+  }
+
+  const { error: deleteError } = await db
+    .from("std_cost_reference_components")
+    .delete()
+    .eq("reference_cost_id", referenceId);
+  if (deleteError) {
+    throw new Error(`Failed to clear the old breakdown: ${deleteError.message}`);
+  }
+
+  const components = payload.components ?? [];
+  if (components.length > 0) {
+    const { error } = await db
+      .from("std_cost_reference_components")
+      .insert(components.map((component) => ({ reference_cost_id: referenceId, ...component })));
+    if (error) throw new StdCostError(`Failed to save the breakdown: ${error.message}`, 422);
+  }
+
+  const saved = (await listReferences()).find((reference) => reference.id === referenceId);
+  if (!saved) throw new Error("Reference disappeared while saving");
+  return saved;
+}
+
+/**
+ * Deactivate a benchmark. Never a hard delete: a legacy number that has been
+ * argued over is part of the audit trail, and "we stopped comparing against it"
+ * is different from "it never existed".
+ */
+export async function deactivateReference(referenceId: string, userId: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("std_cost_reference_costs")
+    .update({ is_active: false, updated_by: userId })
+    .eq("id", referenceId);
+  if (error) throw new Error(`Failed to deactivate the reference: ${error.message}`);
 }
