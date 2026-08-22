@@ -5,9 +5,10 @@
  * Accepts raw audio (WAV, OGG, M4A) natively - no ffmpeg conversion needed.
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, type GenerativeModel } from "@google/generative-ai";
 import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
 import { log, logError } from "./logger";
+import { isInfraError } from "./notifications";
 import type { TranscriptionResult } from "./types";
 
 function getGeminiClient() {
@@ -16,6 +17,55 @@ function getGeminiClient() {
     throw new Error("Missing GOOGLE_AI_API_KEY");
   }
   return new GoogleGenerativeAI(apiKey);
+}
+
+/**
+ * Transcription attempts: 1 initial + 3 retries. Gemini "503 high demand"
+ * spikes are usually transient (seconds), so we ride them out in-process
+ * rather than failing a real recording and waiting on the 4-hour cron.
+ */
+const MAX_TRANSCRIPTION_ATTEMPTS = 4;
+const BASE_BACKOFF_MS = 1000;
+
+/** Exponential backoff with jitter: ~1s, ~2s, ~4s before retries 1..3. */
+export function transcriptionBackoffMs(retry: number): number {
+  const exponential = BASE_BACKOFF_MS * 2 ** (retry - 1);
+  const jitter = Math.floor(Math.random() * BASE_BACKOFF_MS);
+  return exponential + jitter;
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Call Gemini, retrying ONLY transient infra errors (503/5xx, overload, quota,
+ * network) — classified by the SAME `isInfraError` that protects the retry
+ * budget, so "transient" means one thing across the whole pipeline. Permanent
+ * errors (bad audio, unsupported format) fail fast with no wasted retries.
+ * On exhaustion the original error is rethrown, so the processor's catch still
+ * classifies it as infra and the cron resumes it later — backoff and the
+ * retry-budget guard are complementary, not redundant.
+ */
+async function generateContentWithRetry(
+  model: GenerativeModel,
+  parts: Parameters<GenerativeModel["generateContent"]>[0],
+) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await model.generateContent(parts);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (attempt >= MAX_TRANSCRIPTION_ATTEMPTS || !isInfraError(message)) {
+        throw error;
+      }
+      const nextDelayMs = transcriptionBackoffMs(attempt);
+      log("Gemini transient error — retrying transcription", {
+        attempt,
+        nextDelayMs,
+        error: message.slice(0, 120),
+      });
+      await sleep(nextDelayMs);
+    }
+  }
 }
 
 /**
@@ -43,16 +93,18 @@ Instructions:
 
 At the end, on a new line, state the primary language detected (Tamil, English, or Tamil-English mixed).`;
 
-  try {
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType,
-          data: base64Audio,
-        },
+  const parts = [
+    {
+      inlineData: {
+        mimeType,
+        data: base64Audio,
       },
-      { text: prompt },
-    ]);
+    },
+    { text: prompt },
+  ];
+
+  try {
+    const result = await generateContentWithRetry(model, parts);
 
     const response = result.response;
     const fullText = response.text();
