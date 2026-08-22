@@ -395,7 +395,7 @@ export async function listReferences(): Promise<StdCostReference[]> {
   const { data, error } = await db
     .from("std_cost_reference_costs")
     .select(
-      "id, brick_type, reference_cost, source, source_label, reference_date, notes, is_active",
+      "id, brick_type, reference_cost, source, source_label, reference_date, notes, is_active, breakdown_status",
     )
     .order("brick_type")
     .order("reference_date", { ascending: false });
@@ -437,6 +437,7 @@ export async function listReferences(): Promise<StdCostReference[]> {
     reference_date: String(row.reference_date),
     notes: (row.notes as string | null) ?? null,
     is_active: row.is_active !== false,
+    breakdown_status: (row.breakdown_status as "partial" | "complete") ?? "partial",
     components: componentsByReference.get(String(row.id)) ?? [],
   }));
 }
@@ -456,6 +457,9 @@ export async function saveReference(
     reference_date: payload.reference_date,
     notes: payload.notes ?? null,
     is_active: payload.is_active ?? true,
+    // Default partial: a breakdown is incomplete until someone says otherwise,
+    // and only a complete one is required to balance.
+    breakdown_status: payload.breakdown_status ?? "partial",
     updated_by: userId,
   };
 

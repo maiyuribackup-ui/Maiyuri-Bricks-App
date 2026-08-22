@@ -570,6 +570,16 @@ export interface StdCostReferenceComponent {
   amount: number;
 }
 
+/**
+ * 'partial'  — the components cover only part of the total. Coverage is shown,
+ *              and the unexplained residual stays live: this is the normal
+ *              state while a reconciliation is still being worked out.
+ * 'complete' — an explicit assertion that the components ARE the whole total.
+ *              Only then is equality enforced, because only then does a zero
+ *              residual mean anything.
+ */
+export type StdCostBreakdownStatus = "partial" | "complete";
+
 export interface StdCostReference {
   id?: string;
   brick_type: string;
@@ -579,6 +589,7 @@ export interface StdCostReference {
   reference_date: string;
   notes: string | null;
   is_active: boolean;
+  breakdown_status: StdCostBreakdownStatus;
   components: StdCostReferenceComponent[];
 }
 
@@ -606,9 +617,18 @@ export interface StdCostReferenceVariance {
   variance_pct: number | null;
   is_significant: boolean;
   has_component_breakdown: boolean;
+  breakdown_status: StdCostBreakdownStatus;
+  /** Σ of the cost_element reference amounts — how much of the total is described. */
+  breakdown_coverage: number;
+  breakdown_coverage_pct: number | null;
   /** Σ of cost_element differences — the part the breakdown accounts for. */
   explained_difference: number;
-  /** What no stored component explains. The whole variance when there is no breakdown. */
+  /**
+   * What no stored component explains. Equals the whole variance when nothing
+   * is known yet, and shrinks as components are discovered. Reaches zero only
+   * when a genuinely complete breakdown accounts for every rupee — never by
+   * being backed into.
+   */
   unexplained_difference: number;
   cost_elements: StdCostComponentVariance[];
   raw_materials: StdCostComponentVariance[];
@@ -616,6 +636,9 @@ export interface StdCostReferenceVariance {
 
 /** A variance beyond this deserves a flag on screen. */
 export const STD_COST_VARIANCE_SIGNIFICANT_PCT = 10;
+
+/** Rounding slack when checking a breakdown against its total (₹). */
+export const STD_COST_BREAKDOWN_TOLERANCE = 0.01;
 
 /**
  * Reconcile one computed brick type against one reference.
@@ -677,6 +700,8 @@ export function computeReferenceVariance(
 
   const varianceAmount = computed.total_cost_per_unit - reference.reference_cost;
   const explained = costElements.reduce((sum, row) => sum + (row.difference ?? 0), 0);
+  // How much of the benchmark total the stored elements actually describe.
+  const coverage = costElements.reduce((sum, row) => sum + row.reference_amount, 0);
   const variancePct =
     reference.reference_cost > 0 ? (varianceAmount / reference.reference_cost) * 100 : null;
 
@@ -694,10 +719,17 @@ export function computeReferenceVariance(
     is_significant:
       variancePct !== null && Math.abs(variancePct) > STD_COST_VARIANCE_SIGNIFICANT_PCT,
     has_component_breakdown: components.length > 0,
+    breakdown_status: reference.breakdown_status ?? "partial",
+    breakdown_coverage: roundMoney(coverage),
+    breakdown_coverage_pct:
+      reference.reference_cost > 0
+        ? roundMoney((coverage / reference.reference_cost) * 100, 1)
+        : null,
     explained_difference: roundMoney(explained),
-    // No breakdown → the whole variance is unexplained. That is the honest
-    // answer, and it is what makes a missing breakdown visible rather than
-    // looking like a reconciled zero.
+    // No breakdown → the whole variance is unexplained; a partial breakdown →
+    // only what it covers is explained. That is the honest answer, and it is
+    // what makes an incomplete reconciliation visible rather than looking like
+    // a reconciled zero.
     unexplained_difference: roundMoney(varianceAmount - explained),
     cost_elements: costElements,
     raw_materials: rawMaterials,
@@ -772,22 +804,38 @@ export const stdCostReferenceSchema = z
     reference_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "reference_date must be YYYY-MM-DD"),
     notes: z.string().max(2000).nullable().optional(),
     is_active: z.boolean().optional(),
+    breakdown_status: z.enum(["partial", "complete"]).optional(),
     components: z.array(stdCostReferenceComponentSchema).max(40).optional(),
   })
   .superRefine((value, ctx) => {
-    // A cost_element breakdown claims to BE the total. If it does not add up,
-    // the residual it produces would be meaningless — so refuse it here rather
-    // than let it quietly distort every variance downstream.
     const elements = (value.components ?? []).filter(
       (component) => component.component_kind === "cost_element",
     );
-    if (elements.length === 0) return;
     const sum = elements.reduce((total, component) => total + component.amount, 0);
-    if (Math.abs(sum - value.reference_cost) > 0.01) {
+
+    // Cost elements are exclusive parts of the total, so they can never sum
+    // beyond it — that is arithmetic, not a judgement call, and it holds in
+    // both states.
+    if (elements.length > 0 && sum > value.reference_cost + STD_COST_BREAKDOWN_TOLERANCE) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["components"],
-        message: `Cost element breakdown adds up to ${sum.toFixed(2)}, but the reference cost is ${value.reference_cost.toFixed(2)}`,
+        message: `Cost element breakdown adds up to ${sum.toFixed(2)}, more than the reference cost of ${value.reference_cost.toFixed(2)}`,
+      });
+    }
+
+    // Equality is required ONLY when the breakdown is declared complete. A
+    // partial breakdown covering part of the total is the normal working
+    // state, and forcing it to balance would drive the unexplained residual to
+    // zero by construction — destroying the number the whole exercise is for.
+    if (
+      (value.breakdown_status ?? "partial") === "complete" &&
+      Math.abs(sum - value.reference_cost) > STD_COST_BREAKDOWN_TOLERANCE
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["components"],
+        message: `Breakdown is marked complete but adds up to ${sum.toFixed(2)} against a reference cost of ${value.reference_cost.toFixed(2)} — mark it partial, or account for the remaining ${(value.reference_cost - sum).toFixed(2)}`,
       });
     }
     // cost_element keys are a closed set (the DB CHECKs it too) — catch it

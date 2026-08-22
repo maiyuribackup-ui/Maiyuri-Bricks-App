@@ -10,9 +10,11 @@
  */
 import { useState } from "react";
 import {
+  STD_COST_BREAKDOWN_TOLERANCE,
   STD_COST_ELEMENT_KEYS,
   STD_COST_ELEMENT_LABELS,
   STD_COST_REFERENCE_SOURCES,
+  type StdCostBreakdownStatus,
   type StdCostComponentVariance,
   type StdCostReference,
   type StdCostReferenceVariance,
@@ -173,6 +175,43 @@ function ReferenceCard({
         <div className="mt-2 space-y-3 border-t border-slate-100 pt-2">
           {variance.has_component_breakdown ? (
             <>
+              <div className="rounded-lg bg-slate-50 px-3 py-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-600">
+                    Breakdown coverage
+                    <span
+                      className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                        variance.breakdown_status === "complete"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-slate-200 text-slate-600"
+                      }`}
+                    >
+                      {variance.breakdown_status}
+                    </span>
+                  </span>
+                  <span className="font-semibold tabular-nums text-slate-800">
+                    {inr(variance.breakdown_coverage)} / {inr(variance.reference_cost)}
+                    {variance.breakdown_coverage_pct === null
+                      ? ""
+                      : ` (${variance.breakdown_coverage_pct}%)`}
+                  </span>
+                </div>
+                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-slate-500"
+                    style={{
+                      width: `${Math.min(100, Math.max(0, variance.breakdown_coverage_pct ?? 0))}%`,
+                    }}
+                  />
+                </div>
+                {variance.breakdown_status === "partial" ? (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Partial breakdown — the rest of the benchmark is still unaccounted for, so the
+                    unexplained figure below stays live.
+                  </p>
+                ) : null}
+              </div>
+
               <ComponentRows title="By cost element" rows={variance.cost_elements} />
               <ComponentRows
                 title="Raw materials"
@@ -189,14 +228,23 @@ function ReferenceCard({
           ) : (
             <p className="text-sm text-slate-500">
               No component breakdown has been recorded for this benchmark, so none of the
-              difference is attributed yet. Add one when the underlying figures are known — the
-              gap stays fully unexplained until then, on purpose.
+              difference is attributed yet. Add components as you discover them — each one shrinks
+              the unexplained figure below, and the rest stays unexplained until it is genuinely
+              accounted for.
             </p>
           )}
 
-          <div className="flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2 text-sm">
-            <span className="text-amber-900">Unexplained</span>
-            <span className="font-semibold tabular-nums text-amber-900">
+          <div
+            className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${
+              variance.unexplained_difference === 0
+                ? "bg-emerald-50 text-emerald-800"
+                : "bg-amber-50 text-amber-900"
+            }`}
+          >
+            <span>
+              {variance.unexplained_difference === 0 ? "Fully explained" : "Still unexplained"}
+            </span>
+            <span className="font-semibold tabular-nums">
               {inr(variance.unexplained_difference)}
             </span>
           </div>
@@ -226,6 +274,8 @@ function AddReferenceForm({
   const [date, setDate] = useState(today);
   const [notes, setNotes] = useState("");
   const [components, setComponents] = useState<Record<string, string>>({});
+  const [breakdownStatus, setBreakdownStatus] =
+    useState<StdCostBreakdownStatus>("partial");
 
   if (!open) {
     return (
@@ -248,9 +298,19 @@ function AddReferenceForm({
   );
   const componentSum = componentRows.reduce((sum, row) => sum + row.amount, 0);
   const costNumber = Number(cost);
-  const breakdownMismatch =
-    componentRows.length > 0 && Math.abs(componentSum - costNumber) > 0.01;
-  const invalid = !brickType || cost.trim() === "" || !Number.isFinite(costNumber) || breakdownMismatch;
+  // Over the total is always wrong; short of it is only wrong when the
+  // breakdown claims to be complete.
+  const overTotal =
+    componentRows.length > 0 && componentSum > costNumber + STD_COST_BREAKDOWN_TOLERANCE;
+  const incompleteButClaimed =
+    breakdownStatus === "complete" &&
+    Math.abs(componentSum - costNumber) > STD_COST_BREAKDOWN_TOLERANCE;
+  const invalid =
+    !brickType ||
+    cost.trim() === "" ||
+    !Number.isFinite(costNumber) ||
+    overTotal ||
+    incompleteButClaimed;
 
   return (
     <div className="space-y-3 rounded-xl border border-slate-200 p-3">
@@ -352,12 +412,34 @@ function AddReferenceForm({
           ))}
         </div>
         {componentRows.length > 0 ? (
-          <p
-            className={`mt-1 text-xs ${breakdownMismatch ? "text-red-600" : "text-slate-500"}`}
-          >
-            Breakdown adds up to {inr(componentSum)}
-            {breakdownMismatch ? ` — but the reference cost is ${inr(costNumber)}` : " ✓"}
-          </p>
+          <div className="mt-2 space-y-1">
+            <p
+              className={`text-xs ${
+                overTotal || incompleteButClaimed ? "text-red-600" : "text-slate-500"
+              }`}
+            >
+              Covers {inr(componentSum)} of {inr(Number.isFinite(costNumber) ? costNumber : 0)}
+              {overTotal
+                ? " — a breakdown cannot exceed the total it splits"
+                : incompleteButClaimed
+                  ? ` — marked complete, but ${inr(costNumber - componentSum)} is unaccounted for`
+                  : ""}
+            </p>
+            <label className="flex items-center gap-1.5 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={breakdownStatus === "complete"}
+                onChange={(e) => setBreakdownStatus(e.target.checked ? "complete" : "partial")}
+              />
+              This breakdown is complete — it accounts for the whole benchmark
+            </label>
+            {breakdownStatus === "partial" ? (
+              <p className="text-xs text-slate-400">
+                Leaving it partial is normal. Whatever the components don&apos;t cover stays
+                visible as unexplained variance rather than being quietly absorbed.
+              </p>
+            ) : null}
+          </div>
         ) : null}
       </div>
 
@@ -376,6 +458,7 @@ function AddReferenceForm({
               reference_date: date,
               notes: notes || null,
               is_active: true,
+              breakdown_status: breakdownStatus,
               components: componentRows,
             })
           }

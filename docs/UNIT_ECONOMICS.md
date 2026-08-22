@@ -93,6 +93,7 @@ supabase/migrations/20260822120000_std_cost_unit_economics.sql   tables, guards,
 supabase/migrations/20260822120100_std_cost_seed_v1.sql          go-live seed (v1) + first draft
 supabase/migrations/20260822120200_std_cost_reference_costs.sql  benchmarks + variance views
 supabase/migrations/20260822120300_std_cost_reference_seed.sql   legacy benchmarks + verification flags
+supabase/migrations/20260822120400_std_cost_reference_partial_breakdown.sql  partial/complete breakdowns
 packages/shared/src/unit-economics.ts                            types, formulas, diff, zod schemas
 apps/web/src/lib/unit-economics.ts                               server-side load/save/publish
 apps/web/app/api/unit-economics/…                                GET overview · PUT draft · POST publish · versions
@@ -130,11 +131,11 @@ Variance:      −₹5.77  (−17.6%)
 Expanded, once a breakdown exists:
 
 ```
+Breakdown coverage: ₹24.47 / ₹32.83 (74.5%) · partial
 Raw material   −₹3.20
 Labour         −₹1.45
-Fixed overhead −₹1.13
   cement       −₹0.62   (inside raw material — detail, not added again)
-Unexplained     ₹0.00
+Still unexplained  −₹1.12
 ```
 
 With no breakdown recorded, the whole variance shows as unexplained. That is
@@ -145,8 +146,46 @@ reconciled zero.
 
 | Kind | Keys | Role |
 |---|---|---|
-| `cost_element` | material · labour · electricity · depreciation · fixed · other | Mutually exclusive, must sum to the reference total (enforced in the zod schema). Each maps 1:1 onto a computed number. **The unexplained residual is measured on this axis only.** |
+| `cost_element` | material · labour · electricity · depreciation · fixed · other | Mutually exclusive parts of the total. Each maps 1:1 onto a computed number. **The unexplained residual is measured on this axis only.** |
 | `raw_material` | any `rm_key` (cement, chemical, …) | A drill-down *inside* the material element. Never added to the cost-element sum — that would double-count material. |
+
+### Partial vs complete breakdowns
+
+`breakdown_status` decides what the components are claiming:
+
+| Status | Rule | Meaning |
+|---|---|---|
+| `partial` (default) | Components may cover *part* of the total; they may never exceed it | Reconciliation in progress. Coverage shows as `₹24.47 / ₹32.83 (74.5%)`, and the residual stays live |
+| `complete` | Components must equal the total, within ₹0.01 | An explicit claim that nothing is left out — only then does a zero residual mean anything |
+
+This distinction is load-bearing. Requiring every breakdown to balance would make
+
+```
+unexplained = total_variance − Σ(component variances)
+```
+
+**zero by construction**, because components that sum to the reference total
+produce variances that sum to the total variance. The number meant to say "we
+still don't know why" could only ever say zero.
+
+Progressive reconciliation, as it actually runs (verified end to end in SQL and
+TypeScript — see `progressive reconciliation` in the test file):
+
+| Stage | Explained | Still unexplained | Coverage |
+|---|---:|---:|---:|
+| Nothing known | ₹0.00 | −₹5.77 | 0% |
+| Material found | −₹3.20 | −₹2.57 | 48.8% |
+| + labour | −₹4.65 | −₹1.12 | 74.5% |
+| + fixed cost | −₹5.77 | ₹0.00 | 93.9% |
+
+Note the last row: the variance can be fully explained while coverage is under
+100%, when the components not yet entered happen to have no variance. Coverage
+and explanation answer different questions, so both are reported.
+
+Enforcement is a `DEFERRABLE INITIALLY DEFERRED` constraint trigger, because
+components are written as a set (delete-all then insert-all) — a row-by-row
+check would fire against a half-built breakdown. There is deliberately **no
+automatic balancing component**: the residual is reported, never absorbed.
 
 ### Views for the Intelligence Layer
 

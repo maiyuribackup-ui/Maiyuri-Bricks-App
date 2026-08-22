@@ -355,6 +355,7 @@ const legacy = (overrides: Partial<StdCostReference> = {}): StdCostReference => 
   reference_date: "2026-08-22",
   notes: null,
   is_active: true,
+  breakdown_status: "partial",
   components: [],
   ...overrides,
 });
@@ -528,13 +529,60 @@ describe("stdCostReferenceSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("rejects a breakdown that does not add up to the reference cost", () => {
-    // Otherwise the residual it produces would be arithmetic noise.
+  it("accepts a PARTIAL breakdown that covers only part of the total", () => {
+    // The normal working state: one component discovered so far.
+    const parsed = stdCostReferenceSchema.safeParse({
+      ...base,
+      breakdown_status: "partial",
+      components: [{ component_kind: "cost_element", component_key: "material", amount: 10 }],
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("defaults to partial when no status is given", () => {
     const parsed = stdCostReferenceSchema.safeParse({
       ...base,
       components: [{ component_kind: "cost_element", component_key: "material", amount: 10 }],
     });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects a COMPLETE breakdown that does not add up", () => {
+    // Completeness is a claim. If it is false, the zero residual it produces
+    // would be a lie.
+    const parsed = stdCostReferenceSchema.safeParse({
+      ...base,
+      breakdown_status: "complete",
+      components: [{ component_kind: "cost_element", component_key: "material", amount: 10 }],
+    });
     expect(parsed.success).toBe(false);
+  });
+
+  it("rejects any breakdown that sums beyond the total, in either state", () => {
+    // Cost elements are exclusive parts of the total — arithmetic, not policy.
+    for (const status of ["partial", "complete"] as const) {
+      const parsed = stdCostReferenceSchema.safeParse({
+        ...base,
+        breakdown_status: status,
+        components: [
+          { component_kind: "cost_element", component_key: "material", amount: 30 },
+          { component_kind: "cost_element", component_key: "labour", amount: 10 },
+        ],
+      });
+      expect(parsed.success).toBe(false);
+    }
+  });
+
+  it("accepts a complete breakdown within the rounding tolerance", () => {
+    const parsed = stdCostReferenceSchema.safeParse({
+      ...base,
+      breakdown_status: "complete",
+      components: [
+        { component_kind: "cost_element", component_key: "material", amount: 26.83 },
+        { component_kind: "cost_element", component_key: "labour", amount: 6.005 },
+      ],
+    });
+    expect(parsed.success).toBe(true);
   });
 
   it("ignores raw material rows when checking that the breakdown adds up", () => {
@@ -578,5 +626,97 @@ describe("stdCostReferenceSchema", () => {
       ],
     });
     expect(parsed.success).toBe(true);
+  });
+});
+
+describe("progressive reconciliation", () => {
+  // The workflow this design exists for: discover components one at a time and
+  // watch the unexplained amount shrink. If a breakdown were forced to balance,
+  // unexplained would be zero from the first entry and none of this would work.
+  const computed = () => byType(seedBundle(), "8 CIB");
+  const options = { electricityPerUnit: 1, depreciationPerUnit: 1 };
+
+  // Reference components chosen so each difference is a round number:
+  //   material  16.0231 → −3.20   labour 8.45 → −1.45   fixed 6.3633 → −1.12
+  const MATERIAL = { component_kind: "cost_element" as const, component_key: "material", amount: 16.0231 };
+  const LABOUR = { component_kind: "cost_element" as const, component_key: "labour", amount: 8.45 };
+  const FIXED = { component_kind: "cost_element" as const, component_key: "fixed", amount: 6.3533 };
+
+  it("stage 0 — nothing known: the whole variance is unexplained", () => {
+    const variance = computeReferenceVariance(computed(), legacy(), options);
+    expect(variance.variance_amount).toBe(-5.77);
+    expect(variance.explained_difference).toBe(0);
+    expect(variance.unexplained_difference).toBe(-5.77);
+    expect(variance.breakdown_coverage).toBe(0);
+    expect(variance.breakdown_coverage_pct).toBe(0);
+  });
+
+  it("stage 1 — material found: part explained, the rest still open", () => {
+    const variance = computeReferenceVariance(
+      computed(),
+      legacy({ components: [MATERIAL] }),
+      options,
+    );
+    expect(variance.explained_difference).toBe(-3.2);
+    expect(variance.unexplained_difference).toBe(-2.57);
+    expect(variance.breakdown_status).toBe("partial");
+    expect(variance.breakdown_coverage).toBe(16.02);
+  });
+
+  it("stage 2 — material + labour: matches the worked example", () => {
+    const variance = computeReferenceVariance(
+      computed(),
+      legacy({ components: [MATERIAL, LABOUR] }),
+      options,
+    );
+    expect(variance.variance_amount).toBe(-5.77);
+    expect(variance.explained_difference).toBe(-4.65);
+    expect(variance.unexplained_difference).toBe(-1.12);
+    // Coverage is honest about how much of the benchmark is described.
+    expect(variance.breakdown_coverage).toBe(24.47);
+    expect(variance.breakdown_coverage_pct).toBeLessThan(100);
+  });
+
+  it("stage 3 — fixed cost found too: the residual shrinks again", () => {
+    const variance = computeReferenceVariance(
+      computed(),
+      legacy({ components: [MATERIAL, LABOUR, FIXED] }),
+      options,
+    );
+    expect(variance.explained_difference).toBe(-5.77);
+    expect(variance.unexplained_difference).toBe(0);
+  });
+
+  it("the residual is never absorbed — explained + unexplained always reconstructs it", () => {
+    for (const components of [[], [MATERIAL], [MATERIAL, LABOUR], [MATERIAL, LABOUR, FIXED]]) {
+      const variance = computeReferenceVariance(computed(), legacy({ components }), options);
+      expect(variance.explained_difference + variance.unexplained_difference).toBeCloseTo(
+        variance.variance_amount,
+        2,
+      );
+    }
+  });
+
+  it("unexplained can only reach zero through real components, never by construction", () => {
+    // A partial breakdown that covers most of the total still leaves a residual:
+    // the earlier bug was that ANY breakdown drove this to zero.
+    const variance = computeReferenceVariance(
+      computed(),
+      legacy({ components: [MATERIAL, LABOUR] }),
+      options,
+    );
+    expect(variance.unexplained_difference).not.toBe(0);
+  });
+
+  it("a complete breakdown that genuinely accounts for everything reaches zero", () => {
+    const variance = computeReferenceVariance(
+      computed(),
+      legacy({ breakdown_status: "complete", components: [MATERIAL, LABOUR, FIXED, 
+        { component_kind: "cost_element", component_key: "electricity", amount: 1 },
+        { component_kind: "cost_element", component_key: "depreciation", amount: 1 }] }),
+      options,
+    );
+    expect(variance.breakdown_status).toBe("complete");
+    expect(variance.unexplained_difference).toBe(0);
   });
 });
