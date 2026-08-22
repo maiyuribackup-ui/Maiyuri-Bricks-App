@@ -58,6 +58,7 @@ const navigation: NavItem[] = [
     key: "production",
   },
   { name: "Plan", href: "/planning", icon: ProductionIcon, key: "planning" },
+  { name: "Ops Control", href: "/ops", icon: ProductionIcon, key: "ops" },
   { name: "Projects", href: "/projects", icon: ProductionIcon, key: "projects" },
   { name: "Reimbursements", href: "/expenses", icon: KPIIcon, key: "expenses" },
   { name: "Rate Card", href: "/rate-card", icon: KPIIcon, key: "rate-card" },
@@ -109,7 +110,7 @@ const roleModuleAccess: Record<UserRole, string[]> = {
   ],
   sales: ["dashboard", "onehub", "leads", "quotes", "tasks", "settings", "knowledge", "coaching"],
   driver: ["dashboard", "onehub", "deliveries", "settings"],
-  production_supervisor: ["dashboard", "onehub", "factory", "production", "planning", "deliveries", "settings", "projects", "coaching"],
+  production_supervisor: ["dashboard", "onehub", "factory", "production", "planning", "ops", "deliveries", "settings", "projects", "coaching"],
 };
 
 function getNavigationForRole(role: UserRole | undefined): NavItem[] {

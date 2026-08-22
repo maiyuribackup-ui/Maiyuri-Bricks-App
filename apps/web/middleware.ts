@@ -22,6 +22,7 @@ const protectedRoutes = [
   "/leads",
   "/quotes",
   "/planning",
+  "/ops", // Operations Control — startsWith, so this covers every /ops/* page
   "/projects",
   "/expenses",
   "/rate-card",
