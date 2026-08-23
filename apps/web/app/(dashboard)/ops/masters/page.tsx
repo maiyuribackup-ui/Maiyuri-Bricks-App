@@ -13,7 +13,7 @@
  */
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, Spinner } from "@maiyuri/ui";
 
 type Tab = "rates" | "standards" | "capacities" | "reasons" | "mapping" | "settings";
@@ -32,8 +32,8 @@ interface Envelope<T> {
   error: string | null;
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
   const body = (await res.json()) as Envelope<T>;
   if (!res.ok || body.error) throw new Error(body.error ?? "Request failed");
   return body.data as T;
@@ -85,6 +85,7 @@ interface MappingRow {
 interface MappingPayload {
   mappings: MappingRow[];
   finished_goods: { id: string; name: string; odoo_product_id: number | null }[];
+  unmapped: { odoo_product_id: number; product_name: string | null; open_qty: number; lines: number }[];
 }
 interface SettingsRow {
   default_shifts_per_day: number;
@@ -338,23 +339,97 @@ function ReasonsPanel() {
 }
 
 function MappingPanel() {
+  const queryClient = useQueryClient();
+  const [selections, setSelections] = useState<Record<number, string>>({});
+  const [mapError, setMapError] = useState<string | null>(null);
   const q = useQuery({
     queryKey: ["oc", "mapping"],
     queryFn: () => fetchJson<MappingPayload>(`${BASE}/product-mapping`),
   });
   const mappings = q.data?.mappings ?? [];
+  const unmapped = q.data?.unmapped ?? [];
+  const goods = q.data?.finished_goods ?? [];
+
+  const map = useMutation({
+    mutationFn: (payload: {
+      odoo_product_id: number;
+      odoo_product_name: string | null;
+      finished_good_id: string;
+    }) =>
+      fetchJson<unknown>(`${BASE}/product-mapping`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      setMapError(null);
+      // The RPC reclassifies existing SO lines in the same transaction, so
+      // mapped demand appears immediately — refresh both screens' caches.
+      queryClient.invalidateQueries({ queryKey: ["oc", "mapping"] });
+      queryClient.invalidateQueries({ queryKey: ["oc", "demand"] });
+    },
+    onError: (err: Error) => setMapError(err.message),
+  });
+
   return (
     <Panel
       title="Odoo product mapping"
-      description="Links an Odoo product to a Maiyuri finished good. Only mapped products count as demand — service lines such as Loading and Unloading carry brick-sized quantities and must never enter the plan."
+      description="Links an Odoo product to a Maiyuri finished good. Only mapped products count as demand — service lines such as Loading and Unloading carry brick-sized quantities and must never enter the plan. Mapping a product reclassifies its existing order lines immediately; no re-sync needed."
       isLoading={q.isLoading}
       error={q.error}
     >
-      <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-        Unmapped Odoo products with open demand are listed here once sales-order
-        line sync ships in Phase 2. Until then this shows the links already
-        resolved from Odoo product ids.
-      </p>
+      {mapError && (
+        <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+          {mapError}
+        </p>
+      )}
+      {unmapped.length > 0 && (
+        <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
+          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+            {unmapped.length} unmapped Odoo {unmapped.length === 1 ? "product carries" : "products carry"} open
+            demand that is invisible to planning until mapped:
+          </p>
+          {unmapped.map((u) => (
+            <div
+              key={u.odoo_product_id}
+              className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm dark:bg-slate-800"
+            >
+              <span className="font-medium">{u.product_name ?? `Odoo product ${u.odoo_product_id}`}</span>
+              <span className="tabular-nums text-slate-500">
+                {u.open_qty.toLocaleString("en-IN")} units open · {u.lines} lines
+              </span>
+              <select
+                value={selections[u.odoo_product_id] ?? ""}
+                onChange={(e) =>
+                  setSelections({ ...selections, [u.odoo_product_id]: e.target.value })
+                }
+                className="ml-auto rounded-lg border border-slate-200 bg-white px-2 py-1.5 dark:border-slate-600 dark:bg-slate-700"
+              >
+                <option value="">Map to…</option>
+                {goods.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={!selections[u.odoo_product_id] || map.isPending}
+                onClick={() =>
+                  map.mutate({
+                    odoo_product_id: u.odoo_product_id,
+                    odoo_product_name: u.product_name,
+                    finished_good_id: selections[u.odoo_product_id],
+                  })
+                }
+                className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 dark:bg-white dark:text-slate-900"
+              >
+                {map.isPending ? "Mapping…" : "Map"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <Table headers={["Odoo product", "Odoo id", "Maiyuri finished good"]}>
         {mappings.length === 0 ? (
           <Empty colSpan={3}>No product mappings yet.</Empty>

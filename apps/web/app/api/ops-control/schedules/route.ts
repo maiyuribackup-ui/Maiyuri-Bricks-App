@@ -18,6 +18,8 @@ import { createOcScheduleSchema } from "@maiyuri/shared";
 // GET /api/ops-control/schedules?odoo_order_id= — schedule with all versions
 // (newest first) and their lines.
 export async function GET(request: NextRequest) {
+  const auth = await requireProductionRole(request, SCHEDULE_ROLES);
+  if (auth.errorResponse) return auth.errorResponse;
   try {
     const { odoo_order_id } = parseQuery(request);
     if (!odoo_order_id) return error("odoo_order_id is required", 400);

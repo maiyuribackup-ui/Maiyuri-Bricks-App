@@ -2,15 +2,29 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuthStore } from "@/stores/authStore";
 
-// Phase 1 ships Masters only. Demand, Production, Dispatch, Labour and
-// Analytics land in later phases (see the implementation roadmap) — they are
-// deliberately absent rather than stubbed, so the nav never promises a screen
-// that does not work.
-const TABS = [{ href: "/ops/masters", label: "Masters" }];
+// Tabs are role-filtered so nobody is shown a door they cannot open: sales
+// works demand and schedules (PRD §7.3) but never masters; the API routes
+// remain the real gate. Production, Dispatch, Labour and Analytics land in
+// later phases — deliberately absent rather than stubbed.
+const TABS: { href: string; label: string; roles: string[] }[] = [
+  {
+    href: "/ops/demand",
+    label: "Demand",
+    roles: ["founder", "owner", "production_supervisor", "sales"],
+  },
+  {
+    href: "/ops/masters",
+    label: "Masters",
+    roles: ["founder", "owner", "production_supervisor"],
+  },
+];
 
 export default function OpsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const role = useAuthStore((s) => s.user?.role);
+  const tabs = TABS.filter((t) => !role || t.roles.includes(role));
   return (
     <div className="space-y-4">
       <div>
@@ -24,7 +38,7 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       <nav className="flex flex-wrap gap-1.5">
-        {TABS.map((t) => {
+        {tabs.map((t) => {
           const active = pathname.startsWith(t.href);
           return (
             <Link
