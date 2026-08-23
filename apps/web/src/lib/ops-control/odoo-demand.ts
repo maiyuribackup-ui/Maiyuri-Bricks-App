@@ -84,17 +84,22 @@ export async function runDemandSync(options: {
   triggeredBy?: string | null;
 }): Promise<DemandSyncResult> {
   // ---- concurrency: one active demand sync at a time --------------------
+  // The guarantee is ATOMIC: the partial unique index
+  // uq_oc_sync_runs_one_running admits exactly one 'running' row per kind, so
+  // two near-simultaneous callers cannot both open a run — the loser's insert
+  // fails with 23505. A crashed run is retired first (marked 'error') so it
+  // cannot hold the index forever.
   const staleCutoff = new Date(Date.now() - STALE_RUN_MINUTES * 60_000).toISOString();
-  const { data: running } = await supabaseAdmin
+  await supabaseAdmin
     .from("oc_sync_runs")
-    .select("id, started_at")
+    .update({
+      status: "error",
+      completed_at: new Date().toISOString(),
+      error: `stale: still 'running' after ${STALE_RUN_MINUTES} minutes; retired by a newer sync`,
+    })
     .eq("kind", "demand")
     .eq("status", "running")
-    .gte("started_at", staleCutoff)
-    .limit(1);
-  if (running && running.length > 0) {
-    throw new Error("A demand sync is already running. Try again in a minute.");
-  }
+    .lt("started_at", staleCutoff);
 
   const { data: run, error: runError } = await supabaseAdmin
     .from("oc_sync_runs")
@@ -106,6 +111,9 @@ export async function runDemandSync(options: {
     })
     .select("id")
     .single();
+  if (runError?.code === "23505") {
+    throw new Error("A demand sync is already running. Try again in a minute.");
+  }
   if (runError || !run) throw new Error(`Could not open a sync run: ${runError?.message}`);
   const runId = (run as { id: string }).id;
 
