@@ -235,3 +235,79 @@ export const createOcClassificationOverrideSchema = z.object({
 export type CreateOcClassificationOverrideInput = z.infer<
   typeof createOcClassificationOverrideSchema
 >;
+
+// ============================================
+// Phase 2 — demand, site locations, delivery schedules
+// Data model: supabase/migrations/20260823090000_ops_control_demand.sql
+// ============================================
+
+/** Schedule header/version workflow states (PRD §13). */
+export const ocScheduleVersionStatusSchema = z.enum([
+  "draft",
+  "sent",
+  "confirmed",
+  "revision_requested",
+  "superseded",
+  "cancelled",
+]);
+export type OcScheduleVersionStatus = z.infer<typeof ocScheduleVersionStatusSchema>;
+
+export const createOcSiteLocationSchema = z.object({
+  odoo_partner_id: z.number().int().positive().nullable().optional(),
+  customer_name: z.string().min(1),
+  site_name: z.string().nullable().optional(),
+  address: z.string().nullable().optional(),
+  gmaps_url: z.string().url().nullable().optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
+  contact_name: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type CreateOcSiteLocationInput = z.infer<typeof createOcSiteLocationSchema>;
+
+export const updateOcSiteLocationSchema = createOcSiteLocationSchema
+  .partial()
+  .extend({ active: z.boolean().optional() })
+  .refine((v) => Object.keys(v).length > 0, "No fields supplied");
+export type UpdateOcSiteLocationInput = z.infer<typeof updateOcSiteLocationSchema>;
+
+/** One dated quantity for one SO line (PRD §12). */
+export const ocScheduleLineInputSchema = z.object({
+  so_line_id: z.string().uuid(),
+  delivery_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a YYYY-MM-DD date"),
+  quantity: z.number().positive("Quantity must be greater than zero"),
+  notes: z.string().nullable().optional(),
+});
+export type OcScheduleLineInput = z.infer<typeof ocScheduleLineInputSchema>;
+
+export const createOcScheduleSchema = z.object({
+  odoo_order_id: z.number().int().positive(),
+  site_location_id: z.string().uuid().nullable().optional(),
+  lines: z.array(ocScheduleLineInputSchema).min(1, "A schedule needs at least one delivery"),
+  /** Set with reason when knowingly scheduling beyond the open order (PRD §26). */
+  overschedule_override_reason: z.string().min(1).nullable().optional(),
+});
+export type CreateOcScheduleInput = z.infer<typeof createOcScheduleSchema>;
+
+export const createOcScheduleVersionSchema = z.object({
+  /** Required whenever the schedule already has a confirmed version (PRD §14). */
+  revision_reason: z.string().min(1).nullable().optional(),
+  site_location_id: z.string().uuid().nullable().optional(),
+});
+export type CreateOcScheduleVersionInput = z.infer<typeof createOcScheduleVersionSchema>;
+
+export const replaceOcScheduleLinesSchema = z.object({
+  lock_version: z.number().int().min(0),
+  lines: z.array(ocScheduleLineInputSchema).min(1),
+  overschedule_override_reason: z.string().min(1).nullable().optional(),
+});
+export type ReplaceOcScheduleLinesInput = z.infer<typeof replaceOcScheduleLinesSchema>;
+
+export const confirmOcScheduleVersionSchema = z.object({
+  lock_version: z.number().int().min(0),
+  confirmation_note: z.string().nullable().optional(),
+});
+export type ConfirmOcScheduleVersionInput = z.infer<typeof confirmOcScheduleVersionSchema>;

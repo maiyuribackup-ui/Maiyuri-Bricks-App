@@ -2,22 +2,22 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { success, error, parseBody } from "@/lib/api-utils";
-import { requireProductionRole, PRODUCTION_DELETE_ROLES } from "@/lib/production-auth";
+import {
+  requireProductionRole,
+  PRODUCTION_WRITE_ROLES,
+} from "@/lib/production-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { logOcAudit } from "@/lib/ops-control/audit";
 import { createOcProductMappingSchema } from "@maiyuri/shared";
 
 // GET /api/ops-control/masters/product-mapping
 //
-// Returns the mappings alongside the finished goods available to map to.
-// Phase 2 adds the unmapped-demand list from oc_sales_order_lines; this route
-// is the mapping half of that screen and is deliberately kept pure:
-// odoo_product_id -> finished_good_id, nothing else. Line classification
-// (product/service/note/unmapped) is a separate responsibility that reads
-// Odoo's own display_type and product type during the sales-order sync.
+// Returns the existing mappings, the finished goods available to map to, AND
+// the unmapped Odoo products that currently carry open demand — the red list
+// this screen exists for. Mapping stays purely odoo_product_id ->
+// finished_good_id; line classification is the sync's separate responsibility.
 export async function GET() {
   try {
-    const [mappings, goods] = await Promise.all([
+    const [mappings, goods, unmappedLines] = await Promise.all([
       supabaseAdmin
         .from("oc_product_mapping")
         .select("*, finished_goods(id, name)")
@@ -27,14 +27,36 @@ export async function GET() {
         .select("id, name, odoo_product_id")
         .eq("is_active", true)
         .order("name"),
+      supabaseAdmin
+        .from("oc_sales_order_lines")
+        .select("odoo_product_id, product_name, qty_ordered, qty_delivered")
+        .eq("line_kind", "unmapped")
+        .eq("source_active", true),
     ]);
 
     if (mappings.error) return error("Failed to load product mappings", 500);
     if (goods.error) return error("Failed to load finished goods", 500);
 
+    const unmappedAgg = new Map<number, { product_name: string | null; open_qty: number; lines: number }>();
+    for (const u of unmappedLines.data ?? []) {
+      if (u.odoo_product_id == null) continue;
+      const open = Math.max(0, Number(u.qty_ordered) - Number(u.qty_delivered));
+      const agg = unmappedAgg.get(u.odoo_product_id as number) ?? {
+        product_name: u.product_name as string | null,
+        open_qty: 0,
+        lines: 0,
+      };
+      agg.open_qty += open;
+      agg.lines += 1;
+      unmappedAgg.set(u.odoo_product_id as number, agg);
+    }
+
     return success({
       mappings: mappings.data ?? [],
       finished_goods: goods.data ?? [],
+      unmapped: [...unmappedAgg.entries()]
+        .map(([odoo_product_id, v]) => ({ odoo_product_id, ...v }))
+        .sort((a, b) => b.open_qty - a.open_qty),
     });
   } catch (err) {
     console.error("[OpsControl] product-mapping GET failed:", err);
@@ -44,50 +66,28 @@ export async function GET() {
 
 // POST /api/ops-control/masters/product-mapping
 //
-// Mapping an Odoo product makes its open demand visible to planning. This
-// matters concretely: brick SKUs with real open orders currently carry no
-// product link and are therefore invisible in the plan.
+// Runs the transactional RPC: upsert the mapping AND reclassify existing
+// active SO lines for that product in one transaction — map a product and its
+// demand appears immediately, no re-sync. Service lines are never promoted
+// (service beats mapping); only unmapped/product lines reclassify.
 //
-// Upsert on odoo_product_id — re-pointing a product at a different finished
-// good is a correction, not a duplicate, and is audited with the before value.
+// Role note: production_supervisor may map (this is Rajesh's assigned job);
+// the OTHER masters (rates, standards, settings) remain founder/owner-only.
 export async function POST(request: NextRequest) {
-  const auth = await requireProductionRole(request, PRODUCTION_DELETE_ROLES);
+  const auth = await requireProductionRole(request, PRODUCTION_WRITE_ROLES);
   if (auth.errorResponse) return auth.errorResponse;
   try {
     const parsed = await parseBody(request, createOcProductMappingSchema);
     if (parsed.error) return parsed.error;
 
-    const { data: before } = await supabaseAdmin
-      .from("oc_product_mapping")
-      .select("*")
-      .eq("odoo_product_id", parsed.data.odoo_product_id)
-      .maybeSingle();
-
-    const { data, error: dbError } = await supabaseAdmin
-      .from("oc_product_mapping")
-      .upsert(
-        {
-          ...parsed.data,
-          mapped_by: auth.user.id,
-          mapped_at: new Date().toISOString(),
-        },
-        { onConflict: "odoo_product_id" },
-      )
-      .select("*, finished_goods(id, name)")
-      .single();
-
-    if (dbError) {
-      return error(`Failed to save product mapping: ${dbError.message}`, 400);
-    }
-
-    await logOcAudit({
-      entity: "oc_product_mapping",
-      entity_id: (data as { id: string }).id,
-      action: before ? "updated" : "created",
-      before_value: before ?? null,
-      after_value: parsed.data,
-      performed_by: auth.user.id,
+    const { data, error: rpcError } = await supabaseAdmin.rpc("oc_apply_product_mapping", {
+      p_odoo_product_id: parsed.data.odoo_product_id,
+      p_odoo_product_name: parsed.data.odoo_product_name ?? null,
+      p_finished_good_id: parsed.data.finished_good_id,
+      p_user: auth.user.id,
+      p_notes: parsed.data.notes ?? null,
     });
+    if (rpcError) return error(`Failed to save product mapping: ${rpcError.message}`, 400);
 
     return success(data);
   } catch (err) {
