@@ -1,0 +1,115 @@
+name: Migration Gate
+
+# Merge control for database schema changes (added after the Phase 1 and
+# Phase 2 deployments both merged BEFORE their schema reached production,
+# leaving deployed routes querying tables that did not exist).
+#
+# The rule this enforces: a PR that adds files under supabase/migrations/
+# cannot merge until every one of those migrations is recorded as APPLIED in
+# the production migration history. Ordering stops depending on human memory:
+#
+#   migration PR → CI green → human approval → apply the exact artifact to
+#   production (with provenance + smoke tests) → this check turns green →
+#   merge → Vercel deploys application code against a schema that exists.
+#
+# Setup required once (repository settings):
+#   1. Secret `SUPABASE_DB_URL` — a read-only-capable Postgres connection
+#      string for the production project (Settings → Secrets → Actions).
+#      Only `SELECT name FROM supabase_migrations.schema_migrations` is run.
+#   2. Optional: environment `production-schema` with required reviewers, to
+#      put a human approval in front of the verification job itself.
+#   3. Settings → Branches → main: add "Production Schema Ready" to the
+#      required status checks. A PR with no migration files skips the job,
+#      which satisfies the requirement automatically.
+#
+# This job VERIFIES application; it deliberately does not apply migrations
+# itself. Production history records migrations by NAME with the timestamp of
+# application (not the file's timestamp prefix), so an auto-`db push` would
+# see every repo file as unapplied and re-run history — verification by name
+# is the safe contract.
+
+on:
+  pull_request:
+    branches: [main]
+    # `edited` is included because retargeting a PR's base fires ONLY that
+    # event (same reasoning as ci.yml; hit on #152).
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  detect:
+    name: Detect migration changes
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.action != 'edited' ||
+      github.event.changes.base != null
+    outputs:
+      has_migrations: ${{ steps.diff.outputs.has_migrations }}
+      files: ${{ steps.diff.outputs.files }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Diff migrations against the base branch
+        id: diff
+        run: |
+          files=$(git diff --name-only --diff-filter=ACMR \
+            "origin/${{ github.base_ref }}...HEAD" -- 'supabase/migrations/*.sql')
+          if [ -n "$files" ]; then
+            echo "has_migrations=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "files<<EOF"
+              echo "$files"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            echo "Migration files in this PR:"; echo "$files"
+          else
+            echo "has_migrations=false" >> "$GITHUB_OUTPUT"
+            echo "files=" >> "$GITHUB_OUTPUT"
+            echo "No migration files in this PR — schema gate not applicable."
+          fi
+
+  # NOTE: this job reports the check "Production Schema Ready". Branch
+  # protection must require exactly that context; if the `name:` changes, the
+  # required check in Settings → Branches → main must change with it.
+  verify:
+    name: Production Schema Ready
+    runs-on: ubuntu-latest
+    needs: detect
+    if: needs.detect.outputs.has_migrations == 'true'
+    environment: production-schema
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record artifact provenance (SHA-256 of each migration)
+        run: |
+          echo "Provenance of the migration artifacts under review:"
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            sha256sum "$f"
+          done <<< "${{ needs.detect.outputs.files }}"
+
+      - name: Verify each migration is applied in production
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::Secret SUPABASE_DB_URL is not configured — the gate cannot verify production. See the header of this workflow for setup."
+            exit 1
+          fi
+          applied=$(psql "$SUPABASE_DB_URL" -tA \
+            -c "SELECT name FROM supabase_migrations.schema_migrations")
+          missing=0
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            base=$(basename "$f" .sql)
+            # 20260823120000_oc_sync_run_concurrency -> oc_sync_run_concurrency
+            name=$(echo "$base" | sed -E 's/^[0-9]{14}_//')
+            if echo "$applied" | grep -qx "$name"; then
+              echo "APPLIED   $f (as '$name')"
+            else
+              echo "::error file=$f::Migration '$name' is NOT in production history. Apply the reviewed artifact to production (recording its SHA-256), then re-run this check."
+              missing=1
+            fi
+          done <<< "${{ needs.detect.outputs.files }}"
+          exit $missing
