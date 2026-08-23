@@ -25,14 +25,22 @@ export type OcAuditEntity =
   | "oc_vehicle_capacities"
   | "oc_deviation_reasons"
   | "oc_product_mapping"
-  | "oc_product_classification_overrides";
+  | "oc_product_classification_overrides"
+  | "oc_sales_order_lines"
+  | "oc_site_locations"
+  | "oc_delivery_schedules"
+  | "oc_delivery_schedule_versions";
 
 export type OcAuditAction =
   | "created"
   | "updated"
   | "deactivated"
   | "deleted"
-  | "superseded";
+  | "superseded"
+  | "sent"
+  | "confirmed"
+  | "cancelled"
+  | "revision_created";
 
 export interface OcAuditEntry {
   entity: OcAuditEntity;

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
-// Phase 1 has one screen; /ops lands on it rather than showing an empty shell.
+// Demand is the screen everybody shares (sales included); masters is reached
+// via the tab by production roles.
 export default function OpsIndexPage() {
-  redirect("/ops/masters");
+  redirect("/ops/demand");
 }

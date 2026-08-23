@@ -54,8 +54,17 @@ function builder(table: string) {
   return chain;
 }
 
+const rpcCalls: { fn: string; args: unknown }[] = [];
+let rpcResult: { data: unknown; error: { message: string } | null } = { data: null, error: null };
+
 vi.mock("@/lib/supabase-admin", () => ({
-  supabaseAdmin: { from: (table: string) => builder(table) },
+  supabaseAdmin: {
+    from: (table: string) => builder(table),
+    rpc: (fn: string, args: unknown) => {
+      rpcCalls.push({ fn, args });
+      return Promise.resolve(rpcResult);
+    },
+  },
 }));
 
 import { POST as ratesPost, GET as ratesGet } from "../activity-rates/route";
@@ -88,6 +97,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   for (const key of Object.keys(results)) delete results[key];
   for (const key of Object.keys(inserted)) delete inserted[key];
+  rpcCalls.length = 0;
+  rpcResult = { data: null, error: null };
 });
 
 describe("POST /api/ops-control/masters/activity-rates — authorization", () => {
@@ -182,14 +193,21 @@ describe("POST /api/ops-control/masters/product-mapping", () => {
     expect(res.status).toBe(403);
   });
 
-  it("maps an unmapped Odoo product so its demand becomes visible", async () => {
+  it("maps via the transactional RPC so demand reclassifies immediately", async () => {
     signInAs("owner");
-    queue("oc_product_mapping", { data: null, error: null }); // no existing mapping
-    queue("oc_product_mapping", { data: { id: "map-1" }, error: null }); // upsert result
-    queue("oc_audit_events", { data: null, error: null });
+    rpcResult = { data: { reclassified: 3 }, error: null };
     const res = await mappingPost(req("/api/ops-control/masters/product-mapping", MAPPING));
     expect(res.status).toBe(200);
-    expect(inserted.oc_product_mapping?.[0]).toMatchObject({ odoo_product_id: 8 });
+    expect(rpcCalls[0]?.fn).toBe("oc_apply_product_mapping");
+    expect(rpcCalls[0]?.args).toMatchObject({ p_odoo_product_id: 8 });
+  });
+
+  it("allows production_supervisor — mapping is Rajesh's assigned job", async () => {
+    // Deliberate exception: the OTHER masters stay founder/owner-only.
+    signInAs("production_supervisor");
+    rpcResult = { data: { reclassified: 0 }, error: null };
+    const res = await mappingPost(req("/api/ops-control/masters/product-mapping", MAPPING));
+    expect(res.status).toBe(200);
   });
 
   it("rejects a non-numeric odoo_product_id", async () => {

@@ -115,7 +115,7 @@ const roleModuleAccess: Record<UserRole, string[]> = {
     "projects",
     "coaching",
   ],
-  sales: ["dashboard", "onehub", "leads", "quotes", "tasks", "settings", "knowledge", "coaching"],
+  sales: ["dashboard", "onehub", "leads", "quotes", "ops", "tasks", "settings", "knowledge", "coaching"],
   driver: ["dashboard", "onehub", "deliveries", "settings"],
   production_supervisor: ["dashboard", "onehub", "factory", "production", "planning", "ops", "deliveries", "settings", "projects", "coaching"],
 };
