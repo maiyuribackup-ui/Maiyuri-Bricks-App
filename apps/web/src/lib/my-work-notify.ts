@@ -17,6 +17,21 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { WORK_ADMIN_ROLES } from "@/lib/my-work-service";
 
 const itemUrl = (id: string) => `/onehub/my-work/${id}`;
+const PUSH_TIMEOUT_MS = 8_000;
+
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`push timeout after ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 async function safeSend(
   userIds: string[],
@@ -28,7 +43,7 @@ async function safeSend(
     // (completeness audit #7 — My Work previously bypassed prefs).
     const recipients = await filterByPushPref(userIds, "push_ops");
     if (!recipients.length) return;
-    await sendPushToUsers(recipients, payload);
+    await withTimeout(sendPushToUsers(recipients, payload), PUSH_TIMEOUT_MS);
   } catch (err) {
     console.error("[MyWork] push failed (ignored):", err);
   }
