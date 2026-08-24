@@ -9,6 +9,7 @@ import { requireAuth, AuthError } from "@/lib/api-helpers";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getRateCard } from "@/lib/pricing";
 import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
+import { traceAiGeneration } from "@/lib/observability/langfuse";
 
 /**
  * GET /api/leads/[id]/brief — the AI pre-call brief (Golden Hour GH2).
@@ -105,8 +106,23 @@ TASK — respond with ONLY a JSON code block:
       model: GEMINI_DEFAULT_MODEL,
       generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
     });
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const text = await traceAiGeneration({
+      name: "leads.pre_call_brief",
+      model: GEMINI_DEFAULT_MODEL,
+      input: prompt,
+      metadata: {
+        module: "sales",
+        lead_id: id,
+        lead_name: lead.name,
+        lead_stage: lead.pipeline_stage,
+        lead_temperature: lead.lead_temperature,
+      },
+      run: async () => {
+        const result = await model.generateContent(prompt);
+        const output = result.response.text();
+        return { output, value: output };
+      },
+    });
     const jsonMatch =
       text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return error("Brief generation failed", 502);
