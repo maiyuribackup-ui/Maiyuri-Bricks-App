@@ -26,6 +26,10 @@ const CRON_SECRET = process.env.CRON_SECRET;
 const OPEN_STATUSES = ["pending", "in_progress", "returned"];
 const NAG_COOLDOWN_MS = 90 * 60 * 1000; // don't re-nag within 90 min
 const ESCALATE_AFTER_MS = 4 * 60 * 60 * 1000; // boss hears after 4h overdue
+const NAG_QUERY_LIMIT = 30; // bound each cron invocation; later runs pick up the rest
+const MAX_NAG_NOTIFICATIONS_PER_RUN = 10;
+const MAX_ESCALATIONS_PER_RUN = 3;
+const RUN_TIME_BUDGET_MS = 45_000; // stay below Vercel/GitHub timeout ceilings
 
 import type { WorkItemStatus } from "@maiyuri/shared";
 
@@ -56,7 +60,9 @@ async function openItemsDueToday(): Promise<Row[]> {
     )
     .in("status", OPEN_STATUSES)
     .not("due_at", "is", null)
-    .lte("due_at", istEndOfToday());
+    .lte("due_at", istEndOfToday())
+    .order("due_at", { ascending: true })
+    .limit(NAG_QUERY_LIMIT);
   if (qErr) throw new Error(`work_items query failed: ${qErr.message}`);
   return (data ?? []) as Row[];
 }
@@ -70,21 +76,38 @@ async function userNames(ids: string[]): Promise<Map<string, string>> {
   return new Map((data ?? []).map((u) => [u.id as string, u.name as string]));
 }
 
-async function runNag(): Promise<{ nudged: number; escalated: number }> {
+async function runNag(): Promise<{
+  nudged: number;
+  escalated: number;
+  skipped: number;
+  fetched: number;
+  capped: boolean;
+}> {
+  const started = Date.now();
   const items = await openItemsDueToday();
   const now = Date.now();
   let nudged = 0;
   let escalated = 0;
+  let skipped = 0;
 
   const names = await userNames([
     ...new Set(items.map((i) => i.assigned_user_id)),
   ]);
 
   for (const item of items) {
+    if (Date.now() - started > RUN_TIME_BUDGET_MS) {
+      skipped += 1;
+      continue;
+    }
+
     const overdueMs = item.due_at ? now - new Date(item.due_at).getTime() : 0;
 
     // SR3 — one-time escalation to management once it's badly overdue.
-    if (overdueMs > ESCALATE_AFTER_MS && !item.escalated_at) {
+    if (
+      overdueMs > ESCALATE_AFTER_MS &&
+      !item.escalated_at &&
+      escalated < MAX_ESCALATIONS_PER_RUN
+    ) {
       await notifyWorkEscalated(
         item,
         names.get(item.assigned_user_id) ?? "A team member",
@@ -100,11 +123,15 @@ async function runNag(): Promise<{ nudged: number; escalated: number }> {
       escalated += 1;
     }
 
-    // SR2 — the repeating nag, with a cooldown so back-to-back runs don't spam.
+    // SR2 — repeating nag, capped so a backlog never blows the serverless limit.
     const last = item.last_nudged_at
       ? new Date(item.last_nudged_at).getTime()
       : 0;
     if (now - last < NAG_COOLDOWN_MS) continue;
+    if (nudged >= MAX_NAG_NOTIFICATIONS_PER_RUN) {
+      skipped += 1;
+      continue;
+    }
 
     await notifyWorkNudge(item, item.nudge_count + 1, overdueMs > 0);
     await supabaseAdmin
@@ -117,7 +144,13 @@ async function runNag(): Promise<{ nudged: number; escalated: number }> {
     nudged += 1;
   }
 
-  return { nudged, escalated };
+  return {
+    nudged,
+    escalated,
+    skipped,
+    fetched: items.length,
+    capped: items.length >= NAG_QUERY_LIMIT || skipped > 0,
+  };
 }
 
 async function runEvening(): Promise<{ users: number }> {

@@ -23,6 +23,9 @@ jobs:
   nudge:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
     steps:
       - name: Pick mode from trigger
         id: mode
@@ -39,16 +42,43 @@ jobs:
 
       - name: Run nudges
         run: |
-          status=$(curl -s -o /tmp/r.json -w "%{http_code}" -X POST \
+          set -o pipefail
+          status=$(curl --silent --show-error --connect-timeout 10 --max-time 75 --retry 1 --retry-delay 2 \
+            -o /tmp/r.json -w "%{http_code}" -X POST \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             "https://mb.maiyuri.com/api/my-work/nudges?mode=${{ steps.mode.outputs.mode }}")
-          echo "HTTP $status (mode=${{ steps.mode.outputs.mode }})"; cat /tmp/r.json
-          if [ "$status" -ge 400 ]; then exit 1; fi
+          echo "HTTP $status (mode=${{ steps.mode.outputs.mode }})"
+          cat /tmp/r.json || true
+          if [ "$status" -ge 400 ] || [ "$status" = "000" ]; then exit 1; fi
 
-      - name: Alert on failure
+      - name: Alert on repeated failure
         if: failure()
         continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          should_alert=0
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            should_alert=1
+          else
+            recent_failures=$(gh run list \
+              --repo "${{ github.repository }}" \
+              --workflow "my-work-nudges.yml" \
+              --status completed \
+              --limit 2 \
+              --json conclusion \
+              --jq '[.[].conclusion] | map(select(. == "failure")) | length' 2>/dev/null || echo 0)
+            echo "Recent completed failures before this run: ${recent_failures}"
+            if [ "${recent_failures}" -ge 2 ]; then
+              should_alert=1
+            fi
+          fi
+
+          if [ "$should_alert" != "1" ]; then
+            echo "Suppressing failure alert until repeated failures are observed."
+            exit 0
+          fi
+
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
-            -d text="❌ ${{ github.workflow }} failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            --data-urlencode text="❌ ${{ github.workflow }} failed repeatedly: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
