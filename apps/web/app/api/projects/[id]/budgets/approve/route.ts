@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, error } from "@/lib/api-utils";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import { requireAdmin, AuthError } from "@/lib/api-helpers";
 
 interface RouteParams {
@@ -18,6 +19,10 @@ interface RouteParams {
 // Founder/owner only — enforced server-side via requireAdmin.
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
     const { id } = await params;
 
     // Server-side role gate (founder | owner). Throws AuthError otherwise.

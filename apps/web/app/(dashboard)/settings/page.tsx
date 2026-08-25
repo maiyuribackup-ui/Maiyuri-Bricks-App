@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, Button, Spinner } from "@maiyuri/ui";
 import { SmartQuoteImagesTab } from "@/components/settings/SmartQuoteImagesTab";
 import { WallCostSettingsTab } from "@/components/settings/WallCostSettingsTab";
+import { CompanyProfileTab } from "@/components/settings/CompanyProfileTab";
 import { HelpButton } from "@/components/help";
 import { getSupabase } from "@/lib/supabase";
 import { interpretPushTest } from "@/lib/push/test-result";
@@ -79,6 +80,7 @@ type TabId =
   | "team"
   | "smart-quotes"
   | "wall-costs"
+  | "company"
   | "nudges";
 
 interface Tab {
@@ -93,6 +95,7 @@ const TABS: Tab[] = [
   { id: "team", label: "Team", roles: ["founder", "owner"] },
   { id: "smart-quotes", label: "Smart Quotes", roles: ["founder"] },
   { id: "wall-costs", label: "Wall Costs", roles: ["founder", "owner"] },
+  { id: "company", label: "Company & Terms", roles: ["founder", "owner"] },
   { id: "nudges", label: "Nudges", roles: ["founder", "owner", "admin"] },
 ];
 
@@ -152,6 +155,7 @@ export default function SettingsPage() {
       {activeTab === "team" && <TeamSettings />}
       {activeTab === "smart-quotes" && <SmartQuoteImagesTab />}
       {activeTab === "wall-costs" && <WallCostSettingsTab />}
+      {activeTab === "company" && <CompanyProfileTab />}
       {activeTab === "nudges" && <NudgesSettings />}
     </div>
   );
@@ -318,13 +322,27 @@ function ProfileSettings() {
 }
 
 function NotificationSettings() {
-  const [settings, setSettings] = useState({
-    new_leads: true,
-    follow_ups: true,
-    ai_insights: true,
-    daily_summary: true,
-    telegram: false,
+  // REAL persistence (the previous version faked saves with a setTimeout —
+  // completeness audit): these are the exact keys filterByPushPref reads,
+  // shared with the mobile Settings screen.
+  const queryClient = useQueryClient();
+  const { data: profileData } = useQuery({
+    queryKey: ["me-prefs"],
+    queryFn: async () => {
+      const res = await fetch("/api/users/me");
+      if (!res.ok) throw new Error("Failed to load preferences");
+      return res.json() as Promise<{
+        data: { notification_preferences?: Record<string, boolean> | null };
+      }>;
+    },
   });
+  const prefs = profileData?.data?.notification_preferences ?? {};
+  const settings = {
+    push_leads: prefs.push_leads !== false,
+    push_ops: prefs.push_ops !== false,
+    push_digest: prefs.push_digest !== false,
+    telegram: prefs.telegram === true,
+  };
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle",
   );
@@ -333,15 +351,27 @@ function NotificationSettings() {
   >("idle");
   const [telegramError, setTelegramError] = useState("");
 
-  const handleToggle = (key: keyof typeof settings) => {
-    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
-    // Auto-save notification settings
-    setSaveStatus("saving");
-    // Simulate save (in production, call API)
-    setTimeout(() => {
+  const saveMutation = useMutation({
+    mutationFn: async (next: Record<string, boolean>) => {
+      const res = await fetch("/api/users/me", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notification_preferences: next }),
+      });
+      if (!res.ok) throw new Error("Failed to save preferences");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["me-prefs"] });
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 2000);
-    }, 500);
+    },
+    onError: () => setSaveStatus("idle"),
+  });
+
+  const handleToggle = (key: keyof typeof settings) => {
+    setSaveStatus("saving");
+    saveMutation.mutate({ ...prefs, [key]: !settings[key] });
   };
 
   const testTelegram = async () => {
@@ -383,25 +413,20 @@ function NotificationSettings() {
         {(
           [
             {
-              id: "new_leads",
-              title: "New Lead Alerts",
-              description: "Get notified when new leads are added",
+              id: "push_leads",
+              title: "Lead Alerts",
+              description: "New/assigned leads, updates, order won",
             },
             {
-              id: "follow_ups",
-              title: "Follow-up Reminders",
-              description: "Reminders for scheduled follow-ups",
-            },
-            {
-              id: "ai_insights",
-              title: "AI Insights",
+              id: "push_ops",
+              title: "Operations Alerts",
               description:
-                "Notifications about AI-generated insights and recommendations",
+                "Deliveries, production approvals, My Work assignments & reviews",
             },
             {
-              id: "daily_summary",
-              title: "Daily Summary",
-              description: "Daily digest of lead activity and metrics",
+              id: "push_digest",
+              title: "Morning Digest",
+              description: "Daily follow-up + My Work summary each morning",
             },
           ] as const
         ).map((setting) => (

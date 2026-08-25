@@ -242,6 +242,31 @@ export async function sendErrorNotification(
 }
 
 /**
+ * A recording exhausted all retries \u2014 the call's insights are LOST unless a
+ * human intervenes. Loud and specific: before this alert existed, 8 real
+ * customer calls failed permanently with nobody told.
+ */
+export async function sendPermanentFailureAlert(
+  filename: string,
+  phoneNumber: string,
+  error: string,
+): Promise<void> {
+  const adminChatId =
+    process.env.TELEGRAM_ADMIN_CHAT_ID ?? process.env.TELEGRAM_CHAT_ID;
+  if (!adminChatId) return;
+
+  const message =
+    `\u274C *GIVING UP on a call recording (3 attempts failed)*\n\n` +
+    `\u{1F4C1} ${filename}\n` +
+    `\u{1F4F1} ${phoneNumber}\n` +
+    `\u26A0\uFE0F Error: ${error.slice(0, 160)}\n\n` +
+    `This call's insights are NOT captured. Fix the cause, then re-upload the ` +
+    `file to Telegram (or reset it from the admin console).`;
+
+  await sendTelegramMessage(message, adminChatId);
+}
+
+/**
  * Classify an error as an infrastructure / AI-provider outage rather than a
  * problem with a specific recording. These (depleted credits, expired/invalid
  * key, quota/rate limits, 5xx, network) are transient and NOT the recording's

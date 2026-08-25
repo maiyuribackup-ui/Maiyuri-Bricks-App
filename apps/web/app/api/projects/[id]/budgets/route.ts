@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, created, error, parseBody } from "@/lib/api-utils";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import { z } from "zod";
 
 interface RouteParams {
@@ -21,8 +22,12 @@ const createBudgetSchema = z.object({
 // GET /api/projects/[id]/budgets
 // Returns all budget rows for the project, joined with cbs_master.
 // Also returns aggregate totals.
-export async function GET(_request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
     const { id } = await params;
 
     const { data, error: dbErr } = await supabaseAdmin
@@ -59,6 +64,10 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 // Once the budget is approved, direct edits are blocked (use revision — Phase 3).
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
     const { id } = await params;
     const parsed = await parseBody(request, createBudgetSchema);
     if (parsed.error) return parsed.error;

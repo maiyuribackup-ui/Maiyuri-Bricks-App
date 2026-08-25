@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, error, parseBody } from "@/lib/api-utils";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import { z } from "zod";
 
 interface RouteParams {
@@ -22,6 +23,10 @@ const updateBudgetSchema = z.object({
 // Rejects with 409 if the row is already approved — Phase 3 will introduce revision flow.
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
     const { id, budgetId } = await params;
 
     // Fetch current row to check status — scope by BOTH project_id and id so a
@@ -72,8 +77,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/projects/[id]/budgets/[budgetId]
 // Deletes a draft budget row. Approved rows cannot be deleted.
-export async function DELETE(_request: NextRequest, { params }: RouteParams) {
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
     const { id, budgetId } = await params;
 
     const { data: existing, error: fetchErr } = await supabaseAdmin

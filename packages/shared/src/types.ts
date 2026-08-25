@@ -324,6 +324,8 @@ export interface Product {
   unit: string;
   base_price: number;
   description: string | null;
+  /** HSN/SAC code printed beside the line item on a quotation, e.g. 681011. */
+  hsn_code?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -339,6 +341,37 @@ export interface FactorySettings {
   min_transport_charge: number;
   /** Founder-owned global template for the wall-cost comparison. */
   wall_cost_config?: WallCostConfig | null;
+  // --- Company identity + standing terms printed on the PDF quotation. ---
+  // Every one is null until the business enters it. The document omits any
+  // block whose facts are missing; software must never invent a GST number,
+  // an address or a payment term.
+  legal_name?: string | null;
+  gstin?: string | null;
+  registered_address?: string | null;
+  contact_phone?: string | null;
+  contact_email?: string | null;
+  website?: string | null;
+  payment_terms?: string | null;
+  delivery_terms?: string | null;
+  /** Standing terms beyond payment/delivery. One per line. */
+  additional_terms?: string | null;
+  /**
+   * How tax is treated on the quoted total, in the business's own words
+   * ("GST extra, as per actual"). Printed under the total — a total with no
+   * tax statement reads as final.
+   */
+  tax_note?: string | null;
+  // Where the advance is paid. The terms ask for 20% up front, so a quotation
+  // without these is a document the customer cannot act on.
+  bank_account_name?: string | null;
+  bank_account_number?: string | null;
+  bank_ifsc?: string | null;
+  bank_name?: string | null;
+  bank_branch?: string | null;
+  upi_number?: string | null;
+  quote_footer_note?: string | null;
+  /** Days a quotation stays valid; drives `smart_quotes.valid_until`. */
+  quote_validity_days?: number | null;
   updated_at: string;
   updated_by?: string | null;
 }
@@ -564,16 +597,59 @@ export interface SmartQuoteCopyMap {
   ta: Record<string, string>;
 }
 
+/**
+ * One priced line on the quotation.
+ *
+ * A house needs 8" for the external walls and 6" for the internal ones — which
+ * the proposal recommends on its own pages — so a quote has to carry more than
+ * one product. Each line holds its own rate: the engineer prices per product,
+ * not per quote.
+ */
+export interface SmartQuoteLineItem {
+  product_id: string;
+  quantity: number;
+  /** Rate per unit (₹) for this line, set by the engineer. */
+  rate: number;
+}
+
 // Smart Quote 2.0 — interactive instant-estimate config (staff-reviewed)
 export interface SmartQuotePricingConfig {
   allowed_products: string[]; // product ids offered on the quote
-  default_product: string | null; // product id pre-selected
-  default_area_sqft: number | null; // default quantity in the product's unit
+  /**
+   * The quoted lines, when the quote prices more than one product.
+   *
+   * Absent on every quote written before multi-product, and optional after:
+   * a single-product quote may keep using default_product / default_area_sqft
+   * / quoted_rate below and renders exactly as it did. When `items` is present
+   * and non-empty it is authoritative for the document, and those three fields
+   * mirror its first line so the customer-facing interactive estimate — which
+   * prices one product at a time — keeps working unchanged.
+   */
+  items?: SmartQuoteLineItem[];
+  default_product: string | null; // the quoted product
+  default_area_sqft: number | null; // the quoted quantity, in the product's unit
   default_distance_km: number | null; // delivery distance for transport calc
   locality_label: string | null; // human label for the delivery area
   show_transport: boolean; // include delivery in the headline total
   price_note: string | null; // optional caveat shown under the estimate
+  /**
+   * Terms that apply to THIS quotation only, one per line.
+   *
+   * factory_settings.additional_terms is the standing set and prints on every
+   * quotation. A term agreed with one customer — a staged delivery, a site
+   * condition, a price held to a date — must not be written there, because it
+   * would silently attach itself to everyone else's quote too.
+   */
+  special_terms?: string | null;
   rep_phone: string | null; // WhatsApp number for the CTA (E.164-ish digits)
+  /**
+   * Rate per unit (₹) set by the engineer in the app. When present this is
+   * THE price: the rate card and product base_price are not consulted at all,
+   * so the customer never sees a number the engineer did not authorise.
+   * Null on quotes created before engineer pricing, which keep the rate-card
+   * behaviour.
+   */
+  quoted_rate: number | null;
 }
 
 // ============================================================================
@@ -636,6 +712,14 @@ export interface SmartQuote {
   pricing_config?: SmartQuotePricingConfig | null;
   /** Per-quote snapshot of wall-system costs (personalizable; frozen on share). */
   wall_cost_config?: WallCostConfig | null;
+  /**
+   * Human quotation reference (e.g. MB-2026-0042), assigned the first time a
+   * PDF is produced and never reassigned — a document already in a customer's
+   * hands must keep its number.
+   */
+  quote_number?: string | null;
+  /** ISO date the quotation expires (derived from quote_validity_days). */
+  valid_until?: string | null;
   created_at: string;
   updated_at: string;
   // Joined fields
@@ -2187,4 +2271,103 @@ export interface ProjectBudgetsResponse {
     current: number;
     original: number;
   };
+}
+
+// ============================================================================
+// Reimbursement / Petty Cash
+// ============================================================================
+
+export type ExpenseKind = "standard" | "petrol";
+export type ExpenseClaimStatus = "pending" | "approved" | "rejected";
+
+export interface ExpenseType {
+  id: string;
+  name: string;
+  cost_category: string; // maps to cost_entries.cost_category
+  kind: ExpenseKind;
+  requires_project: boolean;
+  icon: string | null;
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExpenseVehicleRate {
+  id: string;
+  label: string;
+  per_km_rate: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PettyCashTopup {
+  id: string;
+  user_id: string;
+  amount: number;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+  // joined
+  user?: { id: string; name: string | null } | null;
+}
+
+export interface ExpenseClaim {
+  id: string;
+  user_id: string;
+  expense_type_id: string;
+  project_id: string | null;
+  amount: number;
+  description: string | null;
+  expense_date: string;
+  receipt_url: string | null;
+  status: ExpenseClaimStatus;
+  // petrol detail
+  vehicle_rate_id: string | null;
+  lead_id: string | null;
+  customer_name: string | null;
+  from_location: string | null;
+  to_location: string | null;
+  km: number | null;
+  per_km_rate_applied: number | null;
+  // workflow
+  approved_by: string | null;
+  approved_at: string | null;
+  reject_reason: string | null;
+  cost_entry_id: string | null;
+  created_at: string;
+  updated_at: string;
+  // joined
+  user?: { id: string; name: string | null } | null;
+  expense_type?: Pick<ExpenseType, "id" | "name" | "kind" | "icon"> | null;
+  project?: { id: string; name: string } | null;
+}
+
+/** A staffer's computed petty-cash position. */
+export interface ExpenseBalance {
+  user_id: string;
+  name: string | null;
+  role: string;
+  topups_total: number;
+  spent_total: number; // pending + approved
+  balance: number; // topups_total - spent_total
+  pending_count: number;
+}
+
+/** GET /api/expenses payload for a submitter (own view). */
+export interface MyExpensesResponse {
+  balance: number;
+  topups_total: number;
+  spent_total: number;
+  claims: ExpenseClaim[];
+  topups: PettyCashTopup[];
+  types: ExpenseType[];
+  vehicleRates: ExpenseVehicleRate[];
+}
+
+/** GET /api/expenses?view=all payload for admins. */
+export interface AllExpensesResponse {
+  balances: ExpenseBalance[];
+  pending: ExpenseClaim[];
 }

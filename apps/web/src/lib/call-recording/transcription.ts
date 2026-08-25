@@ -7,6 +7,7 @@
 
 import { GoogleGenerativeAI, type GenerativeModel } from "@google/generative-ai";
 import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
+import { traceAiGeneration } from "@/lib/observability/langfuse";
 import { log, logError } from "./logger";
 import { isInfraError } from "./notifications";
 import type { TranscriptionResult } from "./types";
@@ -104,10 +105,19 @@ At the end, on a new line, state the primary language detected (Tamil, English, 
   ];
 
   try {
-    const result = await generateContentWithRetry(model, parts);
-
-    const response = result.response;
-    const fullText = response.text();
+    // Keep both intents: in-process retry-with-backoff (#51) wrapped in the
+    // Langfuse trace (main). One span per transcribe covers all retry attempts.
+    const fullText = await traceAiGeneration({
+      name: "app.call_recording.transcribe_audio",
+      model: GEMINI_DEFAULT_MODEL,
+      input: { filename, mimeType, audioBytes: audioBuffer.length },
+      metadata: { module: "call_recording", step: "transcribe_audio" },
+      run: async () => {
+        const result = await generateContentWithRetry(model, parts);
+        const output = result.response.text();
+        return { output, value: output };
+      },
+    });
 
     const { transcript, language } = parseTranscriptionResponse(fullText);
 
