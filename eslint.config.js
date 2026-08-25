@@ -45,13 +45,16 @@ export default tseslint.config(
     },
   },
   {
-    // JavaScript files (browser environment)
+    // JavaScript files. Covers browser bundles/service workers AND standalone
+    // Node scripts (root *.mjs debug/maintenance utilities), so `process` etc.
+    // are defined either way.
     files: ['**/*.js', '**/*.mjs'],
     languageOptions: {
       globals: {
         ...globals.browser,
         ...globals.es2021,
         ...globals.serviceworker,
+        ...globals.node,
       },
     },
     rules: {

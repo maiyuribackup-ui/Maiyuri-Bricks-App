@@ -10,6 +10,8 @@
  */
 
 import { generateTextWithFallback } from "@/lib/ai/text-fallback";
+import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
+import { traceAiGeneration } from "@/lib/observability/langfuse";
 import type {
   SmartQuoteLanguage,
   SmartQuoteStage,
@@ -91,9 +93,18 @@ TRANSCRIPT:
 ${transcript}`;
 
   try {
-    const out = await generateTextWithFallback(prompt);
-    if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
-    const response = out.text;
+    const response = await traceAiGeneration({
+      name: "app.smart_quote.extract_insights",
+      model: GEMINI_DEFAULT_MODEL,
+      input: { transcript, leadName },
+      metadata: { module: "smart_quote", step: "extract_insights" },
+      run: async () => {
+        // Keep both intents: Gemini→DeepSeek fallback (#49) inside the trace (main).
+        const out = await generateTextWithFallback(prompt);
+        if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
+        return { output: out.text, value: out.text };
+      },
+    });
     return parseInsightsResponse(response);
   } catch (error) {
     console.error("[SmartQuoteAI] Failed to extract insights:", error);
@@ -185,16 +196,24 @@ Output schema:
   "page_blocks": {
     "entry": ["hero_headline", "belief_breaker", "trust_anchor", "cta_teaser"],
     "climate": ["chennai_logic", "breathability", "micro_cta"],
-    "cost": ["range_frame", "range_value", "drivers", "micro_cta"],
+    "cost": ["range_frame", "range_value", "drivers", "soft_compare", "micro_cta"],
     "objection": ["top_objection_answer", "reassurance"],
     "cta": ["single_cta", "route_explainer", "light_form"]
   }
 }`;
 
   try {
-    const out = await generateTextWithFallback(prompt);
-    if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
-    const response = out.text;
+    const response = await traceAiGeneration({
+      name: "app.smart_quote.generate_strategy",
+      model: GEMINI_DEFAULT_MODEL,
+      input: { insights },
+      metadata: { module: "smart_quote", step: "generate_strategy" },
+      run: async () => {
+        const out = await generateTextWithFallback(prompt);
+        if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
+        return { output: out.text, value: out.text };
+      },
+    });
     return parseStrategyResponse(response, insights);
   } catch (error) {
     console.error("[SmartQuoteAI] Failed to generate strategy:", error);
@@ -296,11 +315,14 @@ function getDefaultStrategy(insights: LeadInsights): StrategyResult {
   };
 }
 
-function getDefaultBlocks(pageKey: SmartQuotePageKey): string[] {
+export function getDefaultBlocks(pageKey: SmartQuotePageKey): string[] {
   const defaults: Record<SmartQuotePageKey, string[]> = {
     entry: ["hero_headline", "belief_breaker", "trust_anchor", "cta_teaser"],
     climate: ["chennai_logic", "breathability", "micro_cta"],
-    cost: ["range_frame", "range_value", "drivers", "micro_cta"],
+    // soft_compare drives the wall-cost comparison section. It must stay in
+    // the default set: the page now honours page_config, so omitting it here
+    // would silently drop that section from every quote that falls back.
+    cost: ["range_frame", "range_value", "drivers", "soft_compare", "micro_cta"],
     objection: ["top_objection_answer", "reassurance"],
     cta: ["single_cta", "route_explainer", "light_form"],
   };
@@ -381,9 +403,17 @@ Return schema:
 }`;
 
   try {
-    const out = await generateTextWithFallback(prompt);
-    if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
-    const response = out.text;
+    const response = await traceAiGeneration({
+      name: "app.smart_quote.generate_bilingual_copy",
+      model: GEMINI_DEFAULT_MODEL,
+      input: { insights, strategy },
+      metadata: { module: "smart_quote", step: "generate_bilingual_copy" },
+      run: async () => {
+        const out = await generateTextWithFallback(prompt);
+        if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
+        return { output: out.text, value: out.text };
+      },
+    });
     return parseCopyResponse(response, strategy.route_decision);
   } catch (error) {
     console.error("[SmartQuoteAI] Failed to generate copy:", error);
@@ -530,6 +560,55 @@ function getDefaultCopyMap(route: SmartQuoteRoute): SmartQuoteCopyMap {
  * @param leadName - Optional lead name for personalization
  * @returns Complete Smart Quote AI result with insights, strategy, and copy
  */
+/**
+ * A quotation for a lead we have not spoken to yet.
+ *
+ * The AI pipeline reads call transcripts. A brand-new enquiry has none, and
+ * the route used to refuse outright — "No transcripts available. Upload call
+ * recordings first." — which blocked the ordinary case: a lead arrives, the
+ * engineer knows the price, and a quotation should go out today. Nothing about
+ * quoting depends on having recorded a call.
+ *
+ * So the quote is built from the same defaults the AI falls back to whenever
+ * it fails or returns nothing usable. The customer-facing copy is the standard
+ * copy; the insight fields say "unknown" rather than inventing a persona,
+ * urgency or objection nobody has evidence for. Regenerating after the first
+ * call replaces all of it with the real reading.
+ */
+export function buildBaselineQuoteContent(
+  language: SmartQuoteLanguage = "en",
+): SmartQuoteAIResult {
+  const route: SmartQuoteRoute = "technical_call";
+  return {
+    insights: {
+      language_detected: "unknown",
+      persona: "unknown",
+      stage: "warm",
+      // Neutral midpoints. These drive presentation only, and asserting
+      // interest or urgency we have not heard would be a fabrication.
+      scores: { interest: 0.5, urgency: 0.5, price_sensitivity: 0.5, trust: 0.5 },
+      primary_angle: null,
+      secondary_angle: null,
+      top_objections: [],
+      risk_flags: [],
+    },
+    strategy: {
+      language_default: language,
+      route_decision: route,
+      page_config: {
+        pages: [
+          { key: "entry", blocks: getDefaultBlocks("entry") },
+          { key: "climate", blocks: getDefaultBlocks("climate") },
+          { key: "cost", blocks: getDefaultBlocks("cost") },
+          { key: "objection", blocks: getDefaultBlocks("objection") },
+          { key: "cta", blocks: getDefaultBlocks("cta") },
+        ],
+      },
+    },
+    copyMap: getDefaultCopyMap(route),
+  };
+}
+
 export async function generateSmartQuoteContent(
   transcript: string,
   leadName?: string | null,

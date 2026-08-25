@@ -30,12 +30,13 @@ async function login(page: Page) {
     throw new Error("E2E_TEST_PASSWORD environment variable is required");
   }
 
-  const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    "https://pailepomvvwjkrhkwdqt.supabase.co";
-  const supabaseAnonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhaWxlcG9tdnZ3amtyaGt3ZHF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1MzkzNzksImV4cCI6MjA4MzExNTM3OX0.LPqNxVCbBYIpsIeg5lGMro-Ubj8JPmHrDFLT8X0XVVc";
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required for E2E login",
+    );
+  }
 
   // Authenticate via Supabase REST API
   const authResponse = await page.request.post(

@@ -9,6 +9,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { traceAiGeneration } from "@/lib/observability/langfuse";
 import type { Lead, NudgeDigestLead } from "@maiyuri/shared";
 
 // Initialize Claude client
@@ -69,18 +70,27 @@ async function completeJson<T>(
   maxTokens: number = 1024,
 ): Promise<T | null> {
   try {
-    const response = await anthropic.messages.create({
+    const content = await traceAiGeneration({
+      name: "app.nudges.complete_json",
       model: DEFAULT_MODEL,
-      max_tokens: maxTokens,
-      temperature: 0.5,
-      system:
-        systemPrompt +
-        "\n\nIMPORTANT: Respond ONLY with valid JSON. No other text or explanation.",
-      messages: [{ role: "user", content: userPrompt }],
-    });
+      input: { systemPrompt, userPrompt, maxTokens },
+      metadata: { module: "nudges", step: "complete_json" },
+      run: async () => {
+        const response = await anthropic.messages.create({
+          model: DEFAULT_MODEL,
+          max_tokens: maxTokens,
+          temperature: 0.5,
+          system:
+            systemPrompt +
+            "\n\nIMPORTANT: Respond ONLY with valid JSON. No other text or explanation.",
+          messages: [{ role: "user", content: userPrompt }],
+        });
 
-    const textContent = response.content.find((c) => c.type === "text");
-    const content = textContent?.type === "text" ? textContent.text : "";
+        const textContent = response.content.find((c) => c.type === "text");
+        const output = textContent?.type === "text" ? textContent.text : "";
+        return { output, value: output };
+      },
+    });
 
     // Parse JSON
     let jsonStr = content.trim();
