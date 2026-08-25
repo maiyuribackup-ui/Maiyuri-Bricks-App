@@ -389,8 +389,8 @@ export async function logAgentEventToClickHouse(
   } = {},
 ): Promise<{ ok: boolean; status: number; error?: string }> {
   const endpoint = options.endpoint ?? process.env.MAIYURI_CLICKHOUSE_HTTP_URL ?? "http://127.0.0.1:8125";
-  const username = options.username ?? process.env.MAIYURI_CLICKHOUSE_USER;
-  const password = options.password ?? process.env.MAIYURI_CLICKHOUSE_PASSWORD;
+  const username = options.username ?? process.env.MAIYURI_CLICKHOUSE_USER ?? process.env.CLICKHOUSE_USER;
+  const password = options.password ?? process.env.MAIYURI_CLICKHOUSE_PASSWORD ?? process.env.CLICKHOUSE_PASSWORD;
   const fetchFn = options.fetchFn ?? fetch;
   const payload = createAgentEventPayload(input);
   const query = "INSERT INTO maiyuri_events.events (event_name, source, surface, environment, trace_id, properties_json) FORMAT JSONEachRow";
