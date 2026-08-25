@@ -10,6 +10,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from "zod";
 import { GEMINI_MODEL } from "@/lib/ai/models";
+import { traceAiGeneration } from "@/lib/observability/langfuse";
 import type { CapacityOverride } from "./scheduler";
 
 const adviceSchema = z.object({
@@ -132,8 +133,17 @@ Respond with ONLY a JSON code block:
 {"priorities":[{"order_ref":"SO001","rank":1,"reason":"..."}],"capacity_overrides":[{"date":"YYYY-MM-DD","blocked":true}],"narrative":"..."}
 \`\`\``;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const text = await traceAiGeneration({
+      name: "app.ops_planning.advisor",
+      model: GEMINI_MODEL.FLASH_LITE,
+      input,
+      metadata: { module: "ops_planning", step: "advisor" },
+      run: async () => {
+        const result = await model.generateContent(prompt);
+        const output = result.response.text();
+        return { output, value: output };
+      },
+    });
     const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) ?? [
       null,
       text.trim(),

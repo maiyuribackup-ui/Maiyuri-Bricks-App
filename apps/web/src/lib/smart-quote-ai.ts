@@ -11,6 +11,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
+import { traceAiGeneration } from "@/lib/observability/langfuse";
 import type {
   SmartQuoteLanguage,
   SmartQuoteStage,
@@ -107,8 +108,17 @@ TRANSCRIPT:
 ${transcript}`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
+    const response = await traceAiGeneration({
+      name: "app.smart_quote.extract_insights",
+      model: GEMINI_DEFAULT_MODEL,
+      input: { transcript, leadName },
+      metadata: { module: "smart_quote", step: "extract_insights" },
+      run: async () => {
+        const result = await model.generateContent(prompt);
+        const output = result.response.text();
+        return { output, value: output };
+      },
+    });
     return parseInsightsResponse(response);
   } catch (error) {
     console.error("[SmartQuoteAI] Failed to extract insights:", error);
@@ -209,8 +219,17 @@ Output schema:
 }`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
+    const response = await traceAiGeneration({
+      name: "app.smart_quote.generate_strategy",
+      model: GEMINI_DEFAULT_MODEL,
+      input: { insights },
+      metadata: { module: "smart_quote", step: "generate_strategy" },
+      run: async () => {
+        const result = await model.generateContent(prompt);
+        const output = result.response.text();
+        return { output, value: output };
+      },
+    });
     return parseStrategyResponse(response, insights);
   } catch (error) {
     console.error("[SmartQuoteAI] Failed to generate strategy:", error);
@@ -402,8 +421,17 @@ Return schema:
 }`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
+    const response = await traceAiGeneration({
+      name: "app.smart_quote.generate_bilingual_copy",
+      model: GEMINI_DEFAULT_MODEL,
+      input: { insights, strategy },
+      metadata: { module: "smart_quote", step: "generate_bilingual_copy" },
+      run: async () => {
+        const result = await model.generateContent(prompt);
+        const output = result.response.text();
+        return { output, value: output };
+      },
+    });
     return parseCopyResponse(response, strategy.route_decision);
   } catch (error) {
     console.error("[SmartQuoteAI] Failed to generate copy:", error);

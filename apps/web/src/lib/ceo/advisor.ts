@@ -9,6 +9,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from "zod";
 import { GEMINI_MODEL } from "@/lib/ai/models";
+import { traceAiGeneration } from "@/lib/observability/langfuse";
 import type {
   MoneyBalances,
   PipelineStage,
@@ -107,8 +108,17 @@ Respond with ONLY a JSON code block:
 {"headline":"<action, imperative, max 12 words>","why":"<the numbers behind it, 1-2 sentences>","expected_impact":"<what changes if done, 1 sentence>","urgency":"today|this_week","watchlist":["...","..."]}
 \`\`\``;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const text = await traceAiGeneration({
+      name: "app.ceo.advisor_action",
+      model: GEMINI_MODEL.FLASH_LITE,
+      input: b,
+      metadata: { module: "ceo", step: "advisor_action" },
+      run: async () => {
+        const result = await model.generateContent(prompt);
+        const output = result.response.text();
+        return { output, value: output };
+      },
+    });
     const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) ?? [
       null,
       text.trim(),
