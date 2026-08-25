@@ -61,3 +61,23 @@ Then only flag items needing action.
 
 ## Model
 `google/gemma-4-31b-it:free` via OpenRouter (free tier, 262K ctx, reasoning-capable)
+## Todoist Tracking (added 2026-08-25)
+
+Todoist state is synced to Maiyuri ClickHouse every 6 hours via `sync-todoist-events.sh`.
+
+### Tracked events in `maiyuri_events.events`:
+| Event | Frequency | Content |
+|---|---|---|
+| `todoist.snapshot.daily` | every 6h | total, overdue, due_today, future, no_due |
+| `todoist.project.snapshot.daily` | every 6h | per-project task counts + overdue |
+| `todoist.overdue.warning` | every 6h (if overdue>0) | overdue count, %, top 3 projects |
+| `todoist.snapshot.delta` | every 6h | day-over-day task count
+
+### Sync pipeline:
+```text
+Todoist REST API → sync-todoist-events.py → maiyuri_events.events (ClickHouse)
+                                              ↑
+                              AI Quality Agent reads for health check
+```
+
+### Cron: `0 1,7,13,19 * * *` (every 6h, script-only, no LLM tokens)
