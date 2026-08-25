@@ -17,10 +17,27 @@ const publicRoutes = [
 // Routes that require authentication (pages)
 const protectedRoutes = [
   "/dashboard",
+  "/daily-report", // server-rendered with real business data — must never serve anonymously
+  "/onehub",
   "/leads",
+  "/quotes",
+  "/planning",
+  "/ops", // Operations Control — startsWith, so this covers every /ops/* page
+  "/projects",
+  "/expenses",
+  "/rate-card",
+  "/approvals",
+  "/production",
+  "/factory",
+  "/deliveries",
   "/coaching",
   "/reports",
+  "/knowledge",
   "/knowledgebase",
+  "/kpi",
+  "/business-health",
+  "/analytics",
+  "/observability",
   "/settings",
   "/tasks",
 ];
@@ -116,8 +133,13 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
   // `blob:` is required so the voice-feedback mic capture can load its
   // AudioWorklet processor, which is shipped as an inline Blob URL. Without it
   // `audioWorklet.addModule(blob:...)` throws AbortError and the call drops.
+  // Dev-only allowance so impeccable live mode (the element picker served from
+  // localhost:8400) can load its script and call back. Collapses to an empty
+  // string outside development, so the production CSP is unchanged.
+  const impeccableLive = isDev ? " http://localhost:8400" : "";
+
   const scriptSrc = isDev
-    ? "'self' 'unsafe-inline' 'unsafe-eval' blob:"
+    ? "'self' 'unsafe-inline' 'unsafe-eval' blob:" + impeccableLive
     : "'self' 'unsafe-inline' blob:";
 
   response.headers.set(
@@ -137,7 +159,7 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
       // Gemini Live runs over a WebSocket (wss://) — CSP treats https: and wss:
       // as distinct schemes, so the wss: origin must be listed explicitly or the
       // browser silently blocks the voice-feedback socket (onerror).
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com",
+      `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com${impeccableLive}`,
       "frame-ancestors 'none'",
       // Hardening (no app impact): block <base> tag hijacking, plugin/object
       // execution, and cross-origin form posts; clickjacking already covered by
@@ -258,6 +280,33 @@ export async function middleware(request: NextRequest) {
 
     try {
       const supabase = createSupabaseMiddlewareClient(request, response);
+
+      // Non-browser clients (the React Native app, future API integrations)
+      // have no cookie jar and authenticate with `Authorization: Bearer
+      // <supabase-access-token>`. Validate that token here. This is additive:
+      // browser requests carry no user Bearer header and fall through to the
+      // cookie-based check below, so web behaviour is unchanged.
+      // getUser(jwt) revalidates the token against the Supabase auth server.
+      const authHeader = request.headers.get("authorization");
+      const bearer = authHeader?.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : null;
+      if (bearer) {
+        const {
+          data: { user: bearerUser },
+        } = await supabase.auth.getUser(bearer);
+        if (bearerUser) {
+          return addSecurityHeaders(response);
+        }
+        // Invalid/expired token — reject rather than falling through.
+        return addSecurityHeaders(
+          NextResponse.json(
+            { error: "Unauthorized: Invalid or expired token" },
+            { status: 401 },
+          ),
+        );
+      }
+
       // getUser() revalidates the JWT against the Supabase auth server, unlike
       // getSession() which only decodes the (client-tamperable) cookie. This is
       // the sole gate for service-role API routes, so it must be authentic.

@@ -173,6 +173,10 @@ export const createLeadSchema = z.object({
 
 export const updateLeadSchema = z.object({
   name: z.string().min(1).optional(),
+  // Internal notes. The column and the Lead type have always had it, but it
+  // was missing here — zod strips unknown keys, so anything written to it was
+  // dropped without a word.
+  staff_notes: z.string().nullable().optional(),
   contact: z.string().min(10).optional(),
   source: z.string().min(1).optional(),
   lead_type: z.string().min(1).optional(),
@@ -411,6 +415,26 @@ export const factorySettingsSchema = z.object({
   address: z.string().nullable().optional(),
   transport_rate_per_km: z.number().positive("Rate must be positive"),
   min_transport_charge: z.number().min(0, "Minimum charge cannot be negative"),
+  // Company identity + standing terms for the PDF quotation. All optional and
+  // nullable: an unset field prints nothing rather than a placeholder.
+  legal_name: z.string().nullable().optional(),
+  gstin: z.string().nullable().optional(),
+  registered_address: z.string().nullable().optional(),
+  contact_phone: z.string().nullable().optional(),
+  contact_email: z.string().email("Invalid email").nullable().optional(),
+  website: z.string().nullable().optional(),
+  payment_terms: z.string().nullable().optional(),
+  delivery_terms: z.string().nullable().optional(),
+  additional_terms: z.string().nullable().optional(),
+  tax_note: z.string().nullable().optional(),
+  bank_account_name: z.string().nullable().optional(),
+  bank_account_number: z.string().nullable().optional(),
+  bank_ifsc: z.string().nullable().optional(),
+  bank_name: z.string().nullable().optional(),
+  bank_branch: z.string().nullable().optional(),
+  upi_number: z.string().nullable().optional(),
+  quote_footer_note: z.string().nullable().optional(),
+  quote_validity_days: z.number().int().min(1).max(365).nullable().optional(),
 });
 
 export const updateFactorySettingsSchema = factorySettingsSchema.partial();
@@ -611,15 +635,29 @@ export const smartQuoteObjectionSeveritySchema = z.enum([
 export const smartQuoteImageScopeSchema = z.enum(["template", "lead_override"]);
 
 // Smart Quote 2.0 — interactive pricing config (staff-editable)
+/** One priced line: product, quantity, and the engineer's rate for it. */
+export const smartQuoteLineItemSchema = z.object({
+  product_id: z.string().uuid(),
+  quantity: z.number().positive(),
+  rate: z.number().positive(),
+});
+
 export const smartQuotePricingConfigSchema = z.object({
   allowed_products: z.array(z.string().uuid()).default([]),
+  // Multi-product quotes. Capped because these print on one A4 table, and a
+  // quotation with fifty lines is a bill of materials, not a quotation.
+  items: z.array(smartQuoteLineItemSchema).max(12).optional(),
   default_product: z.string().uuid().nullable().optional(),
   default_area_sqft: z.number().positive().nullable().optional(),
   default_distance_km: z.number().min(0).nullable().optional(),
   locality_label: z.string().nullable().optional(),
   show_transport: z.boolean().default(true),
   price_note: z.string().nullable().optional(),
+  // Terms for this quotation alone; the standing set lives in factory_settings.
+  special_terms: z.string().max(2000).nullable().optional(),
   rep_phone: z.string().nullable().optional(),
+  // Engineer-set rate per unit (₹). Authoritative when present.
+  quoted_rate: z.number().positive().nullable().optional(),
 });
 
 // Public instant-estimate request (slug-gated, from the customer page)
@@ -1316,3 +1354,74 @@ export type SubmitQuizAttemptInput = z.infer<typeof submitQuizAttemptSchema>;
 export type SubmitAssignmentInput = z.infer<typeof submitAssignmentSchema>;
 export type ReviewSubmissionInput = z.infer<typeof reviewSubmissionSchema>;
 export type UpsertCoachUserInput = z.infer<typeof upsertCoachUserSchema>;
+
+// ============================================================================
+// Reimbursement / Petty Cash
+// ============================================================================
+
+// Create an expense claim. Petrol claims carry route + km (amount is computed
+// server-side from km × the chosen vehicle rate — never trust the client's
+// number); standard claims carry an amount directly.
+export const createExpenseSchema = z
+  .object({
+    expense_type_id: z.string().uuid(),
+    project_id: z.string().uuid().nullable().optional(),
+    description: z.string().max(500).nullable().optional(),
+    expense_date: z.string().optional(), // YYYY-MM-DD; server defaults today
+    receipt_url: z.string().nullable().optional(),
+    // standard
+    amount: z.number().nonnegative().optional(),
+    // petrol
+    vehicle_rate_id: z.string().uuid().nullable().optional(),
+    lead_id: z.string().uuid().nullable().optional(),
+    customer_name: z.string().max(200).nullable().optional(),
+    from_location: z.string().max(200).nullable().optional(),
+    to_location: z.string().max(200).nullable().optional(),
+    km: z.number().positive().nullable().optional(),
+  })
+  .refine(
+    (v) =>
+      // petrol path: vehicle + km present  OR  standard path: amount present
+      (v.vehicle_rate_id != null && v.km != null && v.km > 0) ||
+      (v.amount != null && v.amount >= 0),
+    { message: "Provide either (vehicle_rate_id + km) for petrol, or an amount." },
+  );
+
+export const approveExpenseSchema = z.object({
+  note: z.string().max(500).optional(),
+});
+
+export const rejectExpenseSchema = z.object({
+  reason: z.string().min(3, "A reason is required").max(500),
+});
+
+export const topupSchema = z.object({
+  user_id: z.string().uuid(),
+  amount: z.number().positive("Amount must be greater than 0"),
+  note: z.string().max(500).optional(),
+});
+
+export const vehicleRateSchema = z.object({
+  id: z.string().uuid().optional(), // present = update
+  label: z.string().min(1).max(80),
+  per_km_rate: z.number().nonnegative(),
+  active: z.boolean().optional(),
+});
+
+export const expenseTypeSchema = z.object({
+  id: z.string().uuid().optional(), // present = update
+  name: z.string().min(1).max(80),
+  cost_category: z.string().min(1),
+  kind: z.enum(["standard", "petrol"]).optional(),
+  requires_project: z.boolean().optional(),
+  icon: z.string().max(8).nullable().optional(),
+  sort_order: z.number().int().optional(),
+  active: z.boolean().optional(),
+});
+
+export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
+export type ApproveExpenseInput = z.infer<typeof approveExpenseSchema>;
+export type RejectExpenseInput = z.infer<typeof rejectExpenseSchema>;
+export type TopupInput = z.infer<typeof topupSchema>;
+export type VehicleRateInput = z.infer<typeof vehicleRateSchema>;
+export type ExpenseTypeInput = z.infer<typeof expenseTypeSchema>;

@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, error, notFound, parseBody } from "@/lib/api-utils";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import { updateProjectSchema } from "@maiyuri/shared";
 import { computeBudgetVsActual } from "@/lib/projects/compute-budget";
 
@@ -11,8 +12,12 @@ interface RouteParams {
 }
 
 // GET /api/projects/[id] — full project bundle for the detail page
-export async function GET(_request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
     const { id } = await params;
     const { data: project, error: pErr } = await supabaseAdmin
       .from("projects")
@@ -62,6 +67,10 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 // PATCH /api/projects/[id] — update editable project header fields
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
     const { id } = await params;
     const parsed = await parseBody(request, updateProjectSchema);
     if (parsed.error) return parsed.error;

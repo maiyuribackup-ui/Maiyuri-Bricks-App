@@ -1,0 +1,51 @@
+name: EAS OTA update
+
+# Publishes a JS-only over-the-air update to the preview channel (the channel
+# the staff APK is built on). Trigger manually after merging mobile changes.
+# Env values below are the PUBLIC client config — identical to eas.json's
+# preview profile (eas update bundles with the shell env, not build env).
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: "Update message shown in the EAS dashboard"
+        required: false
+        default: "OTA update from main"
+
+jobs:
+  ota:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/native
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps (standalone app, own lockfile)
+        run: npm ci
+
+      - name: Publish OTA to preview channel
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_SUPABASE_URL: "https://pailepomvvwjkrhkwdqt.supabase.co"
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhaWxlcG9tdnZ3amtyaGt3ZHF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1MzkzNzksImV4cCI6MjA4MzExNTM3OX0.LPqNxVCbBYIpsIeg5lGMro-Ubj8JPmHrDFLT8X0XVVc"
+          EXPO_PUBLIC_API_BASE_URL: "https://mb.maiyuri.com"
+          EXPO_PUBLIC_SENTRY_DSN: "https://41fa7620487df297e55a6de17384b1d4@o4511721437659136.ingest.de.sentry.io/4511721448013904"
+          SENTRY_DISABLE_AUTO_UPLOAD: "true"
+        run: |
+          npx eas-cli update --channel preview --non-interactive \
+            --message "${{ github.event.inputs.message }}"
+
+      - name: Alert on failure
+        if: failure()
+        continue-on-error: true
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="❌ ${{ github.workflow }} failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

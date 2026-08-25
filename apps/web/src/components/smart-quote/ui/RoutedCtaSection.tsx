@@ -12,6 +12,12 @@ interface RoutedCtaSectionProps {
   routeDecision: SmartQuoteRoute;
   language: SmartQuoteLanguage;
   onSubmit: (data: SmartQuoteCtaSubmission) => Promise<void>;
+  /** AI copy (cta.section_headline); blank keeps the per-route default. */
+  headline?: string;
+  /** AI copy (cta.primary_cta) for the button. */
+  ctaLabel?: string;
+  /** AI copy (cta.route_explainer) — why this next step, for this lead. */
+  description?: string;
 }
 
 // CTA content based on route decision
@@ -99,6 +105,9 @@ export function RoutedCtaSection({
   routeDecision,
   language,
   onSubmit,
+  headline,
+  ctaLabel,
+  description,
 }: RoutedCtaSectionProps) {
   const { colors, typography, radius, shadow, spacing, transition } =
     smartQuoteTokens;
@@ -208,7 +217,7 @@ export function RoutedCtaSection({
             "text-center mb-4",
           )}
         >
-          {content.headline[language]}
+          {headline?.trim() || content.headline[language]}
         </h2>
 
         {/* Description */}
@@ -219,7 +228,7 @@ export function RoutedCtaSection({
             "text-center mb-8",
           )}
         >
-          {content.description[language]}
+          {description?.trim() || content.description[language]}
         </p>
 
         {/* Form */}
@@ -252,7 +261,7 @@ export function RoutedCtaSection({
                 colors.text.primary,
                 radius.lg,
                 "border border-stone-200",
-                "focus:outline-none focus:ring-2 focus:ring-[#C87941] focus:border-transparent",
+                "focus:outline-none focus:ring-2 focus:ring-[#c0562f] focus:border-transparent",
                 transition.fast,
               )}
               placeholder={language === "ta" ? "பெயர்" : "Name"}
@@ -284,7 +293,7 @@ export function RoutedCtaSection({
                 colors.text.primary,
                 radius.lg,
                 "border border-stone-200",
-                "focus:outline-none focus:ring-2 focus:ring-[#C87941] focus:border-transparent",
+                "focus:outline-none focus:ring-2 focus:ring-[#c0562f] focus:border-transparent",
                 transition.fast,
               )}
               placeholder="98XXXXXXXX"
@@ -346,7 +355,7 @@ export function RoutedCtaSection({
                 {language === "ta" ? "சமர்ப்பிக்கிறது..." : "Submitting..."}
               </span>
             ) : (
-              content.ctaLabel[language]
+              ctaLabel?.trim() || content.ctaLabel[language]
             )}
           </button>
 
