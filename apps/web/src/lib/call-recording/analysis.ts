@@ -7,6 +7,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
+import { traceAiGeneration } from "@/lib/observability/langfuse";
 import { log, logError } from "./logger";
 import type {
   AnalysisResult,
@@ -66,8 +67,17 @@ Transcript:
 ${transcript}`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
+    const response = await traceAiGeneration({
+      name: "app.call_recording.analyze_transcript",
+      model: GEMINI_DEFAULT_MODEL,
+      input: { transcript, phoneNumber, leadName },
+      metadata: { module: "call_recording", step: "analyze_transcript" },
+      run: async () => {
+        const result = await model.generateContent(prompt);
+        const output = result.response.text();
+        return { output, value: output };
+      },
+    });
 
     const analysis = parseAnalysisResponse(response);
 
@@ -193,8 +203,17 @@ Transcript:
 ${transcript}`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
+    const response = await traceAiGeneration({
+      name: "app.call_recording.extract_lead_details",
+      model: GEMINI_DEFAULT_MODEL,
+      input: { transcript, phoneNumber, leadName },
+      metadata: { module: "call_recording", step: "extract_lead_details" },
+      run: async () => {
+        const result = await model.generateContent(prompt);
+        const output = result.response.text();
+        return { output, value: output };
+      },
+    });
 
     const details = parseLeadDetailsResponse(response);
 
@@ -444,8 +463,17 @@ Customer: ${leadName ?? "Unknown"} (${phoneNumber})
 Transcript:
 ${transcript}`;
 
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
+    const response = await traceAiGeneration({
+      name: "app.call_recording.combined_analysis",
+      model: GEMINI_DEFAULT_MODEL,
+      input: { transcript, phoneNumber, leadName },
+      metadata: { module: "call_recording", step: "combined_analysis" },
+      run: async () => {
+        const result = await model.generateContent(prompt);
+        const output = result.response.text();
+        return { output, value: output };
+      },
+    });
     const jsonMatch =
       response.match(/```json\s*([\s\S]*?)\s*```/) ||
       response.match(/\{[\s\S]*\}/);
