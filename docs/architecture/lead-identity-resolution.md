@@ -1,6 +1,22 @@
 # Maiyuri Lead Identity Resolution
 
-Links the same customer across three systems: **WhatsApp Business → Superfone call → Supabase/Odoo lead**.
+Links the same customer across three systems into one full picture:
+
+```text
+WhatsApp (name) ──┐
+Superfone (name+phone) ──┼── one customer
+Supabase/Odoo lead (name+phone+uuid) ──┘
+```
+
+## The three legs
+
+| Leg | Source | Strongest signal | Linked by |
+|---|---|---|---|
+| WhatsApp → Odoo | `whatsapp.business.message.observed` events | name | fuzzy name match |
+| Superfone → Supabase | reconciliation audit JSON (`lead_id`) | phone | `masked_phone` + `masked_phone+name` (authoritative) |
+| Superfone → WhatsApp / Odoo | cross-link | name | fuzzy name match |
+
+**Superfone is the anchor** — it carries real phone numbers. Where a phone signature is unique, we anchor a `Person` node on it and link everything else to that.
 
 ## Problem
 
@@ -40,12 +56,22 @@ subset         + 0.1   — one name fully contained in the other
 
 | Artifact | Location |
 |---|---|
-| Resolution script | `/home/ram/maiyuri-clickhouse/scripts/resolve-lead-identities.py` |
+| Resolution script (WhatsApp→Odoo) | `/home/ram/maiyuri-clickhouse/scripts/resolve-lead-identities.py` |
+| Resolution script (Superfone→Supabase) | `/home/ram/maiyuri-clickhouse/scripts/resolve-superfone-identities.py` |
 | Sync wrapper | `/home/ram/.hermes/scripts/maiyuri_relationship_layer_sync.sh` |
-| Query view | `maiyuri_events.resolved_leads` |
-| Edge predicate | `LIKELY_SAME_AS` |
-| Node type | `WhatsAppContact` |
-| Edge source | `lead_resolution` |
+| Unified query view | `maiyuri_events.customer_identity` |
+| WhatsApp-lead view | `maiyuri_events.resolved_leads` |
+| Edge predicate | `LIKELY_SAME_AS` (name), `SAME_PHONE` (phone) |
+| Node types | `WhatsAppContact`, `SuperfoneContact`, `SupabaseLead`, `Person` |
+| Edge source | `lead_resolution`, `superfone_resolution` |
+
+## Query the unified identity
+
+```sql
+SELECT caller_name, from_type, lead_name, to_type, predicate, confidence, method
+FROM maiyuri_events.customer_identity
+ORDER BY confidence DESC
+```
 
 ## Query resolved leads
 
@@ -65,13 +91,42 @@ ORDER BY confidence DESC
 
 ## How it runs
 
-The `maiyuri_relationship_layer_sync.sh` cron (`c9219846e7ba`, every 6h) runs three scripts in order:
+The `maiyuri_relationship_layer_sync.sh` cron (`c9219846e7ba`, every 6h) runs five scripts in order:
 
 ```text
-sync-relationship-layer.py          → Odoo/Todoist/WhatsApp/agent ontology
+sync-relationship-layer.py               → Odoo/Todoist/WhatsApp/agent ontology
 sync-tech-stack-to-relationship-layer.py → tech components
-resolve-lead-identities.py          → WhatsApp↔lead identity resolution
+resolve-lead-identities.py               → WhatsApp↔Odoo fuzzy name match
+resolve-superfone-identities.py          → Superfone↔Supabase phone+name match
+sync-superfone-call-log.py               → persistent call CDR history + per-call lead resolution
 ```
+
+## Superfone Call Log
+
+A persistent CDR table (`maiyuri_events.superfone_calls`) holds every Superfone call with its lead resolution:
+
+```sql
+-- "Was a call made but no corresponding lead exists?"
+SELECT call_date, customer_name, call_status, phone_masked
+FROM maiyuri_events.superfone_orphan_calls
+ORDER BY call_date DESC
+```
+
+```sql
+-- Daily reconciliation from persistent history
+SELECT call_date, total_calls, orphan_calls, answered
+FROM maiyuri_events.superfone_reconciliation_daily
+ORDER BY call_date DESC
+```
+
+```sql
+-- Full call resolution with lead status
+SELECT start_time, customer_name, match_status, lead_status
+FROM maiyuri_events.superfone_call_resolution
+WHERE call_date = today()
+```
+
+Current state: 602 calls, 502 matched (83%), 93 orphan (15%), 7 ambiguous (1%).
 
 ## Limitations
 
