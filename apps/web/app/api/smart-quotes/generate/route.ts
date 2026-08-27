@@ -18,6 +18,11 @@ import {
 } from "@/lib/smart-quote-ai";
 import { buildPricingConfig } from "@/lib/pricing/seed-pricing-config";
 import { canWorkOnLead } from "@/lib/sales-access";
+import {
+  isQuoteExpired,
+  quoteValidUntilDate,
+  shouldRenewQuoteValidity,
+} from "@/lib/smart-quote-validity";
 
 /**
  * POST /api/smart-quotes/generate
@@ -100,8 +105,12 @@ export async function POST(request: NextRequest) {
       .eq("lead_id", lead_id)
       .single();
 
-    if (existingQuote && !regenerate) {
-      // Return existing quote
+    const existingQuoteExpired = existingQuote
+      ? isQuoteExpired(existingQuote.valid_until)
+      : false;
+
+    if (existingQuote && !regenerate && !existingQuoteExpired) {
+      // Return existing unexpired quote
       const { data: fullQuote } = await supabaseAdmin
         .from("smart_quotes")
         .select("*")
@@ -188,9 +197,7 @@ export async function POST(request: NextRequest) {
     // so today's rate stays presentable as current forever. The business sets
     // the window in Settings; 15 days matches the column default.
     const validityDays = factory?.quote_validity_days ?? 15;
-    const validUntilDate = new Date();
-    validUntilDate.setDate(validUntilDate.getDate() + validityDays);
-    const validUntil = validUntilDate.toISOString().slice(0, 10);
+    const validUntil = quoteValidUntilDate(validityDays);
 
     // What the AI just decided. These are the only fields a regenerate should
     // touch: regenerating re-reads the lead, it does not re-price the job.
@@ -211,14 +218,15 @@ export async function POST(request: NextRequest) {
     let smartQuote: SmartQuote | null = null;
     let writeError: { message: string } | null = null;
 
-    if (existingQuote && regenerate) {
+    if (existingQuote && (regenerate || existingQuoteExpired)) {
       // Update in place. The row keeps its id, link_slug and quote_number, so
       // a link already with the customer keeps working, a document already in
       // their hands keeps its reference, and view tracking survives.
       //
-      // The rate is the engineer's decision, not the AI's — it is carried
-      // forward untouched. Only a quote that never had one falls back to the
-      // freshly seeded config.
+      // An expired quote is renewed the same way: same link and number, fresh
+      // validity window. The rate is the engineer's decision, not the AI's — it
+      // is carried forward untouched. Only a quote that never had one falls back
+      // to the freshly seeded config.
       const { data, error: updateError } = await supabaseAdmin
         .from("smart_quotes")
         .update({
@@ -228,7 +236,9 @@ export async function POST(request: NextRequest) {
             pricingConfig as unknown as Record<string, unknown>,
           ),
           wall_cost_config: existingQuote.wall_cost_config ?? wallCostSnapshot,
-          valid_until: existingQuote.valid_until ?? validUntil,
+          valid_until: shouldRenewQuoteValidity(existingQuote.valid_until)
+            ? validUntil
+            : existingQuote.valid_until,
         })
         .eq("id", existingQuote.id)
         .select()
