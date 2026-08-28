@@ -182,7 +182,12 @@ export default function OpsDemandPage() {
       setSyncMessage(`Sync complete — ${run.orders_fetched ?? 0} orders fetched.`);
       queryClient.invalidateQueries({ queryKey: ["oc", "demand"] });
     },
-    onError: (err: Error) => setSyncMessage(err.message),
+    onError: (err: Error) => {
+      setSyncMessage(err.message);
+      // The failed run is recorded server-side; refresh so the badge shows the
+      // new failure rather than the previous one until the next poll.
+      queryClient.invalidateQueries({ queryKey: ["oc", "demand"] });
+    },
   });
 
   // One row per order in the dialog; the table stays per line.

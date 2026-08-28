@@ -156,13 +156,35 @@ function escapeXml(str: string): string {
     .replace(/'/g, "&apos;");
 }
 
+/**
+ * Odoo returns its full Python traceback as the fault string. Surfacing that
+ * verbatim buried the one line that matters — "FATAL: database \"lite2\" does
+ * not exist" — under 2,000 characters of /opt/odoo19 stack frames. The whole
+ * fault still goes to the server log; the thrown message carries the useful
+ * summary so a UI banner or a Telegram alert reads as a diagnosis.
+ */
+export function summarizeOdooFault(faultString: string): string {
+  const lines = faultString
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  // The real cause is the LAST exception line in a traceback, not the first.
+  const cause = [...lines]
+    .reverse()
+    .find((l) => /(FATAL|Error|Exception|denied|does not exist)/i.test(l));
+  const message = cause ?? lines[lines.length - 1] ?? "Unknown error";
+  return message.length > 300 ? `${message.slice(0, 299)}…` : message;
+}
+
 function parseXmlResponse(xml: string): unknown {
   // Check for fault first
   if (xml.includes("<fault>")) {
     const faultString = xml.match(
       /<name>faultString<\/name>\s*<value>(?:<string>)?(.*?)(?:<\/string>)?<\/value>/s,
     );
-    throw new Error(`Odoo Error: ${faultString?.[1] || "Unknown error"}`);
+    const raw = faultString?.[1] ?? "";
+    if (raw) console.error("[Odoo] fault:", raw);
+    throw new Error(`Odoo Error: ${raw ? summarizeOdooFault(raw) : "Unknown error"}`);
   }
 
   // Extract the main response value
