@@ -64,6 +64,14 @@ interface DemandPayload {
     completed_at: string | null;
     error: string | null;
   } | null;
+  last_success: {
+    started_at: string;
+    completed_at: string | null;
+    orders_fetched: number | null;
+    lines_fetched: number | null;
+  } | null;
+  completed_hidden: number;
+  include_completed: boolean;
   role: string;
 }
 
@@ -105,6 +113,40 @@ const REVISION_CHIP: Record<string, string | null> = {
   revision_requested: "Revision requested",
 };
 
+/**
+ * Three distinct states, never conflated: a run in flight, a failed run, and
+ * how old the data actually is. Only a SUCCESSFUL run advances "last synced".
+ */
+function SyncBadge({
+  lastSync,
+  lastSuccess,
+}: {
+  lastSync: DemandPayload["last_sync"];
+  lastSuccess: DemandPayload["last_success"];
+}) {
+  const dataAge = lastSuccess
+    ? `Data from ${timeAgo(lastSuccess.completed_at ?? lastSuccess.started_at)}`
+    : "No successful sync yet";
+
+  if (lastSync?.status === "running") {
+    return (
+      <span className="text-slate-500">
+        Syncing now (started {timeAgo(lastSync.started_at)}) · {dataAge}
+      </span>
+    );
+  }
+  if (lastSync?.status === "error") {
+    return (
+      <span className="text-red-600" title={lastSync.error ?? undefined}>
+        Sync failed {timeAgo(lastSync.completed_at ?? lastSync.started_at)}:{" "}
+        {lastSync.error ?? "unknown error"} · {dataAge}
+      </span>
+    );
+  }
+  if (!lastSync) return <span className="text-slate-500">Never synced</span>;
+  return <span className="text-slate-500">Last synced {timeAgo(lastSync.completed_at ?? lastSync.started_at)}</span>;
+}
+
 function timeAgo(iso: string): string {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
   if (mins < 60) return `${mins} min ago`;
@@ -120,11 +162,18 @@ export default function OpsDemandPage() {
   const [customer, setCustomer] = useState("");
   const [openOrder, setOpenOrder] = useState<number | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [showCompleted, setShowCompleted] = useState(false);
 
-  const demandUrl = `/api/ops-control/demand${customer ? `?customer=${encodeURIComponent(customer)}` : ""}`;
+  const params = new URLSearchParams();
+  if (customer) params.set("customer", customer);
+  if (showCompleted) params.set("include_completed", "true");
+  const demandUrl = `/api/ops-control/demand${params.size ? `?${params}` : ""}`;
   const q = useQuery({
-    queryKey: ["oc", "demand", customer],
+    queryKey: ["oc", "demand", customer, showCompleted],
     queryFn: () => fetchJson<DemandPayload>(demandUrl),
+    // A sync in flight finishes in the background; keep the view honest.
+    refetchInterval: (query) =>
+      query.state.data?.last_sync?.status === "running" ? 10_000 : false,
   });
 
   const sync = useMutation({
@@ -146,7 +195,9 @@ export default function OpsDemandPage() {
   }, [q.data?.lines]);
 
   const lastSync = q.data?.last_sync ?? null;
+  const lastSuccess = q.data?.last_success ?? null;
   const unmapped = q.data?.unmapped ?? [];
+  const completedHidden = q.data?.completed_hidden ?? 0;
 
   return (
     <div className="space-y-4">
@@ -157,17 +208,24 @@ export default function OpsDemandPage() {
           placeholder="Filter by customer…"
           className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
         />
+        {/* Fully delivered lines are history, not demand — hidden by default. */}
+        <label className="flex items-center gap-2 text-sm text-slate-500">
+          <input
+            type="checkbox"
+            checked={showCompleted}
+            onChange={(e) => setShowCompleted(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300"
+          />
+          Show completed
+          {!showCompleted && completedHidden > 0 && (
+            <span className="text-slate-400">({completedHidden} hidden)</span>
+          )}
+        </label>
         <div className="ml-auto flex items-center gap-3 text-sm">
-          {lastSync && (
-            <span className={lastSync.status === "error" ? "text-red-600" : "text-slate-500"}>
-              {lastSync.status === "error"
-                ? `Last sync failed: ${lastSync.error ?? "unknown error"}`
-                : `Last synced ${timeAgo(lastSync.completed_at ?? lastSync.started_at)}`}
-            </span>
-          )}
-          {!lastSync && !q.isLoading && (
-            <span className="text-slate-500">Never synced</span>
-          )}
+          {/* "Last synced" must mean the last run that actually SUCCEEDED. The
+              in-flight or failed run is reported separately — an abandoned run
+              once made three-day-old data look seven hours old. */}
+          {!q.isLoading && <SyncBadge lastSync={lastSync} lastSuccess={lastSuccess} />}
           {isProduction && (
             <button
               type="button"
@@ -227,7 +285,7 @@ export default function OpsDemandPage() {
                 {(q.data?.lines ?? []).length === 0 ? (
                   <tr>
                     <td colSpan={10} className="px-4 py-14 text-center text-slate-400">
-                      No open demand.{" "}
+                      {showCompleted ? "No demand lines." : "No open demand — every synced line is fully delivered."}{" "}
                       {isProduction
                         ? "Run a sync to pull the current Odoo sales orders."
                         : "The Odoo sales-order sync has not brought any in yet."}

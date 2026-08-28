@@ -20,7 +20,13 @@ export async function GET(request: NextRequest) {
   const auth = await requireProductionRole(request, SCHEDULE_ROLES);
   if (auth.errorResponse) return auth.errorResponse;
   try {
-    const { customer, product, status: statusFilter } = parseQuery(request);
+    const {
+      customer,
+      product,
+      status: statusFilter,
+      include_completed: includeCompletedParam,
+    } = parseQuery(request);
+    const includeCompleted = includeCompletedParam === "true";
 
     let query = supabaseAdmin
       .from("oc_sales_order_lines")
@@ -115,9 +121,17 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Demand planning is about what is still OWED. A line delivered in full
+    // ("Completed") is history: it cannot be scheduled, produced or dispatched,
+    // and 1,000-of-1,000 rows crowd out the ones needing action. They stay one
+    // query param away rather than being deleted from the view.
+    const openRows = rows.filter((r) => r.remaining > 0);
+    const completedHidden = rows.length - openRows.length;
+    const visible = includeCompleted ? rows : openRows;
+
     const filtered = statusFilter
-      ? rows.filter((r) => r.commitment_status === statusFilter)
-      : rows;
+      ? visible.filter((r) => r.commitment_status === statusFilter)
+      : visible;
 
     // Unmapped products with open demand — the red list for the mapping screen.
     const { data: unmappedLines } = await supabaseAdmin
@@ -137,13 +151,28 @@ export async function GET(request: NextRequest) {
       unmappedAgg.set(u.odoo_product_id as number, agg);
     }
 
-    const { data: lastRun } = await supabaseAdmin
-      .from("oc_sync_runs")
-      .select("status, started_at, completed_at, error")
-      .eq("kind", "demand")
-      .order("started_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Two different facts, previously conflated: the LATEST run (which may be
+    // in flight or failed) and the last run that actually SUCCEEDED. Reporting
+    // the latest run's timestamp as "last synced" told the user data was 7
+    // hours old when in truth that run never completed and the data was three
+    // days stale.
+    const [{ data: lastRun }, { data: lastSuccess }] = await Promise.all([
+      supabaseAdmin
+        .from("oc_sync_runs")
+        .select("status, started_at, completed_at, error")
+        .eq("kind", "demand")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("oc_sync_runs")
+        .select("status, started_at, completed_at, orders_fetched, lines_fetched")
+        .eq("kind", "demand")
+        .eq("status", "success")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
     return success({
       lines: filtered,
@@ -151,6 +180,9 @@ export async function GET(request: NextRequest) {
         .map(([odoo_product_id, v]) => ({ odoo_product_id, ...v }))
         .sort((a, b) => b.open_qty - a.open_qty),
       last_sync: lastRun ?? null,
+      last_success: lastSuccess ?? null,
+      completed_hidden: completedHidden,
+      include_completed: includeCompleted,
       role: auth.role,
     });
   } catch (err) {
