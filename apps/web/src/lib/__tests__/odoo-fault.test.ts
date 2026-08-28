@@ -34,3 +34,70 @@ describe("summarizeOdooFault", () => {
     expect(summarizeOdooFault("\n  \n")).toBe("Unknown error");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Unknown-database diagnostics: a wrong ODOO_DB should answer its own question.
+// ---------------------------------------------------------------------------
+
+import { vi, beforeEach, afterEach } from "vitest";
+
+const DB_FAULT_XML = `<?xml version="1.0"?><methodResponse><fault><value><struct>
+<member><name>faultCode</name><value><int>1</int></value></member>
+<member><name>faultString</name><value><string>Traceback (most recent call last):
+KeyError: 'lite2'
+psycopg2.OperationalError: FATAL:  database "lite2" does not exist</string></value></member>
+</struct></value></fault></methodResponse>`;
+
+const dbListXml = (names: string[]) =>
+  `<?xml version="1.0"?><methodResponse><params><param><value><array><data>${names
+    .map((n) => `<value><string>${n}</string></value>`)
+    .join("")}</data></array></value></param></params></methodResponse>`;
+
+async function loadService() {
+  vi.resetModules();
+  Object.assign(process.env, {
+    ODOO_URL: "https://odoo.test",
+    ODOO_DB: "lite2",
+    ODOO_USER: "tester",
+    ODOO_PASSWORD: "secret",
+  });
+  return import("../odoo-service");
+}
+
+describe("unknown ODOO_DB", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("names the databases the server actually serves", async () => {
+    const { odooExecute } = await loadService();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = String(init.body);
+        if (body.includes("authenticate")) return new Response(DB_FAULT_XML);
+        if (body.includes("<methodName>list</methodName>"))
+          return new Response(dbListXml(["maiyuri19", "test19"]));
+        return new Response(dbListXml([]));
+      }),
+    );
+
+    await expect(odooExecute("sale.order", "search_read", [[]])).rejects.toThrow(
+      /database "lite2" was rejected.*ODOO_DB.*maiyuri19, test19/s,
+    );
+  });
+
+  it("says so plainly when the server will not list databases", async () => {
+    const { odooExecute } = await loadService();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) =>
+        String(init.body).includes("authenticate")
+          ? new Response(DB_FAULT_XML)
+          : new Response("<html>403</html>", { status: 403 }),
+      ),
+    );
+
+    await expect(odooExecute("sale.order", "search_read", [[]])).rejects.toThrow(
+      /list_db may be disabled/,
+    );
+  });
+});

@@ -388,17 +388,57 @@ function unescapeXml(str: string): string {
 let cachedUid: { uid: number; at: number } | null = null;
 const UID_CACHE_MS = 5 * 60_000;
 
+/**
+ * Ask the server which databases it actually serves. Used only to enrich a
+ * "database does not exist" failure: a misconfigured ODOO_DB otherwise costs a
+ * round of guessing, and the server already knows the answer. Returns null
+ * when listing is disabled (Odoo's list_db=False) or the call fails — a
+ * diagnostic must never mask the original error.
+ */
+async function listOdooDatabases(): Promise<string[] | null> {
+  try {
+    const result = await odooXmlRpc("db", "list", []);
+    return Array.isArray(result)
+      ? result.filter((d): d is string => typeof d === "string")
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Odoo reports an unknown database as a KeyError deep in a registry traceback. */
+function isUnknownDatabaseError(message: string): boolean {
+  return /does not exist|KeyError/i.test(message);
+}
+
 async function authenticate(): Promise<number> {
   if (cachedUid && Date.now() - cachedUid.at < UID_CACHE_MS) {
     return cachedUid.uid;
   }
 
-  const uid = await odooXmlRpc("common", "authenticate", [
-    ODOO_CONFIG.db,
-    ODOO_CONFIG.username,
-    ODOO_CONFIG.password,
-    {},
-  ]);
+  let uid: unknown;
+  try {
+    uid = await odooXmlRpc("common", "authenticate", [
+      ODOO_CONFIG.db,
+      ODOO_CONFIG.username,
+      ODOO_CONFIG.password,
+      {},
+    ]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // Turn the dead end into a self-answering error.
+    if (isUnknownDatabaseError(message)) {
+      const available = await listOdooDatabases();
+      const hint =
+        available && available.length
+          ? `Available on this server: ${available.join(", ")}.`
+          : "The server did not list its databases (list_db may be disabled) — check the Odoo instance.";
+      throw new Error(
+        `Odoo database "${ODOO_CONFIG.db}" was rejected (set ODOO_DB to the right name). ${hint}`,
+      );
+    }
+    throw err;
+  }
 
   if (!uid || uid === false) {
     cachedUid = null;
