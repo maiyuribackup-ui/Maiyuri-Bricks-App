@@ -26,7 +26,7 @@ notification rhythm. Founder + primary user: Ram Kumaran.
 | Web app (prod) | `https://mb.maiyuri.com` (Vercel, Next.js 14 App Router, React 18) |
 | Android app | Expo SDK 54 / React 19, EAS build + EAS Update (OTA) |
 | Database / auth / storage | Supabase project **`pailepomvvwjkrhkwdqt`** (ap-south-1) |
-| ERP | Odoo at `crm.maiyuri.com`, DB **`lite2`**, XML-RPC (uid 2) |
+| ERP | Odoo 19 at `odoo.maiyuri.com`, DB **`lite2`**, XML-RPC (uid 2) |
 | Repo | `github.com/maiyuribackup-ui/Maiyuri-Bricks-App` |
 | Notifications | Telegram bot `RKG1988bot` + FCM HTTP v1 (push) |
 | Email | Gmail SMTP via nodemailer (switched off dead Resend) |
