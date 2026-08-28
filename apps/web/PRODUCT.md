@@ -53,7 +53,7 @@ internal capability, not a customer-facing claim.
 
 ## Operating Context
 
-- **Odoo ERP** (`crm.maiyuri.com`) is the system of record for orders,
+- **Odoo ERP** (`odoo.maiyuri.com`) is the system of record for orders,
   invoices and stock. The app syncs from it and must never become the master.
 - **WhatsApp is the primary customer channel.** Quotes, follow-ups and
   confirmations happen there; in-app actions frequently end in a WhatsApp
