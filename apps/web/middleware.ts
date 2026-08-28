@@ -52,6 +52,7 @@ const publicApiRoutes = [
   "/api/users/accept-invite", // Accept invitation (uses invite token)
   "/api/webhooks", // External webhooks
   "/api/telegram/webhook", // Telegram bot webhook (receives voice recordings)
+  "/api/whatsapp/webhook", // WhatsApp Cloud API webhook (verify + inbound; token-gated on GET)
   "/api/telegram/processing-callback", // Telegram callback
   "/api/notifications/telegram", // Telegram webhook
   "/api/notifications/daily-summary", // Daily summary cron job
