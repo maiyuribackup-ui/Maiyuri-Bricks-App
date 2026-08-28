@@ -14,6 +14,9 @@ const ODOO_CONFIG = {
   password: process.env.ODOO_PASSWORD ?? "",
 };
 
+/** Per-call ceiling, covering headers AND body (see odooXmlRpc). */
+const ODOO_CALL_TIMEOUT_MS = 25_000;
+
 function assertOdooConfigured(): void {
   const missing = [
     !ODOO_CONFIG.url && "ODOO_URL",
@@ -83,27 +86,43 @@ async function odooXmlRpc(
 
   // Hard timeout: a hung Odoo must not pin the serverless function until the
   // platform kills it (reliability audit). 25s covers slow ERP reads.
+  //
+  // The timer must stay armed until the BODY is read, not just the headers.
+  // Clearing it right after fetch() resolves left `response.text()` unbounded,
+  // and a large sale.order.line payload that stalls mid-body then hung the
+  // demand sync until Vercel killed it at 300s (FUNCTION_INVOCATION_TIMEOUT,
+  // nightly failures 26-28 Aug). An aborted signal rejects the body read too,
+  // so one timer now covers the whole exchange.
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 25_000);
-  let response: Response;
+  const timer = setTimeout(() => controller.abort(), ODOO_CALL_TIMEOUT_MS);
   try {
-    response = await fetch(`${ODOO_CONFIG.url}/xmlrpc/2/${endpoint}`, {
+    const response = await fetch(`${ODOO_CONFIG.url}/xmlrpc/2/${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "text/xml" },
       body: xmlBody,
       signal: controller.signal,
     });
+
+    // An HTTP error carries no XML-RPC envelope; parsing it yields a confusing
+    // "unknown error" instead of naming the status.
+    if (!response.ok) {
+      throw new Error(
+        `Odoo returned HTTP ${response.status} (${endpoint}/${method})`,
+      );
+    }
+
+    const text = await response.text();
+    return parseXmlResponse(text);
   } catch (err) {
     if (controller.signal.aborted) {
-      throw new Error(`Odoo timed out after 25s (${endpoint}/${method})`);
+      throw new Error(
+        `Odoo timed out after ${ODOO_CALL_TIMEOUT_MS / 1000}s (${endpoint}/${method})`,
+      );
     }
     throw err;
   } finally {
     clearTimeout(timer);
   }
-
-  const text = await response.text();
-  return parseXmlResponse(text);
 }
 
 function formatXmlValue(value: unknown): string {
@@ -340,7 +359,18 @@ function unescapeXml(str: string): string {
 /**
  * Authenticate with Odoo and get user ID
  */
+// Every execute() used to authenticate first, doubling the round trips: a
+// demand sync of 5 pages spent 5 extra calls re-logging in as the same user.
+// The uid is stable, so cache it briefly — this halves the calls a sync makes,
+// which is the difference between finishing and being killed when Odoo is slow.
+let cachedUid: { uid: number; at: number } | null = null;
+const UID_CACHE_MS = 5 * 60_000;
+
 async function authenticate(): Promise<number> {
+  if (cachedUid && Date.now() - cachedUid.at < UID_CACHE_MS) {
+    return cachedUid.uid;
+  }
+
   const uid = await odooXmlRpc("common", "authenticate", [
     ODOO_CONFIG.db,
     ODOO_CONFIG.username,
@@ -349,9 +379,11 @@ async function authenticate(): Promise<number> {
   ]);
 
   if (!uid || uid === false) {
+    cachedUid = null;
     throw new Error("Odoo authentication failed");
   }
 
+  cachedUid = { uid: uid as number, at: Date.now() };
   return uid as number;
 }
 
