@@ -22,12 +22,16 @@ import type {
   ProductionOrderFilters,
 } from "@maiyuri/shared";
 
-// Odoo connection config
+// Odoo connection config — env-only, as in odoo-service.ts. The previous
+// hardcoded fallbacks (crm.maiyuri.com, db "lite2", a real username) survived
+// the move to Odoo 19 and pointed at infrastructure that no longer exists, so
+// a missing variable would have failed against a dead host instead of saying
+// the configuration was absent.
 const ODOO_CONFIG = {
-  url: process.env.ODOO_URL || "https://CRM.MAIYURI.COM",
-  db: process.env.ODOO_DB || "lite2",
-  username: process.env.ODOO_USER || "maiyuribricks@gmail.com",
-  password: process.env.ODOO_PASSWORD || "",
+  url: process.env.ODOO_URL ?? "",
+  db: process.env.ODOO_DB ?? "",
+  username: process.env.ODOO_USER ?? "",
+  password: process.env.ODOO_PASSWORD ?? "",
 };
 
 // Lazy Supabase client for server-side operations

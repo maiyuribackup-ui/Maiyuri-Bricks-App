@@ -6,7 +6,7 @@
       "args": ["--from", "odoo-mcp==1.3.0", "odoo-mcp"],
       "env": {
         "ODOO_URL": "https://odoo.maiyuri.com",
-        "ODOO_DB": "lite2",
+        "ODOO_DB": "t1",
         "ODOO_USERNAME": "maiyuribricks@gmail.com",
         "ODOO_API_KEY": "${ODOO_API_KEY}",
         "ODOO_UID": "2"
