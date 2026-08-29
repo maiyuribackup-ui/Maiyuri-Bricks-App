@@ -156,13 +156,35 @@ function escapeXml(str: string): string {
     .replace(/'/g, "&apos;");
 }
 
+/**
+ * Odoo returns its full Python traceback as the fault string. Surfacing that
+ * verbatim buried the one line that matters — "FATAL: database \"lite2\" does
+ * not exist" — under 2,000 characters of /opt/odoo19 stack frames. The whole
+ * fault still goes to the server log; the thrown message carries the useful
+ * summary so a UI banner or a Telegram alert reads as a diagnosis.
+ */
+export function summarizeOdooFault(faultString: string): string {
+  const lines = faultString
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  // The real cause is the LAST exception line in a traceback, not the first.
+  const cause = [...lines]
+    .reverse()
+    .find((l) => /(FATAL|Error|Exception|denied|does not exist)/i.test(l));
+  const message = cause ?? lines[lines.length - 1] ?? "Unknown error";
+  return message.length > 300 ? `${message.slice(0, 299)}…` : message;
+}
+
 function parseXmlResponse(xml: string): unknown {
   // Check for fault first
   if (xml.includes("<fault>")) {
     const faultString = xml.match(
       /<name>faultString<\/name>\s*<value>(?:<string>)?(.*?)(?:<\/string>)?<\/value>/s,
     );
-    throw new Error(`Odoo Error: ${faultString?.[1] || "Unknown error"}`);
+    const raw = faultString?.[1] ?? "";
+    if (raw) console.error("[Odoo] fault:", raw);
+    throw new Error(`Odoo Error: ${raw ? summarizeOdooFault(raw) : "Unknown error"}`);
   }
 
   // Extract the main response value
@@ -366,17 +388,57 @@ function unescapeXml(str: string): string {
 let cachedUid: { uid: number; at: number } | null = null;
 const UID_CACHE_MS = 5 * 60_000;
 
+/**
+ * Ask the server which databases it actually serves. Used only to enrich a
+ * "database does not exist" failure: a misconfigured ODOO_DB otherwise costs a
+ * round of guessing, and the server already knows the answer. Returns null
+ * when listing is disabled (Odoo's list_db=False) or the call fails — a
+ * diagnostic must never mask the original error.
+ */
+async function listOdooDatabases(): Promise<string[] | null> {
+  try {
+    const result = await odooXmlRpc("db", "list", []);
+    return Array.isArray(result)
+      ? result.filter((d): d is string => typeof d === "string")
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Odoo reports an unknown database as a KeyError deep in a registry traceback. */
+function isUnknownDatabaseError(message: string): boolean {
+  return /does not exist|KeyError/i.test(message);
+}
+
 async function authenticate(): Promise<number> {
   if (cachedUid && Date.now() - cachedUid.at < UID_CACHE_MS) {
     return cachedUid.uid;
   }
 
-  const uid = await odooXmlRpc("common", "authenticate", [
-    ODOO_CONFIG.db,
-    ODOO_CONFIG.username,
-    ODOO_CONFIG.password,
-    {},
-  ]);
+  let uid: unknown;
+  try {
+    uid = await odooXmlRpc("common", "authenticate", [
+      ODOO_CONFIG.db,
+      ODOO_CONFIG.username,
+      ODOO_CONFIG.password,
+      {},
+    ]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // Turn the dead end into a self-answering error.
+    if (isUnknownDatabaseError(message)) {
+      const available = await listOdooDatabases();
+      const hint =
+        available && available.length
+          ? `Available on this server: ${available.join(", ")}.`
+          : "The server did not list its databases (list_db may be disabled) — check the Odoo instance.";
+      throw new Error(
+        `Odoo database "${ODOO_CONFIG.db}" was rejected (set ODOO_DB to the right name). ${hint}`,
+      );
+    }
+    throw err;
+  }
 
   if (!uid || uid === false) {
     cachedUid = null;
