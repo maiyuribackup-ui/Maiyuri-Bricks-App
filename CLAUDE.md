@@ -381,7 +381,7 @@ npm run test:e2e ✅
 
 | Server | Purpose | Auth |
 |--------|---------|------|
-| **odoo** | Odoo ERP (odoo.maiyuri.com — Odoo 19, db `lite2`) — orders, invoices, stock | `ODOO_API_KEY` env var (never hardcode) |
+| **odoo** | Odoo ERP (odoo.maiyuri.com — Odoo 19, db `t1`) — orders, invoices, stock | `ODOO_API_KEY` env var (never hardcode) |
 
 The Odoo integration used by the app itself lives in
 `apps/web/src/lib/odoo-service.ts` (XML-RPC, env-only config:

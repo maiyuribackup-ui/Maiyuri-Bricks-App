@@ -43,8 +43,13 @@ export async function checkOdoo(): Promise<HealthCheckResult> {
   const serviceName = 'Odoo CRM';
 
   try {
-    // Get configuration from environment
-    const odooUrl = process.env.ODOO_URL || 'https://CRM.MAIYURI.COM';
+    // Get configuration from environment. No fallback host: probing a
+    // hardcoded default reports on infrastructure the app does not use, which
+    // is how a dead crm.maiyuri.com default kept this check meaningful-looking.
+    const odooUrl = process.env.ODOO_URL;
+    if (!odooUrl) {
+      throw new Error('ODOO_URL is not configured');
+    }
     const endpoint = `${odooUrl}/xmlrpc/2/common`;
 
     // Build XML-RPC request for version method (no auth required)
@@ -102,7 +107,9 @@ export async function checkOdoo(): Promise<HealthCheckResult> {
       responseTimeMs,
       errorMessage,
       metadata: {
-        endpoint: `${process.env.ODOO_URL || 'https://CRM.MAIYURI.COM'}/xmlrpc/2/common`,
+        endpoint: process.env.ODOO_URL
+          ? `${process.env.ODOO_URL}/xmlrpc/2/common`
+          : 'ODOO_URL not configured',
       },
     };
   }
