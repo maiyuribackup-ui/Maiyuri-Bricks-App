@@ -704,6 +704,97 @@ async function checkSchema(): Promise<SchemaHealth> {
 
 ---
 
+### [2026-08-30] BUG-016: CI - A Skipped Required Check Counts as a Passing One
+
+**Severity:** Critical (defeats the merge control that exists to prevent BUG-013)
+**Files Affected:**
+
+- `.github/workflows/migration-gate.yml`
+
+**Context:** The Migration Gate was added after BUG-013 recurred twice, to make
+"schema reaches production before code merges" a machine-enforced rule rather
+than something a human remembers. It ran, correctly failed a PR whose migration
+was unapplied — and then went green.
+
+**Mistake:** Putting an `if:` condition on the job that reports the REQUIRED
+status check. The condition skipped the job on a PR `edited` event (a guard
+copied from `ci.yml`, where it saves a full install-and-test cycle on a title
+edit). Editing PR #170's DESCRIPTION produced a `skipped` run that superseded
+the `failure`, and the PR became mergeable.
+
+**Error Message:**
+
+```
+(no error — that is the problem)
+Migration Gate  ...  failure   01:56   triggered by `opened`
+Migration Gate  ...  skipped   02:23   triggered by `edited`
+mergeable_state: unstable → clean
+```
+
+**Root Cause:**
+GitHub branch protection treats a SKIPPED required check as SATISFIED. So any
+condition on the reporting job is not a way to save CI minutes — it is a way to
+turn the gate green. The same shape hid two quieter holes: if the `detect` job
+ERRORED, or if `verify` never started, the required check was likewise skipped
+and therefore passing. A gate that cannot tell "nothing to check" from "could
+not check" is not a gate.
+
+**Prevention Rule:** The job that reports a required status check must have no
+condition other than `if: always()`. Put the conditions INSIDE it, and fail
+closed when the inputs are unknown.
+
+**Code Example:**
+
+```yaml
+# ❌ Wrong — the required check can be skipped, and skipped means passing
+verify:
+  name: Production Schema Ready      # the required context
+  if: needs.detect.outputs.has_migrations == 'true'
+
+# ✅ Correct — always runs, decides internally, fails closed
+gate:
+  name: Production Schema Ready      # the required context
+  needs: [detect, verify]
+  if: always()
+  steps:
+    - run: |
+        # unknown is not the same as "nothing to verify"
+        [ "$DETECT_RESULT" = "success" ] || exit 1
+        [ "$HAS_MIGRATIONS" = "true" ] || exit 0
+        [ "$VERIFY_RESULT" = "success" ] || exit 1
+```
+
+**Solution:**
+
+1. Split the work (`detect`, `verify`) from the REPORTING of the required check
+   (`gate`), and require the gate's name in branch protection.
+2. Give the gate `if: always()` so it runs even when its dependencies failed or
+   were skipped.
+3. Fail closed: a `detect` job that did not succeed means the schema state is
+   unknown, which is a failure, not a pass.
+
+**Test Case:**
+
+```
+Truth table for the required check, verified by reasoning over the job graph:
+
+  event / condition                 detect    has_mig   verify    gate
+  --------------------------------  --------  --------  --------  ------
+  no migrations in the PR           success   false     skipped   PASS
+  migrations, not yet applied       success   true      failure   FAIL
+  migrations, applied               success   true      success   PASS
+  description edited, not applied   success   true      failure   FAIL  ← the bug
+  detect job errors                 failure   —         skipped   FAIL  ← fail closed
+  verify cannot reach production    success   true      failure   FAIL
+  workflow never triggered          —         —         —         check not reported;
+                                                                  branch protection blocks
+```
+
+**Related Bugs:** BUG-013 (this control exists because of it)
+**Related Coding Principle:** [DEPLOY-001: Always Apply Migrations Before Code Deployment]
+
+---
+
 ## Prevention Checklist
 
 ### Before Writing Code
@@ -813,7 +904,7 @@ When a bug is found, add it using this template:
 | Month | Bugs Found | Bugs Prevented | Prevention Rate |
 |-------|-----------|----------------|-----------------|
 | Jan 2026 | 14 | 0 | - |
-| Feb 2026 | TBD | TBD | TBD |
+| Aug 2026 | 1 | 0 | - |
 
 ### Bug Categories (Jan 2026)
 - NULL (Null Safety): 2 (BUG-001, BUG-002)
@@ -821,7 +912,7 @@ When a bug is found, add it using this template:
 - API (Response Handling): 1 (BUG-004)
 - REACT (Rendering): 1 (BUG-005)
 - DB (Database/Data): 4 (BUG-006, BUG-007, BUG-008, BUG-014)
-- CI (Build Configuration): 5 (BUG-009, BUG-010, BUG-011, BUG-012, BUG-013)
+- CI (Build Configuration): 6 (BUG-009, BUG-010, BUG-011, BUG-012, BUG-013, BUG-016)
 
 ### Implementation Patterns (Jan 2026)
 - PATTERN-001: Worker-to-API Auto-Trigger Pattern
@@ -1047,5 +1138,5 @@ describe("Supabase Client Usage", () => {
 
 ---
 
-_Last Updated: January 21, 2026_
+_Last Updated: August 30, 2026_
 _Maintainers: Development Team_
