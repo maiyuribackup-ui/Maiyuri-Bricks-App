@@ -36,6 +36,16 @@ test.describe("public surface", () => {
     "/projects",
     "/approvals",
     "/settings",
+    // Operations Control. middleware.ts protects these with a single "/ops"
+    // startsWith entry, so listing every page is what proves that entry is
+    // actually present — a missing protectedRoutes line has shipped here
+    // before and is invisible until someone browses anonymously.
+    "/ops/demand",
+    "/ops/inventory",
+    "/ops/production",
+    "/ops/dispatch",
+    "/ops/labour",
+    "/ops/masters",
   ];
   for (const route of PROTECTED_PAGES) {
     test(`${route} requires login`, async ({ page }) => {
@@ -54,6 +64,10 @@ test.describe("public surface", () => {
     "/api/tickets",
     "/api/renewals",
     "/api/ops-planning/params",
+    // Labour is the narrowest gate in the app — founder and owner only — so
+    // the anonymous wall is the first thing worth proving stands.
+    "/api/ops-control/labour/week",
+    "/api/ops-control/labour/settlements",
     "/api/users",
   ];
   for (const route of AUTH_WALLED_APIS) {

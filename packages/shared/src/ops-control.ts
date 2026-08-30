@@ -599,3 +599,35 @@ export const createOcDeliveryAdjustmentSchema = z
 export type CreateOcDeliveryAdjustmentInput = z.infer<
   typeof createOcDeliveryAdjustmentSchema
 >;
+
+// ============================================
+// Phase 6 — labour ledger and weekly settlement
+// Data model: supabase/migrations/20260830110000_ops_control_labour.sql
+// ============================================
+
+export const ocSettlementStatusSchema = z.enum([
+  "draft",
+  "reviewed",
+  "approved",
+  "paid",
+  "locked",
+]);
+export type OcSettlementStatus = z.infer<typeof ocSettlementStatusSchema>;
+
+export const settleOcLabourWeekSchema = z.object({
+  week_start: dateOnly,
+  status: ocSettlementStatusSchema,
+  /** Omitted on the first settle of a week, when no row exists yet. */
+  lock_version: z.number().int().min(0).nullable().optional(),
+});
+export type SettleOcLabourWeekInput = z.infer<typeof settleOcLabourWeekSchema>;
+
+/**
+ * Generate labour for work that could not be priced when it happened.
+ * Idempotent, so re-running over a range only fills the gaps.
+ */
+export const backfillOcLabourSchema = z.object({
+  from: dateOnly,
+  to: dateOnly,
+});
+export type BackfillOcLabourInput = z.infer<typeof backfillOcLabourSchema>;

@@ -176,11 +176,103 @@ function Panel({
   );
 }
 
+
+/**
+ * Shared bits for the two panels that CREATE effective-dated master rows.
+ *
+ * They exist because a read-only masters screen made the whole labour and
+ * cement story unreachable: the API accepted rates and standards from day
+ * one, but there was no control anywhere in the app to enter one, so the
+ * ledger could only ever be empty. The rule this UI has to carry is §60 — a
+ * rate is never edited in place. To change one you close the current period
+ * and open the next, so August keeps paying August's rate forever.
+ */
+
+const todayIso = () =>
+  new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+
+function useProducts() {
+  const q = useQuery({
+    queryKey: ["oc", "mapping"],
+    queryFn: () => fetchJson<MappingPayload>(`${BASE}/product-mapping`),
+  });
+  return q.data?.finished_goods ?? [];
+}
+
+const FIELD =
+  "min-h-11 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-xs font-medium text-slate-500">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 function RatesPanel() {
+  const queryClient = useQueryClient();
+  const products = useProducts();
   const q = useQuery({
     queryKey: ["oc", "rates"],
     queryFn: () => fetchJson<RateRow[]>(`${BASE}/activity-rates`),
   });
+  const activityTypes = useQuery({
+    queryKey: ["oc", "activity-types"],
+    queryFn: () => fetchJson<{ code: string; label: string }[]>(`${BASE}/activity-types`),
+  });
+  const [form, setForm] = useState({
+    finished_good_id: "",
+    activity_code: "",
+    rate: "",
+    effective_from: todayIso(),
+  });
+  const [err, setErr] = useState<string | null>(null);
+
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["oc", "rates"] });
+    // A new rate makes previously unpriceable work priceable.
+    queryClient.invalidateQueries({ queryKey: ["ops-labour"] });
+  };
+
+  const create = useMutation({
+    mutationFn: () =>
+      fetchJson<RateRow>(`${BASE}/activity-rates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          finished_good_id: form.finished_good_id,
+          activity_code: form.activity_code,
+          rate: Number(form.rate),
+          effective_from: form.effective_from,
+        }),
+      }),
+    onSuccess: () => {
+      setErr(null);
+      setForm({ ...form, rate: "" });
+      refresh();
+    },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  const closePeriod = useMutation({
+    mutationFn: (v: { id: string; effective_to: string }) =>
+      fetchJson<RateRow>(`${BASE}/activity-rates/${v.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ effective_to: v.effective_to }),
+      }),
+    onSuccess: () => {
+      setErr(null);
+      refresh();
+    },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  const complete =
+    form.finished_good_id && form.activity_code && form.rate !== "" && form.effective_from;
+
   return (
     <Panel
       title="Activity rates"
@@ -188,9 +280,75 @@ function RatesPanel() {
       isLoading={q.isLoading}
       error={q.error}
     >
-      <Table headers={["Product", "Activity", "Rate", "Period", "Status"]}>
+      {err && (
+        <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+          {err}
+        </p>
+      )}
+
+      <div className="grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-5 dark:border-slate-700">
+        <Field label="Product">
+          <select
+            value={form.finished_good_id}
+            onChange={(e) => setForm({ ...form, finished_good_id: e.target.value })}
+            className={FIELD}
+          >
+            <option value="">Select…</option>
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Activity">
+          <select
+            value={form.activity_code}
+            onChange={(e) => setForm({ ...form, activity_code: e.target.value })}
+            className={FIELD}
+          >
+            <option value="">Select…</option>
+            {(activityTypes.data ?? []).map((a) => (
+              <option key={a.code} value={a.code}>
+                {a.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Rate per brick">
+          <input
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0"
+            value={form.rate}
+            onChange={(e) => setForm({ ...form, rate: e.target.value })}
+            className={FIELD}
+          />
+        </Field>
+        <Field label="Effective from">
+          <input
+            type="date"
+            value={form.effective_from}
+            onChange={(e) => setForm({ ...form, effective_from: e.target.value })}
+            className={FIELD}
+          />
+        </Field>
+        <div className="flex items-end">
+          <button
+            type="button"
+            disabled={!complete || create.isPending}
+            onClick={() => create.mutate()}
+            className="min-h-11 w-full rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-40 dark:bg-white dark:text-slate-900"
+          >
+            {create.isPending ? "Saving…" : "Add rate"}
+          </button>
+        </div>
+      </div>
+
+      <Table headers={["Product", "Activity", "Rate", "Period", "Status", ""]}>
         {(q.data ?? []).length === 0 ? (
-          <Empty colSpan={5}>
+          <Empty colSpan={6}>
             No rates configured yet. Production, loading and unloading rates must
             be entered by the business before labour can be calculated.
           </Empty>
@@ -213,6 +371,27 @@ function RatesPanel() {
                   <span className="text-slate-400">Superseded</span>
                 )}
               </td>
+              <td className="px-4 py-3 text-right">
+                {r.active && r.effective_to === null && (
+                  // Closing yesterday, so a replacement can start today
+                  // without tripping the no-overlap constraint.
+                  <button
+                    type="button"
+                    disabled={closePeriod.isPending}
+                    onClick={() => {
+                      const d = new Date(`${todayIso()}T00:00:00Z`);
+                      d.setUTCDate(d.getUTCDate() - 1);
+                      closePeriod.mutate({
+                        id: r.id,
+                        effective_to: d.toISOString().slice(0, 10),
+                      });
+                    }}
+                    className="text-sm font-medium text-slate-500 underline underline-offset-2 disabled:opacity-40"
+                  >
+                    Close period
+                  </button>
+                )}
+              </td>
             </tr>
           ))
         )}
@@ -222,10 +401,47 @@ function RatesPanel() {
 }
 
 function StandardsPanel() {
+  const queryClient = useQueryClient();
+  const products = useProducts();
   const q = useQuery({
     queryKey: ["oc", "standards"],
     queryFn: () => fetchJson<StandardRow[]>(`${BASE}/consumption-standards`),
   });
+  const [form, setForm] = useState({
+    finished_good_id: "",
+    standard_yield: "",
+    tolerance_pct: "",
+    effective_from: todayIso(),
+  });
+  const [err, setErr] = useState<string | null>(null);
+
+  const create = useMutation({
+    mutationFn: () =>
+      fetchJson<StandardRow>(`${BASE}/consumption-standards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          finished_good_id: form.finished_good_id,
+          standard_yield: Number(form.standard_yield),
+          // Blank means "use the global tolerance", which is not the same as
+          // zero tolerance — send null rather than coercing an empty string.
+          tolerance_pct:
+            form.tolerance_pct === "" ? null : Number(form.tolerance_pct),
+          effective_from: form.effective_from,
+        }),
+      }),
+    onSuccess: () => {
+      setErr(null);
+      setForm({ ...form, standard_yield: "", tolerance_pct: "" });
+      queryClient.invalidateQueries({ queryKey: ["oc", "standards"] });
+      queryClient.invalidateQueries({ queryKey: ["ops-production"] });
+    },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  const complete =
+    form.finished_good_id && form.standard_yield !== "" && form.effective_from;
+
   return (
     <Panel
       title="Cement consumption standards"
@@ -233,6 +449,70 @@ function StandardsPanel() {
       isLoading={q.isLoading}
       error={q.error}
     >
+      {err && (
+        <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+          {err}
+        </p>
+      )}
+
+      <div className="grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-5 dark:border-slate-700">
+        <Field label="Product">
+          <select
+            value={form.finished_good_id}
+            onChange={(e) => setForm({ ...form, finished_good_id: e.target.value })}
+            className={FIELD}
+          >
+            <option value="">Select…</option>
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Bricks per 50 kg bag">
+          <input
+            type="number"
+            inputMode="decimal"
+            step="0.1"
+            min="0"
+            value={form.standard_yield}
+            onChange={(e) => setForm({ ...form, standard_yield: e.target.value })}
+            className={FIELD}
+          />
+        </Field>
+        <Field label="Tolerance % (optional)">
+          <input
+            type="number"
+            inputMode="decimal"
+            step="0.5"
+            min="0"
+            placeholder="Global default"
+            value={form.tolerance_pct}
+            onChange={(e) => setForm({ ...form, tolerance_pct: e.target.value })}
+            className={FIELD}
+          />
+        </Field>
+        <Field label="Effective from">
+          <input
+            type="date"
+            value={form.effective_from}
+            onChange={(e) => setForm({ ...form, effective_from: e.target.value })}
+            className={FIELD}
+          />
+        </Field>
+        <div className="flex items-end">
+          <button
+            type="button"
+            disabled={!complete || create.isPending}
+            onClick={() => create.mutate()}
+            className="min-h-11 w-full rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-40 dark:bg-white dark:text-slate-900"
+          >
+            {create.isPending ? "Saving…" : "Add standard"}
+          </button>
+        </div>
+      </div>
+
       <Table headers={["Product", "Material", "Bricks / bag", "Tolerance", "Period"]}>
         {(q.data ?? []).length === 0 ? (
           <Empty colSpan={5}>

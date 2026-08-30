@@ -6,8 +6,8 @@ import { useAuthStore } from "@/stores/authStore";
 
 // Tabs are role-filtered so nobody is shown a door they cannot open: sales
 // works demand and schedules (PRD §7.3) but never masters; the API routes
-// remain the real gate. Production, Dispatch, Labour and Analytics land in
-// later phases — deliberately absent rather than stubbed.
+// remain the real gate. Analytics lands in a later phase — deliberately
+// absent rather than stubbed.
 const TABS: { href: string; label: string; roles: string[] }[] = [
   {
     href: "/ops/demand",
@@ -28,6 +28,13 @@ const TABS: { href: string; label: string; roles: string[] }[] = [
     href: "/ops/dispatch",
     label: "Dispatch",
     roles: ["founder", "owner", "production_supervisor"],
+  },
+  {
+    // Narrower than every other tab on purpose: labour is a money question,
+    // so the supervisor who plans the work does not see what it pays.
+    href: "/ops/labour",
+    label: "Labour",
+    roles: ["founder", "owner"],
   },
   {
     href: "/ops/masters",
