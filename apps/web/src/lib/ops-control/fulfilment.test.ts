@@ -6,6 +6,8 @@ import {
   revisionStatus,
   coverageStatus,
   checkOverschedule,
+  computeCoverage,
+  computeReadiness,
 } from "./fulfilment";
 
 describe("remainingQty / uncoveredQty (PRD §10)", () => {
@@ -86,5 +88,76 @@ describe("checkOverschedule (PRD §26)", () => {
   it("reports the exact excess when over", () => {
     // remaining = 4,000; scheduling 5,000 -> excess 1,000 (PRD's worked example)
     expect(checkOverschedule(5000, 5000, 1000)).toEqual({ ok: false, excess: 1000 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 3: coverage vs readiness. The PRD's worked example is the spec.
+// ---------------------------------------------------------------------------
+
+describe("computeCoverage — PRD §10", () => {
+  it("900 produced and reserved against a 900 requirement is fully covered", () => {
+    const c = computeCoverage({ qtyOrdered: 900, qtyDelivered: 0, reserved: 900, productionAllocated: 0 });
+    expect(c).toMatchObject({ remaining: 900, uncovered: 0, status: "covered" });
+  });
+
+  it("traces the shortfall: allocated 950 against 1,200 leaves 250 uncovered", () => {
+    const c = computeCoverage({ qtyOrdered: 1200, qtyDelivered: 0, reserved: 0, productionAllocated: 950 });
+    expect(c.uncovered).toBe(250);
+    expect(c.status).toBe("partially_covered");
+  });
+
+  it("counts reservations and production allocation together", () => {
+    const c = computeCoverage({ qtyOrdered: 1000, qtyDelivered: 200, reserved: 500, productionAllocated: 300 });
+    expect(c.remaining).toBe(800);
+    expect(c.uncovered).toBe(0);
+    expect(c.status).toBe("covered");
+  });
+
+  it("over-coverage never reports as negative uncovered", () => {
+    const c = computeCoverage({ qtyOrdered: 500, qtyDelivered: 0, reserved: 900, productionAllocated: 0 });
+    expect(c.uncovered).toBe(0);
+  });
+
+  it("nothing reserved and nothing produced is uncovered", () => {
+    const c = computeCoverage({ qtyOrdered: 900, qtyDelivered: 0, reserved: 0, productionAllocated: 0 });
+    expect(c.status).toBe("uncovered");
+    expect(c.uncovered).toBe(900);
+  });
+});
+
+describe("computeReadiness — covered is not ready", () => {
+  const curing = (qty: number, from: string) => ({ quantity: qty, available_from: from, status: "active" });
+  const readyRes = (qty: number) => ({ quantity: qty, available_from: null, status: "active" });
+
+  it("fully covered but zero ready while curing, with the date it changes", () => {
+    const r = computeReadiness([curing(900, "2026-08-29")], 900, "2026-08-22");
+    expect(r).toMatchObject({ readyNow: 0, curing: 900, readyFrom: "2026-08-29", fullyReady: false });
+  });
+
+  it("the same reservation is ready ON the available_from date", () => {
+    const r = computeReadiness([curing(900, "2026-08-29")], 900, "2026-08-29");
+    expect(r).toMatchObject({ readyNow: 900, curing: 0, readyFrom: null, fullyReady: true });
+  });
+
+  it("reports the EARLIEST date when batches cure separately", () => {
+    const r = computeReadiness([curing(300, "2026-09-05"), curing(600, "2026-08-29")], 900, "2026-08-22");
+    expect(r.readyFrom).toBe("2026-08-29");
+    expect(r.curing).toBe(900);
+  });
+
+  it("partial readiness is not full readiness", () => {
+    const r = computeReadiness([readyRes(400), curing(500, "2026-08-29")], 900, "2026-08-22");
+    expect(r.readyNow).toBe(400);
+    expect(r.fullyReady).toBe(false);
+  });
+
+  it("released reservations hold nothing ready", () => {
+    const r = computeReadiness([{ quantity: 900, available_from: null, status: "released" }], 900, "2026-08-22");
+    expect(r.readyNow).toBe(0);
+  });
+
+  it("a fully delivered line is trivially ready", () => {
+    expect(computeReadiness([], 0, "2026-08-22").fullyReady).toBe(true);
   });
 });
