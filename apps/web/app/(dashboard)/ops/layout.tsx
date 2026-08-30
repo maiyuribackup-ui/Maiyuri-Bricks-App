@@ -25,6 +25,11 @@ const TABS: { href: string; label: string; roles: string[] }[] = [
     roles: ["founder", "owner", "production_supervisor"],
   },
   {
+    href: "/ops/dispatch",
+    label: "Dispatch",
+    roles: ["founder", "owner", "production_supervisor"],
+  },
+  {
     href: "/ops/masters",
     label: "Masters",
     roles: ["founder", "owner", "production_supervisor"],

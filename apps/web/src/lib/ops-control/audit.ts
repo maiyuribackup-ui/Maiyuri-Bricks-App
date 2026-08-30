@@ -33,7 +33,9 @@ export type OcAuditEntity =
   | "oc_inventory_movements"
   | "oc_stock_reservations"
   | "oc_production_days"
-  | "oc_production_actuals";
+  | "oc_production_actuals"
+  | "oc_trips"
+  | "oc_trip_load_lines";
 
 export type OcAuditAction =
   | "created"
@@ -47,7 +49,8 @@ export type OcAuditAction =
   | "revision_created"
   | "posted"
   | "released"
-  | "transferred";
+  | "transferred"
+  | "completed";
 
 export interface OcAuditEntry {
   entity: OcAuditEntity;
