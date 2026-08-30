@@ -704,6 +704,65 @@ async function checkSchema(): Promise<SchemaHealth> {
 
 ---
 
+### [2026-08-30] BUG-017: UX - A Write API With No Form Is a Feature That Cannot Be Used
+
+**Severity:** High (silently disables a whole module; looks like a data problem)
+**Files Affected:**
+
+- `apps/web/app/(dashboard)/ops/masters/page.tsx`
+
+**What Happened:**
+
+Phase 1 shipped `POST /api/ops-control/masters/activity-rates` and
+`POST .../consumption-standards`, both tested, both role-gated, both working.
+The Masters screen rendered those tables read-only. Nothing anywhere in the
+application could create a rate or a standard.
+
+Nothing failed. No error, no red state, no test failure — the API tests passed
+because they call the route directly. The consequences only appeared two phases
+later, and they looked like unrelated data problems:
+
+- Every cement ratio evaluated to `not_evaluated` (Phase 4). Read as "the
+  business has not supplied ratios yet."
+- The labour ledger stayed empty (Phase 6). Read as "no rates configured yet."
+
+Both readings were true and both were unfixable, because there was no way to
+supply the missing values. The Phase 6 screen even told the user to "add the
+rate in Masters" — pointing at a screen with no form.
+
+**Root Cause:**
+
+The empty-state copy was written to explain a *business* gap ("rates must be
+entered by the business") and was accepted as covering a *product* gap. An
+empty state that explains why a table is empty reads exactly like an empty
+state that is missing the control to fill it.
+
+Underlying it: the phase was verified by testing the API and the database, not
+by walking the screen a real user would use. That is the same miss as the
+Phase 4 production screen, which shipped with no way to create a plan line.
+
+**Fix:**
+
+Entry forms on both panels, plus a "close period" action so an effective-dated
+rate can be superseded without tripping the no-overlap EXCLUDE constraint.
+
+**Prevention:**
+
+- For any route that accepts a write, ask: **what does a user click to reach
+  it?** If the answer is "nothing", the feature is not shipped.
+- Verify a phase by walking the journey end to end as the role who does the
+  job, not by exercising the routes. Route tests prove the server is correct;
+  they cannot prove the server is reachable.
+- Treat an empty state as suspicious. "No X configured yet" is only honest if
+  the same screen offers the way to configure one.
+- A screen that tells the user to go somewhere else must link there, and that
+  destination must have the control it promises.
+
+**Related Bugs:** None
+**Related Coding Principle:** [UX-001: A Feature Is Shipped When a User Can Reach It]
+
+---
+
 ### [2026-08-30] BUG-016: CI - A Skipped Required Check Counts as a Passing One
 
 **Severity:** Critical (defeats the merge control that exists to prevent BUG-013)
@@ -913,6 +972,7 @@ When a bug is found, add it using this template:
 - REACT (Rendering): 1 (BUG-005)
 - DB (Database/Data): 4 (BUG-006, BUG-007, BUG-008, BUG-014)
 - CI (Build Configuration): 6 (BUG-009, BUG-010, BUG-011, BUG-012, BUG-013, BUG-016)
+- UX (Unreachable Features): 1 (BUG-017)
 
 ### Implementation Patterns (Jan 2026)
 - PATTERN-001: Worker-to-API Auto-Trigger Pattern
