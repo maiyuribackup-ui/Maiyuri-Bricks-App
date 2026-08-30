@@ -457,6 +457,69 @@ REVOKE ALL ON FUNCTION public.oc_settle_labour_week(DATE, TEXT, UUID, INTEGER)
 GRANT EXECUTE ON FUNCTION public.oc_settle_labour_week(DATE, TEXT, UUID, INTEGER)
   TO service_role;
 
+-- ================================= RPC: work that could not be priced =======
+-- The exception list behind "labour not calculated".
+--
+-- Found by ANTI-JOINING the ledger rather than by a flag on the source row.
+-- That way it stays true with no extra bookkeeping: the moment a rate is
+-- entered and generation is re-run, the row simply stops appearing. A flag
+-- would need clearing, and would quietly lie if anyone forgot.
+CREATE OR REPLACE FUNCTION public.oc_unpriced_labour(p_from DATE, p_to DATE)
+RETURNS TABLE (
+  source_type TEXT,
+  source_id UUID,
+  activity_code TEXT,
+  finished_good_id UUID,
+  product_name TEXT,
+  entry_date DATE,
+  quantity NUMERIC)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  WITH earned AS (
+    SELECT 'production_actual'::TEXT AS source_type, a.id AS source_id,
+           'production'::TEXT AS activity_code, a.finished_good_id,
+           d.prod_date AS entry_date,
+           CASE WHEN COALESCE((SELECT production_wage_basis FROM oc_settings LIMIT 1), 'accepted') = 'gross'
+                THEN a.gross_qty ELSE a.accepted_qty END AS quantity
+      FROM oc_production_actuals a
+      JOIN oc_production_shifts s ON s.id = a.shift_id
+      JOIN oc_production_days d ON d.id = s.day_id
+     WHERE a.status <> 'draft' AND d.prod_date BETWEEN p_from AND p_to
+
+    UNION ALL
+    SELECT 'trip_load_line', l.id, 'loading', l.finished_good_id, t.trip_date,
+           l.actual_loaded_qty
+      FROM oc_trip_load_lines l
+      JOIN oc_trip_stops st ON st.id = l.stop_id
+      JOIN oc_trips t ON t.id = st.trip_id
+     WHERE l.status <> 'draft' AND t.trip_date BETWEEN p_from AND p_to
+
+    UNION ALL
+    SELECT 'trip_load_line', l.id, 'unloading', l.finished_good_id, t.trip_date,
+           l.actual_unloaded_qty
+      FROM oc_trip_load_lines l
+      JOIN oc_trip_stops st ON st.id = l.stop_id
+      JOIN oc_trips t ON t.id = st.trip_id
+     WHERE l.status <> 'draft' AND t.trip_date BETWEEN p_from AND p_to
+  )
+  SELECT e.source_type, e.source_id, e.activity_code, e.finished_good_id,
+         fg.name AS product_name, e.entry_date, e.quantity
+    FROM earned e
+    LEFT JOIN finished_goods fg ON fg.id = e.finished_good_id
+   WHERE e.quantity IS NOT NULL AND e.quantity <> 0
+     AND NOT EXISTS (
+       SELECT 1 FROM oc_labour_ledger l
+        WHERE l.source_type = e.source_type
+          AND l.source_id = e.source_id
+          AND l.activity_code = e.activity_code
+          AND l.finished_good_id = e.finished_good_id)
+   ORDER BY e.entry_date, e.activity_code;
+$$;
+
+REVOKE ALL ON FUNCTION public.oc_unpriced_labour(DATE, DATE)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.oc_unpriced_labour(DATE, DATE)
+  TO service_role;
+
 -- -------------------------------------------------------- RLS + policies ----
 DO $$
 DECLARE t TEXT;
