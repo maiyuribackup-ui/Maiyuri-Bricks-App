@@ -259,7 +259,8 @@ describe("GET /labour/unpriced", () => {
           entry_date: "2026-08-30",
           activity_code: "production",
           finished_good_id: FG,
-          eligible_qty: 1000,
+          product_name: "CIB 8in",
+          quantity: 1000,
         },
       ],
       error: null,
@@ -279,9 +280,9 @@ describe("POST /labour/backfill", () => {
     signInAs("founder");
     queueRpc("oc_unpriced_labour", {
       data: [
-        { source_type: "production_actual", source_id: "a1", entry_date: "2026-08-30", activity_code: "production", finished_good_id: FG, eligible_qty: 1000 },
-        { source_type: "production_actual", source_id: "a1", entry_date: "2026-08-30", activity_code: "loading", finished_good_id: FG, eligible_qty: 1000 },
-        { source_type: "trip_load_line", source_id: "l1", entry_date: "2026-08-31", activity_code: "loading", finished_good_id: FG, eligible_qty: 900 },
+        { source_type: "production_actual", source_id: "a1", entry_date: "2026-08-30", activity_code: "production", finished_good_id: FG, product_name: "CIB 8in", quantity: 1000 },
+        { source_type: "production_actual", source_id: "a1", entry_date: "2026-08-30", activity_code: "loading", finished_good_id: FG, product_name: "CIB 8in", quantity: 1000 },
+        { source_type: "trip_load_line", source_id: "l1", entry_date: "2026-08-31", activity_code: "loading", finished_good_id: FG, product_name: "CIB 8in", quantity: 900 },
       ],
       error: null,
     });
