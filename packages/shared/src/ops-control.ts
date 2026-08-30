@@ -515,3 +515,87 @@ export const createOcActualAdjustmentSchema = z
 export type CreateOcActualAdjustmentInput = z.infer<
   typeof createOcActualAdjustmentSchema
 >;
+
+// ============================================
+// Phase 5 — trips, load plans, delivery actuals
+// Data model: supabase/migrations/20260830100000_ops_control_dispatch.sql
+// ============================================
+
+export const createOcTripSchema = z.object({
+  trip_date: dateOnly,
+  trip_no: z.number().int().positive().optional(),
+  vehicle_id: z.string().uuid().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  /** Required only when going beyond the normal trips per day (PRD §54). */
+  override_reason: z.string().nullable().optional(),
+});
+export type CreateOcTripInput = z.infer<typeof createOcTripSchema>;
+
+export const updateOcTripSchema = z.object({
+  vehicle_id: z.string().uuid().nullable().optional(),
+  status: z.enum(["planned", "dispatched", "completed", "cancelled"]).optional(),
+  notes: z.string().nullable().optional(),
+  lock_version: z.number().int().min(0),
+});
+export type UpdateOcTripInput = z.infer<typeof updateOcTripSchema>;
+
+export const createOcTripStopSchema = z.object({
+  trip_id: z.string().uuid(),
+  sequence: z.number().int().positive().optional(),
+  odoo_partner_id: z.number().int().nullable().optional(),
+  customer_name: z.string().nullable().optional(),
+  site_location_id: z.string().uuid().nullable().optional(),
+  schedule_line_id: z.string().uuid().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type CreateOcTripStopInput = z.infer<typeof createOcTripStopSchema>;
+
+export const createOcLoadLineSchema = z.object({
+  stop_id: z.string().uuid(),
+  finished_good_id: z.string().uuid(),
+  so_line_id: z.string().uuid().nullable().optional(),
+  planned_qty: z.number().positive("Planned quantity must be greater than zero"),
+});
+export type CreateOcLoadLineInput = z.infer<typeof createOcLoadLineSchema>;
+
+/**
+ * The driver's report. Every field is optional while the load line is a draft
+ * — the identity is only enforced at COMPLETE (PRD §7), because the driver
+ * reports in stages and a half-entered row must still be savable.
+ */
+export const updateOcLoadLineSchema = z.object({
+  actual_loaded_qty: z.number().min(0).nullable().optional(),
+  actual_unloaded_qty: z.number().min(0).nullable().optional(),
+  returned_qty: z.number().min(0).optional(),
+  damaged_qty: z.number().min(0).optional(),
+  lost_or_short_qty: z.number().min(0).optional(),
+  deviation_reason_id: z.string().uuid().nullable().optional(),
+  deviation_comment: z.string().nullable().optional(),
+  lock_version: z.number().int().min(0),
+});
+export type UpdateOcLoadLineInput = z.infer<typeof updateOcLoadLineSchema>;
+
+export const completeOcLoadLineSchema = z.object({
+  lock_version: z.number().int().min(0),
+});
+export type CompleteOcLoadLineInput = z.infer<typeof completeOcLoadLineSchema>;
+
+/** PRD §8.2: a completed delivery is corrected by a delta, never an edit. */
+export const createOcDeliveryAdjustmentSchema = z
+  .object({
+    delta_loaded: z.number().default(0),
+    delta_unloaded: z.number().default(0),
+    delta_returned: z.number().default(0),
+    delta_damaged: z.number().default(0),
+    delta_lost_or_short: z.number().default(0),
+    reason: z.string().min(1, "An adjustment needs a reason"),
+  })
+  .refine(
+    (v) =>
+      v.delta_loaded !== 0 || v.delta_unloaded !== 0 || v.delta_returned !== 0 ||
+      v.delta_damaged !== 0 || v.delta_lost_or_short !== 0,
+    { message: "An adjustment of zero is not an adjustment", path: ["delta_unloaded"] },
+  );
+export type CreateOcDeliveryAdjustmentInput = z.infer<
+  typeof createOcDeliveryAdjustmentSchema
+>;
