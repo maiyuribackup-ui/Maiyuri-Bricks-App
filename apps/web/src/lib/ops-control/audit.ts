@@ -29,7 +29,9 @@ export type OcAuditEntity =
   | "oc_sales_order_lines"
   | "oc_site_locations"
   | "oc_delivery_schedules"
-  | "oc_delivery_schedule_versions";
+  | "oc_delivery_schedule_versions"
+  | "oc_inventory_movements"
+  | "oc_stock_reservations";
 
 export type OcAuditAction =
   | "created"
@@ -40,7 +42,10 @@ export type OcAuditAction =
   | "sent"
   | "confirmed"
   | "cancelled"
-  | "revision_created";
+  | "revision_created"
+  | "posted"
+  | "released"
+  | "transferred";
 
 export interface OcAuditEntry {
   entity: OcAuditEntity;
