@@ -31,7 +31,9 @@ export type OcAuditEntity =
   | "oc_delivery_schedules"
   | "oc_delivery_schedule_versions"
   | "oc_inventory_movements"
-  | "oc_stock_reservations";
+  | "oc_stock_reservations"
+  | "oc_production_days"
+  | "oc_production_actuals";
 
 export type OcAuditAction =
   | "created"
