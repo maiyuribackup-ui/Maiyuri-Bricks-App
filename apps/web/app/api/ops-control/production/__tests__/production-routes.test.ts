@@ -53,7 +53,7 @@ vi.mock("@/lib/supabase-admin", () => ({
   },
 }));
 
-import { POST as daysPost } from "../days/route";
+import { GET as daysGet, POST as daysPost } from "../days/route";
 import { POST as planLinePost } from "../plan-lines/route";
 import { POST as allocationPost } from "../allocations/route";
 import { POST as actualPost } from "../actuals/route";
@@ -73,6 +73,9 @@ function req(body?: Record<string, unknown>): NextRequest {
     headers: { "Content-Type": "application/json" },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
+}
+function getReq(url: string): NextRequest {
+  return new NextRequest(url, { method: "GET" });
 }
 function signInAs(role: string) {
   mockGetUser.mockResolvedValue({ id: "user-1" });
@@ -308,5 +311,56 @@ describe("POST /production/plan-lines", () => {
     );
     expect(res.status).toBe(409);
     expect((await body(res)).error).toContain("already planned");
+  });
+});
+
+
+describe("GET /production/days?date= — the payload the screen consumes", () => {
+  /**
+   * The screen cannot function without these three keys, and the first
+   * version of it shipped unusable because nothing checked that the data it
+   * needs to render its pickers was actually being returned. This test is
+   * that check.
+   */
+  it("returns the day, the product picker and the demand picker together", async () => {
+    signInAs("production_supervisor");
+    queue("oc_production_days", { data: { id: "day-1", prod_date: "2026-08-30" }, error: null });
+    queue("oc_production_shifts", { data: [], error: null });
+    queue("finished_goods", { data: [{ id: FG, name: "8in brick" }], error: null });
+    // loadPlanningOptions runs in parallel: its own products + demand reads.
+    queue("finished_goods", { data: [{ id: FG, name: "8in brick" }], error: null });
+    queue("oc_sales_order_lines", {
+      data: [
+        { id: SO_LINE, finished_good_id: FG, order_name: "S00501", partner_name: "Kumar",
+          qty_ordered: 5000, qty_delivered: 1000 },
+        { id: "done-line", finished_good_id: FG, order_name: "S00400", partner_name: "Old",
+          qty_ordered: 1000, qty_delivered: 1000 },
+      ],
+      error: null,
+    });
+
+    const res = await daysGet(getReq("http://localhost/api?date=2026-08-30"));
+    expect(res.status).toBe(200);
+    const { data } = await body(res);
+    const payload = data as {
+      date: string;
+      day: unknown;
+      products: { id: string }[];
+      demand: { id: string; remaining: number }[];
+    };
+
+    expect(payload.date).toBe("2026-08-30");
+    expect(payload.day).not.toBeNull();
+    expect(payload.products).toHaveLength(1);
+    // A line delivered in full cannot be produced for — it must not appear in
+    // the allocation picker, or the operator promises output to a closed order.
+    expect(payload.demand).toHaveLength(1);
+    expect(payload.demand[0].id).toBe(SO_LINE);
+    expect(payload.demand[0].remaining).toBe(4000);
+  });
+
+  it("refuses sales", async () => {
+    signInAs("sales");
+    expect((await daysGet(getReq("http://localhost/api?date=2026-08-30"))).status).toBe(403);
   });
 });

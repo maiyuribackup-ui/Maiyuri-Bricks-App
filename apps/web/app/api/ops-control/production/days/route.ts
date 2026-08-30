@@ -5,7 +5,11 @@ import { success, error, created, parseBody, parseQuery } from "@/lib/api-utils"
 import { requireProductionRole } from "@/lib/production-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { logOcAudit } from "@/lib/ops-control/audit";
-import { PRODUCTION_ROLES, loadProductionDay } from "@/lib/ops-control/production";
+import {
+  PRODUCTION_ROLES,
+  loadProductionDay,
+  loadPlanningOptions,
+} from "@/lib/ops-control/production";
 import { operationalToday } from "@/lib/ops-control/inventory-service";
 import { createOcProductionDaySchema } from "@maiyuri/shared";
 
@@ -23,8 +27,11 @@ export async function GET(request: NextRequest) {
   try {
     const { date } = parseQuery(request);
     if (date) {
-      const day = await loadProductionDay(date);
-      return success({ date, day });
+      const [day, options] = await Promise.all([
+        loadProductionDay(date),
+        loadPlanningOptions(),
+      ]);
+      return success({ date, day, ...options });
     }
     const { data, error: dbError } = await supabaseAdmin
       .from("oc_production_days")

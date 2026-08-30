@@ -240,6 +240,63 @@ export async function loadProductionDay(prodDate: string) {
   return { ...day, shifts };
 }
 
+/**
+ * The pickers the production screen needs: what can be planned, and what that
+ * output can be promised to.
+ *
+ * Returned with the day rather than as separate endpoints for the same reason
+ * the day itself is one read — this screen is used on a phone in a yard, and
+ * every extra round trip is a chance to be left with a half-loaded form.
+ */
+export async function loadPlanningOptions(): Promise<{
+  products: { id: string; name: string | null }[];
+  demand: {
+    id: string;
+    finished_good_id: string;
+    order_name: string | null;
+    partner_name: string | null;
+    remaining: number;
+  }[];
+}> {
+  const [goodsRes, demandRes] = await Promise.all([
+    supabaseAdmin
+      .from("finished_goods")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("name"),
+    supabaseAdmin
+      .from("oc_sales_order_lines")
+      .select("id, finished_good_id, order_name, partner_name, qty_ordered, qty_delivered")
+      .eq("is_demand", true)
+      .eq("source_active", true)
+      .order("order_name", { ascending: false })
+      .limit(500),
+  ]);
+
+  const demand = ((demandRes.data ?? []) as {
+    id: string;
+    finished_good_id: string | null;
+    order_name: string | null;
+    partner_name: string | null;
+    qty_ordered: number;
+    qty_delivered: number;
+  }[])
+    .map((l) => ({
+      id: l.id,
+      finished_good_id: l.finished_good_id ?? "",
+      order_name: l.order_name,
+      partner_name: l.partner_name,
+      remaining: Math.max(0, Number(l.qty_ordered) - Number(l.qty_delivered)),
+    }))
+    // Only lines that still owe the customer something can be produced for.
+    .filter((l) => l.remaining > 0 && l.finished_good_id);
+
+  return {
+    products: (goodsRes.data ?? []) as { id: string; name: string | null }[],
+    demand,
+  };
+}
+
 /** The configured bag step and ratio tolerances, with sane fallbacks. */
 export async function loadProductionSettings(): Promise<{
   cementBagStep: number;
