@@ -5,9 +5,11 @@
  *
  * The open Odoo sales-order backlog, line by line, with the three status
  * dimensions kept deliberately separate: commitment (what the customer holds),
- * revision (what is being worked on), coverage (Phase 3 — shown as a neutral
- * dash, never a red "uncovered", because absence of information is not bad
- * news). Sync Now and the mapping link render only for production roles;
+ * revision (what is being worked on), and — since Phase 3 — coverage and
+ * readiness, which are shown as two columns rather than one because they are
+ * two different facts: an order can be fully covered by stock that is still
+ * curing, which is 100% covered and 0% ready.
+ * Sync Now and the mapping link render only for production roles;
  * sales sees the facts without doors it cannot open.
  */
 
@@ -52,6 +54,12 @@ interface DemandLine {
   commitment_status: string;
   revision_status: string;
   coverage_status: string;
+  reserved_qty: number;
+  uncovered_qty: number;
+  ready_now: number;
+  curing_qty: number;
+  ready_from: string | null;
+  fully_ready: boolean;
   schedule_id: string | null;
 }
 
@@ -104,6 +112,14 @@ const COMMITMENT_CHIP: Record<string, { label: string; cls: string }> = {
   confirmed: { label: "Confirmed", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200" },
   partially_delivered: { label: "Partially delivered", cls: "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-200" },
   completed: { label: "Completed", cls: "bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400" },
+};
+
+const COVERAGE_CHIP: Record<string, { label: string; cls: string }> = {
+  // 'not_evaluated' stays a neutral dash: missing information must never be
+  // rendered as bad news.
+  covered: { label: "Covered", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200" },
+  partially_covered: { label: "Partial", cls: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200" },
+  uncovered: { label: "Uncovered", cls: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200" },
 };
 
 const REVISION_CHIP: Record<string, string | null> = {
@@ -281,7 +297,7 @@ export default function OpsDemandPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wider text-slate-400 dark:border-slate-700">
-                  {["Order", "Customer", "Product", "Ordered", "Delivered", "Remaining", "Scheduled", "Confirmed", "Commitment", "Coverage"].map((h) => (
+                  {["Order", "Customer", "Product", "Ordered", "Delivered", "Remaining", "Scheduled", "Confirmed", "Commitment", "Coverage", "Ready"].map((h) => (
                     <th key={h} className="px-4 py-3 font-medium">{h}</th>
                   ))}
                 </tr>
@@ -289,7 +305,7 @@ export default function OpsDemandPage() {
               <tbody>
                 {(q.data?.lines ?? []).length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-14 text-center text-slate-400">
+                    <td colSpan={11} className="px-4 py-14 text-center text-slate-400">
                       {showCompleted ? "No demand lines." : "No open demand — every synced line is fully delivered."}{" "}
                       {isProduction
                         ? "Run a sync to pull the current Odoo sales orders."
@@ -300,6 +316,7 @@ export default function OpsDemandPage() {
                   q.data!.lines.map((l) => {
                     const chip = COMMITMENT_CHIP[l.commitment_status];
                     const revision = REVISION_CHIP[l.revision_status] ?? null;
+                    const coverage = COVERAGE_CHIP[l.coverage_status] ?? null;
                     return (
                       <tr
                         key={l.id}
@@ -324,9 +341,36 @@ export default function OpsDemandPage() {
                             </span>
                           )}
                         </td>
-                        {/* Coverage is not evaluated until Phase 3 supplies
-                            reservation data — a dash, never a red warning. */}
-                        <td className="px-4 py-3 text-slate-400">—</td>
+                        <td className="px-4 py-3">
+                          {coverage ? (
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${coverage.cls}`}>
+                              {coverage.label}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                          {l.uncovered_qty > 0 && (
+                            <span className="ml-1 text-xs tabular-nums text-slate-500">
+                              {Number(l.uncovered_qty).toLocaleString("en-IN")} short
+                            </span>
+                          )}
+                        </td>
+                        {/* Readiness, kept separate from coverage: reserved
+                            bricks that are still curing cannot ship today. */}
+                        <td className="px-4 py-3 text-xs">
+                          {l.reserved_qty === 0 ? (
+                            <span className="text-slate-400">—</span>
+                          ) : l.curing_qty > 0 ? (
+                            <span className="text-amber-700 dark:text-amber-300">
+                              {Number(l.ready_now).toLocaleString("en-IN")} now · ready from{" "}
+                              {l.ready_from ?? "—"}
+                            </span>
+                          ) : (
+                            <span className="text-emerald-700 dark:text-emerald-300">
+                              {Number(l.ready_now).toLocaleString("en-IN")} ready
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })
