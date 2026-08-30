@@ -15,7 +15,7 @@
  */
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { odooExecute } from "@/lib/odoo-service";
+import { odooExecute, odooPickField, odooRelationLabel } from "@/lib/odoo-service";
 import { classifyLine } from "@/lib/ops-control/classification";
 import type { OcLineKind } from "@maiyuri/shared";
 
@@ -47,7 +47,10 @@ type OdooLine = {
   display_type: string | false;
   product_uom_qty: number;
   qty_delivered: number;
-  product_uom: [number, string] | false;
+  // The unit-of-measure field is read by whichever name this Odoo has
+  // (product_uom_id since Odoo 19, product_uom before), so it is not a fixed
+  // key on this type — see uomField below.
+  [field: string]: unknown;
 };
 
 type OdooProduct = { id: number; type: string | false };
@@ -156,6 +159,14 @@ export async function runDemandSync(options: {
     const orderById = new Map(orders.map((o) => [o.id, o]));
     const orderIds = orders.map((o) => o.id);
 
+    // Ask Odoo what it calls the unit of measure before requesting it: the
+    // Odoo 19 upgrade renamed product_uom to product_uom_id, and asking for
+    // the wrong one fails the whole search_read, not just that column.
+    const uomField = await odooPickField("sale.order.line", [
+      "product_uom_id",
+      "product_uom",
+    ]);
+
     const lines: OdooLine[] = [];
     // chunk the order-id domain so it never grows unbounded
     for (let i = 0; i < orderIds.length; i += 200) {
@@ -172,7 +183,7 @@ export async function runDemandSync(options: {
             "display_type",
             "product_uom_qty",
             "qty_delivered",
-            "product_uom",
+            uomField,
           ],
           bump,
           deadline,
@@ -253,7 +264,7 @@ export async function runDemandSync(options: {
         is_demand: cls.isDemand,
         qty_ordered: qtyOrdered,
         qty_delivered: qtyDelivered,
-        uom: l.product_uom ? l.product_uom[1] : null,
+        uom: odooRelationLabel(l, uomField),
         order_state: order?.state ?? null,
         date_order: order?.date_order ? order.date_order : null,
       };

@@ -973,3 +973,92 @@ export async function odooExecute(
 ): Promise<unknown> {
   return execute(model, method, args, kwargs);
 }
+
+// --------------------------------------------------------------- schema ----
+// Odoo renames fields across major versions. `sale.order.line.product_uom`
+// became `product_uom_id` in the Odoo 19 upgrade, and the demand sync started
+// failing with "Invalid field 'product_uom' on 'sale.order.line'" the moment
+// authentication was restored — a second outage hiding behind the first.
+//
+// Hard-coding the new spelling would just move the breakage to the next
+// upgrade, so ask the server which name it actually has.
+
+/** Field names per model, for the life of the process. */
+const modelFieldCache = new Map<string, Set<string>>();
+
+/**
+ * The RPC call these helpers need. Injectable so the selection and caching
+ * logic can be tested without a live Odoo — the alternative is mocking the
+ * module's own internals, which ESM live bindings make unreliable.
+ */
+export type OdooExecutor = (
+  model: string,
+  method: string,
+  args: unknown[],
+  kwargs?: Record<string, unknown>,
+) => Promise<unknown>;
+
+/**
+ * The field names a model exposes on THIS Odoo instance.
+ *
+ * Cached because a running deployment never sees the schema change underneath
+ * it, and `fields_get` is a real round trip. `attributes: []` asks for names
+ * only — the full metadata for a model like sale.order.line is hundreds of
+ * fields deep and we need none of it.
+ */
+export async function odooModelFields(
+  model: string,
+  exec: OdooExecutor = odooExecute,
+): Promise<Set<string>> {
+  const cached = modelFieldCache.get(model);
+  if (cached) return cached;
+
+  const raw = (await exec(model, "fields_get", [[]], {
+    attributes: [],
+  })) as Record<string, unknown> | null;
+  const names = new Set(Object.keys(raw ?? {}));
+  modelFieldCache.set(model, names);
+  return names;
+}
+
+/**
+ * The first candidate field name this Odoo actually has.
+ *
+ * Order candidates newest-first: `odooPickField("sale.order.line",
+ * ["product_uom_id", "product_uom"])` prefers the Odoo 19 spelling and still
+ * works against an older instance. Throws a named error rather than silently
+ * dropping the field, because a missing unit of measure should be a loud
+ * failure, not a column of nulls nobody notices.
+ */
+export async function odooPickField(
+  model: string,
+  candidates: string[],
+  exec: OdooExecutor = odooExecute,
+): Promise<string> {
+  const names = await odooModelFields(model, exec);
+  const found = candidates.find((c) => names.has(c));
+  if (!found) {
+    throw new Error(
+      `Odoo model "${model}" has none of the expected fields: ${candidates.join(", ")}. ` +
+        `The ERP schema has changed again — update the candidate list.`,
+    );
+  }
+  return found;
+}
+
+/** Test seam: forget cached schemas so a test can vary them. */
+export function resetOdooSchemaCache(): void {
+  modelFieldCache.clear();
+}
+
+/**
+ * The label half of a many2one value. Odoo returns those as `[id, "Units"]`,
+ * or `false` when unset — indexing `[1]` on the false is a classic crash.
+ */
+export function odooRelationLabel(
+  record: Record<string, unknown>,
+  field: string,
+): string | null {
+  const value = record[field];
+  return Array.isArray(value) ? String(value[1]) : null;
+}
