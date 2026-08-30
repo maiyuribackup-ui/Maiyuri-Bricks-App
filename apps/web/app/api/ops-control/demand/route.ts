@@ -7,15 +7,21 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   commitmentStatus,
   revisionStatus,
-  coverageStatus,
+  computeCoverage,
+  computeReadiness,
   remainingQty,
 } from "@/lib/ops-control/fulfilment";
 import { SCHEDULE_ROLES } from "@/lib/ops-control/schedules";
+import {
+  loadReservationsBySoLine,
+  operationalToday,
+} from "@/lib/ops-control/inventory-service";
 
 // GET /api/ops-control/demand — the open Sales Order backlog (PRD §9.1).
 // Active demand lines joined with their schedules; three status dimensions
-// per line. Coverage is 'not_evaluated' until Phase 3 supplies reservation
-// data — absence of information is not presented as bad news.
+// per line. Coverage and readiness are reported separately and deliberately:
+// a line can be fully covered by stock that is still curing, which is 100%
+// covered and 0% ready — collapsing them would be wrong by a week (PRD §4).
 export async function GET(request: NextRequest) {
   const auth = await requireProductionRole(request, SCHEDULE_ROLES);
   if (auth.errorResponse) return auth.errorResponse;
@@ -76,6 +82,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Reservations decide coverage and readiness. Production allocations are
+    // Phase 4; until they exist, allocated is genuinely zero rather than
+    // unknown, so coverage is real information now.
+    const today = operationalToday();
+    const reservationsByLine = await loadReservationsBySoLine(
+      (lines ?? []).map((l) => l.id as string),
+    );
+
     const sumFor = (version: VersionRow | undefined, soLineId: string) =>
       version?.oc_delivery_schedule_lines
         .filter((l) => l.so_line_id === soLineId)
@@ -103,6 +117,17 @@ export async function GET(request: NextRequest) {
 
       const qtyOrdered = Number(l.qty_ordered);
       const qtyDelivered = Number(l.qty_delivered);
+      const reservations = reservationsByLine.get(l.id as string) ?? [];
+      const reserved = reservations
+        .filter((r) => r.status === "active")
+        .reduce((sum, r) => sum + r.quantity, 0);
+      const coverage = computeCoverage({
+        qtyOrdered,
+        qtyDelivered,
+        reserved,
+        productionAllocated: 0,
+      });
+      const readiness = computeReadiness(reservations, coverage.remaining, today);
       return {
         ...l,
         remaining: remainingQty(qtyOrdered, qtyDelivered),
@@ -117,7 +142,13 @@ export async function GET(request: NextRequest) {
           openVersionStatus: openStatus,
         }),
         revision_status: revisionStatus(openStatus),
-        coverage_status: coverageStatus(null), // Phase 3 supplies real inputs
+        coverage_status: coverage.status,
+        reserved_qty: coverage.reserved,
+        uncovered_qty: coverage.uncovered,
+        ready_now: readiness.readyNow,
+        curing_qty: readiness.curing,
+        ready_from: readiness.readyFrom,
+        fully_ready: readiness.fullyReady,
       };
     });
 
