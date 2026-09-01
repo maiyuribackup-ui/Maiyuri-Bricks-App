@@ -330,6 +330,7 @@ export async function checkWorkerPipeline(): Promise<HealthCheckResult> {
       .from('call_recordings')
       .select('*', { count: 'exact', head: true })
       .in('processing_status', ['pending', 'failed'])
+      .neq('phone_number', 'PENDING')
       .lt('retry_count', 3);
 
     if (queueError) throw queueError;
@@ -339,6 +340,8 @@ export async function checkWorkerPipeline(): Promise<HealthCheckResult> {
       .from('call_recordings')
       .select('*', { count: 'exact', head: true })
       .eq('processing_status', 'failed')
+      .neq('phone_number', 'PENDING')
+      .lt('retry_count', 3)
       .gte('updated_at', oneDayAgo);
 
     if (recentFailureError) throw recentFailureError;
@@ -356,6 +359,7 @@ export async function checkWorkerPipeline(): Promise<HealthCheckResult> {
       .from('call_recordings')
       .select('created_at')
       .eq('processing_status', 'pending')
+      .neq('phone_number', 'PENDING')
       .order('created_at', { ascending: true })
       .limit(1)
       .single();
@@ -378,6 +382,11 @@ export async function checkWorkerPipeline(): Promise<HealthCheckResult> {
       responseTimeMs,
       metadata: {
         ...counts,
+        // Transitional aliases for dashboards built against the v1 metadata
+        // shape. Their values now represent the live/actionable equivalents.
+        pendingCount: counts.actionableQueueCount,
+        failedCount: counts.recentFailureCount,
+        metadataSchemaVersion: 2,
         oldestPendingAgeMs: oldestAge,
         oldestPendingAgeHours: oldestAge ? (oldestAge / (1000 * 60 * 60)).toFixed(1) : null,
       },

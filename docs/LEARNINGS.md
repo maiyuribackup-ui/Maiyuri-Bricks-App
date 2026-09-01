@@ -725,8 +725,9 @@ names, and an unauthenticated manual trigger.
 
 **Solution:** Use live-verified configurable model defaults; count unique,
 non-archived, open stale leads; separate actionable/recent worker failures from
-permanent historical failures; register only scheduled cron jobs; and require
-`CRON_SECRET` for both GET and POST triggers.
+permanent historical failures; exclude unlinked `PENDING` phone placeholders just
+as the worker does; register only scheduled cron jobs; and require `CRON_SECRET`
+for both GET and POST triggers.
 
 **Prevention Rule:** A health check must measure the current operational contract,
 not accumulated history or copied configuration. External probe IDs, scheduled-job
@@ -738,6 +739,7 @@ regression tests.
 - Verify live model defaults and environment overrides.
 - Verify overlapping stale-lead categories produce one unique total.
 - Verify old permanent failures remain visible without poisoning live health.
+- Verify unlinked voice placeholders are not counted as processable recordings.
 - Verify unauthenticated POST never invokes the health runner.
 
 **Related Bugs:** BUG-013, BUG-016

@@ -250,6 +250,7 @@ export async function checkStuckRecordings(): Promise<HealthCheckResult> {
         .from('call_recordings')
         .select('created_at', { count: 'exact' })
         .eq('processing_status', 'pending')
+        .neq('phone_number', 'PENDING')
         .lt('created_at', oneHourAgo)
         .order('created_at', { ascending: true })
         .limit(1);

@@ -20,6 +20,15 @@ describe("health monitoring policy", () => {
     ).toEqual({ anthropic: "claude-test", gemini: "gemini-test" });
   });
 
+  it("falls back to safe defaults for blank model overrides", () => {
+    expect(
+      getHealthModels({
+        HEALTH_ANTHROPIC_MODEL: "  ",
+        HEALTH_GEMINI_MODEL: "",
+      }),
+    ).toEqual(DEFAULT_HEALTH_MODELS);
+  });
+
   it("does not let historical permanent failures keep the live worker unhealthy", () => {
     expect(
       getWorkerPipelineStatus({

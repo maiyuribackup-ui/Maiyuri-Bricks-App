@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const results: Array<{ count: number | null; error: Error | null }> = [];
 const calls: Array<{ method: string; args: unknown[]; query: number }> = [];
@@ -29,6 +29,12 @@ beforeEach(() => {
   results.length = 0;
   calls.length = 0;
   queryIndex = 0;
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-09-01T00:00:00.000Z"));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("checkStaleLeads", () => {
@@ -59,8 +65,13 @@ describe("checkStaleLeads", () => {
         query: index,
       });
     }
-    expect(calls.some((call) => call.query === 2 && call.method === "or")).toBe(
-      true,
-    );
+    expect(calls).toContainEqual({
+      method: "or",
+      args: [
+        "and(lead_temperature.eq.hot,updated_at.lt.2026-08-29T00:00:00.000Z)," +
+          "and(lead_status.eq.follow_up_scheduled,updated_at.lt.2026-08-25T00:00:00.000Z)",
+      ],
+      query: 2,
+    });
   });
 });

@@ -14,10 +14,12 @@ type HealthModelEnvironment = Record<string, string | undefined> & {
 export function getHealthModels(
   environment: HealthModelEnvironment = process.env,
 ): { anthropic: string; gemini: string } {
+  const configuredAnthropic = environment.HEALTH_ANTHROPIC_MODEL?.trim();
+  const configuredGemini = environment.HEALTH_GEMINI_MODEL?.trim();
+
   return {
-    anthropic:
-      environment.HEALTH_ANTHROPIC_MODEL ?? DEFAULT_HEALTH_MODELS.anthropic,
-    gemini: environment.HEALTH_GEMINI_MODEL ?? DEFAULT_HEALTH_MODELS.gemini,
+    anthropic: configuredAnthropic || DEFAULT_HEALTH_MODELS.anthropic,
+    gemini: configuredGemini || DEFAULT_HEALTH_MODELS.gemini,
   };
 }
 
