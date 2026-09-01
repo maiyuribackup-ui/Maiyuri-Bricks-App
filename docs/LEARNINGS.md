@@ -726,8 +726,9 @@ names, and an unauthenticated manual trigger.
 **Solution:** Use live-verified configurable model defaults; count unique,
 non-archived, open stale leads; separate actionable/recent worker failures from
 permanent historical failures; exclude unlinked `PENDING` phone placeholders just
-as the worker does; register only scheduled cron jobs; and require `CRON_SECRET`
-for both GET and POST triggers.
+as the worker does; register only scheduled cron jobs; require `CRON_SECRET` for
+both GET and POST triggers; and use authenticated `type=manual&notify=false` for
+production verification that must not send Telegram reports or alert side effects.
 
 **Prevention Rule:** A health check must measure the current operational contract,
 not accumulated history or copied configuration. External probe IDs, scheduled-job

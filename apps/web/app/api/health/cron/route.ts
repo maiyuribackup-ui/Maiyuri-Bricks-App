@@ -47,8 +47,13 @@ async function handleHealthCron(request: NextRequest) {
     // Determine run type from query param or time of day
     const typeParam = request.nextUrl.searchParams.get('type');
     const runType = resolveRunType(typeParam);
+    const silentManualRun =
+      runType === 'manual' &&
+      request.nextUrl.searchParams.get('notify') === 'false';
 
-    const result = await runHealthCheck(runType);
+    const result = silentManualRun
+      ? await runHealthCheck(runType, { notificationsEnabled: false })
+      : await runHealthCheck(runType);
 
     return NextResponse.json({
       success: true,
