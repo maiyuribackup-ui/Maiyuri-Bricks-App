@@ -17,6 +17,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import nodemailer from 'nodemailer';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { HealthCheckResult, THRESHOLDS } from '../types';
+import { getHealthModels, getWorkerPipelineStatus } from '../policy';
 
 /**
  * Helper function to race a promise against a timeout
@@ -141,8 +142,9 @@ export async function checkAnthropic(): Promise<HealthCheckResult> {
 
     const anthropic = new Anthropic({ apiKey });
 
+    const model = getHealthModels().anthropic;
     const checkPromise = anthropic.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model,
       max_tokens: 1,
       messages: [{ role: 'user', content: 'hi' }],
     });
@@ -207,8 +209,9 @@ export async function checkGemini(): Promise<HealthCheckResult> {
       };
     }
 
+    const modelName = getHealthModels().gemini;
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+    const model = genAI.getGenerativeModel({ model: modelName });
 
     const checkPromise = model.generateContent('hi');
 
@@ -224,7 +227,7 @@ export async function checkGemini(): Promise<HealthCheckResult> {
       status,
       responseTimeMs,
       metadata: {
-        model: 'gemini-2.0-flash-lite',
+        model: modelName,
         response: response.response.text().substring(0, 50), // First 50 chars
       },
     };
@@ -321,23 +324,34 @@ export async function checkWorkerPipeline(): Promise<HealthCheckResult> {
   try {
     const supabase = getSupabaseAdmin();
 
-    // Query for pending recordings
-    const { count: pendingCount, error: pendingError } = await supabase
+    // Actionable queue: pending and retryable failed recordings. Permanent
+    // historical failures remain visible but do not define live worker health.
+    const { count: actionableQueueCount, error: queueError } = await supabase
       .from('call_recordings')
       .select('*', { count: 'exact', head: true })
-      .eq('processing_status', 'pending');
+      .in('processing_status', ['pending', 'failed'])
+      .lt('retry_count', 3);
 
-    if (pendingError) throw pendingError;
+    if (queueError) throw queueError;
 
-    // Query for failed recordings
-    const { count: failedCount, error: failedError } = await supabase
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count: recentFailureCount, error: recentFailureError } = await supabase
       .from('call_recordings')
       .select('*', { count: 'exact', head: true })
-      .eq('processing_status', 'failed');
+      .eq('processing_status', 'failed')
+      .gte('updated_at', oneDayAgo);
 
-    if (failedError) throw failedError;
+    if (recentFailureError) throw recentFailureError;
 
-    // Get oldest pending recording to check staleness
+    const { count: permanentFailureCount, error: permanentFailureError } = await supabase
+      .from('call_recordings')
+      .select('*', { count: 'exact', head: true })
+      .eq('processing_status', 'failed')
+      .gte('retry_count', 3);
+
+    if (permanentFailureError) throw permanentFailureError;
+
+    // Get oldest pending recording to show live queue staleness.
     const { data: oldestPending, error: oldestError } = await supabase
       .from('call_recordings')
       .select('created_at')
@@ -346,30 +360,16 @@ export async function checkWorkerPipeline(): Promise<HealthCheckResult> {
       .limit(1)
       .single();
 
-    // Don't throw if no pending records found
     const oldestAge = oldestPending && !oldestError
       ? Date.now() - new Date(oldestPending.created_at).getTime()
       : null;
-
     const responseTimeMs = Date.now() - startTime;
-
-    // Determine health status based on thresholds
-    let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
-
-    const pending = pendingCount ?? 0;
-    const failed = failedCount ?? 0;
-
-    if (
-      pending > THRESHOLDS.worker.unhealthyPending ||
-      failed > THRESHOLDS.worker.unhealthyFailed
-    ) {
-      status = 'unhealthy';
-    } else if (
-      pending >= THRESHOLDS.worker.degradedPending ||
-      failed >= THRESHOLDS.worker.degradedFailed
-    ) {
-      status = 'degraded';
-    }
+    const counts = {
+      actionableQueueCount: actionableQueueCount ?? 0,
+      recentFailureCount: recentFailureCount ?? 0,
+      permanentFailureCount: permanentFailureCount ?? 0,
+    };
+    const status = getWorkerPipelineStatus(counts);
 
     return {
       checkName,
@@ -377,8 +377,7 @@ export async function checkWorkerPipeline(): Promise<HealthCheckResult> {
       status,
       responseTimeMs,
       metadata: {
-        pendingCount: pending,
-        failedCount: failed,
+        ...counts,
         oldestPendingAgeMs: oldestAge,
         oldestPendingAgeHours: oldestAge ? (oldestAge / (1000 * 60 * 60)).toFixed(1) : null,
       },

@@ -65,31 +65,54 @@ export async function checkStaleLeads(): Promise<HealthCheckResult> {
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-      // Count hot leads stale for 3+ days
+      // Category counts remain useful for diagnosis. Every query excludes
+      // archived/won/lost records so the alert represents actionable leads.
       const { count: hotStale, error: hotError } = await supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
         .eq('lead_temperature', 'hot')
-        .lt('updated_at', threeDaysAgo);
+        .lt('updated_at', threeDaysAgo)
+        .eq('is_archived', false)
+        .not('pipeline_stage', 'in', '(order_won,closed_lost)');
 
       if (hotError) throw hotError;
 
-      // Count follow_up leads stale for 7+ days
       const { count: followupStale, error: followupError } = await supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
         .eq('lead_status', 'follow_up_scheduled')
-        .lt('updated_at', sevenDaysAgo);
+        .lt('updated_at', sevenDaysAgo)
+        .eq('is_archived', false)
+        .not('pipeline_stage', 'in', '(order_won,closed_lost)');
 
       if (followupError) throw followupError;
+
+      // One OR count supplies the unique total. Summing the categories double
+      // counted leads that were both hot and follow-up scheduled.
+      const { count: uniqueStale, error: uniqueError } = await supabase
+        .from('leads')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_archived', false)
+        .not('pipeline_stage', 'in', '(order_won,closed_lost)')
+        .or(
+          `and(lead_temperature.eq.hot,updated_at.lt.${threeDaysAgo}),` +
+            `and(lead_status.eq.follow_up_scheduled,updated_at.lt.${sevenDaysAgo})`
+        );
+
+      if (uniqueError) throw uniqueError;
 
       return {
         hotStale: hotStale ?? 0,
         followupStale: followupStale ?? 0,
+        uniqueStale: uniqueStale ?? 0,
       };
     });
 
-    const totalStale = result.hotStale + result.followupStale;
+    const totalStale = result.uniqueStale;
+    const categoryOverlap = Math.max(
+      0,
+      result.hotStale + result.followupStale - totalStale
+    );
     const status = getStatusFromCount(
       totalStale,
       THRESHOLDS.staleLeads.degradedCount,
@@ -105,6 +128,7 @@ export async function checkStaleLeads(): Promise<HealthCheckResult> {
         hot_stale: result.hotStale,
         followup_stale: result.followupStale,
         total_stale: totalStale,
+        category_overlap: categoryOverlap,
       },
     };
   } catch (error) {

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   return handleHealthCron(request);
 }
 
-// Also support POST for manual triggers (no auth required)
+// Also support POST for authenticated manual triggers.
 export async function POST(request: NextRequest) {
   return handleHealthCron(request);
 }
@@ -31,11 +31,7 @@ async function handleHealthCron(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
-  // Allow manual triggers via POST without auth
-  const isManualTrigger = request.method === 'POST';
-  const requiresAuth = cronSecret && !isManualTrigger;
-
-  if (!cronSecret && process.env.NODE_ENV === 'production' && !isManualTrigger) {
+  if (!cronSecret && process.env.NODE_ENV === 'production') {
     console.error('[HealthCron] CRON_SECRET not configured');
     return NextResponse.json(
       { error: 'Cron not configured' },
@@ -43,7 +39,7 @@ async function handleHealthCron(request: NextRequest) {
     );
   }
 
-  if (requiresAuth && authHeader !== `Bearer ${cronSecret}`) {
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -51,8 +47,6 @@ async function handleHealthCron(request: NextRequest) {
     // Determine run type from query param or time of day
     const typeParam = request.nextUrl.searchParams.get('type');
     const runType = resolveRunType(typeParam);
-
-    console.log(`[HealthCron] Starting ${runType} health check...`);
 
     const result = await runHealthCheck(runType);
 
