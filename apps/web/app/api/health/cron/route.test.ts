@@ -55,6 +55,22 @@ describe("/api/health/cron authorization", () => {
     expect(runHealthCheck).toHaveBeenCalledWith("manual");
   });
 
+  it("supports an authenticated silent manual trigger", async () => {
+    const silentRequest = new NextRequest(
+      "http://localhost/api/health/cron?type=manual&notify=false",
+      {
+        method: "POST",
+        headers: { authorization: "Bearer test-secret" },
+      },
+    );
+
+    const response = await POST(silentRequest);
+    expect(response.status).toBe(200);
+    expect(runHealthCheck).toHaveBeenCalledWith("manual", {
+      notificationsEnabled: false,
+    });
+  });
+
   it("fails closed in production when CRON_SECRET is missing", async () => {
     vi.stubEnv("CRON_SECRET", "");
     vi.stubEnv("NODE_ENV", "production");
