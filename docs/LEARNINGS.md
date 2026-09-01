@@ -704,6 +704,48 @@ async function checkSchema(): Promise<SchemaHealth> {
 
 ---
 
+### [2026-09-01] BUG-018: MONITORING - Health Checks Drifted From Live Systems
+
+**Severity:** Critical (false outages hid a real operational backlog)
+**Files Affected:**
+
+- `apps/web/src/lib/health/checks/external-services.ts`
+- `apps/web/src/lib/health/checks/business-logic.ts`
+- `apps/web/src/lib/health/types.ts`
+- `apps/web/app/api/health/cron/route.ts`
+
+**Context:** The morning monitor reported AI providers down, 545 stale leads,
+29 worker failures, and several stale cron jobs while the main production health
+endpoint and both AI providers were actually available.
+
+**Root Cause:** Monitoring encoded historical assumptions instead of current
+operational contracts: retired model IDs, overlapping lead counts without open
+pipeline filters, all-time worker failures treated as live failures, retired cron
+names, and an unauthenticated manual trigger.
+
+**Solution:** Use live-verified configurable model defaults; count unique,
+non-archived, open stale leads; separate actionable/recent worker failures from
+permanent historical failures; exclude unlinked `PENDING` phone placeholders just
+as the worker does; register only scheduled cron jobs; and require `CRON_SECRET`
+for both GET and POST triggers.
+
+**Prevention Rule:** A health check must measure the current operational contract,
+not accumulated history or copied configuration. External probe IDs, scheduled-job
+registries, business scopes, time windows, and trigger authorization all require
+regression tests.
+
+**Test Case:**
+
+- Verify live model defaults and environment overrides.
+- Verify overlapping stale-lead categories produce one unique total.
+- Verify old permanent failures remain visible without poisoning live health.
+- Verify unlinked voice placeholders are not counted as processable recordings.
+- Verify unauthenticated POST never invokes the health runner.
+
+**Related Bugs:** BUG-013, BUG-016
+
+---
+
 ### [2026-08-30] BUG-017: UX - A Write API With No Form Is a Feature That Cannot Be Used
 
 **Severity:** High (silently disables a whole module; looks like a data problem)
