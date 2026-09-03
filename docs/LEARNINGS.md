@@ -897,6 +897,25 @@ Truth table for the required check, verified by reasoning over the job graph:
 
 ---
 
+### [2026-09-03] BUG-019: WORKFLOW - Lead Stage Changed Without Refreshing the Follow-up Task
+
+**Severity:** High
+**Files Affected:** `apps/web/app/api/leads/[id]/route.ts`, `supabase/migrations/20260903120000_lead_stage_progression_tasks.sql`
+
+**Context:** Leads advanced into quote, proof, decision, and finalisation stages while retaining stale follow-up dates and without a stage-owned My Work item.
+
+**Mistake:** Stage milestones and notifications were handled in the web route, but next-action ownership was not synchronized. Any write path outside that route could bypass future UI-only automation.
+
+**Root Cause:** Pipeline state and task accountability were separate mutable records with no database invariant connecting them.
+
+**Prevention Rule:** Cross-channel workflow side effects belong in an idempotent database trigger: one open task per source record, refreshed on progression, reassigned with the record owner, and cancelled at terminal states.
+
+**Test Case:** `supabase/tests/lead_stage_progression.sql` runs the migration against PostgreSQL 16 and covers stale-date repair, explicit-date preservation, deduplication, reassignment, terminal cancellation, reopening, and unassigned ownership.
+
+**Related Coding Principle:** [DEPLOY-001: Always Apply Migrations Before Code Deployment]
+
+---
+
 ## Prevention Checklist
 
 ### Before Writing Code

@@ -68,6 +68,12 @@ jobs:
         env:
           CI: true
 
+      # Stage progression is enforced by PostgreSQL triggers so it can cover
+      # web, mobile, AI, and integration writes. Exercise the real migration
+      # against PostgreSQL rather than relying on a source-text assertion.
+      - name: Lead stage progression database regression
+        run: scripts/test-lead-stage-progression.sh
+
       # `tsc --noEmit` does NOT cover everything `next build` checks. Next
       # generates route types into .next/types during the build and validates
       # them there, so an illegal route export — exporting a helper from a
