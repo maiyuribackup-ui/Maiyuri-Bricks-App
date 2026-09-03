@@ -704,6 +704,218 @@ async function checkSchema(): Promise<SchemaHealth> {
 
 ---
 
+### [2026-09-01] BUG-018: MONITORING - Health Checks Drifted From Live Systems
+
+**Severity:** Critical (false outages hid a real operational backlog)
+**Files Affected:**
+
+- `apps/web/src/lib/health/checks/external-services.ts`
+- `apps/web/src/lib/health/checks/business-logic.ts`
+- `apps/web/src/lib/health/types.ts`
+- `apps/web/app/api/health/cron/route.ts`
+
+**Context:** The morning monitor reported AI providers down, 545 stale leads,
+29 worker failures, and several stale cron jobs while the main production health
+endpoint and both AI providers were actually available.
+
+**Root Cause:** Monitoring encoded historical assumptions instead of current
+operational contracts: retired model IDs, overlapping lead counts without open
+pipeline filters, all-time worker failures treated as live failures, retired cron
+names, and an unauthenticated manual trigger.
+
+**Solution:** Use live-verified configurable model defaults; count unique,
+non-archived, open stale leads; separate actionable/recent worker failures from
+permanent historical failures; exclude unlinked `PENDING` phone placeholders just
+as the worker does; register only scheduled cron jobs; require `CRON_SECRET` for
+both GET and POST triggers; and use authenticated `type=manual&notify=false` for
+production verification that must not send Telegram reports or alert side effects.
+
+**Prevention Rule:** A health check must measure the current operational contract,
+not accumulated history or copied configuration. External probe IDs, scheduled-job
+registries, business scopes, time windows, and trigger authorization all require
+regression tests.
+
+**Test Case:**
+
+- Verify live model defaults and environment overrides.
+- Verify overlapping stale-lead categories produce one unique total.
+- Verify old permanent failures remain visible without poisoning live health.
+- Verify unlinked voice placeholders are not counted as processable recordings.
+- Verify unauthenticated POST never invokes the health runner.
+
+**Related Bugs:** BUG-013, BUG-016
+
+---
+
+### [2026-08-30] BUG-017: UX - A Write API With No Form Is a Feature That Cannot Be Used
+
+**Severity:** High (silently disables a whole module; looks like a data problem)
+**Files Affected:**
+
+- `apps/web/app/(dashboard)/ops/masters/page.tsx`
+
+**What Happened:**
+
+Phase 1 shipped `POST /api/ops-control/masters/activity-rates` and
+`POST .../consumption-standards`, both tested, both role-gated, both working.
+The Masters screen rendered those tables read-only. Nothing anywhere in the
+application could create a rate or a standard.
+
+Nothing failed. No error, no red state, no test failure — the API tests passed
+because they call the route directly. The consequences only appeared two phases
+later, and they looked like unrelated data problems:
+
+- Every cement ratio evaluated to `not_evaluated` (Phase 4). Read as "the
+  business has not supplied ratios yet."
+- The labour ledger stayed empty (Phase 6). Read as "no rates configured yet."
+
+Both readings were true and both were unfixable, because there was no way to
+supply the missing values. The Phase 6 screen even told the user to "add the
+rate in Masters" — pointing at a screen with no form.
+
+**Root Cause:**
+
+The empty-state copy was written to explain a *business* gap ("rates must be
+entered by the business") and was accepted as covering a *product* gap. An
+empty state that explains why a table is empty reads exactly like an empty
+state that is missing the control to fill it.
+
+Underlying it: the phase was verified by testing the API and the database, not
+by walking the screen a real user would use. That is the same miss as the
+Phase 4 production screen, which shipped with no way to create a plan line.
+
+**Fix:**
+
+Entry forms on both panels, plus a "close period" action so an effective-dated
+rate can be superseded without tripping the no-overlap EXCLUDE constraint.
+
+**Prevention:**
+
+- For any route that accepts a write, ask: **what does a user click to reach
+  it?** If the answer is "nothing", the feature is not shipped.
+- Verify a phase by walking the journey end to end as the role who does the
+  job, not by exercising the routes. Route tests prove the server is correct;
+  they cannot prove the server is reachable.
+- Treat an empty state as suspicious. "No X configured yet" is only honest if
+  the same screen offers the way to configure one.
+- A screen that tells the user to go somewhere else must link there, and that
+  destination must have the control it promises.
+
+**Related Bugs:** None
+**Related Coding Principle:** [UX-001: A Feature Is Shipped When a User Can Reach It]
+
+---
+
+### [2026-08-30] BUG-016: CI - A Skipped Required Check Counts as a Passing One
+
+**Severity:** Critical (defeats the merge control that exists to prevent BUG-013)
+**Files Affected:**
+
+- `.github/workflows/migration-gate.yml`
+
+**Context:** The Migration Gate was added after BUG-013 recurred twice, to make
+"schema reaches production before code merges" a machine-enforced rule rather
+than something a human remembers. It ran, correctly failed a PR whose migration
+was unapplied — and then went green.
+
+**Mistake:** Putting an `if:` condition on the job that reports the REQUIRED
+status check. The condition skipped the job on a PR `edited` event (a guard
+copied from `ci.yml`, where it saves a full install-and-test cycle on a title
+edit). Editing PR #170's DESCRIPTION produced a `skipped` run that superseded
+the `failure`, and the PR became mergeable.
+
+**Error Message:**
+
+```
+(no error — that is the problem)
+Migration Gate  ...  failure   01:56   triggered by `opened`
+Migration Gate  ...  skipped   02:23   triggered by `edited`
+mergeable_state: unstable → clean
+```
+
+**Root Cause:**
+GitHub branch protection treats a SKIPPED required check as SATISFIED. So any
+condition on the reporting job is not a way to save CI minutes — it is a way to
+turn the gate green. The same shape hid two quieter holes: if the `detect` job
+ERRORED, or if `verify` never started, the required check was likewise skipped
+and therefore passing. A gate that cannot tell "nothing to check" from "could
+not check" is not a gate.
+
+**Prevention Rule:** The job that reports a required status check must have no
+condition other than `if: always()`. Put the conditions INSIDE it, and fail
+closed when the inputs are unknown.
+
+**Code Example:**
+
+```yaml
+# ❌ Wrong — the required check can be skipped, and skipped means passing
+verify:
+  name: Production Schema Ready      # the required context
+  if: needs.detect.outputs.has_migrations == 'true'
+
+# ✅ Correct — always runs, decides internally, fails closed
+gate:
+  name: Production Schema Ready      # the required context
+  needs: [detect, verify]
+  if: always()
+  steps:
+    - run: |
+        # unknown is not the same as "nothing to verify"
+        [ "$DETECT_RESULT" = "success" ] || exit 1
+        [ "$HAS_MIGRATIONS" = "true" ] || exit 0
+        [ "$VERIFY_RESULT" = "success" ] || exit 1
+```
+
+**Solution:**
+
+1. Split the work (`detect`, `verify`) from the REPORTING of the required check
+   (`gate`), and require the gate's name in branch protection.
+2. Give the gate `if: always()` so it runs even when its dependencies failed or
+   were skipped.
+3. Fail closed: a `detect` job that did not succeed means the schema state is
+   unknown, which is a failure, not a pass.
+
+**Test Case:**
+
+```
+Truth table for the required check, verified by reasoning over the job graph:
+
+  event / condition                 detect    has_mig   verify    gate
+  --------------------------------  --------  --------  --------  ------
+  no migrations in the PR           success   false     skipped   PASS
+  migrations, not yet applied       success   true      failure   FAIL
+  migrations, applied               success   true      success   PASS
+  description edited, not applied   success   true      failure   FAIL  ← the bug
+  detect job errors                 failure   —         skipped   FAIL  ← fail closed
+  verify cannot reach production    success   true      failure   FAIL
+  workflow never triggered          —         —         —         check not reported;
+                                                                  branch protection blocks
+```
+
+**Related Bugs:** BUG-013 (this control exists because of it)
+**Related Coding Principle:** [DEPLOY-001: Always Apply Migrations Before Code Deployment]
+
+---
+
+### [2026-09-03] BUG-019: WORKFLOW - Lead Stage Changed Without Refreshing the Follow-up Task
+
+**Severity:** High
+**Files Affected:** `apps/web/app/api/leads/[id]/route.ts`, `supabase/migrations/20260903120000_lead_stage_progression_tasks.sql`
+
+**Context:** Leads advanced into quote, proof, decision, and finalisation stages while retaining stale follow-up dates and without a stage-owned My Work item.
+
+**Mistake:** Stage milestones and notifications were handled in the web route, but next-action ownership was not synchronized. Any write path outside that route could bypass future UI-only automation.
+
+**Root Cause:** Pipeline state and task accountability were separate mutable records with no database invariant connecting them.
+
+**Prevention Rule:** Cross-channel workflow side effects belong in an idempotent database trigger: one open task per source record, refreshed on progression, reassigned with the record owner, and cancelled at terminal states.
+
+**Test Case:** `supabase/tests/lead_stage_progression.sql` runs the migration against PostgreSQL 16 and covers stale-date repair, explicit-date preservation, deduplication, reassignment, terminal cancellation, reopening, and unassigned ownership.
+
+**Related Coding Principle:** [DEPLOY-001: Always Apply Migrations Before Code Deployment]
+
+---
+
 ## Prevention Checklist
 
 ### Before Writing Code
@@ -813,7 +1025,7 @@ When a bug is found, add it using this template:
 | Month | Bugs Found | Bugs Prevented | Prevention Rate |
 |-------|-----------|----------------|-----------------|
 | Jan 2026 | 14 | 0 | - |
-| Feb 2026 | TBD | TBD | TBD |
+| Aug 2026 | 1 | 0 | - |
 
 ### Bug Categories (Jan 2026)
 - NULL (Null Safety): 2 (BUG-001, BUG-002)
@@ -821,7 +1033,8 @@ When a bug is found, add it using this template:
 - API (Response Handling): 1 (BUG-004)
 - REACT (Rendering): 1 (BUG-005)
 - DB (Database/Data): 4 (BUG-006, BUG-007, BUG-008, BUG-014)
-- CI (Build Configuration): 5 (BUG-009, BUG-010, BUG-011, BUG-012, BUG-013)
+- CI (Build Configuration): 6 (BUG-009, BUG-010, BUG-011, BUG-012, BUG-013, BUG-016)
+- UX (Unreachable Features): 1 (BUG-017)
 
 ### Implementation Patterns (Jan 2026)
 - PATTERN-001: Worker-to-API Auto-Trigger Pattern
@@ -957,6 +1170,51 @@ function getSupabase() {
 }
 ```
 
+---
+
+### [2026-06-06] BUG-015: API - Cookie-Only Auth on an Endpoint the Native App Calls
+
+**Severity:** Critical (App push notifications never delivered)
+**Files Affected:**
+
+- `apps/web/app/api/push/register/route.ts`
+- `apps/web/app/api/push/test/route.ts`
+- `apps/web/src/lib/native/capacitor.ts`
+
+**Context:** Registering a device's FCM token so the user can receive push
+notifications in the Android (Capacitor) app.
+
+**Mistake:** The register endpoint authenticated cookie-only
+(`createSupabaseRouteClient` → `auth.getUser()`), and the client sent the token
+with **no `Authorization` header** and no retry. The Capacitor webview manages
+the Supabase session in JS and does not reliably carry the session cookie, so
+the request returned **401**. `device_tokens` stayed empty and every send found
+zero devices — notifications silently never arrived.
+
+**Root Cause:** Auth-mechanism mismatch. The app authenticates API calls with a
+**Bearer token** from the Supabase session (see `/api/users/me`), but the push
+routes assumed a browser cookie session. Fire-and-forget registration also lost
+the token on any transient failure (e.g. token arrives before session is ready).
+
+**Prevention Rule:** Any endpoint a native/mobile client calls MUST authenticate
+via `getUserFromRequest` (Bearer **or** cookie), never cookie-only. Client-side,
+attach the session Bearer token AND retry idempotent registration with backoff.
+
+**Code Example:**
+
+```typescript
+❌ Wrong (cookie-only; 401 in the native webview):
+const supabase = createSupabaseRouteClient(request);
+const { data: { user } } = await supabase.auth.getUser();
+
+✅ Correct (Bearer or cookie):
+const user = await getUserFromRequest(request);
+if (!user) return error("Unauthorized", 401);
+```
+
+**Verification:** Settings → Notifications → "Send Test" shows live device count
+and triggers an end-to-end push. See `docs/PUSH_NOTIFICATIONS.md`.
+
 **Solution:**
 
 The centralized `supabaseAdmin` in `@/lib/supabase` has proper lazy initialization with null checks:
@@ -1002,5 +1260,5 @@ describe("Supabase Client Usage", () => {
 
 ---
 
-_Last Updated: January 21, 2026_
+_Last Updated: August 30, 2026_
 _Maintainers: Development Team_

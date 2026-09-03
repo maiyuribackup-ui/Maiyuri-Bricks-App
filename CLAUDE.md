@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Maiyuri Bricks AI Lead Management - an AI-powered lead management system for a brick manufacturing business.
 
 - **Type:** Monorepo
-- **Stack:** Next.js 14, React 18, Tailwind CSS, Supabase, Claude Code, Gemini 2.5 Flash
-- **Architecture:** Frontend + API + Shared packages + Services
+- **Stack:** Next.js 14, React 18, Tailwind CSS, Supabase, Expo SDK 54 (React Native), Odoo ERP, Claude Code, Gemini 2.5 Flash
+- **Architecture:** Web frontend (Vercel, mb.maiyuri.com) + Native Android app (Expo/EAS) + Shared packages + Odoo integration
 - **Team Size:** 3
 
 This CLAUDE.md is authoritative. Subdirectory CLAUDE.md files extend these rules.
@@ -16,7 +16,7 @@ This CLAUDE.md is authoritative. Subdirectory CLAUDE.md files extend these rules
 ## Commands
 
 ```bash
-# Development
+# Development (repo is bun-locked: bun.lock is the ONLY lockfile)
 bun dev              # Start all dev servers
 bun build            # Build packages
 bun test             # Run all tests
@@ -28,17 +28,28 @@ bun lint:fix         # Auto-fix lint issues
 bun typecheck && bun lint && bun test
 ```
 
+> **CRITICAL — lockfile rule:** CI installs with `npm ci`-style resolution but
+> the repo must contain ONLY `bun.lock`. Never commit a root
+> `package-lock.json` (npm workspace installs create one as a side effect) —
+> it makes vitest SEGFAULT (exit 139) in CI. Delete it before committing.
+>
+> `apps/native` is a standalone Expo app with its OWN `node_modules` — run its
+> commands (`npx tsc --noEmit`, `npx expo export`) from inside that directory.
+
 ## Project Structure
 
 ```
 apps/
-  web/               # Next.js frontend (see apps/web/CLAUDE.md)
-  api/               # API routes and backend (see apps/api/CLAUDE.md)
+  web/               # Next.js frontend + all API routes (see apps/web/CLAUDE.md)
+  native/            # Expo (React Native) Android app — standalone node_modules
+  api/               # CloudCore agent kernels (see apps/api/CLAUDE.md)
 packages/
   ui/                # Shared UI component library (see packages/ui/CLAUDE.md)
-  shared/            # Shared utilities and types (see packages/shared/CLAUDE.md)
+  shared/            # Shared types + zod schemas (raw-source exports; see packages/shared/CLAUDE.md)
 services/
   auth/              # Authentication service (see services/auth/CLAUDE.md)
+supabase/migrations/ # SQL migrations (applied to prod project pailepomvvwjkrhkwdqt)
+.github/workflows/   # CI + all cron jobs (digests, Odoo sync, backups — Vercel Hobby caps crons at 2)
 tests/               # E2E and integration tests (see tests/CLAUDE.md)
 ```
 
@@ -130,6 +141,7 @@ bun typecheck && bun lint && bun test
 | [TESTING.md](docs/TESTING.md) | Testing and debugging protocol |
 | [DATABASE_PATTERNS.md](docs/DATABASE_PATTERNS.md) | SQL safety and patterns |
 | [OBSERVABILITY.md](docs/OBSERVABILITY.md) | Logging and monitoring |
+| [UNIT_ECONOMICS.md](docs/UNIT_ECONOMICS.md) | Standard cost module + frozen Intelligence Layer contract |
 | [ISSUE_WORKFLOW.md](docs/ISSUE_WORKFLOW.md) | Issue fixing workflow |
 | [GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md) | Git and release process |
 
@@ -365,29 +377,15 @@ npm run test:e2e ✅
 
 ## MCP Servers (Installed)
 
-| Server | Purpose | Command |
-|--------|---------|---------|
-| **github** | GitHub issues, PRs, repos | `bunx @modelcontextprotocol/server-github` |
-| **context7** | Web search & documentation | `bunx context7-mcp` |
-| **sequential-thinking** | Complex reasoning | `bunx @modelcontextprotocol/server-sequential-thinking` |
-| **postgres** | Supabase/PostgreSQL queries | `bunx @modelcontextprotocol/server-postgres` |
-| **memory** | Persistent context storage | `bunx @modelcontextprotocol/server-memory` |
-| **filesystem** | File operations | `bunx @modelcontextprotocol/server-filesystem` |
-| **brave-search** | Web search (Brave) | `bunx @modelcontextprotocol/server-brave-search` |
-| **puppeteer** | Browser automation/E2E | `bunx @anthropic-ai/claude-code-mcp-server-puppeteer` |
+`.mcp.json` defines exactly ONE server:
 
-### Required Environment Variables for MCP
+| Server | Purpose | Auth |
+|--------|---------|------|
+| **odoo** | Odoo ERP (odoo.maiyuri.com — Odoo 19, db `t1`) — orders, invoices, stock | `ODOO_API_KEY` env var (never hardcode) |
 
-```bash
-# For postgres server
-DATABASE_URL=postgresql://...
-
-# For brave-search server
-BRAVE_API_KEY=your-key
-
-# For github server
-GITHUB_PERSONAL_ACCESS_TOKEN=your-token
-```
+The Odoo integration used by the app itself lives in
+`apps/web/src/lib/odoo-service.ts` (XML-RPC, env-only config:
+`ODOO_URL` / `ODOO_DB` / `ODOO_USER` / `ODOO_PASSWORD`).
 
 ## Anthropic SDK
 
@@ -427,12 +425,13 @@ const anthropic = new Anthropic();
 
 ## Claude Code Subagents
 
-| Agent | Purpose | Tools |
-|-------|---------|-------|
-| **TestingAgent** | Run and debug tests | Read, Bash |
-| **ReviewAgent** | Code review and quality | Read, Grep |
-| **DocsAgent** | Generate documentation | Read, Write |
-| **NullSafetyAgent** | Scan for null vulnerabilities | Grep, Read |
+Defined in `.claude/agents/`:
+
+| Agent | Purpose |
+|-------|---------|
+| **tester** | Run and debug tests |
+| **reviewer** | Code review and quality |
+| **docs** | Generate documentation |
 
 ## AI Agents (Application)
 
