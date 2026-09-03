@@ -15,14 +15,23 @@ docker run -d \
   -v "$repo_root:/repo:ro" \
   postgres:16-alpine >/dev/null
 
-for _ in $(seq 1 30); do
-  if docker exec "$container" pg_isready -U postgres >/dev/null 2>&1; then
+ready=0
+for _ in $(seq 1 60); do
+  if docker exec "$container" \
+      psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c 'SELECT 1' \
+      >/dev/null 2>&1; then
+    ready=1
     break
   fi
   sleep 1
 done
 
-docker exec "$container" pg_isready -U postgres >/dev/null
+if [ "$ready" -ne 1 ]; then
+  echo "PostgreSQL test container did not become ready" >&2
+  docker logs "$container" >&2 || true
+  exit 1
+fi
+
 docker exec "$container" \
   psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -f /repo/supabase/tests/lead_stage_progression.sql
