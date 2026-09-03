@@ -6,14 +6,20 @@ SET TIME ZONE 'Asia/Kolkata';
 
 CREATE TABLE public.users (
   id UUID PRIMARY KEY,
-  name TEXT NOT NULL
+  name TEXT NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE public.leads (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
+  contact TEXT NOT NULL DEFAULT '0000000000',
+  source TEXT NOT NULL DEFAULT 'System test',
+  lead_type TEXT NOT NULL DEFAULT 'Commercial',
   assigned_staff UUID REFERENCES public.users(id),
   pipeline_stage TEXT NOT NULL,
+  lead_status TEXT NOT NULL DEFAULT 'new_contact_pending',
   next_action TEXT,
   follow_up_date DATE,
   notes TEXT,

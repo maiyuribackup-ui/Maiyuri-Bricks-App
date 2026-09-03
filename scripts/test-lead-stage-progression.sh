@@ -26,3 +26,7 @@ docker exec "$container" pg_isready -U postgres >/dev/null
 docker exec "$container" \
   psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -f /repo/supabase/tests/lead_stage_progression.sql
+
+docker exec "$container" \
+  psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  -f /repo/supabase/tests/lead_stage_progression_smoke.sql

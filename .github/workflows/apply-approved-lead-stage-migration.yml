@@ -1,0 +1,68 @@
+name: Apply approved lead-stage migration (one-time)
+
+on:
+  pull_request:
+    branches: [main]
+    types: [synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    if: >-
+      github.event.pull_request.number == 180 &&
+      github.head_ref == 'fix/lead-stage-task-automation'
+    runs-on: ubuntu-latest
+    environment: production-schema
+    timeout-minutes: 10
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      MIGRATION: supabase/migrations/20260903120000_lead_stage_progression_tasks.sql
+      EXPECTED_SHA256: ba658dda33b55e8faa7743c0c810523ebc1d61eaadbb2093345632100ae40ccf
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fail closed unless the approved artifact is exact
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_URL"
+          actual="$(sha256sum "$MIGRATION" | cut -d' ' -f1)"
+          test "$actual" = "$EXPECTED_SHA256"
+          echo "Applying approved migration SHA-256: $actual"
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+
+      - name: Apply exact migration
+        run: psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f "$MIGRATION"
+
+      - name: Record migration in Supabase history
+        run: >-
+          npx --yes supabase@latest migration repair
+          --db-url "$SUPABASE_DB_URL"
+          --status applied
+          20260903120000
+
+      - name: Run rollback-only production smoke test
+        run: >-
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1
+          -f supabase/tests/lead_stage_progression_smoke.sql
+
+      - name: Verify migration history and trigger
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -tA <<'SQL' | tee /tmp/verify.txt
+          SELECT 'history=' || count(*)
+          FROM supabase_migrations.schema_migrations
+          WHERE version = '20260903120000'
+             OR name = 'lead_stage_progression_tasks';
+          SELECT 'trigger=' || count(*)
+          FROM pg_trigger
+          WHERE tgname = 'trg_leads_sync_stage_progression_work';
+          SQL
+          grep -qx 'history=1' /tmp/verify.txt
+          grep -qx 'trigger=1' /tmp/verify.txt
