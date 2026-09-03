@@ -927,9 +927,9 @@ Truth table for the required check, verified by reasoning over the job graph:
 
 **Root Cause:** The database invariant protected the count of open rows but not task identity across asynchronous human actions. Advisory locking coordinated lead-trigger executions only; it did not coordinate API requests already holding stale task state.
 
-**Prevention Rule:** Treat operational task occurrences as immutable generations. On source progression, lock and cancel the old occurrence with its actual prior status, then insert a fresh UUID. Enforce one currently open row with a partial unique index. Tests must simulate a stale status-guarded write against the superseded UUID and prove zero rows are changed.
+**Prevention Rule:** Treat operational task occurrences as immutable generations. On source progression, lock and cancel the old occurrence with its actual prior status and returned-task reason, then insert a fresh UUID. Preserve historical lifecycle context on the row and in cancellation-event metadata. Enforce one currently open row with a partial unique index. Tests must run a real two-session stale status-guarded write against the superseded UUID and prove zero rows are changed.
 
-**Test Case:** `supabase/tests/lead_stage_progression.sql` covers in-progress and returned supersession, prior-status audit fidelity, stale completion rejection, fresh lifecycle timestamps, and owner reassignment to a new UUID. `supabase/tests/lead_stage_progression_smoke.sql` verifies the same generation contract inside a rollback-only transaction.
+**Test Case:** `supabase/tests/lead_stage_progression.sql` covers migration reapplication, in-progress and returned supersession, prior-status/reason audit fidelity, stale completion rejection, fresh lifecycle timestamps, terminal cancellation, and owner reassignment to a new UUID. `scripts/test-lead-stage-progression.sh` adds a coordinated two-session race, and `supabase/tests/lead_stage_progression_smoke.sql` verifies the generation contract inside a rollback-only transaction.
 
 ---
 

@@ -23,6 +23,7 @@ DECLARE
   v_priority TEXT;
   v_item_id UUID;
   v_old_status TEXT;
+  v_old_return_reason TEXT;
   v_new_item_id UUID;
 BEGIN
   IF NEW.pipeline_stage IS NOT DISTINCT FROM OLD.pipeline_stage
@@ -35,8 +36,8 @@ BEGIN
   -- Terminal/unassigned transitions close every open generated occurrence.
   IF NEW.pipeline_stage IN ('order_won', 'closed_lost')
      OR NEW.assigned_staff IS NULL THEN
-    FOR v_item_id, v_old_status IN
-      SELECT id, status
+    FOR v_item_id, v_old_status, v_old_return_reason IN
+      SELECT id, status, return_reason
       FROM public.work_items
       WHERE related_lead_id = NEW.id
         AND source_module = 'lead_stage_progression'
@@ -46,11 +47,14 @@ BEGIN
       UPDATE public.work_items
       SET status = 'cancelled',
           cancelled_at = clock_timestamp(),
-          return_reason = CASE
-            WHEN NEW.assigned_staff IS NULL
-              THEN 'Cancelled automatically: lead has no assignee'
-            ELSE 'Cancelled automatically: lead reached terminal stage'
-          END,
+          return_reason = COALESCE(
+            v_old_return_reason,
+            CASE
+              WHEN NEW.assigned_staff IS NULL
+                THEN 'Cancelled automatically: lead has no assignee'
+              ELSE 'Cancelled automatically: lead reached terminal stage'
+            END
+          ),
           updated_at = clock_timestamp()
       WHERE id = v_item_id;
 
@@ -63,7 +67,8 @@ BEGIN
         jsonb_build_object(
           'automation', 'lead_stage_progression',
           'pipeline_stage', NEW.pipeline_stage,
-          'unassigned', NEW.assigned_staff IS NULL
+          'unassigned', NEW.assigned_staff IS NULL,
+          'prior_return_reason', v_old_return_reason
         )
       );
     END LOOP;
@@ -92,8 +97,8 @@ BEGIN
   -- Supersede the prior occurrence before inserting the new generation. This
   -- makes stale status-guarded writes to the old UUID fail instead of mutating
   -- the new stage/owner task.
-  SELECT id, status
-  INTO v_item_id, v_old_status
+  SELECT id, status, return_reason
+  INTO v_item_id, v_old_status, v_old_return_reason
   FROM public.work_items
   WHERE related_lead_id = NEW.id
     AND source_module = 'lead_stage_progression'
@@ -105,7 +110,10 @@ BEGIN
     UPDATE public.work_items
     SET status = 'cancelled',
         cancelled_at = clock_timestamp(),
-        return_reason = 'Cancelled automatically: superseded by lead progression',
+        return_reason = COALESCE(
+          v_old_return_reason,
+          'Cancelled automatically: superseded by lead progression'
+        ),
         updated_at = clock_timestamp()
     WHERE id = v_item_id;
 
@@ -120,7 +128,8 @@ BEGIN
         'old_pipeline_stage', OLD.pipeline_stage,
         'pipeline_stage', NEW.pipeline_stage,
         'old_assignee', OLD.assigned_staff,
-        'assignee', NEW.assigned_staff
+        'assignee', NEW.assigned_staff,
+        'prior_return_reason', v_old_return_reason
       )
     );
   END IF;

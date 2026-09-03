@@ -70,6 +70,8 @@ CREATE TABLE public.work_item_events (
 
 \ir ../migrations/20260903120000_lead_stage_progression_tasks.sql
 \ir ../migrations/20260903223000_harden_lead_stage_task_generations.sql
+-- Replacement migrations must be retry-safe during controlled deployment.
+\ir ../migrations/20260903223000_harden_lead_stage_task_generations.sql
 
 INSERT INTO public.users (id, name) VALUES
   ('00000000-0000-0000-0000-000000000001', 'Sales One'),
@@ -252,8 +254,12 @@ BEGIN
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM public.work_items
-    WHERE id = prior_id AND status = 'cancelled'
-  ) THEN RAISE EXCEPTION 'former assignee task remained actionable'; END IF;
+    WHERE id = prior_id
+      AND status = 'cancelled'
+      AND return_reason = 'Needs customer confirmation'
+  ) THEN
+    RAISE EXCEPTION 'former assignee task lost its returned lifecycle reason';
+  END IF;
   IF w.started_at IS NOT NULL
      OR w.submitted_at IS NOT NULL
      OR w.completed_at IS NOT NULL
@@ -268,14 +274,30 @@ BEGIN
       AND event_type = 'cancelled'
       AND old_status = 'returned'
       AND new_status = 'cancelled'
-  ) THEN RAISE EXCEPTION 'returned status was not preserved in audit'; END IF;
+      AND metadata ->> 'prior_return_reason' = 'Needs customer confirmation'
+  ) THEN
+    RAISE EXCEPTION 'returned lifecycle context was not preserved in audit';
+  END IF;
   IF l.next_action IS DISTINCT FROM 'Call after engineer review'
      OR l.follow_up_date IS DISTINCT FROM CURRENT_DATE + 5 THEN
     RAISE EXCEPTION 'reassignment overwrote valid action/date';
   END IF;
 END $$;
 
--- 5. Terminal stages clear stale follow-up fields and cancel the open task.
+-- 5. Terminal stages clear stale follow-up fields, cancel the open task, and
+-- retain any returned-task lifecycle reason.
+CREATE TEMP TABLE before_terminal AS
+SELECT id FROM public.work_items
+WHERE related_lead_id = '10000000-0000-0000-0000-000000000001'
+  AND source_module = 'lead_stage_progression'
+  AND status IN ('pending', 'in_progress', 'returned');
+
+UPDATE public.work_items
+SET status = 'returned',
+    returned_at = clock_timestamp(),
+    return_reason = 'Customer requested revised terms'
+WHERE id = (SELECT id FROM before_terminal);
+
 UPDATE public.leads
 SET pipeline_stage = 'order_won'
 WHERE id = '10000000-0000-0000-0000-000000000001';
@@ -290,10 +312,19 @@ BEGIN
 
   IF NOT EXISTS (
     SELECT 1 FROM public.work_items
-    WHERE related_lead_id = '10000000-0000-0000-0000-000000000001'
-      AND source_module = 'lead_stage_progression'
-      AND status = 'cancelled' AND cancelled_at IS NOT NULL
-  ) THEN RAISE EXCEPTION 'terminal stage did not cancel task'; END IF;
+    WHERE id = (SELECT id FROM before_terminal)
+      AND status = 'cancelled'
+      AND cancelled_at IS NOT NULL
+      AND return_reason = 'Customer requested revised terms'
+  ) THEN RAISE EXCEPTION 'terminal stage lost returned task history'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.work_item_events
+    WHERE work_item_id = (SELECT id FROM before_terminal)
+      AND event_type = 'cancelled'
+      AND old_status = 'returned'
+      AND new_status = 'cancelled'
+      AND metadata ->> 'prior_return_reason' = 'Customer requested revised terms'
+  ) THEN RAISE EXCEPTION 'terminal cancellation audit lost returned context'; END IF;
 END $$;
 
 -- 6. Reopening creates a new open task while preserving cancelled history.
