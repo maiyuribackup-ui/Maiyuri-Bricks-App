@@ -2184,6 +2184,20 @@ export interface CoachTodayPlanItem {
   done: boolean;
 }
 
+// AI autograding result shapes (Phase 2, Milestone 1)
+export interface ScenarioGrade {
+  score: number;
+  isCorrect: boolean;
+  feedback: string;
+  gaps: string[];
+}
+
+export interface AssignmentGrade {
+  ai_score: number;
+  ai_feedback: string;
+  suggestedStatus: "approved" | "needs_improvement";
+}
+
 // ============================================================================
 // CBS & BUDGET — Phase 1: Cost Breakdown Structure backbone
 // Tracks: cbs_master (company-wide codes), project_budgets (per-project),
