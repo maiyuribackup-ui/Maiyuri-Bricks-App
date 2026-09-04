@@ -5,6 +5,7 @@
  * Also extracts lead details for auto-populating lead records.
  */
 
+import { generateTextWithFallback } from "@/lib/ai/text-fallback";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
 import { traceAiGeneration } from "@/lib/observability/langfuse";
@@ -16,6 +17,9 @@ import type {
   ProductInterest,
 } from "./types";
 
+// Retained for analyzeCallCombined (added on main), which calls Gemini directly.
+// The fallback-migrated functions (analyzeTranscript, extractLeadDetails) use
+// generateTextWithFallback instead.
 function getGeminiClient() {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) {
@@ -32,8 +36,6 @@ export async function analyzeTranscript(
   phoneNumber: string,
   leadName?: string,
 ): Promise<AnalysisResult> {
-  const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
 
   const prompt = `You are a sales intelligence analyst for Maiyuri Bricks, a company that manufactures eco-friendly compressed earth blocks (CSEB/interlocking bricks).
 
@@ -73,9 +75,11 @@ ${transcript}`;
       input: { transcript, phoneNumber, leadName },
       metadata: { module: "call_recording", step: "analyze_transcript" },
       run: async () => {
-        const result = await model.generateContent(prompt);
-        const output = result.response.text();
-        return { output, value: output };
+        // Keep both intents: Gemini→DeepSeek fallback (#49), wrapped in the
+        // Langfuse trace (main). Fallback picks the provider internally.
+        const out = await generateTextWithFallback(prompt);
+        if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
+        return { output: out.text, value: out.text };
       },
     });
 
@@ -148,8 +152,6 @@ export async function extractLeadDetails(
   phoneNumber: string,
   leadName?: string,
 ): Promise<ExtractedLeadDetails> {
-  const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
 
   const prompt = `You are analyzing a sales call transcript for Maiyuri Bricks (CSEB/interlocking brick manufacturer in Tamil Nadu, India).
 
@@ -209,9 +211,9 @@ ${transcript}`;
       input: { transcript, phoneNumber, leadName },
       metadata: { module: "call_recording", step: "extract_lead_details" },
       run: async () => {
-        const result = await model.generateContent(prompt);
-        const output = result.response.text();
-        return { output, value: output };
+        const out = await generateTextWithFallback(prompt);
+        if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
+        return { output: out.text, value: out.text };
       },
     });
 
