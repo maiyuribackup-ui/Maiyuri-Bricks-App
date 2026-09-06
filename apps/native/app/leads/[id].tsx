@@ -11,9 +11,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useLead } from '@/hooks/use-leads';
+import { useLead, useUpdateLead } from '@/hooks/use-leads';
 import { useAddNote, useLeadNotes } from '@/hooks/use-notes';
 import { usePromiseDate, useProductParams } from '@/hooks/use-ops-planning';
+import { useLeadCallRecordings, useLeadOdooSyncLogs } from '@/hooks/use-lead-activity';
 import { QuotePricingEditor } from '@/components/QuotePricingEditor';
 import {
   getQuoteReadiness,
@@ -303,11 +304,151 @@ function PromiseSection() {
   );
 }
 
-function NotesSection({ leadId }: { leadId: string }) {
-  const { data, isLoading } = useLeadNotes(leadId);
+
+type ActivityFilter = 'all' | 'notes' | 'calls' | 'syncs';
+
+type NoteItem = NonNullable<ReturnType<typeof useLeadNotes>['data']>['data'][number];
+type CallRecordingItem = NonNullable<ReturnType<typeof useLeadCallRecordings>['data']>['data'][number];
+type SyncLogItem = NonNullable<ReturnType<typeof useLeadOdooSyncLogs>['data']>[number];
+type TimelineActivity =
+  | { type: 'note'; id: string; timestamp: Date; data: NoteItem }
+  | { type: 'call'; id: string; timestamp: Date; data: CallRecordingItem }
+  | { type: 'sync'; id: string; timestamp: Date; data: SyncLogItem };
+
+function formatTime(value: Date) {
+  return value.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatDateGroup(value: Date) {
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  if (sameDay(value, today)) return 'Today';
+  if (sameDay(value, yesterday)) return 'Yesterday';
+  return value.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function formatDuration(seconds: number | null | undefined) {
+  if (!seconds) return '--:--';
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+function languageLabel(lang: string | null | undefined) {
+  if (!lang) return null;
+  const key = lang.toLowerCase();
+  if (key === 'ta-en' || key === 'en-ta') return 'Tamil-English';
+  if (key === 'ta') return 'Tamil';
+  if (key === 'en') return 'English';
+  if (key === 'hi') return 'Hindi';
+  return lang;
+}
+
+function FilterPill({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className={`mr-2 rounded-full px-3 py-1.5 ${active ? 'bg-ink' : 'border border-slate-200 bg-white'}`}
+    >
+      <Text className={`text-xs font-semibold ${active ? 'text-white' : 'text-slate-600'}`}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function CallRecordingTimelineCard({ recording }: { recording: CallRecordingItem }) {
+  const [showTranscript, setShowTranscript] = useState(false);
+  const [showInsights, setShowInsights] = useState(false);
+  const insights = recording.ai_insights ?? {};
+  const insightItems = [
+    ...(insights.positive_signals ?? []).map((text) => `✅ ${text}`),
+    ...(insights.complaints ?? []).map((text) => `⚠️ ${text}`),
+    ...(insights.negative_feedback ?? []).map((text) => `😕 ${text}`),
+    ...(insights.negotiation_signals ?? []).map((text) => `💰 ${text}`),
+    ...(insights.price_expectations ?? []).map((text) => `💵 ${text}`),
+    ...(insights.recommended_actions ?? []).map((text) => `🎯 ${text}`),
+  ];
+
+  return (
+    <View className="rounded-xl border border-slate-200 bg-white">
+      <View className="border-b border-slate-100 p-3">
+        <View className="flex-row flex-wrap items-center gap-2">
+          <Text className="text-base font-bold text-ink">📞 {recording.phone_number}</Text>
+          <Text className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">⏱ {formatDuration(recording.duration_seconds)}</Text>
+          {languageLabel(recording.transcription_language) ? (
+            <Text className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">🌐 {languageLabel(recording.transcription_language)}</Text>
+          ) : null}
+          {recording.ai_insights?.sentiment ? (
+            <Text className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">🙂 {recording.ai_insights.sentiment}</Text>
+          ) : null}
+        </View>
+      </View>
+
+      {recording.mp3_gdrive_url ? (
+        <Pressable
+          onPress={() => Linking.openURL(recording.mp3_gdrive_url!)}
+          className="border-b border-slate-100 bg-slate-50 p-3 active:opacity-70"
+        >
+          <Text className="text-sm font-semibold text-blue-600">🔊 Listen on Google Drive ↗</Text>
+        </Pressable>
+      ) : null}
+
+      {recording.ai_summary ? (
+        <View className="border-b border-slate-100 bg-purple-50 p-3">
+          <Text className="text-xs font-semibold text-purple-700">✨ AI Summary</Text>
+          <Text className="mt-1 text-sm leading-5 text-purple-900">{recording.ai_summary}</Text>
+        </View>
+      ) : null}
+
+      {recording.transcription_text ? (
+        <View className="border-b border-slate-100">
+          <Pressable onPress={() => setShowTranscript((v) => !v)} className="flex-row items-center justify-between p-3">
+            <Text className="text-sm font-semibold text-slate-700">📄 Show Transcription</Text>
+            <Text className="text-slate-400">{showTranscript ? '⌃' : '⌄'}</Text>
+          </Pressable>
+          {showTranscript ? (
+            <View className="mx-3 mb-3 rounded-lg bg-blue-50 p-3">
+              {recording.transcription_confidence ? (
+                <Text className="mb-1 text-xs font-semibold text-blue-700">{Math.round(recording.transcription_confidence * 100)}% confidence</Text>
+              ) : null}
+              <Text className="text-sm leading-5 text-blue-900">{recording.transcription_text}</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      {insightItems.length ? (
+        <View>
+          <Pressable onPress={() => setShowInsights((v) => !v)} className="flex-row items-center justify-between p-3">
+            <Text className="text-sm font-semibold text-slate-700">💡 Show AI Insights</Text>
+            <Text className="text-slate-400">{showInsights ? '⌃' : '⌄'}</Text>
+          </Pressable>
+          {showInsights ? (
+            <View className="mx-3 mb-3 rounded-lg bg-amber-50 p-3">
+              {insightItems.map((item, idx) => (
+                <Text key={`${recording.id}-insight-${idx}`} className="mb-1 text-sm leading-5 text-amber-900">• {item}</Text>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function LeadActivitySection({ leadId }: { leadId: string }) {
+  const { data: notesData, isLoading: notesLoading } = useLeadNotes(leadId);
+  const { data: recordingsData, isLoading: recordingsLoading } = useLeadCallRecordings(leadId);
+  const { data: syncLogs = [] } = useLeadOdooSyncLogs(leadId);
   const addNote = useAddNote(leadId);
   const [text, setText] = useState('');
-  const notes = data?.data ?? [];
+  const [filter, setFilter] = useState<ActivityFilter>('all');
+  const notes = notesData?.data ?? [];
+  const recordings = recordingsData?.data ?? [];
 
   const submit = () => {
     const trimmed = text.trim();
@@ -320,71 +461,131 @@ function NotesSection({ leadId }: { leadId: string }) {
     });
   };
 
-  return (
-    <View className="mt-2 px-5">
-      <Text className="mb-2 text-base font-bold text-ink">
-        📝 Notes{notes.length ? ` (${notes.length})` : ''}
-      </Text>
+  const activities: TimelineActivity[] = [
+    ...(filter === 'all' || filter === 'notes'
+      ? notes.map((note) => ({ type: 'note' as const, id: note.id, timestamp: new Date(note.date ?? note.created_at), data: note }))
+      : []),
+    ...(filter === 'all' || filter === 'calls'
+      ? recordings.map((recording) => ({ type: 'call' as const, id: recording.id, timestamp: new Date(recording.created_at), data: recording }))
+      : []),
+    ...(filter === 'all' || filter === 'syncs'
+      ? syncLogs
+          .filter((log) => log.sync_type === 'quote_pull' && log.status === 'success')
+          .map((log) => ({ type: 'sync' as const, id: log.id, timestamp: new Date(log.created_at), data: log }))
+      : []),
+  ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
-      {/* composer */}
-      <View className="mb-3 rounded-xl border border-slate-200 bg-canvas p-2">
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          placeholder="Add a note about this lead…"
-          placeholderTextColor="#94a3b8"
-          multiline
-          className="min-h-[40px] px-2 py-1 text-sm text-ink"
-        />
-        <View className="flex-row items-center justify-between px-1">
-          {addNote.isError ? (
-            <Text className="flex-1 text-xs text-red-500" numberOfLines={1}>
-              {addNote.error instanceof Error ? addNote.error.message : 'Failed to save'}
-            </Text>
-          ) : (
-            <View className="flex-1" />
-          )}
-          <Pressable
-            onPress={submit}
-            disabled={!text.trim() || addNote.isPending}
-            className={`rounded-lg px-4 py-1.5 ${
-              !text.trim() || addNote.isPending ? 'bg-slate-200' : 'bg-brand active:opacity-80'
-            }`}
-          >
-            {addNote.isPending ? (
-              <ActivityIndicator size="small" color="#0f172a" />
-            ) : (
-              <Text className="text-sm font-semibold text-ink">Save</Text>
-            )}
-          </Pressable>
+  return (
+    <View className="mt-4 px-5">
+      <View className="mb-3 rounded-xl border border-slate-200 bg-white p-4">
+        <View className="mb-3 flex-row flex-wrap items-center justify-between gap-2">
+          <Text className="text-base font-bold text-ink">Lead Activity</Text>
+          <Text className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+            {notes.length + recordings.length + syncLogs.length} items
+          </Text>
+        </View>
+        <View className="mb-3 flex-row flex-wrap">
+          <FilterPill label="All Activity" active={filter === 'all'} onPress={() => setFilter('all')} />
+          <FilterPill label="Notes" active={filter === 'notes'} onPress={() => setFilter('notes')} />
+          <FilterPill label="Calls" active={filter === 'calls'} onPress={() => setFilter('calls')} />
+          <FilterPill label="Odoo" active={filter === 'syncs'} onPress={() => setFilter('syncs')} />
+        </View>
+        <View className="rounded-xl border border-slate-200 bg-canvas p-2">
+          <TextInput
+            value={text}
+            onChangeText={setText}
+            placeholder="Add a note about this lead…"
+            placeholderTextColor="#94a3b8"
+            multiline
+            className="min-h-[40px] px-2 py-1 text-sm text-ink"
+          />
+          <View className="flex-row items-center justify-between px-1">
+            {addNote.isError ? (
+              <Text className="flex-1 text-xs text-red-500" numberOfLines={1}>{addNote.error instanceof Error ? addNote.error.message : 'Failed to save'}</Text>
+            ) : <View className="flex-1" />}
+            <Pressable onPress={submit} disabled={!text.trim() || addNote.isPending} className={`rounded-lg px-4 py-1.5 ${!text.trim() || addNote.isPending ? 'bg-slate-200' : 'bg-brand active:opacity-80'}`}>
+              {addNote.isPending ? <ActivityIndicator size="small" color="#0f172a" /> : <Text className="text-sm font-semibold text-ink">Add Note</Text>}
+            </Pressable>
+          </View>
         </View>
       </View>
 
-      {/* list */}
-      {isLoading ? (
+      {notesLoading || recordingsLoading ? (
         <ActivityIndicator color="#f97316" />
-      ) : notes.length === 0 ? (
-        <Text className="mb-4 text-sm text-slate-400">No notes yet — add the first one.</Text>
+      ) : activities.length === 0 ? (
+        <Text className="mb-4 text-sm text-slate-400">No activity yet — add a note or wait for call recordings to sync.</Text>
       ) : (
-        notes.map((n) => (
-          <View key={n.id} className="mb-2 rounded-xl border border-slate-100 bg-white p-3">
-            <Text className="text-sm leading-5 text-slate-700">{n.text}</Text>
-            {n.transcription_text ? (
-              <Text className="mt-1 text-xs italic text-slate-400" numberOfLines={3}>
-                🎙️ {n.transcription_text}
-              </Text>
-            ) : null}
-            {n.ai_summary ? (
-              <Text className="mt-1 text-xs text-violet-500" numberOfLines={3}>
-                ✨ {n.ai_summary}
-              </Text>
-            ) : null}
-            <Text className="mt-1.5 text-xs text-slate-400">
-              {new Date(n.date ?? n.created_at).toLocaleString()}
-            </Text>
-          </View>
-        ))
+        activities.map((activity, index) => {
+          const previous = activities[index - 1];
+          const showDate = !previous || formatDateGroup(previous.timestamp) !== formatDateGroup(activity.timestamp);
+          return (
+            <View key={`${activity.type}-${activity.id}`} className="mb-4">
+              {showDate ? (
+                <View className="mb-3 flex-row items-center gap-3">
+                  <View className="h-px flex-1 bg-slate-200" />
+                  <Text className="text-xs font-semibold uppercase tracking-wide text-slate-400">{formatDateGroup(activity.timestamp)}</Text>
+                  <View className="h-px flex-1 bg-slate-200" />
+                </View>
+              ) : null}
+              <View className="flex-row gap-3">
+                <View className="items-center">
+                  <View className={`h-5 w-5 items-center justify-center rounded-full ${activity.type === 'call' ? 'bg-emerald-500' : activity.type === 'sync' ? 'bg-orange-500' : 'bg-blue-500'}`}>
+                    <Text className="text-[10px] text-white">{activity.type === 'call' ? '☎' : activity.type === 'sync' ? '↻' : 'N'}</Text>
+                  </View>
+                  <View className="w-0.5 flex-1 bg-slate-200" />
+                </View>
+                <View className="min-w-0 flex-1">
+                  <View className="mb-2 flex-row items-center gap-2">
+                    <Text className="text-sm font-semibold text-ink">{formatTime(activity.timestamp)}</Text>
+                    <Text className="text-xs text-slate-400">{activity.type === 'call' ? 'Call Recording' : activity.type === 'sync' ? 'Odoo Sync' : 'Note'}</Text>
+                  </View>
+                  {activity.type === 'call' ? (
+                    <CallRecordingTimelineCard recording={activity.data} />
+                  ) : activity.type === 'sync' ? (
+                    <View className="rounded-xl border border-orange-100 bg-orange-50 p-3">
+                      <Text className="text-sm font-semibold text-orange-900">Quote sync from Odoo</Text>
+                      <Text className="mt-1 text-xs text-orange-700">Latest quote/order information pulled successfully.</Text>
+                    </View>
+                  ) : (
+                    <View className="rounded-xl border border-slate-100 bg-white p-3">
+                      <Text className="text-sm leading-5 text-slate-700">{activity.data.text}</Text>
+                      {activity.data.transcription_text ? <Text className="mt-1 text-xs italic text-slate-400" numberOfLines={3}>🎙️ {activity.data.transcription_text}</Text> : null}
+                      {activity.data.ai_summary ? <Text className="mt-1 text-xs text-violet-500" numberOfLines={3}>✨ {activity.data.ai_summary}</Text> : null}
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+          );
+        })
       )}
+    </View>
+  );
+}
+
+function FollowUpDateEditor({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['data']>['data'] }) {
+  const updateLead = useUpdateLead();
+  const [date, setDate] = useState(lead.follow_up_date ? lead.follow_up_date.slice(0, 10) : '');
+  const save = () => {
+    updateLead.mutate(
+      { id: lead.id, body: { follow_up_date: date || null } },
+      {
+        onSuccess: () => toast.success(date ? 'Follow-up date updated' : 'Follow-up date cleared'),
+        onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to update date'),
+      },
+    );
+  };
+  return (
+    <View className="mx-5 mt-4 rounded-xl border border-slate-200 bg-white p-4">
+      <Text className="text-base font-bold text-ink">📅 Follow-up / due date</Text>
+      <Text className="mt-0.5 text-xs text-slate-400">Edit the lead follow-up date without leaving this screen.</Text>
+      <View className="mt-3 flex-row gap-2">
+        <TextInput value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor="#94a3b8" className="flex-1 rounded-lg border border-slate-200 bg-canvas px-3 py-2 text-ink" />
+        <Pressable onPress={save} disabled={updateLead.isPending} className={`rounded-lg px-4 py-2.5 ${updateLead.isPending ? 'bg-slate-200' : 'bg-brand active:opacity-80'}`}>
+          {updateLead.isPending ? <ActivityIndicator size="small" color="#0f172a" /> : <Text className="font-semibold text-ink">Save</Text>}
+        </Pressable>
+      </View>
+      {lead.follow_up_date ? <Text className="mt-2 text-xs text-slate-400">Current: {new Date(lead.follow_up_date).toLocaleDateString('en-IN')}</Text> : null}
     </View>
   );
 }
@@ -469,9 +670,11 @@ export default function LeadDetailScreen() {
 
       <SmartQuoteSection leadId={lead.id} contact={lead.contact} />
 
+      <FollowUpDateEditor lead={lead} />
+
       <PromiseSection />
 
-      <NotesSection leadId={lead.id} />
+      <LeadActivitySection leadId={lead.id} />
 
       <View className="h-10" />
     </ScrollView>
