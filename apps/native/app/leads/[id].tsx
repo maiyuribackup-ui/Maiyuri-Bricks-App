@@ -36,6 +36,167 @@ function Field({ label, value }: { label: string; value?: string | number | null
   );
 }
 
+
+const STAGE_LABEL: Record<string, string> = {
+  new_inquiry: 'New inquiry',
+  qualified_lead: 'Qualified',
+  quote_shared: 'Quote shared',
+  factory_visit_proof: 'Proof / visit',
+  decision_pending: 'Decision pending',
+  finalisation: 'Finalisation',
+  order_won: 'Order won',
+  closed_lost: 'Closed lost',
+};
+
+const TEMP_STYLE: Record<string, { label: string; chip: string; rail: string; emoji: string }> = {
+  hot: { label: 'Hot', chip: 'bg-red-50 text-red-700', rail: 'bg-red-500', emoji: '🔥' },
+  warm: { label: 'Warm', chip: 'bg-amber-50 text-amber-700', rail: 'bg-amber-500', emoji: '🌤️' },
+  cold: { label: 'Cold', chip: 'bg-sky-50 text-sky-700', rail: 'bg-sky-500', emoji: '❄️' },
+};
+
+function titleCase(value?: string | null): string {
+  return (value ?? '').replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function shortDate(value?: string | null): string {
+  if (!value) return 'Not set';
+  return new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function isOverdueDate(value?: string | null): boolean {
+  if (!value) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(value) < today;
+}
+
+function ageText(value?: string | null): string {
+  if (!value) return 'No update';
+  const days = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000));
+  if (days === 0) return 'Updated today';
+  if (days === 1) return 'Updated 1 day ago';
+  return `Updated ${days} days ago`;
+}
+
+function primaryInsight(lead: NonNullable<ReturnType<typeof useLead>['data']>['data']): { title: string; body: string; tone: string } {
+  if (isOverdueDate(lead.follow_up_date)) {
+    return { title: 'Overdue follow-up', body: 'Call now, record outcome, and reset the next commitment date.', tone: 'bg-red-50 border-red-100 text-red-700' };
+  }
+  if (lead.pipeline_stage === 'qualified_lead') {
+    return { title: 'Move to quote', body: 'Customer is qualified. Send quote/sketch and ask for site visit or decision date.', tone: 'bg-orange-50 border-orange-100 text-orange-700' };
+  }
+  if (lead.pipeline_stage === 'quote_shared') {
+    return { title: 'Quote follow-up', body: 'Confirm price objection, quantity, and delivery expectation before the lead cools.', tone: 'bg-amber-50 border-amber-100 text-amber-700' };
+  }
+  if (lead.pipeline_stage === 'factory_visit_proof') {
+    return { title: 'Trust-building stage', body: 'Push proof: factory visit, site photo, sample, or customer example.', tone: 'bg-blue-50 border-blue-100 text-blue-700' };
+  }
+  if (lead.pipeline_stage === 'decision_pending') {
+    return { title: 'Decision chase', body: 'Ask what is blocking the decision: price, engineer, family, or delivery date.', tone: 'bg-violet-50 border-violet-100 text-violet-700' };
+  }
+  if (!lead.follow_up_date) {
+    return { title: 'No follow-up date', body: 'Set a date so this lead does not disappear from the sales rhythm.', tone: 'bg-slate-50 border-slate-200 text-slate-700' };
+  }
+  return { title: 'Next action ready', body: lead.next_action || 'Open quick status after the call and record the next step.', tone: 'bg-green-50 border-green-100 text-green-700' };
+}
+
+function Pill({ children, className }: { children: React.ReactNode; className: string }) {
+  const [bg, text] = className.split(' ');
+  return (
+    <View className={`rounded-full px-2.5 py-1 ${bg}`}>
+      <Text className={`text-xs font-bold ${text}`}>{children}</Text>
+    </View>
+  );
+}
+
+function DetailTile({ label, value, tone = 'bg-white' }: { label: string; value?: string | number | null; tone?: string }) {
+  if (value === null || value === undefined || value === '') return null;
+  return (
+    <View className={`mb-2 w-[48.5%] rounded-2xl border border-slate-200 p-3 ${tone}`}>
+      <Text className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</Text>
+      <Text className="mt-1 text-sm font-bold text-ink" numberOfLines={2}>{String(value)}</Text>
+    </View>
+  );
+}
+
+function SalesHero({ lead, onBack, onEdit, onStatus }: { lead: NonNullable<ReturnType<typeof useLead>['data']>['data']; onBack: () => void; onEdit: () => void; onStatus: () => void }) {
+  const temp = TEMP_STYLE[lead.lead_temperature] ?? TEMP_STYLE.cold;
+  const insight = primaryInsight(lead);
+  return (
+    <View className="bg-ink px-5 pb-5 pt-3">
+      <View className="mb-4 flex-row items-center justify-between">
+        <Pressable onPress={onBack} className="h-10 w-10 items-center justify-center rounded-full bg-white/10">
+          <Text className="text-xl text-white">‹</Text>
+        </Pressable>
+        <Text className="text-xs font-bold uppercase tracking-[2px] text-brand">Lead Workspace</Text>
+        <Pressable onPress={onStatus} className="h-10 w-10 items-center justify-center rounded-full bg-white/10">
+          <Text className="text-base text-white">⚡</Text>
+        </Pressable>
+      </View>
+      <View className={`mb-3 h-1.5 rounded-full ${temp.rail}`} />
+      <Text className="text-3xl font-extrabold text-white" numberOfLines={2}>{lead.name}</Text>
+      <Text className="mt-1 text-base text-slate-300">{lead.contact}</Text>
+      <View className="mt-3 flex-row flex-wrap gap-2">
+        <Pill className={temp.chip}>{temp.emoji} {temp.label}</Pill>
+        <Pill className="bg-brand text-ink">{STAGE_LABEL[lead.pipeline_stage] ?? titleCase(lead.pipeline_stage)}</Pill>
+        {lead.ai_score != null ? <Pill className="bg-violet-100 text-violet-700">AI {lead.ai_score}</Pill> : null}
+      </View>
+      <View className={`mt-4 rounded-2xl border p-3 ${insight.tone.split(' ').slice(0,2).join(' ')}`}>
+        <Text className={`text-sm font-extrabold ${insight.tone.split(' ')[2]}`}>{insight.title}</Text>
+        <Text className="mt-1 text-xs leading-5 text-slate-700">{insight.body}</Text>
+      </View>
+      <View className="mt-4 flex-row gap-2">
+        <Pressable onPress={() => Linking.openURL(`tel:${lead.contact}`)} className="flex-1 items-center rounded-xl bg-brand py-3 active:opacity-80">
+          <Text className="font-extrabold text-ink">Call</Text>
+        </Pressable>
+        <Pressable onPress={() => Linking.openURL(`https://wa.me/${lead.contact.replace(/[^0-9]/g, '')}`)} className="flex-1 items-center rounded-xl bg-green-500 py-3 active:opacity-80">
+          <Text className="font-extrabold text-white">WhatsApp</Text>
+        </Pressable>
+        <Pressable onPress={onEdit} className="items-center rounded-xl bg-white/15 px-4 py-3 active:opacity-80">
+          <Text className="font-extrabold text-white">✎</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function CompactDetails({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['data']>['data'] }) {
+  return (
+    <View className="mx-5 mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+      <View className="mb-2 flex-row items-center justify-between">
+        <Text className="text-base font-extrabold text-ink">Sales details</Text>
+        <Text className="text-xs font-semibold text-slate-400">{ageText(lead.updated_at)}</Text>
+      </View>
+      <View className="flex-row flex-wrap justify-between">
+        <DetailTile label="Status" value={titleCase(lead.lead_status)} />
+        <DetailTile label="Stage" value={STAGE_LABEL[lead.pipeline_stage] ?? titleCase(lead.pipeline_stage)} />
+        <DetailTile label="Customer" value={titleCase(lead.classification)} />
+        <DetailTile label="Source" value={lead.source} />
+        <DetailTile label="Location" value={lead.site_location || lead.site_region} />
+        <DetailTile label="Value" value={lead.estimated_value ? `₹${Number(lead.estimated_value).toLocaleString('en-IN')}` : null} />
+      </View>
+      {lead.next_action ? (
+        <View className="mt-1 rounded-2xl border border-purple-100 bg-purple-50 p-3">
+          <Text className="text-[10px] font-bold uppercase tracking-wide text-purple-400">Next action</Text>
+          <Text className="mt-1 text-sm font-semibold leading-5 text-purple-900">{lead.next_action}</Text>
+        </View>
+      ) : null}
+      {lead.ai_summary ? (
+        <View className="mt-2 rounded-2xl border border-violet-100 bg-violet-50 p-3">
+          <Text className="text-[10px] font-bold uppercase tracking-wide text-violet-400">AI summary</Text>
+          <Text className="mt-1 text-sm leading-5 text-violet-900" numberOfLines={4}>{lead.ai_summary}</Text>
+        </View>
+      ) : null}
+      {lead.staff_notes ? (
+        <View className="mt-2 rounded-2xl border border-slate-200 bg-white p-3">
+          <Text className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Staff notes</Text>
+          <Text className="mt-1 text-sm leading-5 text-slate-700">{lead.staff_notes}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 /**
  * AI Smart Quote — one tap on the phone gives sales a personalised,
  * bilingual quote page they can WhatsApp to the customer on the spot.
@@ -620,66 +781,24 @@ export default function LeadDetailScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       className="flex-1"
     >
-    <ScrollView className="flex-1 bg-white" keyboardShouldPersistTaps="handled">
-      <View className="bg-ink px-5 pb-6 pt-4">
-        <Text className="text-2xl font-bold text-white">{lead.name}</Text>
-        <Text className="mt-1 text-base text-slate-300">{lead.contact}</Text>
-        <View className="mt-3 flex-row gap-2">
-          <Pressable
-            onPress={() => Linking.openURL(`tel:${lead.contact}`)}
-            className="rounded-lg bg-brand px-4 py-2"
-          >
-            <Text className="font-semibold text-ink">Call</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => Linking.openURL(`https://wa.me/${lead.contact.replace(/[^0-9]/g, '')}`)}
-            className="rounded-lg bg-green-500 px-4 py-2"
-          >
-            <Text className="font-semibold text-white">WhatsApp</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push(`/leads/edit/${lead.id}`)}
-            className="rounded-lg bg-white/15 px-4 py-2"
-          >
-            <Text className="font-semibold text-white">✎ Edit</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setQaOpen(true)}
-            className="rounded-lg bg-white/15 px-4 py-2"
-          >
-            <Text className="font-semibold text-white">⚡ Status</Text>
-          </Pressable>
-        </View>
-      </View>
+      <ScrollView className="flex-1 bg-canvas" keyboardShouldPersistTaps="handled">
+        <SalesHero
+          lead={lead}
+          onBack={() => router.back()}
+          onEdit={() => router.push(`/leads/edit/${lead.id}`)}
+          onStatus={() => setQaOpen(true)}
+        />
 
-      <View className="px-5">
-        <Field label="Status" value={lead.lead_status?.replaceAll('_', ' ')} />
-        <Field label="Pipeline stage" value={lead.pipeline_stage?.replaceAll('_', ' ')} />
-        <Field label="Temperature" value={lead.lead_temperature} />
-        <Field label="Classification" value={lead.classification?.replaceAll('_', ' ')} />
-        <Field label="Requirement" value={lead.requirement_type?.replaceAll('_', ' ')} />
-        <Field label="Source" value={lead.source} />
-        <Field label="Site location" value={lead.site_location} />
-        <Field label="Estimated value" value={lead.estimated_value} />
-        <Field label="AI score" value={lead.ai_score} />
-        <Field label="Next action" value={lead.next_action} />
-        <Field label="Follow-up date" value={lead.follow_up_date} />
-        <Field label="AI summary" value={lead.ai_summary} />
-        <Field label="Staff notes" value={lead.staff_notes} />
-      </View>
+        <FollowUpDateEditor lead={lead} />
+        <LeadActivitySection leadId={lead.id} />
+        <CompactDetails lead={lead} />
+        <SmartQuoteSection leadId={lead.id} contact={lead.contact} />
+        <PromiseSection />
 
-      <SmartQuoteSection leadId={lead.id} contact={lead.contact} />
-
-      <FollowUpDateEditor lead={lead} />
-
-      <PromiseSection />
-
-      <LeadActivitySection leadId={lead.id} />
-
-      <View className="h-10" />
-    </ScrollView>
-    {/* Same Quick Actions sheet as the list — no more backing out to edit */}
-    <QuickActionsModal lead={qaOpen ? lead : null} onClose={() => setQaOpen(false)} />
+        <View className="h-10" />
+      </ScrollView>
+      {/* Same Quick Actions sheet as the list — no more backing out to edit */}
+      <QuickActionsModal lead={qaOpen ? lead : null} onClose={() => setQaOpen(false)} />
     </KeyboardAvoidingView>
   );
 }
