@@ -16,18 +16,26 @@ docker run -d \
   postgres:16-alpine >/dev/null
 
 ready=0
-for _ in $(seq 1 60); do
+stable_probes=0
+for _ in $(seq 1 90); do
   if docker exec "$container" \
+      pg_isready -U postgres -d postgres >/dev/null 2>&1 && \
+    docker exec "$container" \
       psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c 'SELECT 1' \
       >/dev/null 2>&1; then
-    ready=1
-    break
+    stable_probes=$((stable_probes + 1))
+    if [ "$stable_probes" -ge 3 ]; then
+      ready=1
+      break
+    fi
+  else
+    stable_probes=0
   fi
   sleep 1
 done
 
 if [ "$ready" -ne 1 ]; then
-  echo "PostgreSQL test container did not become ready" >&2
+  echo "PostgreSQL test container did not become ready/stable" >&2
   docker logs "$container" >&2 || true
   exit 1
 fi
