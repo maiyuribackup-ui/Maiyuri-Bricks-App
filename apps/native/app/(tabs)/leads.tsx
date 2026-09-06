@@ -160,7 +160,7 @@ function leadPriorityText(lead: Lead): string {
 }
 
 function boardCounts(leads: Lead[]) {
-  const open = leads.filter((l) => !OPEN_STAGES_EXCLUDED.has(l.pipeline_stage));
+  const open = activeLeads(leads);
   const end = new Date();
   end.setHours(23, 59, 59, 999);
   return {
@@ -182,7 +182,7 @@ function MiniMetric({ label, value, tone }: { label: string; value: number; tone
 }
 
 function LeadsBoardHeader({ leads, visibleCount }: { leads: Lead[]; visibleCount: number }) {
-  const c = boardCounts(leads);
+  const c = boardCounts(activeLeads(leads));
   return (
     <View className="mb-3 rounded-3xl bg-ink p-4">
       <View className="flex-row items-start justify-between">
@@ -435,7 +435,7 @@ function LeadRow({
 
 // ---------- filters / sort ----------
 
-type ViewFilter = 'all' | 'today' | 'follow_ups' | 'hot' | 'warm' | 'cold' | 'attention';
+type ViewFilter = 'all' | 'today' | 'follow_ups' | 'hot' | 'warm' | 'cold' | 'attention' | 'closed';
 type SortKey = 'created_at' | 'updated_at' | 'ai_score' | 'name';
 
 const VIEW_TABS: { value: ViewFilter; label: string; icon: string }[] = [
@@ -446,6 +446,7 @@ const VIEW_TABS: { value: ViewFilter; label: string; icon: string }[] = [
   { value: 'warm', label: 'Warm', icon: '🌤️' },
   { value: 'cold', label: 'Cold', icon: '❄️' },
   { value: 'attention', label: 'Attention', icon: '⚠️' },
+  { value: 'closed', label: 'Closed', icon: '📦' },
 ];
 
 const SORT_TABS: { key: SortKey; label: string }[] = [
@@ -456,6 +457,7 @@ const SORT_TABS: { key: SortKey; label: string }[] = [
 ];
 
 const OPEN_STAGES_EXCLUDED = new Set(['order_won', 'closed_lost']);
+const CLOSED_STATUSES = new Set(['closed']);
 
 function isSameDay(iso: string | null | undefined, ref: Date): boolean {
   if (!iso) return false;
@@ -467,33 +469,45 @@ function isSameDay(iso: string | null | undefined, ref: Date): boolean {
   );
 }
 
+function isClosedLead(lead: Lead): boolean {
+  return OPEN_STAGES_EXCLUDED.has(lead.pipeline_stage) || CLOSED_STATUSES.has(lead.lead_status);
+}
+
+function activeLeads(leads: Lead[]): Lead[] {
+  return leads.filter((lead) => !isClosedLead(lead));
+}
+
 function applyView(leads: Lead[], view: ViewFilter): Lead[] {
   const now = new Date();
   const endOfToday = new Date(now);
   endOfToday.setHours(23, 59, 59, 999);
   const staleMs = 7 * 24 * 60 * 60 * 1000;
 
+  if (view === 'closed') {
+    return leads.filter(isClosedLead);
+  }
+
+  const active = activeLeads(leads);
+
   switch (view) {
     case 'today':
-      return leads.filter(
+      return active.filter(
         (l) => isSameDay(l.created_at, now) || isSameDay(l.updated_at, now),
       );
     case 'follow_ups':
-      return leads.filter(
+      return active.filter(
         (l) => l.follow_up_date && new Date(l.follow_up_date) <= endOfToday,
       );
     case 'hot':
     case 'warm':
     case 'cold':
-      return leads.filter((l) => l.lead_temperature === view);
+      return active.filter((l) => l.lead_temperature === view);
     case 'attention':
-      return leads.filter(
-        (l) =>
-          !OPEN_STAGES_EXCLUDED.has(l.pipeline_stage) &&
-          now.getTime() - new Date(l.updated_at).getTime() > staleMs,
+      return active.filter(
+        (l) => now.getTime() - new Date(l.updated_at).getTime() > staleMs,
       );
     default:
-      return leads;
+      return active;
   }
 }
 
