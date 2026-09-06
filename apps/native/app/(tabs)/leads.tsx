@@ -19,10 +19,10 @@ import { QuickActionsModal } from '@/components/LeadQuickActions';
 
 // ---------- helpers ----------
 
-const TEMP_META: Record<LeadTemperature, { emoji: string; avatar: string; chip: string; rail: string }> = {
-  hot: { emoji: '🔥', avatar: 'bg-red-500', chip: 'bg-red-50 text-red-700', rail: 'bg-red-500' },
-  warm: { emoji: '🌤️', avatar: 'bg-amber-500', chip: 'bg-amber-50 text-amber-700', rail: 'bg-amber-500' },
-  cold: { emoji: '❄️', avatar: 'bg-sky-500', chip: 'bg-sky-50 text-sky-700', rail: 'bg-sky-500' },
+const TEMP_META: Record<LeadTemperature, { emoji: string; label: string; avatar: string; chip: string; rail: string }> = {
+  hot: { emoji: '🔥', label: 'Hot', avatar: 'bg-red-500', chip: 'bg-red-50 text-red-700', rail: 'bg-red-500' },
+  warm: { emoji: '🌤️', label: 'Warm', avatar: 'bg-amber-500', chip: 'bg-orange-50 text-orange-700', rail: 'bg-orange-500' },
+  cold: { emoji: '❄️', label: 'Cold', avatar: 'bg-sky-500', chip: 'bg-sky-50 text-sky-700', rail: 'bg-sky-500' },
 };
 
 const STAGE_ICON: Record<string, string> = {
@@ -58,6 +58,19 @@ const STAGE_TONE: Record<string, string> = {
   closed_lost: 'bg-slate-100 text-slate-600',
 };
 
+
+const STATUS_TONE: Record<string, string> = {
+  new: 'bg-blue-50 text-blue-700',
+  open: 'bg-blue-50 text-blue-700',
+  contacted: 'bg-indigo-50 text-indigo-700',
+  in_progress: 'bg-orange-50 text-orange-700',
+  follow_up: 'bg-amber-50 text-amber-700',
+  qualified: 'bg-lime-50 text-lime-700',
+  won: 'bg-green-100 text-green-800',
+  lost: 'bg-slate-100 text-slate-600',
+  closed: 'bg-slate-100 text-slate-600',
+};
+
 function initials(name: string): string {
   return name
     .split(/\s+/)
@@ -74,6 +87,32 @@ function scoreColor(score: number): string {
   if (score >= 70) return 'bg-green-500';
   if (score >= 40) return 'bg-amber-500';
   return 'bg-red-500';
+}
+
+function toneParts(tone: string): [string, string] {
+  const [bg, text] = tone.split(' ');
+  return [bg ?? 'bg-slate-100', text ?? 'text-slate-600'];
+}
+
+function statusTone(status?: string | null): string {
+  if (!status) return 'bg-slate-100 text-slate-600';
+  return STATUS_TONE[status] ?? 'bg-slate-100 text-slate-600';
+}
+
+function TempMarker({ lead }: { lead: Lead }) {
+  const temp = TEMP_META[lead.lead_temperature] ?? TEMP_META.cold;
+  const [tempBg, tempText] = toneParts(temp.chip);
+  return (
+    <View className="mr-3 w-[58px] items-center">
+      <View className={`h-12 w-12 items-center justify-center rounded-2xl ${temp.avatar}`}>
+        <Text className="text-sm font-extrabold text-white">{initials(lead.name)}</Text>
+      </View>
+      <View className={`mt-1.5 flex-row items-center rounded-full px-2 py-0.5 ${tempBg}`}>
+        <Text className="mr-0.5 text-[10px]">{temp.emoji}</Text>
+        <Text className={`text-[10px] font-extrabold uppercase ${tempText}`}>{temp.label}</Text>
+      </View>
+    </View>
+  );
 }
 
 function callLead(contact: string) {
@@ -286,8 +325,9 @@ function LeadRow({
   const temp = TEMP_META[lead.lead_temperature] ?? TEMP_META.cold;
   const stageIcon = STAGE_ICON[lead.pipeline_stage] ?? '📌';
   const stageTone = STAGE_TONE[lead.pipeline_stage] ?? 'bg-slate-100 text-slate-600';
-  const [stageBg, stageText] = stageTone.split(' ');
-  const [tempBg, tempText] = temp.chip.split(' ');
+  const [stageBg, stageText] = toneParts(stageTone);
+  const status = lead.lead_status ? titleCase(lead.lead_status) : 'Status pending';
+  const [statusBg, statusText] = toneParts(statusTone(lead.lead_status));
   const hasAi = !!(lead.ai_summary || lead.ai_score != null);
   const overdue = isOverdue(lead.follow_up_date);
 
@@ -298,14 +338,7 @@ function LeadRow({
         <Link href={`/leads/${lead.id}`} asChild>
           <Pressable className="active:opacity-70">
             <View className="flex-row items-start">
-              <View className="relative mr-3">
-                <View className={`h-10 w-10 items-center justify-center rounded-2xl ${temp.avatar}`}>
-                  <Text className="text-xs font-extrabold text-white">{initials(lead.name)}</Text>
-                </View>
-                <View className="absolute -bottom-1 -right-1 rounded-full bg-white">
-                  <Text className="text-sm">{temp.emoji}</Text>
-                </View>
-              </View>
+              <TempMarker lead={lead} />
 
               <View className="min-w-0 flex-1">
                 <View className="flex-row items-start justify-between gap-2">
@@ -317,21 +350,26 @@ function LeadRow({
                       📍 {leadLocation(lead)} · {lead.contact}
                     </Text>
                   </View>
-                  {lead.ai_score != null ? (
-                    <View className={`h-9 w-9 items-center justify-center rounded-2xl ${scoreColor(lead.ai_score)}`}>
-                      <Text className="text-xs font-extrabold text-white">{lead.ai_score}</Text>
+                  <View className="items-end gap-1">
+                    <View className={`rounded-full px-2 py-0.5 ${statusBg}`}>
+                      <Text className={`text-[10px] font-extrabold ${statusText}`} numberOfLines={1}>{status}</Text>
                     </View>
-                  ) : null}
+                    {lead.ai_score != null ? (
+                      <View className={`h-7 min-w-[32px] items-center justify-center rounded-full px-2 ${scoreColor(lead.ai_score)}`}>
+                        <Text className="text-[11px] font-extrabold text-white">AI {lead.ai_score}</Text>
+                      </View>
+                    ) : null}
+                  </View>
                 </View>
 
                 <View className="mt-2 flex-row flex-wrap items-center gap-1.5">
-                  <View className={`rounded-full px-2 py-0.5 ${tempBg}`}>
-                    <Text className={`text-[11px] font-bold ${tempText}`}>{titleCase(lead.lead_temperature)}</Text>
-                  </View>
                   <View className={`rounded-full px-2 py-0.5 ${stageBg}`}>
                     <Text className={`text-[11px] font-bold ${stageText}`}>
-                      {stageIcon} {STAGE_LABEL[lead.pipeline_stage] ?? titleCase(lead.pipeline_stage)}
+                      {stageIcon} Stage: {STAGE_LABEL[lead.pipeline_stage] ?? titleCase(lead.pipeline_stage)}
                     </Text>
+                  </View>
+                  <View className={`rounded-full px-2 py-0.5 ${statusBg}`}>
+                    <Text className={`text-[11px] font-bold ${statusText}`}>Status: {status}</Text>
                   </View>
                   <View className={`rounded-full px-2 py-0.5 ${overdue ? 'bg-red-50' : 'bg-slate-100'}`}>
                     <Text className={`text-[11px] font-bold ${overdue ? 'text-red-700' : 'text-slate-600'}`}>
@@ -483,7 +521,7 @@ export default function LeadsScreen() {
   const [view, setView] = useState<ViewFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [groupByTemp, setGroupByTemp] = useState(false);
+  const [groupByTemp, setGroupByTemp] = useState(true);
 
   // Apply the incoming view param whenever it changes (tapping a different
   // dashboard card while this tab is mounted must still switch the filter).
@@ -548,7 +586,7 @@ export default function LeadsScreen() {
             onPress={() => setGroupByTemp((g) => !g)}
             className={`h-11 items-center justify-center rounded-2xl px-3 ${groupByTemp ? 'bg-ink' : 'border border-slate-200 bg-white'}`}
           >
-            <Text className={`text-xs font-bold ${groupByTemp ? 'text-white' : 'text-slate-600'}`}>🌡️</Text>
+            <Text className={`text-xs font-bold ${groupByTemp ? 'text-white' : 'text-slate-600'}`}>🌡️ Group</Text>
           </Pressable>
         </View>
 
