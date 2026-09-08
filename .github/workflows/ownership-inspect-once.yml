@@ -1,0 +1,35 @@
+name: Ownership read-only inspection (temporary)
+on:
+  push:
+    branches: [fix/srinivasan-lead-ownership]
+    paths: [.github/workflows/ownership-inspect-once.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: production-schema
+    steps:
+      - name: Inspect live schema without customer data or writes
+        env:
+          PGDATABASE: ${{ secrets.SUPABASE_DB_URL }}
+          PGCONNECT_TIMEOUT: '15'
+          PGOPTIONS: '-c default_transaction_read_only=on -c statement_timeout=30000'
+        run: |
+          mkdir evidence
+          psql -X -At -v ON_ERROR_STOP=1 > evidence/schema.json <<'SQL'
+          SELECT jsonb_build_object(
+            'user',current_user,
+            'triggers',(SELECT jsonb_agg(jsonb_build_object('name',tgname,'enabled',tgenabled,'definition',pg_get_triggerdef(t.oid),'function',pg_get_functiondef(t.tgfoid))) FROM pg_trigger t WHERE tgrelid='public.leads'::regclass AND NOT tgisinternal),
+            'columns',(SELECT jsonb_agg(jsonb_build_object('name',column_name,'type',data_type,'default',column_default,'nullable',is_nullable)) FROM information_schema.columns WHERE table_schema='public' AND table_name='leads'),
+            'constraints',(SELECT jsonb_agg(pg_get_constraintdef(oid)) FROM pg_constraint WHERE conrelid='public.leads'::regclass),
+            'counts',(SELECT jsonb_build_object('total',count(*),'srinivasan',count(*) FILTER(WHERE assigned_staff='9d57a341-7ede-4082-b47e-7e42cafbcfaf'),'unassigned',count(*) FILTER(WHERE assigned_staff IS NULL),'archived',count(*) FILTER(WHERE is_archived),'closed',count(*) FILTER(WHERE lead_status='closed')) FROM public.leads),
+            'owners',(SELECT jsonb_agg(x) FROM (SELECT assigned_staff,count(*) FROM public.leads GROUP BY assigned_staff) x),
+            'migrations',(SELECT jsonb_agg(x) FROM (SELECT version,name FROM supabase_migrations.schema_migrations ORDER BY version DESC LIMIT 10) x)
+          );
+          SQL
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ownership-live-inspection
+          path: evidence/
+          retention-days: 7
