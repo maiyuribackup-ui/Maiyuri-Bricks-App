@@ -34,6 +34,7 @@ export type OcAuditEntity =
   | "oc_stock_reservations"
   | "oc_production_days"
   | "oc_production_actuals"
+  | "oc_production_plan_lines"
   | "oc_trips"
   | "oc_trip_load_lines";
 

@@ -41,6 +41,7 @@ test.describe("public surface", () => {
     // actually present — a missing protectedRoutes line has shipped here
     // before and is invisible until someone browses anonymously.
     "/ops/demand",
+    "/ops/plan",
     "/ops/inventory",
     "/ops/production",
     "/ops/dispatch",

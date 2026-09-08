@@ -631,3 +631,26 @@ export const backfillOcLabourSchema = z.object({
   to: dateOnly,
 });
 export type BackfillOcLabourInput = z.infer<typeof backfillOcLabourSchema>;
+
+// ============================================
+// Week-grid planning (PRD §12, §20-26)
+// ============================================
+
+/**
+ * One cell of the production week grid: how many of a product to make on a
+ * day. Zero is meaningful — it CLEARS the cell rather than being rejected,
+ * because deleting a plan is as ordinary an edit as writing one.
+ */
+export const ocPlanCellSchema = z.object({
+  finished_good_id: z.string().uuid(),
+  date: dateOnly,
+  quantity: z.number().min(0, "A planned quantity cannot be negative"),
+});
+export type OcPlanCellInput = z.infer<typeof ocPlanCellSchema>;
+
+export const saveOcPlanCellsSchema = z.object({
+  week_start: dateOnly,
+  /** Only the cells the planner actually changed, never the whole grid. */
+  cells: z.array(ocPlanCellSchema).min(1).max(200),
+});
+export type SaveOcPlanCellsInput = z.infer<typeof saveOcPlanCellsSchema>;
