@@ -1,4 +1,4 @@
-import type { Lead } from '@maiyuri/shared';
+import { isLeadId, type Lead } from '@maiyuri/shared';
 import {
   useInfiniteQuery,
   useMutation,
@@ -54,7 +54,7 @@ export function useLead(id: string) {
   return useQuery({
     queryKey: ['lead', id],
     queryFn: () => api.get<Lead>(`/api/leads/${id}`),
-    enabled: !!id,
+    enabled: isLeadId(id),
   });
 }
 

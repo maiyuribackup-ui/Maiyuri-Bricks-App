@@ -7,3 +7,4 @@ export * from "./taxonomy";
 export * from "./work";
 export * from "./ops-control";
 export * from "./unit-economics";
+export * from "./lead-id";

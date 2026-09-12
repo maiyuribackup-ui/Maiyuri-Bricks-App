@@ -9,7 +9,7 @@ import {
   getUserIdsByRoles,
   notifyLeadPush,
 } from "@/lib/push/fcm";
-import { updateLeadSchema, type Lead } from "@maiyuri/shared";
+import { isLeadId, updateLeadSchema, type Lead } from "@maiyuri/shared";
 
 function prettyLabel(value: unknown): string {
   if (typeof value !== "string" || !value) return "";
@@ -24,6 +24,7 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    if (!isLeadId(id)) return error("Invalid lead ID", 400);
 
     const { data: lead, error: dbError } = await supabaseAdmin
       .from("leads")
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    if (!isLeadId(id)) return error("Invalid lead ID", 400);
 
     const parsed = await parseBody(request, updateLeadSchema);
     if (parsed.error) return parsed.error;
@@ -278,6 +280,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    if (!isLeadId(id)) return error("Invalid lead ID", 400);
 
     const { error: dbError } = await supabaseAdmin
       .from("leads")

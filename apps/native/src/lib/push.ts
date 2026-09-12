@@ -11,6 +11,7 @@
  * NOT work inside Expo Go on Android. Every entry point here degrades
  * gracefully so Expo Go development keeps working.
  */
+import { safeNotificationPath } from '@maiyuri/shared';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
@@ -105,7 +106,7 @@ export function initNotificationNavigation(
       | Record<string, unknown>
       | undefined;
     const url = data?.url;
-    return typeof url === 'string' && url.startsWith('/') ? url : null;
+    return safeNotificationPath(url);
   };
 
   // App launched (cold start) by tapping a notification.
