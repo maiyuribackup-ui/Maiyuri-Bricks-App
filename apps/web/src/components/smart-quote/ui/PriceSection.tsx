@@ -72,7 +72,7 @@ export function PriceSection({ priceRange, language }: PriceSectionProps) {
             radius["2xl"],
             "p-8 md:p-10",
             "text-center",
-            "border border-[#E8DED2]",
+            "border border-[#efe3d2]",
           )}
         >
           {/* Label */}
@@ -112,11 +112,11 @@ export function PriceSection({ priceRange, language }: PriceSectionProps) {
                 key={index}
                 className={cn(
                   "inline-flex items-center px-4 py-2",
-                  "bg-[#FBF7F2]",
+                  "bg-[#fbf5ea]",
                   radius.chip,
                   typography.body.small,
                   colors.text.secondary,
-                  "border border-[#E8DED2]",
+                  "border border-[#efe3d2]",
                 )}
               >
                 {factor}

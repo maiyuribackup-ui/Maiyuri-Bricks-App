@@ -1,0 +1,77 @@
+# CodeRabbit configuration for Maiyuri Bricks App (MB App V2)
+# Docs: https://docs.coderabbit.ai/guides/configure-coderabbit
+
+language: "en-US"
+
+# Tone: direct and concise — this is a fast-moving solo/small-team project
+reviews:
+  profile: "chill"           # assertive|chill — chill = high-signal findings only
+  request_changes_workflow: false  # post review comments only; don't block with formal "request changes"
+  auto_approve: true         # approve PRs when no blocking issues found (satisfies branch protection)
+  high_level_summary: true
+  poem: false                # skip the poem
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false            # don't review draft PRs
+    base_branches:
+      - "main"
+
+  # What CodeRabbit focuses on for this stack
+  # (Next.js 14 + TypeScript monorepo, Supabase, Vercel)
+  path_filters:
+    # Ignore generated / build artifacts
+    - "!apps/web/public/sw.js"
+    - "!apps/web/public/sw.js.map"
+    - "!apps/web/public/swe-worker-*.js"
+    - "!apps/web/public/workbox-*.js"
+    - "!**/node_modules/**"
+    - "!**/.next/**"
+    - "!**/dist/**"
+    - "!supabase/.branches/**"
+    - "!supabase/.temp/**"
+    # Focus review effort on app code
+    - "apps/web/app/**"
+    - "apps/web/src/**"
+    - "packages/shared/**"
+    - ".github/workflows/**"
+    - "supabase/migrations/**"
+
+  # Guide CodeRabbit on project-specific concerns
+  path_instructions:
+    - path: "supabase/migrations/**"
+      instructions: |
+        Review SQL migrations carefully:
+        - Check for destructive operations (DROP, TRUNCATE) without backup strategy
+        - Verify IF NOT EXISTS / IF EXISTS guards on all DDL
+        - Flag any migration that touches a column referenced by PostgREST select("...") strings (tsc won't catch these)
+        - Check UPDATE/INSERT seeds don't hardcode IDs
+        - Confirm all foreign keys have ON DELETE behaviour set
+    - path: "apps/web/app/api/**"
+      instructions: |
+        Review API routes for:
+        - Authentication: all routes touching user data must go through middleware session check
+          OR use hasMachineAuth() for internal machine callers (CRON_SECRET / service-role Bearer).
+          Direct pushes to supabaseAdmin without auth are a security issue.
+        - Service-role key (supabaseAdmin) bypasses RLS — double-check any route using it
+        - Zod schema validation on request body before DB writes
+        - Correct HTTP status codes (201 for creates, 204 for deletes)
+    - path: "apps/web/middleware.ts"
+      instructions: |
+        The PUBLIC_PATHS allowlist is security-critical. Flag any new prefix added
+        without a comment explaining why it's public and confirming the handler
+        does its own auth/secret check.
+    - path: "packages/shared/**"
+      instructions: |
+        This is the shared type/schema layer used across web + mobile.
+        Flag any type change that could be a breaking change for API consumers.
+        Zod schemas should match DB column types exactly.
+    - path: ".github/workflows/**"
+      instructions: |
+        - Confirm no secrets are echoed or logged
+        - Ensure lint and test steps fail the job (no || echo escape hatches)
+        - New workflows should use pinned action versions (actions/checkout@v4 etc.)
+
+chat:
+  auto_reply: true  # CodeRabbit responds to @coderabbitai mentions in PR comments

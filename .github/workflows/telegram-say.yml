@@ -1,0 +1,43 @@
+name: Telegram say
+
+# Manually send a message from the Maiyuri bot to a specific chat.
+# Used for ops/admin checks (e.g. identifying a chat by posting into it).
+# workflow_dispatch only — requires repo write access to trigger.
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_id:
+        description: "Target chat id (e.g. -5116644495)"
+        required: true
+      text:
+        description: "Message text (mode=say only)"
+        required: false
+        default: ""
+      mode:
+        description: "say = send text · info = chat title/member count/admins"
+        required: false
+        default: "say"
+
+jobs:
+  say:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Send message
+        if: ${{ github.event.inputs.mode != 'info' }}
+        run: |
+          resp=$(curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ github.event.inputs.chat_id }}" \
+            --data-urlencode text="${{ github.event.inputs.text }}")
+          echo "$resp"
+          echo "$resp" | grep -q '"ok":true' || exit 1
+
+      - name: Chat info (title, member count, admins)
+        if: ${{ github.event.inputs.mode == 'info' }}
+        run: |
+          base="https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}"
+          cid="${{ github.event.inputs.chat_id }}"
+          echo "--- getChat ---";                curl -s "$base/getChat?chat_id=$cid"; echo
+          echo "--- getChatMemberCount ---";     curl -s "$base/getChatMemberCount?chat_id=$cid"; echo
+          echo "--- getChatAdministrators ---";  curl -s "$base/getChatAdministrators?chat_id=$cid"; echo

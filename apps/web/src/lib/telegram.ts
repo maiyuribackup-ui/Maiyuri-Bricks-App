@@ -22,6 +22,29 @@ export interface SendTelegramResult {
 }
 
 /**
+ * Cron/report routes historically mixed simple HTML (<b>, <i>, <br>) with this
+ * Markdown sender. Telegram/WhatsApp bridges then showed raw tags like
+ * "<b>Do today:</b>". Normalize the small supported subset here so all callers
+ * produce channel-safe text without every route owning formatter quirks.
+ */
+export function normalizeMessageForTelegram(text: string): string {
+  return text
+    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+    .replace(/<\s*b\s*>(.*?)<\s*\/\s*b\s*>/gis, "*$1*")
+    .replace(/<\s*strong\s*>(.*?)<\s*\/\s*strong\s*>/gis, "*$1*")
+    .replace(/<\s*i\s*>(.*?)<\s*\/\s*i\s*>/gis, "_$1_")
+    .replace(/<\s*em\s*>(.*?)<\s*\/\s*em\s*>/gis, "_$1_")
+    .replace(/<\s*a[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\s*\/\s*a\s*>/gis, "$2 ($1)")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'");
+}
+
+/**
  * Send a notification to the Notification group (for app alerts, reminders, nudges)
  * Uses Notification_TELEGRAM_CHAT_ID
  */
@@ -59,7 +82,7 @@ export async function sendTelegramMessage(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: targetChatId,
-        text,
+        text: normalizeMessageForTelegram(text),
         parse_mode: 'Markdown',
         disable_web_page_preview: true,
       }),

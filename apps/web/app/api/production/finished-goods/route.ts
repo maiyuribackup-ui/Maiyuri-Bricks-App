@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { success, error } from "@/lib/api-utils";
+import { requireProductionRole } from "@/lib/production-auth";
 import {
   getFinishedGoods,
   syncFinishedGoodsFromOdoo,
@@ -20,8 +21,11 @@ export async function GET() {
 }
 
 // POST /api/production/finished-goods - Sync finished goods from Odoo
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
+    const auth = await requireProductionRole(request);
+    if (auth.errorResponse) return auth.errorResponse;
+
     const result = await syncFinishedGoodsFromOdoo();
 
     if (!result.success) {

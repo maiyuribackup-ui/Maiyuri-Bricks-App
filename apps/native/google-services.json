@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "753022589188",
+    "project_id": "n8nworkflow-481214-9932d",
+    "storage_bucket": "n8nworkflow-481214-9932d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:753022589188:android:57ed48d92ee4aaa887d851",
+        "android_client_info": {
+          "package_name": "com.maiyuri.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyATwT43ES8_FazCOwIZQNakWrKc3GPCk8Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:753022589188:android:b77d49e3e87826f987d851",
+        "android_client_info": {
+          "package_name": "com.maiyuri.bricks"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyATwT43ES8_FazCOwIZQNakWrKc3GPCk8Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

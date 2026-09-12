@@ -13,7 +13,9 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 
 export function isFcmConfigured(): boolean {
-  return Boolean(process.env.FCM_SERVICE_ACCOUNT_JSON && process.env.FCM_PROJECT_ID);
+  return Boolean(
+    process.env.FCM_SERVICE_ACCOUNT_JSON && process.env.FCM_PROJECT_ID,
+  );
 }
 
 async function getAccessToken(): Promise<string | null> {
@@ -63,7 +65,13 @@ async function sendToToken(
             token,
             notification: { title: payload.title, body: payload.body },
             data: payload.data ?? {},
-            android: { priority: "high", notification: { sound: "default" } },
+            // channel_id must match the channel the native app creates (see
+            // initPushNotifications) so Android 8+ shows a high-importance,
+            // sound-enabled heads-up notification rather than a silent one.
+            android: {
+              priority: "high",
+              notification: { sound: "default", channel_id: "default" },
+            },
           },
         }),
       },
@@ -90,7 +98,8 @@ export async function sendPushToUsers(
   payload: PushPayload,
 ): Promise<{ sent: number; failed: number }> {
   const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
-  if (uniqueUserIds.length === 0 || !isFcmConfigured()) return { sent: 0, failed: 0 };
+  if (uniqueUserIds.length === 0 || !isFcmConfigured())
+    return { sent: 0, failed: 0 };
 
   const accessToken = await getAccessToken();
   if (!accessToken) return { sent: 0, failed: 0 };
@@ -150,5 +159,60 @@ export async function notifyLeadPush(
     });
   } catch (err) {
     console.error("notifyLeadPush failed:", err);
+  }
+}
+
+/** Per-category push opt-out keys stored in users.notification_preferences. */
+export type PushPrefKey = "push_leads" | "push_ops" | "push_digest";
+
+/**
+ * Lean-notification policy: drop recipients who explicitly disabled this
+ * push category. Absent key = opted in (default true), so existing users
+ * keep receiving pushes without a migration. Fails open on query errors —
+ * a broken prefs lookup must never silence business notifications.
+ */
+export async function filterByPushPref(
+  userIds: string[],
+  pref: PushPrefKey,
+): Promise<string[]> {
+  const unique = [...new Set(userIds.filter(Boolean))];
+  if (!unique.length) return [];
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("users")
+      .select("id, notification_preferences")
+      .in("id", unique);
+    if (error || !data) return unique;
+    return data
+      .filter((u) => {
+        const prefs = (u.notification_preferences ?? {}) as Record<string, unknown>;
+        return prefs[pref] !== false;
+      })
+      .map((u) => u.id as string);
+  } catch {
+    return unique;
+  }
+}
+
+/**
+ * Resolve active users holding any of the given roles (e.g. leadership
+ * pings to founders/owners). Excludes `excludeId` (usually the actor —
+ * nobody needs a push about their own action).
+ */
+export async function getUserIdsByRoles(
+  roles: string[],
+  excludeId?: string | null,
+): Promise<string[]> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("users")
+      .select("id")
+      .in("role", roles)
+      .eq("is_active", true);
+    return (data ?? [])
+      .map((u) => u.id as string)
+      .filter((id) => id !== excludeId);
+  } catch {
+    return [];
   }
 }

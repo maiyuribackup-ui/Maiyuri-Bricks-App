@@ -27,6 +27,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, error, notFound, handleZodError } from "@/lib/api-utils";
 import { SUBMIT_FEEDBACK_TOOL } from "@/lib/feedback/voice-prompt";
 import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
+import { traceAiGeneration } from "@/lib/observability/langfuse";
 
 const TOKEN_RE = /^[A-HJ-NP-Z2-9]{10}$/;
 
@@ -110,23 +111,32 @@ export async function POST(
   ].join("\n");
 
   try {
-    const resp = await ai.models.generateContent({
+    const args = await traceAiGeneration({
+      name: "app.feedback.extract_from_transcript",
       model: GEMINI_DEFAULT_MODEL,
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: {
-        temperature: 0,
-        tools: [{ functionDeclarations: [EXTRACT_TOOL] }],
-        toolConfig: {
-          functionCallingConfig: {
-            mode: FunctionCallingConfigMode.ANY,
-            allowedFunctionNames: ["submit_feedback"],
+      input: { token, transcript, leadName: lead.name },
+      metadata: { module: "feedback", step: "extract_from_transcript" },
+      run: async () => {
+        const resp = await ai.models.generateContent({
+          model: GEMINI_DEFAULT_MODEL,
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          config: {
+            temperature: 0,
+            tools: [{ functionDeclarations: [EXTRACT_TOOL] }],
+            toolConfig: {
+              functionCallingConfig: {
+                mode: FunctionCallingConfigMode.ANY,
+                allowedFunctionNames: ["submit_feedback"],
+              },
+            },
           },
-        },
+        });
+
+        const call = resp.functionCalls?.[0];
+        const output = (call?.args ?? {}) as Record<string, unknown>;
+        return { output, value: output };
       },
     });
-
-    const call = resp.functionCalls?.[0];
-    const args = (call?.args ?? {}) as Record<string, unknown>;
 
     // The client maps these onto its `captured` state via the same captureFromArgs
     // it uses for the live tool call, so return the flat arg shape verbatim.

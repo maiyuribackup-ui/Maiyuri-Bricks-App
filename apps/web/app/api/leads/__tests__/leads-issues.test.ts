@@ -34,12 +34,13 @@ describe("Issue #2: Auto-archive Lost Leads", () => {
   describe("Lead Status Schema", () => {
     it("should accept valid status values", () => {
       const validStatuses = [
-        "new",
-        "follow_up",
-        "hot",
-        "cold",
-        "converted",
-        "lost",
+        "new_contact_pending",
+        "contact_attempted",
+        "connected",
+        "follow_up_scheduled",
+        "waiting_for_customer",
+        "nurture_later",
+        "closed",
       ];
       validStatuses.forEach((status) => {
         const result = leadStatusSchema.safeParse(status);
@@ -386,14 +387,14 @@ describe("Update Lead Schema: Combined Fields", () => {
       classification: "vendor",
       requirement_type: "residential_house",
       site_region: "Madurai",
-      status: "hot",
+      lead_temperature: "hot",
     });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.classification).toBe("vendor");
       expect(result.data.requirement_type).toBe("residential_house");
       expect(result.data.site_region).toBe("Madurai");
-      expect(result.data.status).toBe("hot");
+      expect(result.data.lead_temperature).toBe("hot");
     }
   });
 });

@@ -56,6 +56,13 @@ bun.lockb
 .cursor/rules/openmemory.mdc
 CLAUDE.md
 
-# Vercel environment check files
-.env.vercel-production
+# Vercel environment files (contain secrets — never commit)
+.env.vercel
+.env.vercel*
+apps/web/.env.vercel
 apps/web/.env.vercel-check
+.env.vercel-production
+
+# Playwright test artifacts (may embed keys used in tests)
+playwright-report/
+test-results/
