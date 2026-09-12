@@ -10,6 +10,7 @@ import { getSupabase } from "@/lib/supabase";
 import { useApprovalQueue } from "@/hooks/useTickets";
 import { initPushNotifications } from "@/lib/native/capacitor";
 import type { UserRole } from "@maiyuri/shared";
+import { Workflow } from "lucide-react";
 
 // Brand colors from Brandguidelines.md
 const brandColors = {
@@ -44,6 +45,7 @@ const navigation: NavItem[] = [
   { name: "Business", href: "/business-health", icon: HealthIcon, key: "business-health" },
   { name: "Leads", href: "/leads", icon: UsersIcon, key: "leads" },
   { name: "Quotes", href: "/quotes", icon: KPIIcon, key: "quotes" },
+  { name: "Processes", href: "/processes", icon: Workflow, key: "processes" },
   {
     name: "Deliveries",
     href: "/deliveries",
@@ -94,6 +96,7 @@ const roleModuleAccess: Record<UserRole, string[]> = {
     "daily-report",
     "leads",
     "quotes",
+    "processes",
     "tasks",
     "approvals",
     "settings",
@@ -108,6 +111,7 @@ const roleModuleAccess: Record<UserRole, string[]> = {
     "dashboard",
     "onehub",
     "leads",
+    "processes",
     "tasks",
     "approvals",
     "settings",
@@ -115,9 +119,9 @@ const roleModuleAccess: Record<UserRole, string[]> = {
     "projects",
     "coaching",
   ],
-  sales: ["dashboard", "onehub", "leads", "quotes", "ops", "tasks", "settings", "knowledge", "coaching"],
+  sales: ["dashboard", "onehub", "leads", "quotes", "processes", "ops", "tasks", "settings", "knowledge", "coaching"],
   driver: ["dashboard", "onehub", "deliveries", "settings"],
-  production_supervisor: ["dashboard", "onehub", "factory", "production", "planning", "ops", "deliveries", "settings", "projects", "coaching"],
+  production_supervisor: ["dashboard", "onehub", "processes", "factory", "production", "planning", "ops", "deliveries", "settings", "projects", "coaching"],
 };
 
 function getNavigationForRole(role: UserRole | undefined): NavItem[] {
