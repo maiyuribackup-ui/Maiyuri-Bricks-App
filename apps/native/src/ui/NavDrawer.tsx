@@ -105,6 +105,7 @@ const ROLE_KEYS: Record<string, string[]> = {
     "expenses",
     "approvals",
     "processes",
+    "leads",
     "plan",
     "production",
     "deliveries",
