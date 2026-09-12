@@ -8,7 +8,7 @@ psql -q -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; DROP SCH
 psql -q -c "DROP ROLE IF EXISTS anon; DROP ROLE IF EXISTS authenticated; DROP ROLE IF EXISTS service_role;" >/dev/null 2>&1 || true
 $P -f supabase/tests/process_os/00_scaffold.sql
 $P -c "CREATE SCHEMA storage; CREATE TABLE storage.buckets (id TEXT PRIMARY KEY, name TEXT, public BOOLEAN, file_size_limit BIGINT, allowed_mime_types TEXT[]);"
-for f in 20260711000001_my_work 20260718120000_work_item_nudges 20260903120000_lead_stage_progression_tasks 20260912100000_process_os; do
+for f in 20260711000001_my_work 20260718120000_work_item_nudges 20260903120000_lead_stage_progression_tasks 20260912100000_process_os 20260912110000_process_role_default_holders 20260913100000_process_qc_releases; do
   $P -f "supabase/migrations/$f.sql" 2>&1 | grep -v NOTICE || true
 done
 fail=0

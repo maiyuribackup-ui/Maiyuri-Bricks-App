@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ExternalLink,
+  ClipboardCheck,
   Paperclip,
 } from "lucide-react";
 import {
@@ -36,6 +37,7 @@ import {
   useBlockProcess,
   useCompleteProcessTask,
   useOverrideGate,
+  useRecordQcRelease,
   useRejectHandover,
   useUnblockProcess,
 } from "@/hooks/useProcess";
@@ -46,6 +48,7 @@ import {
   EvidenceDialog,
   HandoverPackageDialog,
   OverrideDialog,
+  QcReleaseDialog,
   RejectHandoverDialog,
   dangerButtonClass,
   primaryButtonClass,
@@ -136,6 +139,8 @@ export function ProcessStagePanel({
   const [showReject, setShowReject] = useState(false);
   const [overrideGateKey, setOverrideGateKey] = useState<string | null>(null);
   const [evidenceTask, setEvidenceTask] = useState<ProcessTaskRow | null>(null);
+  const [qcOpen, setQcOpen] = useState(false);
+  const recordQc = useRecordQcRelease();
   const [handoverTarget, setHandoverTarget] = useState<{
     transition: ProcessTransitionRow;
     fields: string[];
@@ -361,6 +366,31 @@ export function ProcessStagePanel({
     }
   };
 
+  const handleQcRelease = async (
+    input: Parameters<
+      NonNullable<Parameters<typeof QcReleaseDialog>[0]["onSubmit"]>
+    >[0],
+  ) => {
+    if (!stageInstance) return;
+    setError(null);
+    const qcTask = view.tasks.find(
+      (t) => t.metadata?.evidence_type === "qc_release",
+    );
+    try {
+      await recordQc.mutateAsync({
+        instanceId: instance.id,
+        body: {
+          ...input,
+          stage_instance_id: stageInstance.id,
+          task_id: qcTask?.id,
+        },
+      });
+      setQcOpen(false);
+    } catch (err) {
+      setError(errorMessage(err, "Failed to record the QC release"));
+    }
+  };
+
   const handleEvidence = async (input: {
     source_type: "text" | "url";
     value: string;
@@ -418,6 +448,7 @@ export function ProcessStagePanel({
       )
     : [];
   const sla = formatSla(stage.sla_minutes);
+  const hasQcGate = view.gates.some((g) => g.gate_type === "qc_released");
   const dueLabel = stageInstance.due_at
     ? formatDate(stageInstance.due_at)
     : null;
@@ -661,6 +692,16 @@ export function ProcessStagePanel({
                 : undefined
             }
           />
+          {hasQcGate && (
+            <button
+              type="button"
+              onClick={() => setQcOpen(true)}
+              disabled={!canAct || busy}
+              className="mt-3 inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800"
+            >
+              <ClipboardCheck className="h-4 w-4" /> Record QC release
+            </button>
+          )}
         </section>
       )}
 
@@ -847,6 +888,17 @@ export function ProcessStagePanel({
           onClose={() => setEvidenceTask(null)}
           onSubmit={handleEvidence}
           busy={addEvidence.isPending}
+          error={error}
+        />
+      )}
+      {qcOpen && (
+        <QcReleaseDialog
+          isOpen
+          initialProduct={instance.context?.product_name ?? ""}
+          initialQuantity={instance.context?.quantity ?? null}
+          onClose={() => setQcOpen(false)}
+          onSubmit={handleQcRelease}
+          busy={recordQc.isPending}
           error={error}
         />
       )}

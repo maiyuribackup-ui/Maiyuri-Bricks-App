@@ -24,6 +24,7 @@ vi.mock("@/hooks/useProcess", () => ({
   useAcceptHandover: () => mutation(),
   useRejectHandover: () => mutation(),
   useAddProcessEvidence: () => mutation(),
+  useRecordQcRelease: () => mutation(),
 }));
 
 const ME = "11111111-1111-4111-8111-111111111111";

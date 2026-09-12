@@ -12,6 +12,8 @@ import {
   type HandoverRejectionCode,
   type ProcessHandoverPayload,
   type ProcessInstanceContext,
+  type ProcessQcResult,
+  type RecordQcReleaseInput,
   type RejectHandoverInput,
 } from "@maiyuri/shared";
 import { humanizeKey } from "./ProcessGateList";
@@ -565,6 +567,158 @@ export function EvidenceDialog({
           submitLabel="Attach"
           busy={busy}
           disabled={value.trim().length === 0}
+        />
+      </form>
+    </Modal>
+  );
+}
+
+// ---------- QC release ----------
+
+export interface QcReleaseDialogProps {
+  isOpen: boolean;
+  /** Product + quantity pre-filled from the case context when known. */
+  initialProduct?: string;
+  initialQuantity?: number | null;
+  onClose: () => void;
+  onSubmit: (
+    input: Omit<RecordQcReleaseInput, "stage_instance_id" | "task_id">,
+  ) => Promise<void>;
+  busy?: boolean;
+  error?: string | null;
+}
+
+/**
+ * The factory's QC record (PRD §9 Quality Release): what was checked, how
+ * much, which batch, and the verdict. A HOLD keeps the stage blocked and is
+ * the cue to take the "QC hold — re-plan" exception.
+ */
+export function QcReleaseDialog({
+  isOpen,
+  initialProduct = "",
+  initialQuantity = null,
+  onClose,
+  onSubmit,
+  busy = false,
+  error = null,
+}: QcReleaseDialogProps) {
+  const [product, setProduct] = useState(initialProduct);
+  const [quantity, setQuantity] = useState(
+    initialQuantity && initialQuantity > 0 ? String(initialQuantity) : "",
+  );
+  const [batch, setBatch] = useState("");
+  const [result, setResult] = useState<ProcessQcResult>("released");
+  const [notes, setNotes] = useState("");
+  const qty = Number(quantity);
+  const valid = product.trim().length > 0 && Number.isFinite(qty) && qty > 0;
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Record QC release">
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!valid) return;
+          await onSubmit({
+            product_name: product.trim(),
+            quantity: qty,
+            result,
+            batch_ref: batch.trim() || undefined,
+            notes: notes.trim() || undefined,
+          });
+        }}
+        className="space-y-4"
+      >
+        <div className="flex gap-2" role="radiogroup" aria-label="QC result">
+          {(
+            [
+              [
+                "released",
+                "Released",
+                "border-green-500 bg-green-50 text-green-700",
+              ],
+              ["hold", "Hold", "border-rose-500 bg-rose-50 text-rose-700"],
+            ] as const
+          ).map(([kind, label, active]) => (
+            <button
+              key={kind}
+              type="button"
+              role="radio"
+              aria-checked={result === kind}
+              onClick={() => setResult(kind)}
+              className={`min-h-[44px] flex-1 rounded-xl border px-3 text-sm font-semibold ${
+                result === kind
+                  ? active
+                  : "border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div>
+          <label htmlFor="qc-product" className={labelClass}>
+            Product
+          </label>
+          <input
+            id="qc-product"
+            value={product}
+            onChange={(e) => setProduct(e.target.value)}
+            required
+            maxLength={200}
+            className={inputClass}
+            placeholder="e.g. Solid block 8 inch"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="qc-quantity" className={labelClass}>
+              Quantity checked
+            </label>
+            <input
+              id="qc-quantity"
+              type="number"
+              inputMode="decimal"
+              min={0.01}
+              step="any"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              required
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label htmlFor="qc-batch" className={labelClass}>
+              Batch (optional)
+            </label>
+            <input
+              id="qc-batch"
+              value={batch}
+              onChange={(e) => setBatch(e.target.value)}
+              maxLength={100}
+              className={inputClass}
+              placeholder="B-17"
+            />
+          </div>
+        </div>
+        <div>
+          <label htmlFor="qc-notes" className={labelClass}>
+            {result === "hold" ? "Why is it on hold?" : "Notes (optional)"}
+          </label>
+          <textarea
+            id="qc-notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            maxLength={2000}
+            required={result === "hold"}
+            className={inputClass}
+          />
+        </div>
+        <ErrorLine error={error} />
+        <DialogFooter
+          onCancel={onClose}
+          submitLabel={result === "hold" ? "Record hold" : "Record release"}
+          busy={busy}
+          disabled={!valid || (result === "hold" && notes.trim().length === 0)}
         />
       </form>
     </Modal>

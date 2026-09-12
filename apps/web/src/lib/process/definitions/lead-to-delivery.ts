@@ -2,8 +2,12 @@
  * Reference process: New WhatsApp Lead → Delivery (PRD §4, §12).
  *
  * This is DATA. It is imported through `process_import_definition` and then
- * frozen as version 1.0; changing the business flow means authoring 1.1 and
- * publishing it, never editing rows of a published version.
+ * frozen per version; changing the business flow means authoring the next
+ * version and publishing it, never editing rows of a published version.
+ *
+ * 1.0 — initial 17-stage flow.
+ * 1.1 — QUALITY_RELEASE gate reads a real QC record (`qc_released`) instead
+ *       of a factory note (`manual_confirmation`).
  *
  * Sales stages read the lead's existing `pipeline_stage` in their gates so
  * the CRM board and the process never disagree about where a lead is.
@@ -23,7 +27,7 @@ export const leadToDeliveryV1: ProcessDefinitionInput = {
   category: "SALES",
   description:
     "One case per customer enquiry: from the first WhatsApp message through qualification, quotation, advance, factory handover, production, quality release and delivery to post-delivery follow-up.",
-  version: "1.0",
+  version: "1.1",
   entity_type: "lead",
   stages: [
     {
@@ -756,8 +760,8 @@ export const leadToDeliveryV1: ProcessDefinitionInput = {
         },
         {
           key: "QC_RELEASED",
-          type: "manual_confirmation",
-          condition: { role: "FACTORY_MANAGER", evidence_type: "qc_release" },
+          type: "qc_released",
+          condition: {},
           failure_message: "QC release has not been recorded by the factory",
           overridable: false,
         },

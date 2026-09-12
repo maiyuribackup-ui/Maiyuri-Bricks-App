@@ -409,3 +409,68 @@ describe("overrides, payload and blocking", () => {
     );
   });
 });
+
+describe("qc_released", () => {
+  const g = gate("qc_released");
+  const qc = (
+    result: "released" | "hold",
+    role: string | null = "production_supervisor",
+    checkedBy = "rajesh",
+  ) => ({
+    id: "qc-1",
+    process_instance_id: "i",
+    stage_instance_id: "si",
+    task_id: null,
+    evidence_id: null,
+    odoo_order_id: null,
+    product_name: "Solid block 8in",
+    quantity: 5000,
+    batch_ref: "B-17",
+    result,
+    notes: null,
+    photo_path: null,
+    lab_report_path: null,
+    checked_by: checkedBy,
+    checked_at: "",
+    created_at: "",
+    checked_by_role: role,
+  });
+  it("needs a real record — a note never counts", () => {
+    const r = evaluateGate(
+      g,
+      facts({ evidence: [evidence("qc_release", "production_supervisor")] }),
+    );
+    expect(r.status).toBe("fail");
+    expect(r.message).toMatch(/No QC release/);
+  });
+  it("passes on a factory release and names what was released", () => {
+    const r = evaluateGate(g, facts({ qc_release: qc("released") }));
+    expect(r.status).toBe("ok");
+    expect(r.message).toContain("5000 × Solid block 8in");
+  });
+  it("a hold keeps the gate closed", () => {
+    const r = evaluateGate(g, facts({ qc_release: qc("hold") }));
+    expect(r.status).toBe("fail");
+    expect(r.message).toMatch(/QC hold/);
+  });
+  it("a release by someone outside the factory role fails; designated holders count", () => {
+    expect(
+      evaluateGate(g, facts({ qc_release: qc("released", "sales", "srini") }))
+        .status,
+    ).toBe("fail");
+    expect(
+      evaluateGate(
+        g,
+        facts({
+          qc_release: qc("released", "sales", "srini"),
+          role_defaults: { FACTORY_MANAGER: "srini" },
+        }),
+      ).status,
+    ).toBe("ok");
+  });
+  it("loader failure turns the gate unknown", () => {
+    expect(
+      evaluateGate(g, facts({ errors: { qc_release: "db down" } })).status,
+    ).toBe("unknown");
+  });
+});

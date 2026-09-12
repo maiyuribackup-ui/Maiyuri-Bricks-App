@@ -32,6 +32,7 @@ const { engine, queue } = vi.hoisted(() => ({
     cancel: vi.fn(),
     startProcess: vi.fn(),
     getInstanceView: vi.fn(),
+    recordQcRelease: vi.fn(),
   },
   queue: { loadWorkQueue: vi.fn() },
 }));
@@ -43,6 +44,7 @@ import { POST as advancePost } from "../instances/[id]/advance/route";
 import { POST as cancelPost } from "../instances/[id]/cancel/route";
 import { POST as startPost } from "../instances/route";
 import { GET as workGet } from "../work/route";
+import { POST as qcPost } from "../instances/[id]/qc-release/route";
 
 const SI = "11111111-1111-1111-1111-111111111111";
 const params = { params: Promise.resolve({ id: "inst-1" }) };
@@ -167,5 +169,47 @@ describe("validation + error mapping", () => {
     );
     expect(res.status).toBe(500);
     expect((await body(res)).error).toBe("Failed to move the case forward");
+  });
+});
+
+describe("POST /api/process/instances/[id]/qc-release", () => {
+  it("400 on a missing quantity or an unknown result", async () => {
+    expect(
+      (await qcPost(req({ product_name: "Block", result: "released" }), params))
+        .status,
+    ).toBe(400);
+    expect(
+      (
+        await qcPost(
+          req({ product_name: "Block", quantity: 10, result: "maybe" }),
+          params,
+        )
+      ).status,
+    ).toBe(400);
+    expect(engine.recordQcRelease).not.toHaveBeenCalled();
+  });
+  it("records a release and maps a factory-only refusal to 403", async () => {
+    engine.recordQcRelease.mockResolvedValueOnce({
+      qc_release: { id: "qc", result: "released" },
+      view: { instance: { id: "inst-1" } },
+    });
+    const ok = await qcPost(
+      req({ product_name: "Block", quantity: 5000, result: "released" }),
+      params,
+    );
+    expect(ok.status).toBe(200);
+    expect(engine.recordQcRelease).toHaveBeenCalledWith(
+      "inst-1",
+      expect.objectContaining({ id: "user-1" }),
+      expect.objectContaining({ quantity: 5000, result: "released" }),
+    );
+    engine.recordQcRelease.mockRejectedValueOnce(
+      new ProcessError("FORBIDDEN", "only the FACTORY_MANAGER may record"),
+    );
+    const no = await qcPost(
+      req({ product_name: "Block", quantity: 1, result: "hold", notes: "x" }),
+      params,
+    );
+    expect(no.status).toBe(403);
   });
 });

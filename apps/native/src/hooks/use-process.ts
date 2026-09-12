@@ -9,8 +9,10 @@ import type {
   ProcessEventRow,
   ProcessHandoverRow,
   ProcessInstanceView,
+  ProcessQcReleaseRow,
   ProcessVersionRow,
   ProcessWorkQueue,
+  RecordQcReleaseInput,
   RejectHandoverInput,
   StartProcessInput,
 } from "@maiyuri/shared";
@@ -283,6 +285,30 @@ export function useAddProcessEvidence() {
     },
     onError: (e) =>
       toast.error(formatProcessError(e, "Could not add evidence")),
+  });
+}
+
+type QcVars = { instanceId: string } & RecordQcReleaseInput;
+
+/** Record a QC release / hold on the current stage (Factory Manager). */
+export function useRecordQcRelease() {
+  const invalidate = useInvalidateProcess();
+  return useMutation({
+    mutationFn: ({ instanceId, ...body }: QcVars) =>
+      api.post<{ qc_release: ProcessQcReleaseRow; view: ProcessInstanceView }>(
+        `/api/process/instances/${instanceId}/qc-release`,
+        body,
+      ),
+    onSuccess: (data, vars) => {
+      invalidate(vars.instanceId);
+      toast.success(
+        data.data.qc_release.result === "hold"
+          ? "QC hold recorded"
+          : "QC released",
+      );
+    },
+    onError: (e) =>
+      toast.error(formatProcessError(e, "Could not record the QC release")),
   });
 }
 

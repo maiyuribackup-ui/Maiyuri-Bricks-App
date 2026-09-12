@@ -30,7 +30,7 @@ implementation. No new app, no workflow microservice, no BPMN editor.
 | Payment truth | `receivables.ts` reads `account.move` with `payment_state`. No advance/payment helper exists. `odooExecute()` has a 25 s timeout. `leads.odoo_quote_id` / `odoo_order_id` are both `sale.order` ids (quote vs confirmed). | New `readOrderPaymentStatus(odooOrderId)` in `src/lib/process/facts/odoo.ts` (invoices linked to the sale order → paid amount). Advance threshold is an **open question** (§8). |
 | Stock / reservation / dispatch facts | Odoo stock = `product.product.qty_available` mirrored into `finished_goods.stock_qty` by `pullFinishedGoodStock()` (no `stock.quant` read). ops-control: `oc_sales_order_lines` (Odoo SO lines synced, `qty_ordered/qty_delivered`, `finished_good_id`), `oc_stock_reservations`, `oc_inventory_movements`, `loadInventory()` / `loadReservationsBySoLine()` in `inventory-service.ts`, `computeCoverage()` / `computeReadiness()` in `fulfilment.ts`, `oc_delivery_schedules`, `oc_trips`, `oc_audit_events`. | Factory gates call these — no new stock model. `stock_feasible` = `computeCoverage` for the SO line at the requested date. |
 | Production plan | `ops_plan*` + `oc_production_plan_lines` / `oc_production_allocations`. | Stage 9 links `process_stage_instances.linked_record` to an allocation id; no new plan table. |
-| Quality release | **Not found** — no QC table anywhere. | V0.1: QC release is a factory-role evidence gate (`manual_confirmation` by `production_supervisor` with reason + optional photo). Flagged as a gap for Phase 4. |
+| Quality release | **Not found** — no QC table anywhere. | V0.1.1: a real QC record (`process_qc_releases` — product, quantity, batch, released/hold, checker) written through `process_record_qc_release`; the `qc_released` gate is verified in the database from the record. Lead-to-Delivery v1.1 uses it. |
 | Delivery | `deliveries` (+ `/api/deliveries/[id]/complete` with photos, recipient), `oc_trips` / `oc_trip_load_lines`. | Stages 11–13 link to `oc_trips` / `deliveries` ids; `delivered` gate = linked delivery `completed`. |
 | Notifications | `fcm.ts` (`sendPushToUsers`, `filterByPushPref`, `getUserIdsByRoles`), `telegram.ts`, `email.ts`, `my-work-notify.ts`. No unified event bus, no `notifications` table, **no n8n / webhook helper**. | Add a small in-process dispatcher `emitProcessEvent()` that (1) inserts `process_events`, (2) fans out to notify handlers, (3) optionally POSTs to `PROCESS_EVENT_WEBHOOK_URL` (n8n) if set. Engine never imports a provider directly. |
 | Approval workflow precedent | `tickets` (`pending/in_review/approved/rejected/changes_requested`) + `ticket_history`, `ticket-service.ts`. | Handover accept/reject copies the ticket-service shape (service function + `[id]/accept`, `[id]/reject` routes) but is its own table per PRD §11. |
@@ -217,7 +217,7 @@ Phase mapping to PRD §36: Phase 1 = M1–M2, Phase 2 = M3–M5, Phase 3 = M6, P
 | `work_items.activity_type` CHECK | Widen with `ALTER TABLE … DROP CONSTRAINT / ADD CONSTRAINT` in the same migration; rollback restores. |
 | Advance semantics unknown (percent? fixed? which Odoo document?) | Gate reads `condition.min_percent`; until the business confirms, FINANCE evidence path is the default and Odoo auto-pass is off (`condition.auto_from_odoo=false`). |
 | Odoo qty semantics (qty=1 lines may be lots — known gotcha) | Factory gates use `oc_sales_order_lines.is_demand` + `finished_good_id` only; unmapped lines block with a clear message. |
-| No QC model | `manual_confirmation` gate for V0.1; Phase 4 replaces with a real QC record without changing the definition shape (gate_type swap = new version). |
+| No QC model | Done in V0.1.1: `process_qc_releases` + `qc_released` gate; the swap shipped as Lead-to-Delivery v1.1 (running 1.0 cases unaffected). |
 | Coarse RLS | Engine functions are SECURITY DEFINER and enforce role checks in SQL; routes enforce again; `process_events` is insert-only for everyone. |
 | Native needs OTA, not a build | All native changes are JS-only (no new native modules). |
 | `packages/shared` raw-source zod export | Follow the existing pattern; do not add new runtime deps to `shared`. |
@@ -268,7 +268,7 @@ docs/UNIT_ECONOMICS.md or docs/PROCESS_OS_CONTRACT.md (frozen views)
 3. **SLA numbers** for each stage (PRD gives 15 min for New Lead only) — plan uses placeholders in the seed, editable per version.
 4. **When does a lead's process start** — automatically on lead creation (every lead gets an instance) or manually from the lead screen? Plan defaults to *automatic for new leads once M3 ships*, manual "start at current stage" for existing leads.
 5. **n8n:** is an n8n instance available? Nothing in the repo references one; the webhook hook is env-gated and inert until configured.
-6. **QC:** acceptable that V0.1 QC release is a supervisor confirmation with photo, not a lab record?
+6. **QC:** ~~acceptable that V0.1 QC release is a supervisor confirmation with photo, not a lab record?~~ Resolved (V0.1.1): real QC record — see `20260913100000_process_qc_releases.sql`.
 
 ## 9. Definition of done for V0.1
 

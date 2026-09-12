@@ -18,10 +18,12 @@ import type {
   ProcessEventRow,
   ProcessHandoverRow,
   ProcessInstanceView,
+  ProcessQcReleaseRow,
   ProcessRoleDefaultRow,
   ProcessRoleKey,
   ProcessVersionRow,
   ProcessWorkQueue,
+  RecordQcReleaseInput,
   RejectHandoverInput,
   SetRoleDefaultInput,
   StartProcessInput,
@@ -307,6 +309,21 @@ export function useAddProcessEvidence() {
     "evidence",
     "Failed to attach the evidence",
   );
+}
+
+/** Record a QC release / hold on the current stage (Factory Manager). */
+export function useRecordQcRelease() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ instanceId, body }: InstanceArgs<RecordQcReleaseInput>) =>
+      sendJson<{ qc_release: ProcessQcReleaseRow; view: ProcessInstanceView }>(
+        `/api/process/instances/${instanceId}/qc-release`,
+        "POST",
+        body,
+        "Failed to record the QC release",
+      ),
+    onSuccess: (_, { instanceId }) => invalidateInstance(qc, instanceId),
+  });
 }
 
 export interface HandoverActionArgs<T> {

@@ -97,7 +97,11 @@ SELECT public.process_advance(:'a', (SELECT si FROM public.g_current(:'a')), :'r
 -- QUALITY_RELEASE (Scenario E lives below): factory records QC release
 SELECT public.assert_true((SELECT key FROM public.g_current(:'a')) = 'QUALITY_RELEASE', 'A → QUALITY_RELEASE');
 SELECT (SELECT si FROM public.g_current(:'a')) AS qc_si \gset
-SELECT public.process_add_evidence(:'a', :'qc_si', (SELECT id FROM public.process_tasks WHERE stage_instance_id=:'qc_si' AND item_key='QC_CHECK'), :'rajesh', 'qc_release', 'text', NULL, NULL, '{"batch":"B-17"}')->>'id' AS qc_ev;
+-- v1.1: a real QC record (process_record_qc_release) is the evidence; it also completes QC_CHECK
+SELECT public.process_record_qc_release(:'a', :'qc_si', :'rajesh', 'Solid block 8in', 5000, 'released', (SELECT id FROM public.process_tasks WHERE stage_instance_id=:'qc_si' AND item_key='QC_CHECK'), 'B-17', 'All good')->>'id' AS qc_id \gset
+SELECT public.assert_true((SELECT status FROM public.process_tasks WHERE stage_instance_id=:'qc_si' AND item_key='QC_CHECK') = 'done', 'A: QC record completed the QC_CHECK item');
+SELECT public.assert_true((SELECT count(*) FROM public.process_evidence WHERE stage_instance_id=:'qc_si' AND evidence_type='qc_release' AND source_id=:'qc_id') = 1, 'A: QC record wrote its evidence');
+SELECT public.assert_true((SELECT evidence_id IS NOT NULL FROM public.process_qc_releases WHERE id=:'qc_id'), 'A: QC record links its evidence');
 SELECT public.g_complete_tasks(:'qc_si', :'rajesh');
 SELECT public.process_advance(:'a', :'qc_si', :'rajesh') \gset r
 SELECT public.assert_true((SELECT key FROM public.g_current(:'a')) = 'DELIVERY_PLANNING', 'A → DELIVERY_PLANNING');
@@ -174,21 +178,31 @@ SELECT public.assert_true((SELECT count(*) FROM public.process_events WHERE proc
 INSERT INTO public.leads (id,name,assigned_staff) VALUES ('20000000-0000-0000-0000-000000000005','QCfail',:'srini');
 SELECT (public.process_start('LEAD_TO_DELIVERY','lead','20000000-0000-0000-0000-000000000005',:'ram','{"customer_name":"QCfail"}', 'QUALITY_RELEASE', true, 'golden-e'))->>'id' AS e \gset
 SELECT (SELECT si FROM public.g_current(:'e')) AS e_si \gset
--- sales-recorded "qc_release" does not count; task cannot even complete without evidence
+-- task cannot even complete without evidence
 SELECT public.expect_fail(format('SELECT public.process_complete_task(%L::uuid,%L::uuid)', (SELECT id FROM public.process_tasks WHERE stage_instance_id=:'e_si' AND item_key='QC_CHECK'), :'rajesh')) AS e_needs_evidence;
+-- a sales "qc_release" note is not a QC record: the gate ignores it
 SELECT public.process_add_evidence(:'e', :'e_si', (SELECT id FROM public.process_tasks WHERE stage_instance_id=:'e_si' AND item_key='QC_CHECK'), :'srini', 'qc_release', 'text', NULL, NULL, '{}')->>'id' AS e_sales_ev;
 SELECT public.g_complete_tasks(:'e_si', :'rajesh');
-SELECT public.expect_fail(format('SELECT public.process_advance(%L::uuid,%L::uuid,%L::uuid)', :'e', :'e_si', :'rajesh')) AS e_qc_gate_blocks;
+SELECT public.expect_fail(format('SELECT public.process_advance(%L::uuid,%L::uuid,%L::uuid)', :'e', :'e_si', :'rajesh')) AS e_qc_gate_blocks_without_record;
+-- sales cannot record a QC release at all
+SELECT public.expect_fail(format('SELECT public.process_record_qc_release(%L::uuid,%L::uuid,%L::uuid,%L,%s,%L)', :'e', :'e_si', :'srini', 'Solid block', 100, 'released')) AS e_sales_cannot_record_qc;
+-- bad inputs are refused
+SELECT public.expect_fail(format('SELECT public.process_record_qc_release(%L::uuid,%L::uuid,%L::uuid,%L,%s,%L)', :'e', :'e_si', :'rajesh', 'Solid block', 0, 'released')) AS e_zero_qty;
+SELECT public.expect_fail(format('SELECT public.process_record_qc_release(%L::uuid,%L::uuid,%L::uuid,%L,%s,%L)', :'e', :'e_si', :'rajesh', 'Solid block', 100, 'maybe')) AS e_bad_result;
+-- a factory HOLD is a record, but the gate stays closed
+SELECT public.process_record_qc_release(:'e', :'e_si', :'rajesh', 'Solid block 8in', 5000, 'hold', NULL, 'B-18', 'Cracks on 3% of sample')->>'result' AS e_hold;
+SELECT public.assert_true((SELECT count(*) FROM public.process_events WHERE process_instance_id=:'e' AND event_type='process.qc_hold') = 1, 'Scenario E: hold logged');
+SELECT public.expect_fail(format('SELECT public.process_advance(%L::uuid,%L::uuid,%L::uuid)', :'e', :'e_si', :'rajesh')) AS e_qc_gate_blocks_on_hold;
 SELECT public.assert_true(NOT EXISTS (SELECT 1 FROM public.process_stage_instances si JOIN public.process_stages s ON s.id=si.process_stage_id WHERE si.process_instance_id=:'e' AND s.stage_key='DELIVERY_PLANNING'), 'Scenario E: delivery planning never started');
 SELECT public.process_advance(:'e', :'e_si', :'rajesh', 'QC_HOLD') \gset r
 SELECT public.assert_true((SELECT key FROM public.g_current(:'e')) = 'PRODUCTION_ALLOCATION', 'Scenario E: QC hold returns to allocation');
 SELECT public.assert_true((SELECT status FROM public.process_stage_instances WHERE id=:'e_si') = 'completed', 'Scenario E: QC stage closed via exception path');
 
 -- ============================================================ Versioning ===
-SELECT public.process_import_definition((:'def'::jsonb || '{"version":"1.1"}'::jsonb), :'ram') AS l2d11 \gset
+SELECT public.process_import_definition((:'def'::jsonb || '{"version":"1.2"}'::jsonb), :'ram') AS l2d11 \gset
 SELECT public.process_publish_version(:'l2d11', :'ram')->>'status' AS v11;
-SELECT public.assert_true((SELECT v.version FROM public.process_instances i JOIN public.process_versions v ON v.id=i.process_version_id WHERE i.id=:'b') = '1.0', 'Versioning: running case stays on 1.0');
+SELECT public.assert_true((SELECT v.version FROM public.process_instances i JOIN public.process_versions v ON v.id=i.process_version_id WHERE i.id=:'b') = '1.1', 'Versioning: running case stays on 1.1');
 INSERT INTO public.leads (id,name,assigned_staff) VALUES ('20000000-0000-0000-0000-000000000006','Newcase',:'srini');
 SELECT (public.process_start('LEAD_TO_DELIVERY','lead','20000000-0000-0000-0000-000000000006',:'srini'))->>'id' AS f \gset
-SELECT public.assert_true((SELECT v.version FROM public.process_instances i JOIN public.process_versions v ON v.id=i.process_version_id WHERE i.id=:'f') = '1.1', 'Versioning: new case starts on 1.1');
+SELECT public.assert_true((SELECT v.version FROM public.process_instances i JOIN public.process_versions v ON v.id=i.process_version_id WHERE i.id=:'f') = '1.2', 'Versioning: new case starts on 1.2');
 SELECT 'GOLDEN OK' AS result;
