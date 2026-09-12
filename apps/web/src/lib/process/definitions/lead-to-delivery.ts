@@ -501,7 +501,7 @@ export const leadToDeliveryV1: ProcessDefinitionInput = {
       transitions: [
         {
           key: "NEXT",
-          to: "FACTORY_HANDOVER",
+          to: "HANDOVER_PACKAGE",
           condition: {},
           priority: 10,
           is_exception: false,
@@ -520,6 +520,68 @@ export const leadToDeliveryV1: ProcessDefinitionInput = {
         sop_slug: "accounts-advance-verification",
         evidence_types: ["payment_reference"],
       },
+    },
+    {
+      key: "HANDOVER_PACKAGE",
+      name: "Prepare Factory Handover",
+      description:
+        "Sales compiles the complete package the factory will judge: product, quantity, payment status, requested date, site, contacts, plans and every commitment already made.",
+      type: "ACTION",
+      owner_role: SALES,
+      sla_minutes: 480,
+      is_start: false,
+      checklist: [
+        {
+          key: "CONFIRM_QUANTITY",
+          title: "Confirm product and quantity with the customer",
+          required: true,
+          evidence_required: false,
+        },
+        {
+          key: "CONFIRM_DELIVERY_DATE",
+          title: "Confirm the requested delivery date",
+          required: true,
+          evidence_required: false,
+        },
+        {
+          key: "SITE_DETAILS",
+          title: "Site location, contact person and unloading notes",
+          required: true,
+          evidence_required: false,
+        },
+        {
+          key: "ATTACH_PLANS",
+          title: "Attach plans / drawings if any",
+          required: false,
+          evidence_required: false,
+        },
+        {
+          key: "SPECIAL_REQUIREMENTS",
+          title: "Special requirements and commitments already made",
+          required: false,
+          evidence_required: false,
+        },
+      ],
+      gates: [
+        {
+          key: "CHECKLIST",
+          type: "checklist_complete",
+          condition: {},
+          overridable: true,
+        },
+      ],
+      transitions: [
+        {
+          key: "NEXT",
+          to: "FACTORY_HANDOVER",
+          condition: {},
+          priority: 10,
+          is_exception: false,
+          label: "Send to factory",
+        },
+      ],
+      automations: [],
+      config: { sop_slug: "sales-factory-handover-package" },
     },
     {
       key: "FACTORY_HANDOVER",
@@ -599,7 +661,7 @@ export const leadToDeliveryV1: ProcessDefinitionInput = {
         },
         {
           key: "RETURN_TO_SALES",
-          to: "CUSTOMER_ACCEPTANCE",
+          to: "HANDOVER_PACKAGE",
           condition: {},
           priority: 20,
           is_exception: true,

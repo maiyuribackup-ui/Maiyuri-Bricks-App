@@ -60,7 +60,7 @@ describe("validateDefinition", () => {
     const v = validateDefinition(leadToDeliveryV1);
     expect(codes(v)).toEqual([]);
     expect(v.ok).toBe(true);
-    expect(v.definition?.stages.length).toBe(16);
+    expect(v.definition?.stages.length).toBe(17);
   });
 
   it("accepts a minimal definition", () => {

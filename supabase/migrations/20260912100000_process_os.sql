@@ -572,7 +572,17 @@ BEGIN
   SELECT * INTO v_st FROM public.process_stages WHERE id = p_stage_id;
   IF v_st.id IS NULL THEN RAISE EXCEPTION 'STAGE_NOT_FOUND: %', p_stage_id; END IF;
 
-  v_assignee := public.process_resolve_assignee(v_st.owner_role, p_assignee);
+  -- Explicit assignee → whoever last worked this stage on this case (a
+  -- returned handover goes back to the person who sent it) → role default.
+  v_assignee := p_assignee;
+  IF v_assignee IS NULL THEN
+    SELECT assigned_user_id INTO v_assignee
+    FROM public.process_stage_instances
+    WHERE process_instance_id = p_instance_id AND process_stage_id = p_stage_id
+      AND assigned_user_id IS NOT NULL
+    ORDER BY started_at DESC LIMIT 1;
+  END IF;
+  v_assignee := public.process_resolve_assignee(v_st.owner_role, v_assignee);
   v_due := CASE WHEN v_st.sla_minutes IS NULL THEN NULL
                 ELSE clock_timestamp() + make_interval(mins => v_st.sla_minutes) END;
 
@@ -1202,7 +1212,13 @@ BEGIN
     jsonb_build_object('stage_key', v_st.stage_key, 'transition_key', v_tr.transition_key,
                        'is_exception', true, 'status', 'failed'), p_comment);
 
-  v_next_si := public.process_open_stage(v_in.id, v_tr.to_stage_id, p_actor, v_h.from_user_id);
+  -- Return to the sender when they own the target stage, otherwise let the
+  -- stage's own history / role default decide.
+  SELECT * INTO v_st FROM public.process_stages WHERE id = v_tr.to_stage_id;
+  v_next_si := public.process_open_stage(
+    v_in.id, v_tr.to_stage_id, p_actor,
+    CASE WHEN v_h.from_user_id IS NOT NULL AND public.process_user_has_role(v_h.from_user_id, v_st.owner_role)
+         THEN v_h.from_user_id ELSE NULL END);
   UPDATE public.process_stage_instances SET blocked_reason = v_reason WHERE id = v_next_si;
 
   RETURN jsonb_build_object(
