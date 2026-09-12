@@ -21,6 +21,7 @@ const protectedRoutes = [
   "/onehub",
   "/leads",
   "/quotes",
+  "/processes", // Process OS — library, maps, cases (startsWith covers /processes/*)
   "/planning",
   "/ops", // Operations Control — startsWith, so this covers every /ops/* page
   "/projects",

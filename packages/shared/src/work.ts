@@ -16,6 +16,8 @@ export const workActivityTypeSchema = z.enum([
   "inspection",
   "report",
   "approval",
+  /** Mirrored Process OS stage — see packages/shared/src/process.ts */
+  "process",
 ]);
 export type WorkActivityType = z.infer<typeof workActivityTypeSchema>;
 

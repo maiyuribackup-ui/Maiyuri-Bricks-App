@@ -5,14 +5,20 @@ const lead = { assigned_staff: "owner-id", created_by: "creator-id" };
 
 describe("sales access", () => {
   it("lets the sales-facing roles work on any lead", () => {
-    for (const role of ["founder", "owner", "sales", "engineer"]) {
+    for (const role of [
+      "founder",
+      "owner",
+      "sales",
+      "engineer",
+      "production_supervisor",
+    ]) {
       expect(hasFullSalesAccess(role)).toBe(true);
       expect(canWorkOnLead(role, "someone-else", lead)).toBe(true);
     }
   });
 
   it("keeps back-office roles to their own leads", () => {
-    for (const role of ["accountant", "driver", "production_supervisor"]) {
+    for (const role of ["accountant", "driver"]) {
       expect(hasFullSalesAccess(role)).toBe(false);
       expect(canWorkOnLead(role, "someone-else", lead)).toBe(false);
       expect(canWorkOnLead(role, "owner-id", lead)).toBe(true);
