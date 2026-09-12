@@ -9,7 +9,7 @@
  * Uses Gemini 2.0 Flash for all AI operations.
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateTextWithFallback } from "@/lib/ai/text-fallback";
 import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
 import { traceAiGeneration } from "@/lib/observability/langfuse";
 import type {
@@ -52,19 +52,6 @@ export interface SmartQuoteAIResult {
   copyMap: SmartQuoteCopyMap;
 }
 
-// ============================================================================
-// Gemini Client
-// ============================================================================
-
-function getGeminiClient(): GoogleGenerativeAI {
-  const apiKey = process.env.GOOGLE_AI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("Missing GOOGLE_AI_API_KEY environment variable");
-  }
-
-  return new GoogleGenerativeAI(apiKey);
-}
 
 // ============================================================================
 // Prompt A: Lead Insight Extraction
@@ -79,8 +66,6 @@ async function extractLeadInsights(
   transcript: string,
   leadName?: string | null,
 ): Promise<LeadInsights> {
-  const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
 
   const prompt = `${PROMPT_A_SYSTEM}
 
@@ -114,9 +99,10 @@ ${transcript}`;
       input: { transcript, leadName },
       metadata: { module: "smart_quote", step: "extract_insights" },
       run: async () => {
-        const result = await model.generateContent(prompt);
-        const output = result.response.text();
-        return { output, value: output };
+        // Keep both intents: Gemini→DeepSeek fallback (#49) inside the trace (main).
+        const out = await generateTextWithFallback(prompt);
+        if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
+        return { output: out.text, value: out.text };
       },
     });
     return parseInsightsResponse(response);
@@ -184,8 +170,6 @@ Return ONLY JSON matching the schema.`;
 async function generateStrategy(
   insights: LeadInsights,
 ): Promise<StrategyResult> {
-  const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
 
   const prompt = `${PROMPT_B_SYSTEM}
 
@@ -225,9 +209,9 @@ Output schema:
       input: { insights },
       metadata: { module: "smart_quote", step: "generate_strategy" },
       run: async () => {
-        const result = await model.generateContent(prompt);
-        const output = result.response.text();
-        return { output, value: output };
+        const out = await generateTextWithFallback(prompt);
+        if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
+        return { output: out.text, value: out.text };
       },
     });
     return parseStrategyResponse(response, insights);
@@ -360,8 +344,6 @@ async function generateBilingualCopy(
   insights: LeadInsights,
   strategy: StrategyResult,
 ): Promise<SmartQuoteCopyMap> {
-  const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
 
   const topObjectionStr =
     insights.top_objections.length > 0
@@ -427,9 +409,9 @@ Return schema:
       input: { insights, strategy },
       metadata: { module: "smart_quote", step: "generate_bilingual_copy" },
       run: async () => {
-        const result = await model.generateContent(prompt);
-        const output = result.response.text();
-        return { output, value: output };
+        const out = await generateTextWithFallback(prompt);
+        if (!out) throw new Error("AI providers unavailable (Gemini + DeepSeek)");
+        return { output: out.text, value: out.text };
       },
     });
     return parseCopyResponse(response, strategy.route_decision);
