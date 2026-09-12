@@ -1,5 +1,6 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { isLeadId } from '@maiyuri/shared';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -1139,11 +1140,30 @@ function FollowUpDateEditor({
 }
 
 export default function LeadDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id?: string | string[] }>();
+  const rawId = params.id;
+  const id = Array.isArray(rawId) ? (rawId[0] ?? '') : (rawId ?? '');
   const router = useRouter();
-  const { data, isLoading, isError, error } = useLead(id);
+  const { data, isLoading, isError, error, refetch, isFetching } = useLead(id);
   const lead = data?.data;
   const [qaOpen, setQaOpen] = useState(false);
+
+  if (!isLeadId(id)) {
+    return (
+      <View className="flex-1 items-center justify-center bg-white px-6">
+        <Text className="text-center text-lg font-bold text-ink">Invalid lead link</Text>
+        <Text className="mt-2 text-center text-sm text-slate-500">
+          This link is incomplete or has expired. Return to the leads list and open the lead again.
+        </Text>
+        <Pressable
+          onPress={() => router.replace('/leads')}
+          className="mt-5 rounded-xl bg-brand px-6 py-3 active:opacity-80"
+        >
+          <Text className="font-bold text-ink">Back to leads</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -1156,9 +1176,29 @@ export default function LeadDetailScreen() {
   if (isError || !lead) {
     return (
       <View className="flex-1 items-center justify-center bg-white px-6">
-        <Text className="text-center text-red-500">
-          {error instanceof Error ? error.message : "Lead not found"}
+        <Text className="text-center text-lg font-bold text-ink">Could not load this lead</Text>
+        <Text className="mt-2 text-center text-sm text-red-500">
+          {error instanceof Error ? error.message : 'Lead not found'}
         </Text>
+        <View className="mt-5 flex-row gap-3">
+          <Pressable
+            disabled={isFetching}
+            onPress={() => void refetch()}
+            className={`rounded-xl px-6 py-3 ${isFetching ? 'bg-slate-200' : 'bg-brand active:opacity-80'}`}
+          >
+            {isFetching ? (
+              <ActivityIndicator size="small" color="#0f172a" />
+            ) : (
+              <Text className="font-bold text-ink">Retry</Text>
+            )}
+          </Pressable>
+          <Pressable
+            onPress={() => router.replace('/leads')}
+            className="rounded-xl border border-slate-200 bg-white px-6 py-3 active:opacity-80"
+          >
+            <Text className="font-bold text-slate-700">Back</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
