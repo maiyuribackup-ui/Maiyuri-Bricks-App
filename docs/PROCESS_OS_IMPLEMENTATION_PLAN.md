@@ -278,7 +278,7 @@ All 16 PRD §37 criteria mapped in §4 are demonstrably met on the Vercel previe
 
 | Area | Where | Notes |
 |---|---|---|
-| Schema + engine functions | `supabase/migrations/20260912100000_process_os.sql` | Additive; commented ROLLBACK block at the end. **Not yet applied to prod** — apply with consent (see §5). |
+| Schema + engine functions | `supabase/migrations/20260912100000_process_os.sql` | Additive; commented ROLLBACK block at the end. **Applied to prod (`pailepomvvwjkrhkwdqt`) on 2026-09-12** as three Supabase migrations `process_os_part1_schema`, `process_os_part2_engine`, `process_os_part3_views_and_lead_trigger` (same content, BEGIN/COMMIT stripped); all 29 function bodies verified identical to this file. |
 | Shared contract | `packages/shared/src/process.ts` | Definition input schema, row types, view models, request bodies, labels. `work_items.activity_type` gains `process`. |
 | Definition validator | `apps/web/src/lib/process/validate-definition.ts` | Every PRD §33 definition rule, tested. |
 | Reference process | `apps/web/src/lib/process/definitions/lead-to-delivery.ts` | 17 stages (PRD's 14 + `HANDOVER_PACKAGE` so **sales** sends/receives the handover + two END stages). Seed: `POST /api/process/definitions/seed`. |
