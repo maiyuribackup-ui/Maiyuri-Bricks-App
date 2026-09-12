@@ -13,6 +13,7 @@ import type {
   ProcessTaskRow,
 } from "@maiyuri/shared";
 import { emptyFacts, type GateFacts } from "../gates";
+import type { RoleDefaults } from "../permissions";
 import { readOrderPaymentStatus } from "./odoo";
 import { readOrderStockPosition } from "./ops-control";
 
@@ -81,6 +82,7 @@ export interface CollectInput {
   handover: ProcessHandoverRow | null;
   overridden: Set<string>;
   outcome?: string | null;
+  roleDefaults?: RoleDefaults;
 }
 
 /** Resolve the Odoo order id from the instance context or the linked lead. */
@@ -104,6 +106,7 @@ export async function collectFacts(
   facts.handover = input.handover;
   facts.overridden = input.overridden;
   facts.outcome = input.outcome ?? null;
+  facts.role_defaults = input.roleDefaults ?? {};
 
   const types = new Set(input.gates.map((g) => g.gate_type));
   const needsEntity =

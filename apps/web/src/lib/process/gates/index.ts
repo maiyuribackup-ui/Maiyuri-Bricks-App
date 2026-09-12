@@ -13,7 +13,7 @@ import type {
   ProcessHandoverRow,
   ProcessTaskRow,
 } from "@maiyuri/shared";
-import { userHasProcessRole } from "../permissions";
+import { userHasProcessRole, type RoleDefaults } from "../permissions";
 
 export interface PaymentFact {
   order_total: number;
@@ -47,6 +47,8 @@ export interface GateFacts {
   stock: StockFact | null;
   linked_record: { type: string; id: string; status: string | null } | null;
   overridden: Set<string>;
+  /** Designated role holders — a holder counts as having the role. */
+  role_defaults: RoleDefaults;
   /** Loader failures keyed by fact name — turn the dependent gates unknown. */
   errors: Record<string, string>;
 }
@@ -62,8 +64,23 @@ export function emptyFacts(): GateFacts {
     stock: null,
     linked_record: null,
     overridden: new Set(),
+    role_defaults: {},
     errors: {},
   };
+}
+
+type EvidenceLike = GateFacts["evidence"][number];
+function addedByRole(
+  e: EvidenceLike,
+  roleKey: string,
+  facts: GateFacts,
+): boolean {
+  return userHasProcessRole(
+    e.added_by_role,
+    roleKey as never,
+    e.added_by,
+    facts.role_defaults,
+  );
 }
 
 type Verdict = { status: "ok" | "fail" | "unknown"; message: string | null };
@@ -156,7 +173,7 @@ function evalAdvance(gate: ProcessGateRow, facts: GateFacts): Verdict {
   const finance = facts.evidence.find(
     (e) =>
       e.evidence_type === "payment_reference" &&
-      userHasProcessRole(e.added_by_role, "FINANCE"),
+      addedByRole(e, "FINANCE", facts),
   );
   if (finance) return ok("Verified by finance (payment reference attached)");
   const unauthorised = facts.evidence.find(
@@ -212,9 +229,7 @@ function evalManual(gate: ProcessGateRow, facts: GateFacts): Verdict {
   const role = condStr(gate.condition, "role");
   const type = condStr(gate.condition, "evidence_type") ?? "note";
   const hit = facts.evidence.find(
-    (e) =>
-      e.evidence_type === type &&
-      (!role || userHasProcessRole(e.added_by_role, role as never)),
+    (e) => e.evidence_type === type && (!role || addedByRole(e, role, facts)),
   );
   if (hit) return ok(`${type.replace(/_/g, " ")} recorded`);
   const wrongRole = facts.evidence.find((e) => e.evidence_type === type);

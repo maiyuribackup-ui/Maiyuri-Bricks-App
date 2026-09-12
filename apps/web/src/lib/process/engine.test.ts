@@ -172,6 +172,7 @@ vi.mock("./repository", () => ({
   getLeadForPermission: async () => null,
   getStageInstance: async () => stageInstance,
   listEvents: async () => [],
+  loadRoleDefaultsMap: async () => ({}),
 }));
 
 import { advance, getInstanceView } from "./engine";

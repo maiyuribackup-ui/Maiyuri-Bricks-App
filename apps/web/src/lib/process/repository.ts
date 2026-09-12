@@ -206,6 +206,20 @@ export async function getRoleDefaults(): Promise<ProcessRoleDefaultRow[]> {
   return (data ?? []) as ProcessRoleDefaultRow[];
 }
 
+/** role_key → user_id, for permission checks. Never throws (empty on error). */
+export async function loadRoleDefaultsMap(): Promise<
+  Partial<Record<ProcessRoleKey, string>>
+> {
+  try {
+    const rows = await getRoleDefaults();
+    const out: Partial<Record<ProcessRoleKey, string>> = {};
+    for (const r of rows) out[r.role_key] = r.user_id;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 export async function setRoleDefault(
   roleKey: ProcessRoleKey,
   userId: string | null,
@@ -219,17 +233,15 @@ export async function setRoleDefault(
     if (error) throw new ProcessError("PROCESS_ERROR", error.message, 500);
     return;
   }
-  const { error } = await supabaseAdmin
-    .from("process_role_defaults")
-    .upsert(
-      {
-        role_key: roleKey,
-        user_id: userId,
-        updated_by: actorId,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "role_key" },
-    );
+  const { error } = await supabaseAdmin.from("process_role_defaults").upsert(
+    {
+      role_key: roleKey,
+      user_id: userId,
+      updated_by: actorId,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "role_key" },
+  );
   if (error) throw new ProcessError("PROCESS_ERROR", error.message, 500);
 }
 
@@ -430,9 +442,7 @@ export async function getStageRow(
   return (data as ProcessStageRow | null) ?? null;
 }
 
-export async function getLeadForPermission(
-  leadId: string,
-): Promise<{
+export async function getLeadForPermission(leadId: string): Promise<{
   assigned_staff: string | null;
   created_by: string | null;
 } | null> {

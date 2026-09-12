@@ -184,14 +184,16 @@ interface LoadedCase {
   overridden: Set<string>;
   stageInstances: ProcessStageInstanceRow[];
   version: ProcessVersionRow | null;
+  roleDefaults: Partial<Record<string, string>>;
 }
 
 async function loadCase(instanceId: string): Promise<LoadedCase> {
   const instance = await repo.requireInstance(instanceId);
-  const [stages, stageInstances, version] = await Promise.all([
+  const [stages, stageInstances, version, roleDefaults] = await Promise.all([
     repo.getVersionStages(instance.process_version_id),
     repo.listStageInstances(instance.id),
     repo.getVersion(instance.process_version_id),
+    repo.loadRoleDefaultsMap(),
   ]);
   const stageInstance =
     stageInstances.find((s) => s.id === instance.current_stage_instance_id) ??
@@ -218,6 +220,7 @@ async function loadCase(instanceId: string): Promise<LoadedCase> {
     overridden,
     stageInstances,
     version,
+    roleDefaults,
   };
 }
 
@@ -237,6 +240,7 @@ async function gateResultsFor(
       handover: c.handover,
       overridden: c.overridden,
       outcome,
+      roleDefaults: c.roleDefaults,
     },
     sources,
   );
@@ -267,7 +271,7 @@ export async function getInstanceView(
     !!actor &&
     !!c.stageInstance &&
     (c.instance.status === "active" || c.instance.status === "blocked") &&
-    canActOnStage(actor, c.stageInstance, lead);
+    canActOnStage(actor, c.stageInstance, lead, c.roleDefaults);
   return {
     instance: c.instance,
     definition: (definition.data ?? {
@@ -370,7 +374,7 @@ async function assertCanAct(
     c.instance.entity_type === "lead"
       ? await repo.getLeadForPermission(c.instance.entity_id)
       : null;
-  if (!canActOnStage(actor, c.stageInstance, lead)) {
+  if (!canActOnStage(actor, c.stageInstance, lead, c.roleDefaults)) {
     throw new ProcessError(
       "FORBIDDEN",
       `Only the ${c.stageInstance.assigned_role.replace(/_/g, " ").toLowerCase()} may act on this stage`,
@@ -413,12 +417,14 @@ export async function addEvidence(
         ? await repo.getLeadForPermission(c.instance.entity_id)
         : null;
     const roleFits =
-      c.stageInstance && canActOnStage(actor, c.stageInstance, lead);
+      c.stageInstance &&
+      canActOnStage(actor, c.stageInstance, lead, c.roleDefaults);
     const financeOrFactory = ["FINANCE", "FACTORY_MANAGER"].some((k) =>
       canActOnStage(
         actor,
         { assigned_role: k as never, assigned_user_id: null },
         null,
+        c.roleDefaults,
       ),
     );
     if (!roleFits && !financeOrFactory)

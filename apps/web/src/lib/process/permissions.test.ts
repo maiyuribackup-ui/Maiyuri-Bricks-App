@@ -87,3 +87,44 @@ describe("processErrorFromMessage", () => {
     expect(processErrorFromMessage("something else").status).toBe(500);
   });
 });
+
+describe("role-default holders", () => {
+  it("the designated holder of a process role holds it whatever their app role is", () => {
+    const defaults = { FINANCE: "rajesh", FACTORY_MANAGER: "rajesh" };
+    expect(
+      userHasProcessRole(
+        "production_supervisor",
+        "FINANCE",
+        "rajesh",
+        defaults,
+      ),
+    ).toBe(true);
+    expect(
+      userHasProcessRole(
+        "production_supervisor",
+        "FINANCE",
+        "someone",
+        defaults,
+      ),
+    ).toBe(false);
+    expect(
+      processRolesFor("production_supervisor", "rajesh", defaults),
+    ).toEqual(["FACTORY_MANAGER", "FINANCE"]);
+    const stage = { assigned_role: "FINANCE" as const, assigned_user_id: null };
+    expect(
+      canActOnStage(
+        { id: "rajesh", role: "production_supervisor" },
+        stage,
+        null,
+        defaults,
+      ),
+    ).toBe(true);
+    expect(
+      canActOnStage(
+        { id: "rajesh", role: "production_supervisor" },
+        stage,
+        null,
+      ),
+    ).toBe(false);
+  });
+});

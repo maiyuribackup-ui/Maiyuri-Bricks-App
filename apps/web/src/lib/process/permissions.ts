@@ -15,6 +15,15 @@ export const PROCESS_ROLE_MAP: Record<ProcessRoleKey, readonly UserRole[]> = {
 
 export const PARTNER_ROLES: readonly UserRole[] = ["founder", "owner"];
 
+/**
+ * Designated holders of each process role (process_role_defaults). In a
+ * ten-person company one person wears several hats — the factory manager
+ * also runs accounts — but an app user has ONE app role. So the designated
+ * holder of a process role holds it, whatever their app role says. Mirrors
+ * `process_user_has_role()` in the database.
+ */
+export type RoleDefaults = Partial<Record<ProcessRoleKey, string | null>>;
+
 export function isManagingPartner(role: string | null | undefined): boolean {
   return !!role && (PARTNER_ROLES as readonly string[]).includes(role);
 }
@@ -23,7 +32,11 @@ export function isManagingPartner(role: string | null | undefined): boolean {
 export function userHasProcessRole(
   role: string | null | undefined,
   roleKey: ProcessRoleKey,
+  userId?: string | null,
+  defaults?: RoleDefaults,
 ): boolean {
+  if (userId && defaults?.[roleKey] && defaults[roleKey] === userId)
+    return true;
   if (!role) return false;
   if (isManagingPartner(role)) return true;
   return (PROCESS_ROLE_MAP[roleKey] as readonly string[]).includes(role);
@@ -32,9 +45,11 @@ export function userHasProcessRole(
 /** Every process role this app role can act as. */
 export function processRolesFor(
   role: string | null | undefined,
+  userId?: string | null,
+  defaults?: RoleDefaults,
 ): ProcessRoleKey[] {
   return (Object.keys(PROCESS_ROLE_MAP) as ProcessRoleKey[]).filter((k) =>
-    userHasProcessRole(role, k),
+    userHasProcessRole(role, k, userId, defaults),
   );
 }
 
@@ -53,11 +68,16 @@ export function canActOnStage(
   actor: StageActor,
   stage: { assigned_role: ProcessRoleKey; assigned_user_id: string | null },
   lead?: { assigned_staff?: string | null; created_by?: string | null } | null,
+  defaults?: RoleDefaults,
 ): boolean {
   if (stage.assigned_user_id === actor.id) return true;
-  if (!userHasProcessRole(actor.role, stage.assigned_role)) return false;
+  if (!userHasProcessRole(actor.role, stage.assigned_role, actor.id, defaults))
+    return false;
   if (lead && stage.assigned_role === "SALES_ENGINEER") {
-    return canWorkOnLead(actor.role, actor.id, lead);
+    return (
+      canWorkOnLead(actor.role, actor.id, lead) ||
+      defaults?.SALES_ENGINEER === actor.id
+    );
   }
   return true;
 }

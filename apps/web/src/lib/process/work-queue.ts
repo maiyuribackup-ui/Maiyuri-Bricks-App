@@ -15,6 +15,7 @@ import type {
 } from "@maiyuri/shared";
 import { ProcessError } from "./errors";
 import { processRolesFor } from "./permissions";
+import { loadRoleDefaultsMap } from "./repository";
 
 type Row = ProcessStageInstanceRow & {
   stage: ProcessWorkStageItem["stage"] | null;
@@ -53,7 +54,11 @@ export async function loadWorkQueue(
   user: AuthenticatedUser,
   now: Date = new Date(),
 ): Promise<ProcessWorkQueue> {
-  const roles = processRolesFor(user.role);
+  const roles = processRolesFor(
+    user.role,
+    user.id,
+    await loadRoleDefaultsMap(),
+  );
   const [mine, roleRows] = await Promise.all([
     loadOpenStages((q) => q.eq("assigned_user_id", user.id)),
     roles.length
