@@ -17,6 +17,10 @@ on:
   push:
     tags:
       - "ota-*"
+    # Same for a branch named ota-release (tag pushes are refused by some
+    # git proxies; a branch push is not). Point it at the main commit to ship.
+    branches:
+      - "ota-release"
 
 jobs:
   ota:
