@@ -1,7 +1,8 @@
 # Process OS — Implementation Plan (V0.1)
 
-> PRD: [PRD_PROCESS_OS.md](PRD_PROCESS_OS.md) · Status: **PLAN — awaiting owner
-> approval before implementation.** Written after inspecting the repository as
+> PRD: [PRD_PROCESS_OS.md](PRD_PROCESS_OS.md) · Status: **IMPLEMENTED (V0.1)** on
+> branch `claude/brave-edison-myfgtf` — see §10 for what shipped and what
+> remains open. Originally Written after inspecting the repository as
 > required by PRD §5 and §39. Sibling plan for the convention this follows:
 > [MY_WORK_IMPLEMENTATION_PLAN.md](MY_WORK_IMPLEMENTATION_PLAN.md).
 
@@ -272,3 +273,26 @@ docs/UNIT_ECONOMICS.md or docs/PROCESS_OS_CONTRACT.md (frozen views)
 ## 9. Definition of done for V0.1
 
 All 16 PRD §37 criteria mapped in §4 are demonstrably met on the Vercel preview and on a real Android device via OTA, golden scenarios A–E pass in CI, the migration has been applied to prod with consent, and `.claude/skills/maiyuri-architecture/SKILL.md` documents the Process OS.
+
+## 10. Implementation notes (what shipped in V0.1)
+
+| Area | Where | Notes |
+|---|---|---|
+| Schema + engine functions | `supabase/migrations/20260912100000_process_os.sql` | Additive; commented ROLLBACK block at the end. **Not yet applied to prod** — apply with consent (see §5). |
+| Shared contract | `packages/shared/src/process.ts` | Definition input schema, row types, view models, request bodies, labels. `work_items.activity_type` gains `process`. |
+| Definition validator | `apps/web/src/lib/process/validate-definition.ts` | Every PRD §33 definition rule, tested. |
+| Reference process | `apps/web/src/lib/process/definitions/lead-to-delivery.ts` | 17 stages (PRD's 14 + `HANDOVER_PACKAGE` so **sales** sends/receives the handover + two END stages). Seed: `POST /api/process/definitions/seed`. |
+| Engine, gates, facts | `apps/web/src/lib/process/{engine,gates,facts,permissions,errors,repository}.ts` | Gates fail closed; overrides partner-only and audited. |
+| Handovers, queue, notifications, SLA | `handovers.ts`, `work-queue.ts`, `events.ts`, `notify.ts`, `sla.ts`, `/api/cron/process-sla`, `.github/workflows/process-sla.yml` | Push respects `push_ops`; Telegram for handovers / breaches / overrides; webhook env-gated (`PROCESS_EVENT_WEBHOOK_URL`, `PROCESS_EVENT_WEBHOOK_SECRET`). |
+| API | `apps/web/app/api/process/**` (22 routes) | Standard envelope, `requireAuth`, ProcessError → HTTP status. |
+| AI | `ai-tools.ts`, `/api/process/ai/tools` (`PROCESS_AI_TOKEN` for service callers), `/api/knowledge/ask` enrichment, `apps/api/src/agents/tools/process-tools.ts` | `explain_next_action` never invents — composed from definition + gates. |
+| Tests | vitest (validator, gates, engine, events, routes, tools) + SQL suites `supabase/tests/process_os/` (smoke, negative, **golden A–E**, versioning) via `process-os-sql.yml` / `run-local.sh` | |
+| UI | web `/processes/**`, journey on lead detail, stage panel in My Work; native `onehub/processes/*`, panel in `onehub/my-work/[id]`, strip on lead detail | See the M4/M5 commits. |
+
+**Deployment checklist:** apply the migration (Supabase branch first); set
+`PROCESS_AI_TOKEN` (and optionally the webhook env vars) in Vercel; seed the
+definition; set role defaults (`/processes` → role defaults); add
+`process-sla.yml` secrets are the existing `CRON_SECRET` / Telegram ones.
+Open questions in §8 still stand; defaults chosen: advance gate =
+finance-attached payment reference (`auto_from_odoo: false`), QC = factory
+`qc_release` evidence, leads start a case manually from the lead screen.
