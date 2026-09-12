@@ -144,11 +144,15 @@ export function useCompleteProcessTask() {
       instanceId: _i,
       reopen,
       ...body
-    }: TaskCompleteVars) =>
-      api.post<unknown>(
-        `/api/process/tasks/${taskId}/complete${reopen ? "?reopen=1" : ""}`,
+    }: TaskCompleteVars) => {
+      // Query string kept out of the template so the mobile-API checker can
+      // match the route file (`scripts/check-mobile-api.mjs`).
+      const query = reopen ? "?reopen=1" : "";
+      return api.post<unknown>(
+        `/api/process/tasks/${taskId}/complete` + query,
         reopen ? undefined : body,
-      ),
+      );
+    },
     onSuccess: (_d, vars) => invalidate(vars.instanceId),
     onError: (e) =>
       toast.error(formatProcessError(e, "Could not update the task")),
