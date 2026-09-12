@@ -13,6 +13,7 @@ import type {
   ProcessTaskRow,
 } from "@maiyuri/shared";
 import { emptyFacts, type GateFacts } from "../gates";
+import { getLatestQcRelease } from "../repository";
 import type { RoleDefaults } from "../permissions";
 import { readOrderPaymentStatus } from "./odoo";
 import { readOrderStockPosition } from "./ops-control";
@@ -28,6 +29,7 @@ export interface FactSources {
   payment?: typeof readOrderPaymentStatus;
   stock?: typeof readOrderStockPosition;
   linkedStatus?: (type: string, id: string) => Promise<string | null>;
+  qcRelease?: (stageInstanceId: string) => Promise<GateFacts["qc_release"]>;
 }
 
 async function defaultEntity(
@@ -58,6 +60,20 @@ async function defaultLinkedStatus(
     .maybeSingle();
   if (error) throw new Error(`Failed to load ${type}: ${error.message}`);
   return (data?.status as string | undefined) ?? null;
+}
+
+async function defaultQcRelease(
+  stageInstanceId: string,
+): Promise<GateFacts["qc_release"]> {
+  const qc = await getLatestQcRelease(stageInstanceId);
+  if (!qc) return null;
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("role")
+    .eq("id", qc.checked_by)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load QC checker: ${error.message}`);
+  return { ...qc, checked_by_role: (data?.role as string | undefined) ?? null };
 }
 
 async function safe<T>(
@@ -152,6 +168,12 @@ export async function collectFacts(
         ),
       );
     } else facts.errors.stock = "No Odoo sales order is linked yet";
+  }
+
+  if (types.has("qc_released")) {
+    facts.qc_release = await safe("qc_release", facts, () =>
+      (sources.qcRelease ?? defaultQcRelease)(input.stageInstance.id),
+    );
   }
 
   if (types.has("linked_record_status") && input.stageInstance.linked_record) {

@@ -104,6 +104,7 @@ export const processGateTypeSchema = z.enum([
   "manual_confirmation",
   "linked_record_status",
   "decision_outcome",
+  "qc_released",
 ]);
 export type ProcessGateType = z.infer<typeof processGateTypeSchema>;
 
@@ -113,6 +114,7 @@ export const DB_VERIFIED_GATE_TYPES: readonly ProcessGateType[] = [
   "handover_accepted",
   "decision_outcome",
   "manual_confirmation",
+  "qc_released",
 ];
 
 export const processAutomationActionSchema = z.enum([
@@ -479,6 +481,29 @@ export interface ProcessEvidenceRow {
   added_at: string;
 }
 
+export const processQcResultSchema = z.enum(["released", "hold"]);
+export type ProcessQcResult = z.infer<typeof processQcResultSchema>;
+
+/** A real QC release record (process_qc_releases) — the evidence behind the `qc_released` gate. */
+export interface ProcessQcReleaseRow {
+  id: string;
+  process_instance_id: string;
+  stage_instance_id: string;
+  task_id: string | null;
+  evidence_id: string | null;
+  odoo_order_id: number | null;
+  product_name: string;
+  quantity: number;
+  batch_ref: string | null;
+  result: ProcessQcResult;
+  notes: string | null;
+  photo_path: string | null;
+  lab_report_path: string | null;
+  checked_by: string;
+  checked_at: string;
+  created_at: string;
+}
+
 export interface ProcessHandoverPayload {
   customer_name?: string;
   order_ref?: string;
@@ -713,6 +738,19 @@ export const addProcessEvidenceSchema = z.object({
   metadata: z.record(z.unknown()).default({}),
 });
 export type AddProcessEvidenceInput = z.infer<typeof addProcessEvidenceSchema>;
+
+export const recordQcReleaseSchema = z.object({
+  stage_instance_id: z.string().uuid().optional(),
+  task_id: z.string().uuid().optional(),
+  product_name: z.string().trim().min(1).max(200),
+  quantity: z.number().positive().max(99_999_999),
+  result: processQcResultSchema,
+  batch_ref: z.string().trim().max(100).optional(),
+  notes: z.string().trim().max(2000).optional(),
+  photo_path: z.string().max(1000).optional(),
+  lab_report_path: z.string().max(1000).optional(),
+});
+export type RecordQcReleaseInput = z.infer<typeof recordQcReleaseSchema>;
 
 export const createHandoverSchema = z.object({
   instance_id: z.string().uuid(),

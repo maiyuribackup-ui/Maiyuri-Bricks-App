@@ -337,6 +337,12 @@ in **My Work** (each open stage mirrors to exactly one `work_items` row with
   `FINANCE`→accountant, `MANAGING_PARTNER`→founder/owner). Default holders in
   `process_role_defaults` (admin-set). Overrides are partner-only, audited, and
   refused on `overridable=false` gates (payment, QC).
+- **QC release is a record, not a note:** `process_qc_releases` (product,
+  quantity, batch, released/hold, checker) written by
+  `process_record_qc_release()` — which also writes the evidence and ticks the
+  QC checklist item. The `qc_released` gate reads the latest record (a hold
+  re-blocks). Lead-to-Delivery v1.1 uses it; route
+  `POST /api/process/instances/[id]/qc-release`.
 - **Lead trigger yields:** `sync_lead_stage_progression_work_item` is wrapped
   by `_guarded()` which returns early when a live process instance owns the lead.
 - **Events → notifications:** every function inserts `process_events`;

@@ -1,4 +1,8 @@
-import type { HandoverRejectionCode } from "@maiyuri/shared";
+import type {
+  HandoverRejectionCode,
+  ProcessQcResult,
+  RecordQcReleaseInput,
+} from "@maiyuri/shared";
 import { HANDOVER_REJECTION_LABELS } from "@maiyuri/shared";
 import { useState, type ReactNode } from "react";
 import {
@@ -408,6 +412,103 @@ export function NoteSheet({
           onSubmit(text.trim());
           setText("");
         }}
+      />
+    </SheetModal>
+  );
+}
+
+// ---------- QC release ----------
+
+export type QcReleaseForm = Omit<
+  RecordQcReleaseInput,
+  "stage_instance_id" | "task_id"
+>;
+
+/**
+ * The factory's QC record (PRD §9 Quality Release): product, quantity,
+ * batch and verdict. A HOLD keeps the gate closed and needs a reason.
+ */
+export function QcReleaseSheet({
+  visible,
+  initialProduct,
+  initialQuantity,
+  onClose,
+  onSubmit,
+  busy,
+}: {
+  visible: boolean;
+  initialProduct?: string;
+  initialQuantity?: number | null;
+  onClose: () => void;
+  onSubmit: (form: QcReleaseForm) => void;
+  busy: boolean;
+}) {
+  const [product, setProduct] = useState(initialProduct ?? "");
+  const [quantity, setQuantity] = useState(
+    initialQuantity && initialQuantity > 0 ? String(initialQuantity) : "",
+  );
+  const [batch, setBatch] = useState("");
+  const [result, setResult] = useState<ProcessQcResult>("released");
+  const [notes, setNotes] = useState("");
+  const qty = Number(quantity);
+  const valid =
+    product.trim().length > 0 &&
+    Number.isFinite(qty) &&
+    qty > 0 &&
+    (result === "released" || notes.trim().length > 0);
+  const hold = result === "hold";
+  return (
+    <SheetModal visible={visible} title="Record QC release" onClose={onClose}>
+      <FieldLabel required>Result</FieldLabel>
+      <ChipRow
+        options={[
+          { key: "released", label: "Released" },
+          { key: "hold", label: "Hold" },
+        ]}
+        value={result}
+        onChange={(k) => setResult(k as ProcessQcResult)}
+      />
+      <FieldLabel required>Product</FieldLabel>
+      <SheetInput
+        value={product}
+        onChangeText={setProduct}
+        placeholder="e.g. Solid block 8 inch"
+      />
+      <FieldLabel required>Quantity checked</FieldLabel>
+      <SheetInput
+        value={quantity}
+        onChangeText={setQuantity}
+        placeholder="0"
+        keyboardType="numeric"
+      />
+      <FieldLabel>Batch (optional)</FieldLabel>
+      <SheetInput value={batch} onChangeText={setBatch} placeholder="B-17" />
+      <FieldLabel required={hold}>
+        {hold ? "Why is it on hold?" : "Notes (optional)"}
+      </FieldLabel>
+      <SheetInput
+        value={notes}
+        onChangeText={setNotes}
+        placeholder={hold ? "What failed the check?" : "Anything worth noting"}
+        multiline
+      />
+      <Button
+        className="mt-5"
+        size="lg"
+        variant={hold ? "danger" : "primary"}
+        icon={hold ? "alert-circle-outline" : "checkmark-circle-outline"}
+        label={hold ? "Record hold" : "Record release"}
+        loading={busy}
+        disabled={!valid}
+        onPress={() =>
+          onSubmit({
+            product_name: product.trim(),
+            quantity: qty,
+            result,
+            batch_ref: batch.trim() || undefined,
+            notes: notes.trim() || undefined,
+          })
+        }
       />
     </SheetModal>
   );

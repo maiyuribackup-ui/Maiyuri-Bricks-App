@@ -11,6 +11,7 @@ import type {
   ProcessGateResult,
   ProcessGateRow,
   ProcessHandoverRow,
+  ProcessQcReleaseRow,
   ProcessTaskRow,
 } from "@maiyuri/shared";
 import { userHasProcessRole, type RoleDefaults } from "../permissions";
@@ -46,6 +47,10 @@ export interface GateFacts {
   payment: PaymentFact | null;
   stock: StockFact | null;
   linked_record: { type: string; id: string; status: string | null } | null;
+  /** Latest QC record on the stage, with the checker's app role. */
+  qc_release:
+    | (ProcessQcReleaseRow & { checked_by_role?: string | null })
+    | null;
   overridden: Set<string>;
   /** Designated role holders — a holder counts as having the role. */
   role_defaults: RoleDefaults;
@@ -63,6 +68,7 @@ export function emptyFacts(): GateFacts {
     payment: null,
     stock: null,
     linked_record: null,
+    qc_release: null,
     overridden: new Set(),
     role_defaults: {},
     errors: {},
@@ -263,6 +269,32 @@ function evalLinked(gate: ProcessGateRow, facts: GateFacts): Verdict {
       );
 }
 
+/**
+ * A real QC record decides (never a note): the latest record on the stage
+ * must be a release made by the factory manager. A later hold re-blocks.
+ */
+function evalQcReleased(facts: GateFacts): Verdict {
+  if (facts.errors.qc_release) return unknown(facts.errors.qc_release);
+  const qc = facts.qc_release;
+  if (!qc) return fail("No QC release has been recorded");
+  if (qc.result === "hold")
+    return fail(
+      `QC hold on ${qc.quantity} × ${qc.product_name}${qc.batch_ref ? ` (batch ${qc.batch_ref})` : ""}`,
+    );
+  if (
+    !userHasProcessRole(
+      qc.checked_by_role,
+      "FACTORY_MANAGER",
+      qc.checked_by,
+      facts.role_defaults,
+    )
+  )
+    return fail("QC release must be recorded by the Factory Manager");
+  return ok(
+    `Released ${qc.quantity} × ${qc.product_name}${qc.batch_ref ? ` (batch ${qc.batch_ref})` : ""}`,
+  );
+}
+
 function evalDecision(gate: ProcessGateRow, facts: GateFacts): Verdict {
   if (!facts.outcome) return fail("Choose an outcome");
   const allowed = condList(gate.condition, "in");
@@ -312,6 +344,9 @@ export function evaluateGate(
       break;
     case "decision_outcome":
       v = evalDecision(gate, facts);
+      break;
+    case "qc_released":
+      v = evalQcReleased(facts);
       break;
     default:
       v = unknown(`Unknown gate type ${String(gate.gate_type)}`);

@@ -41,6 +41,8 @@ export const PROCESS_ERROR_STATUS: Record<string, number> = {
   TRANSITION_TARGET_MISSING: 422,
   NO_START_STAGE: 422,
   INVALID_TASK_STATUS: 422,
+  INVALID_QC_RESULT: 422,
+  INVALID_QC_QUANTITY: 422,
 };
 
 export class ProcessError extends Error {

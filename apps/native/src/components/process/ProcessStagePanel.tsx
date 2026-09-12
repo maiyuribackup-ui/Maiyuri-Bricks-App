@@ -18,6 +18,7 @@ import {
   useBlockProcess,
   useCompleteProcessTask,
   useProcessDefinition,
+  useRecordQcRelease,
   useRejectHandover,
   useUnblockProcess,
 } from "@/hooks/use-process";
@@ -27,6 +28,7 @@ import {
   ExceptionSheet,
   HandoverFormSheet,
   NoteSheet,
+  QcReleaseSheet,
   RejectHandoverSheet,
   SheetInput,
   payloadLabel,
@@ -342,7 +344,8 @@ type Sheet =
   | { kind: "exception" }
   | { kind: "reject" }
   | { kind: "handover"; fields: string[]; transitionKey?: string }
-  | { kind: "note"; task: ProcessTaskRow };
+  | { kind: "note"; task: ProcessTaskRow }
+  | { kind: "qc" };
 
 export function ProcessStagePanel({ view }: { view: ProcessInstanceView }) {
   const router = useRouter();
@@ -359,6 +362,7 @@ export function ProcessStagePanel({ view }: { view: ProcessInstanceView }) {
   const accept = useAcceptHandover();
   const reject = useRejectHandover();
   const addEvidence = useAddProcessEvidence();
+  const recordQc = useRecordQcRelease();
 
   const [sheet, setSheet] = useState<Sheet>({ kind: "none" });
   const [outcome, setOutcome] = useState<string | null>(null);
@@ -519,6 +523,16 @@ export function ProcessStagePanel({ view }: { view: ProcessInstanceView }) {
       ) : null}
 
       <GateList gates={view.gates} />
+      {view.gates.some((g) => g.gate_type === "qc_released") ? (
+        <Button
+          className="mt-3"
+          variant="outline"
+          icon="checkmark-circle-outline"
+          label="Record QC release"
+          disabled={!canAct || busy}
+          onPress={() => setSheet({ kind: "qc" })}
+        />
+      ) : null}
 
       {isDecision && outcomes.length ? (
         <View className="mt-5">
@@ -694,6 +708,27 @@ export function ProcessStagePanel({ view }: { view: ProcessInstanceView }) {
               : {}),
           })
         }
+      />
+      <QcReleaseSheet
+        visible={sheet.kind === "qc"}
+        initialProduct={view.instance.context?.product_name}
+        initialQuantity={view.instance.context?.quantity ?? null}
+        onClose={closeSheet}
+        busy={recordQc.isPending}
+        onSubmit={(form) => {
+          const qcTask = tasks.find(
+            (t) => t.metadata?.evidence_type === "qc_release",
+          );
+          recordQc.mutate(
+            {
+              instanceId,
+              stage_instance_id: si.id,
+              task_id: qcTask?.id,
+              ...form,
+            },
+            { onSuccess: closeSheet },
+          );
+        }}
       />
       <NoteSheet
         visible={sheet.kind === "note"}

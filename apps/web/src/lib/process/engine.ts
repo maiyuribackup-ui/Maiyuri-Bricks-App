@@ -24,6 +24,8 @@ import type {
   ProcessTaskRow,
   ProcessVersionRow,
   StartProcessInput,
+  ProcessQcReleaseRow,
+  RecordQcReleaseInput,
 } from "@maiyuri/shared";
 import { DB_VERIFIED_GATE_TYPES } from "@maiyuri/shared";
 import { ProcessError } from "./errors";
@@ -604,6 +606,57 @@ export async function cancel(
   });
   await afterMutation(instanceId, opts);
   return getInstanceView(instanceId, actor, opts);
+}
+
+/**
+ * Record a QC release (or hold) on the current stage. The database checks
+ * the factory role, writes the record, the evidence and (on release) the
+ * checklist item in one transaction; the `qc_released` gate reads the record.
+ */
+export async function recordQcRelease(
+  instanceId: string,
+  actor: AuthenticatedUser,
+  input: RecordQcReleaseInput,
+  opts?: EngineOptions,
+): Promise<{ qc_release: ProcessQcReleaseRow; view: ProcessInstanceView }> {
+  const c = await loadCase(instanceId);
+  const stageInstanceId = input.stage_instance_id ?? c.stageInstance?.id;
+  if (!stageInstanceId)
+    throw new ProcessError("STAGE_NOT_OPEN", "This case has no open stage");
+  if (stageInstanceId !== c.stageInstance?.id)
+    throw new ProcessError(
+      "STALE_STAGE",
+      "The case has moved on since this screen was loaded",
+    );
+  const factory = canActOnStage(
+    actor,
+    { assigned_role: "FACTORY_MANAGER", assigned_user_id: null },
+    null,
+    c.roleDefaults,
+  );
+  if (!factory && c.stageInstance.assigned_user_id !== actor.id)
+    throw new ProcessError(
+      "FORBIDDEN",
+      "Only the Factory Manager may record a QC release",
+    );
+  const qc = await repo.rpc<ProcessQcReleaseRow>("process_record_qc_release", {
+    p_instance_id: instanceId,
+    p_stage_instance_id: stageInstanceId,
+    p_actor: actor.id,
+    p_product_name: input.product_name,
+    p_quantity: input.quantity,
+    p_result: input.result,
+    p_task_id: input.task_id ?? null,
+    p_batch_ref: input.batch_ref ?? null,
+    p_notes: input.notes ?? null,
+    p_photo_path: input.photo_path ?? null,
+    p_lab_report_path: input.lab_report_path ?? null,
+  });
+  await afterMutation(instanceId, opts);
+  return {
+    qc_release: qc,
+    view: await getInstanceView(instanceId, actor, opts),
+  };
 }
 
 export async function overrideGate(

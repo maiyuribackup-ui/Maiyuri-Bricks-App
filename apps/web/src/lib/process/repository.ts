@@ -5,6 +5,7 @@
  */
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type {
+  ProcessQcReleaseRow,
   ProcessChecklistItemRow,
   ProcessDefinitionRow,
   ProcessDefinitionView,
@@ -372,6 +373,22 @@ export async function listEvidence(
     const { adder, ...rest } = e;
     return { ...rest, added_by_role: adder?.role ?? null };
   });
+}
+
+/** Latest QC record on a stage — the one the `qc_released` gate reads. */
+export async function getLatestQcRelease(
+  stageInstanceId: string,
+): Promise<ProcessQcReleaseRow | null> {
+  const { data, error } = await supabaseAdmin
+    .from("process_qc_releases")
+    .select("*")
+    .eq("stage_instance_id", stageInstanceId)
+    .order("checked_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new ProcessError("PROCESS_ERROR", error.message, 500);
+  return (data as ProcessQcReleaseRow | null) ?? null;
 }
 
 export async function getLatestHandover(
