@@ -88,6 +88,17 @@ const publicApiRoutes = [
  * without weakening them for the public internet.
  */
 function hasMachineAuth(request: NextRequest): boolean {
+  // Process OS intelligence layer (MCP / CloudCore / n8n): the AI tools route
+  // verifies PROCESS_AI_TOKEN itself; the gate here only lets the request
+  // reach it. Scoped to that one path so the token opens nothing else.
+  const processToken = process.env.PROCESS_AI_TOKEN;
+  if (
+    !!processToken &&
+    request.nextUrl.pathname === "/api/process/ai/tools" &&
+    request.headers.get("x-process-ai-token") === processToken
+  ) {
+    return true;
+  }
   const header = request.headers.get("authorization");
   if (!header) return false;
   const cron = process.env.CRON_SECRET;
