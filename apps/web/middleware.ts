@@ -109,6 +109,60 @@ function hasMachineAuth(request: NextRequest): boolean {
   );
 }
 
+/**
+ * File extensions the middleware treats as static assets (served from
+ * /public or emitted by Next). Deliberately an allowlist: anything else with a
+ * dot in it is an application route and goes through the normal auth checks.
+ */
+const STATIC_ASSET_EXTENSIONS = new Set([
+  // scripts / styles
+  "js",
+  "mjs",
+  "css",
+  "map",
+  // images
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "avif",
+  "svg",
+  "ico",
+  "bmp",
+  // fonts
+  "woff",
+  "woff2",
+  "ttf",
+  "otf",
+  "eot",
+  // documents / metadata / media
+  "txt",
+  "xml",
+  "json",
+  "webmanifest",
+  "manifest",
+  "pdf",
+  "mp3",
+  "mp4",
+  "wav",
+  "webm",
+  "ogg",
+  "wasm",
+]);
+
+/**
+ * True only when the LAST path segment ends in a known static-asset
+ * extension. Query strings and fragments are not part of `pathname`, so they
+ * never influence the result.
+ */
+function isStaticAssetPath(pathname: string): boolean {
+  const lastSegment = pathname.slice(pathname.lastIndexOf("/") + 1);
+  const dot = lastSegment.lastIndexOf(".");
+  if (dot <= 0 || dot === lastSegment.length - 1) return false;
+  return STATIC_ASSET_EXTENSIONS.has(lastSegment.slice(dot + 1).toLowerCase());
+}
+
 // Routes that need rate limiting
 const rateLimitedRoutes = {
   auth: ["/api/auth", "/login", "/forgot-password", "/reset-password"],
@@ -248,10 +302,15 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Allow static files and Next.js internals
+  // Allow static files and Next.js internals. Classification is by a known
+  // asset extension on the final path segment, never by "contains a dot":
+  // application routes carry dotted parameters (/processes/X/versions/1.0/edit,
+  // /projects/SO.1042) and must still be authenticated.
+  // API routes never serve public files, so the asset shortcut does not
+  // apply to them (an /api/…/report.json must still be authenticated).
   if (
     pathname.startsWith("/_next") ||
-    pathname.includes(".") // Static files
+    (!pathname.startsWith("/api") && isStaticAssetPath(pathname))
   ) {
     return NextResponse.next();
   }
