@@ -337,6 +337,12 @@ in **My Work** (each open stage mirrors to exactly one `work_items` row with
   `FINANCE`→accountant, `MANAGING_PARTNER`→founder/owner). Default holders in
   `process_role_defaults` (admin-set). Overrides are partner-only, audited, and
   refused on `overridable=false` gates (payment, QC).
+- **Process Map is a swimlane canvas:** `apps/web/src/components/process/ProcessFlowMap.tsx`
+  (React Flow + dagre via `src/lib/process/map-layout.ts`): one lane per
+  owning role, lane hues shared with native through `PROCESS_LANES` in
+  `packages/shared/src/process-next-action.ts`, dashed exception returns, and
+  live counts from `GET /api/process/definitions/[key]/stats`. Case pages are
+  journey-first: `deriveNextAction()` (shared) picks the one thing to do next.
 - **QC release is a record, not a note:** `process_qc_releases` (product,
   quantity, batch, released/hold, checker) written by
   `process_record_qc_release()` — which also writes the evidence and ticks the

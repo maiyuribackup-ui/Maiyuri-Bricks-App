@@ -14,6 +14,7 @@ import type {
   ImportDefinitionInput,
   OverrideGateInput,
   ProcessDefinitionInput,
+  ProcessDefinitionStats,
   ProcessDefinitionView,
   ProcessEventRow,
   ProcessHandoverRow,
@@ -138,6 +139,20 @@ export function useProcessDefinition(
       );
     },
     enabled: !!key,
+  });
+}
+
+/** Live load per stage for the Process Map; refreshes every minute. */
+export function useProcessStats(key: string | null) {
+  return useQuery({
+    queryKey: ["process", "definitions", key, "stats"],
+    queryFn: () =>
+      getJson<ProcessDefinitionStats>(
+        `/api/process/definitions/${encodeURIComponent(key ?? "")}/stats`,
+        "Failed to load process load",
+      ),
+    enabled: !!key,
+    refetchInterval: 60_000,
   });
 }
 

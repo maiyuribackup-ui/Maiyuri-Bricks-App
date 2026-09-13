@@ -5,6 +5,9 @@
  */
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type {
+  ProcessDefinitionStats,
+  ProcessStageLiveCase,
+  ProcessStageLiveStats,
   ProcessQcReleaseRow,
   ProcessChecklistItemRow,
   ProcessDefinitionRow,
@@ -474,4 +477,95 @@ export async function getLeadForPermission(leadId: string): Promise<{
       created_by: string | null;
     } | null) ?? null
   );
+}
+
+/**
+ * Live load per stage for the Process Map: every open stage instance of a
+ * definition (all versions, keyed by stage_key so old and new versions of the
+ * same stage stack together), with the cases sitting on it.
+ */
+export async function getDefinitionStats(
+  definitionId: string,
+  processKey: string,
+  now: Date = new Date(),
+  maxCasesPerStage = 25,
+): Promise<ProcessDefinitionStats> {
+  const { data, error } = await supabaseAdmin
+    .from("process_stage_instances")
+    .select(
+      "id, status, assigned_user_id, due_at, started_at, stage:process_stages!inner(stage_key), instance:process_instances!inner(id, status, context, process_definition_id), assignee:users!process_stage_instances_assigned_user_id_fkey(name)",
+    )
+    .eq("instance.process_definition_id", definitionId)
+    .in("status", ["current", "blocked"])
+    .in("instance.status", ["active", "blocked"])
+    .order("due_at", { ascending: true, nullsFirst: false })
+    .limit(500);
+  if (error) throw new ProcessError("PROCESS_ERROR", error.message, 500);
+
+  type Row = {
+    id: string;
+    status: ProcessStageLiveCase["status"];
+    assigned_user_id: string | null;
+    due_at: string | null;
+    started_at: string;
+    stage: { stage_key: string } | null;
+    instance: {
+      id: string;
+      status: string;
+      context: Record<string, unknown> | null;
+    } | null;
+    assignee: { name?: string | null } | null;
+  };
+  const stages: Record<string, ProcessStageLiveStats> = {};
+  let totalOpen = 0;
+  let totalOverdue = 0;
+  let totalBlocked = 0;
+  for (const r of (data ?? []) as unknown as Row[]) {
+    const key = r.stage?.stage_key;
+    if (!key || !r.instance) continue;
+    const ctx = r.instance.context ?? {};
+    const overdue = !!r.due_at && new Date(r.due_at) < now;
+    const blocked = r.status === "blocked" || r.instance.status === "blocked";
+    const entry = (stages[key] ??= {
+      stage_key: key,
+      open: 0,
+      blocked: 0,
+      overdue: 0,
+      cases: [],
+    });
+    entry.open += 1;
+    totalOpen += 1;
+    if (blocked) {
+      entry.blocked += 1;
+      totalBlocked += 1;
+    }
+    if (overdue) {
+      entry.overdue += 1;
+      totalOverdue += 1;
+    }
+    if (entry.cases.length < maxCasesPerStage) {
+      entry.cases.push({
+        instance_id: r.instance.id,
+        stage_instance_id: r.id,
+        customer_name:
+          typeof ctx.customer_name === "string" ? ctx.customer_name : null,
+        order_ref:
+          typeof ctx.odoo_order_name === "string" ? ctx.odoo_order_name : null,
+        assigned_user_id: r.assigned_user_id,
+        assignee_name: r.assignee?.name ?? null,
+        status: blocked ? "blocked" : r.status,
+        due_at: r.due_at,
+        started_at: r.started_at,
+        is_overdue: overdue,
+      });
+    }
+  }
+  return {
+    process_key: processKey,
+    as_of: now.toISOString(),
+    total_open: totalOpen,
+    total_overdue: totalOverdue,
+    total_blocked: totalBlocked,
+    stages,
+  };
 }
