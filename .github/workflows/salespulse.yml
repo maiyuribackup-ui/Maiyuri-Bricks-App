@@ -1,0 +1,47 @@
+name: SalesPulse digest
+
+# Replaces the external scheduled agent that used to compose the digest and
+# silently died. Daily edition 03:40 UTC = 09:10 IST; on Mondays an extra
+# weekly edition follows at 04:10 UTC = 09:40 IST.
+
+on:
+  schedule:
+    - cron: "40 3 * * *"   # daily
+    - cron: "10 4 * * 1"   # weekly (Mondays)
+  workflow_dispatch:
+    inputs:
+      window:
+        description: "daily or weekly"
+        default: "daily"
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Decide window
+        id: win
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "window=${{ inputs.window }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "10 4 * * 1" ]; then
+            echo "window=weekly" >> "$GITHUB_OUTPUT"
+          else
+            echo "window=daily" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger SalesPulse cron
+        run: |
+          status=$(curl -s -o /tmp/r.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mb.maiyuri.com/api/cron/salespulse?window=${{ steps.win.outputs.window }}")
+          echo "HTTP $status"; cat /tmp/r.json
+          if [ "$status" -ge 400 ]; then exit 1; fi
+
+      - name: Alert on failure
+        if: failure()
+        continue-on-error: true
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="❌ ${{ github.workflow }} failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

@@ -8,7 +8,7 @@ import {
   forbidden,
   parseBody,
 } from "@/lib/api-utils";
-import { createSupabaseRouteClient } from "@/lib/supabase-server";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { rejectTicket, canApproveTickets } from "@/lib/ticket-service";
 import { rejectTicketSchema } from "@maiyuri/shared";
@@ -19,10 +19,8 @@ export async function PUT(
   { params }: { params: { id: string } },
 ) {
   try {
-    const supabase = createSupabaseRouteClient(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Cookie (web) OR Bearer token (mobile) — both accepted.
+    const user = await getUserFromRequest(request);
 
     if (!user) {
       return unauthorized();

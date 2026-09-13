@@ -3,11 +3,16 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, error, parseBody } from "@/lib/api-utils";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import { createProjectSchema, type Project } from "@maiyuri/shared";
 
 // GET /api/projects — list projects with light roll-up fields
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
     const { data: projects, error: dbErr } = await supabaseAdmin
       .from("projects")
       .select("*")
@@ -27,6 +32,10 @@ export async function GET() {
 // applying a template to seed WBS + BOQ + a draft estimate.
 export async function POST(request: NextRequest) {
   try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
     const parsed = await parseBody(request, createProjectSchema);
     if (parsed.error) return parsed.error;
     const input = parsed.data;

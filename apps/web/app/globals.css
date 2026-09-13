@@ -108,3 +108,13 @@
     border-radius: 3px;
   }
 }
+
+/* Process OS: sheen on the live segment of the case progress track. */
+@keyframes track-sheen {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}

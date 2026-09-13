@@ -25,7 +25,12 @@ async function triggerEventNudge(
   try {
     const response = await fetch(`${APP_URL}/api/nudges/events`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        // Internal server-to-server call — authenticate as a trusted machine
+        // caller (/api/nudges/events is no longer publicly exempted).
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""}`,
+      },
       body: JSON.stringify({
         event_type: eventType,
         lead_id: leadId,

@@ -66,6 +66,9 @@ export function buildPricingConfig(opts: {
         ? SQFT_DEFAULT
         : PIECE_DEFAULT
       : null,
+    // The engineer sets the rate in the app before sharing; until then the
+    // quote falls back to the rate card rather than inventing a price.
+    quoted_rate: null,
     default_distance_km: null,
     locality_label: opts.siteLocation ?? null,
     show_transport: true,

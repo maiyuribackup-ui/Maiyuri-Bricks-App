@@ -192,6 +192,38 @@ describe("Combined Filename Extraction", () => {
       expected: { phone: null, name: "Message" },
       description: "Voice message extracts 'Message' (edge case - 'message' not in skipWords)",
     },
+    // Real Superfone filenames. The trailing 13-digit epoch used to be
+    // partially eaten by the phone regex, leaving "100" glued to the name
+    // (see BUG: "Murali Kanchipuram 100"). Phone comes back in the 12-digit
+    // 91XXXXXXXXXX form here — normalizePhoneNumber trims it before storage.
+    {
+      filename:
+        "Superfone_Recording_Murali_Kanchipuram_+919444481791_1785442187000.wav",
+      expected: { phone: "919444481791", name: "Murali Kanchipuram" },
+      description: "Superfone with +91 and epoch — no '100' suffix",
+    },
+    {
+      filename:
+        "Superfone_Recording_Anand_Janapanchathiram_+919790975024_1785197940000.wav",
+      expected: { phone: "919790975024", name: "Anand Janapanchathiram" },
+      description: "Superfone epoch does not leak digits into the name",
+    },
+    {
+      filename: "Superfone_Recording_+917200112291_1783806060000.wav",
+      expected: { phone: "917200112291", name: null },
+      description: "Nameless Superfone recording yields no name, not '100'",
+    },
+    {
+      filename:
+        "Superfone_Recording_Nethaji_Engr_Mohanraj_+919787923369_1784610712000.wav",
+      expected: { phone: "919787923369", name: "Nethaji Engr Mohanraj" },
+      description: "Three-part name preserved intact",
+    },
+    {
+      filename: "Superfone_Recording_Bala_Sriperumpudur_+916379040923_1784327307000.wav",
+      expected: { phone: "916379040923", name: "Bala Sriperumpudur" },
+      description: "Phone starting with 6 still matches after epoch removal",
+    },
   ];
 
   testCases.forEach(({ filename, expected, description }) => {

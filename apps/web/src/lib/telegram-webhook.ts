@@ -126,6 +126,15 @@ export function extractNameFromFilename(filename: string): string | null {
     name = name.replace(new RegExp(`^${prefix}[_\\-\\s]*`, "i"), "");
   }
 
+  // Remove the epoch-millisecond timestamp Superfone appends
+  // (e.g. ..._1785442187000.wav). This MUST run before the phone patterns:
+  // [6-9]\d{9} otherwise matches a 10-digit slice *inside* the 13-digit epoch
+  // and leaves the surrounding digits behind — the "Murali Kanchipuram 100"
+  // bug, where 1785442187000 lost 7854421870 and kept "1"+"00".
+  // Exactly 13 digits, digit-delimited: a 12-digit 91XXXXXXXXXX phone must
+  // still reach the phone patterns below intact.
+  name = name.replace(/(?<!\d)\d{13}(?!\d)/g, "");
+
   // Remove phone numbers (10-12 digits with optional +91 prefix)
   name = name.replace(/\+?91?[_\-\s]?[6-9]\d{9}/g, "");
   name = name.replace(/[6-9]\d{9}/g, "");
@@ -137,11 +146,13 @@ export function extractNameFromFilename(filename: string): string | null {
   // Remove time patterns (HHMMSS, HH-MM-SS)
   name = name.replace(/\d{2}[-_]?\d{2}[-_]?\d{2}/g, "");
 
-  // Remove standalone numbers
-  name = name.replace(/\b\d+\b/g, "");
-
-  // Replace underscores and hyphens with spaces
+  // Replace underscores and hyphens with spaces BEFORE stripping stray
+  // numbers: `_` is a word character, so \b never fires against `_100` and
+  // the leftover digits survived into the lead name.
   name = name.replace(/[_-]+/g, " ");
+
+  // Remove standalone numbers (now genuinely delimited by spaces)
+  name = name.replace(/\b\d+\b/g, "");
 
   // Remove multiple spaces and trim
   name = name.replace(/\s+/g, " ").trim();

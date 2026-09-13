@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { success, notFound, error, parseBody } from "@/lib/api-utils";
 import { smartQuoteEventSchema } from "@maiyuri/shared";
+import { createQuoteOpenCallback } from "@/lib/golden-hour";
 
 interface RouteParams {
   params: Promise<{ slug: string }>;
@@ -65,6 +66,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       console.error("[SmartQuoteEvents] Insert error:", insertError);
       // Don't fail the request for analytics errors
       // Just log and return success
+    }
+
+    // GH4: a page 'view' means the customer OPENED their quote — spin up the
+    // 2-hour "call now" task (deduped/cooled-down inside). Fire-and-forget;
+    // must never delay the customer's page.
+    if (event_type === "view") {
+      void createQuoteOpenCallback(quote.id);
     }
 
     return success({ tracked: true });

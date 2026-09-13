@@ -568,3 +568,41 @@ export function calculateConsumptionDifference(
   if (actual === null || actual === undefined) return null;
   return Math.round((actual - expected) * 10000) / 10000;
 }
+
+// ============================================
+// Shift Payload Builder (Client-side)
+// ============================================
+
+export interface ShiftFormRecord {
+  id: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string | null; // HH:MM or null
+  employeeIds: string[];
+}
+
+/**
+ * Convert shift form rows into API shift inputs (shiftInputSchema shape).
+ *
+ * - Combines the shift date with HH:MM times into full ISO timestamps,
+ *   because production_shifts.start_time is a TIMESTAMPTZ.
+ * - Drops rows with no employees: the schema requires at least one, and a
+ *   half-filled row should not block saving the whole order.
+ */
+export function buildShiftInputs(shifts: ShiftFormRecord[]): Array<{
+  shift_date: string;
+  start_time: string;
+  end_time: string | null;
+  employee_ids: string[];
+}> {
+  return shifts
+    .filter((s) => s.employeeIds.length > 0 && s.date && s.startTime)
+    .map((s) => ({
+      shift_date: s.date,
+      start_time: new Date(`${s.date}T${s.startTime}:00`).toISOString(),
+      end_time: s.endTime
+        ? new Date(`${s.date}T${s.endTime}:00`).toISOString()
+        : null,
+      employee_ids: s.employeeIds,
+    }));
+}

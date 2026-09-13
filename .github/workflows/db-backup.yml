@@ -1,0 +1,56 @@
+name: Nightly database backup
+
+# The whole business lives in one Supabase Postgres — this is the recovery
+# path (reliability audit, blocker S2). Dumps nightly at 21:00 UTC (02:30 IST)
+# and stores as a workflow artifact (30-day retention, private repo).
+#
+# Requires repo secret SUPABASE_DB_URL — the direct Postgres connection string
+# (Settings → Secrets → Actions). Rotate together with the DB password.
+
+on:
+  schedule:
+    - cron: "0 21 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check secret present
+        run: |
+          if [ -z "${{ secrets.SUPABASE_DB_URL }}" ]; then
+            echo "SUPABASE_DB_URL secret is not set — cannot back up" >&2
+            exit 1
+          fi
+
+      - name: Dump database (pg_dump 17 via docker, custom format)
+        run: |
+          stamp=$(date -u +%Y-%m-%d)
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          docker run --rm postgres:17-alpine \
+            pg_dump --dbname="${{ secrets.SUPABASE_DB_URL }}" -Fc --no-owner --no-privileges \
+            > "maiyuri-$stamp.dump"
+          ls -la "maiyuri-$stamp.dump"
+          # Sanity: a real dump of this DB is at least a few hundred KB.
+          size=$(stat -c%s "maiyuri-$stamp.dump")
+          if [ "$size" -lt 100000 ]; then
+            echo "Dump suspiciously small ($size bytes) — treating as failure" >&2
+            exit 1
+          fi
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ env.STAMP }}
+          path: maiyuri-*.dump
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Alert on failure
+        if: failure()
+        continue-on-error: true
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="❌ DB BACKUP FAILED: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

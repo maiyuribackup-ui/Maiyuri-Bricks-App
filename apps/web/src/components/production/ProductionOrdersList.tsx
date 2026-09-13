@@ -119,9 +119,12 @@ export function ProductionOrdersList({
             >
               <option value="all">All Status</option>
               <option value="draft">Draft</option>
+              <option value="pending_approval">Pending Approval</option>
+              <option value="approved">Approved</option>
               <option value="confirmed">Confirmed</option>
               <option value="in_progress">In Progress</option>
               <option value="done">Done</option>
+              <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
             </select>
           </div>

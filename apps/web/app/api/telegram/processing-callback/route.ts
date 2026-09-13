@@ -34,11 +34,23 @@ interface ExtractedLeadInfo {
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify webhook secret
+    // Verify webhook secret — FAIL CLOSED. This endpoint can create/modify
+    // leads and send Telegram messages from an attacker-supplied transcript, so
+    // a missing secret must reject (not silently allow, which was the prior
+    // fail-open bug — dangerous given prod env vars are sometimes unset here).
     const secretHeader = request.headers.get("X-Webhook-Secret");
     const expectedSecret = process.env.PROCESSING_WEBHOOK_SECRET;
 
-    if (expectedSecret && secretHeader !== expectedSecret) {
+    if (!expectedSecret) {
+      console.error(
+        "[Processing Callback] PROCESSING_WEBHOOK_SECRET not configured — rejecting request",
+      );
+      return NextResponse.json(
+        { ok: false, error: "Endpoint not configured" },
+        { status: 503 },
+      );
+    }
+    if (secretHeader !== expectedSecret) {
       console.warn("[Processing Callback] Invalid secret");
       return NextResponse.json({ ok: false }, { status: 401 });
     }

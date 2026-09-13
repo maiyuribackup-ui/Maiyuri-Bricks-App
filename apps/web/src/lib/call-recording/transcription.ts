@@ -7,6 +7,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
+import { traceAiGeneration } from "@/lib/observability/langfuse";
 import { log, logError } from "./logger";
 import type { TranscriptionResult } from "./types";
 
@@ -44,18 +45,25 @@ Instructions:
 At the end, on a new line, state the primary language detected (Tamil, English, or Tamil-English mixed).`;
 
   try {
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType,
-          data: base64Audio,
-        },
+    const fullText = await traceAiGeneration({
+      name: "app.call_recording.transcribe_audio",
+      model: GEMINI_DEFAULT_MODEL,
+      input: { filename, mimeType, audioBytes: audioBuffer.length },
+      metadata: { module: "call_recording", step: "transcribe_audio" },
+      run: async () => {
+        const result = await model.generateContent([
+          {
+            inlineData: {
+              mimeType,
+              data: base64Audio,
+            },
+          },
+          { text: prompt },
+        ]);
+        const output = result.response.text();
+        return { output, value: output };
       },
-      { text: prompt },
-    ]);
-
-    const response = result.response;
-    const fullText = response.text();
+    });
 
     const { transcript, language } = parseTranscriptionResponse(fullText);
 

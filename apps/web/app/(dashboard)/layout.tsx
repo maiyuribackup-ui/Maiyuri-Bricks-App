@@ -10,6 +10,7 @@ import { getSupabase } from "@/lib/supabase";
 import { useApprovalQueue } from "@/hooks/useTickets";
 import { initPushNotifications } from "@/lib/native/capacitor";
 import type { UserRole } from "@maiyuri/shared";
+import { Workflow } from "lucide-react";
 
 // Brand colors from Brandguidelines.md
 const brandColors = {
@@ -28,23 +29,72 @@ interface NavItem {
   showBadge?: boolean;
 }
 
+function OneHubIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.6}
+      stroke="currentColor"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m14.8 9.2-1.9 4-4 1.9 1.9-4 4-1.9Z"
+      />
+    </svg>
+  );
+}
+
 const navigation: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: HomeIcon, key: "dashboard" },
-  { name: "Business", href: "/business-health", icon: HealthIcon, key: "business-health" },
+  { name: "OneHub", href: "/onehub", icon: OneHubIcon, key: "onehub" },
+  {
+    name: "Daily Report",
+    href: "/daily-report",
+    icon: KPIIcon,
+    key: "daily-report",
+  },
+  {
+    name: "Business",
+    href: "/business-health",
+    icon: HealthIcon,
+    key: "business-health",
+  },
   { name: "Leads", href: "/leads", icon: UsersIcon, key: "leads" },
+  { name: "Quotes", href: "/quotes", icon: KPIIcon, key: "quotes" },
+  { name: "Processes", href: "/processes", icon: Workflow, key: "processes" },
   {
     name: "Deliveries",
     href: "/deliveries",
     icon: DeliveriesIcon,
     key: "deliveries",
   },
+  { name: "Factory", href: "/factory", icon: ProductionIcon, key: "factory" },
   {
     name: "Production",
     href: "/production",
     icon: ProductionIcon,
     key: "production",
   },
-  { name: "Projects", href: "/projects", icon: ProductionIcon, key: "projects" },
+  { name: "Plan", href: "/planning", icon: ProductionIcon, key: "planning" },
+  { name: "Ops Control", href: "/ops", icon: ProductionIcon, key: "ops" },
+  {
+    name: "Projects",
+    href: "/projects",
+    icon: ProductionIcon,
+    key: "projects",
+  },
+  { name: "Reimbursements", href: "/expenses", icon: KPIIcon, key: "expenses" },
+  { name: "Rate Card", href: "/rate-card", icon: KPIIcon, key: "rate-card" },
+  {
+    name: "Unit Economics",
+    href: "/unit-economics",
+    icon: KPIIcon,
+    key: "unit-economics",
+  },
   {
     name: "Approvals",
     href: "/approvals",
@@ -52,11 +102,15 @@ const navigation: NavItem[] = [
     key: "approvals",
     showBadge: true,
   },
-  { name: "Design", href: "/design", icon: DesignIcon, key: "design" },
   { name: "Knowledge", href: "/knowledge", icon: BookIcon, key: "knowledge" },
   { name: "Tasks", href: "/tasks", icon: TasksIcon, key: "tasks" },
   { name: "Coaching", href: "/coaching", icon: ChartIcon, key: "coaching" },
-  { name: "Marketing", href: "/analytics/website", icon: ChartIcon, key: "analytics" },
+  {
+    name: "Marketing",
+    href: "/analytics/website",
+    icon: ChartIcon,
+    key: "analytics",
+  },
   { name: "KPI", href: "/kpi", icon: KPIIcon, key: "kpi" },
   { name: "Settings", href: "/settings", icon: SettingsIcon, key: "settings" },
 ];
@@ -68,25 +122,61 @@ const roleModuleAccess: Record<UserRole, string[]> = {
   owner: ["*"], // Full access
   accountant: [
     "dashboard",
+    "onehub",
+    "daily-report",
     "leads",
+    "quotes",
+    "processes",
     "tasks",
     "approvals",
     "settings",
     "knowledge",
+    "coaching",
+    "projects",
+    "expenses",
+    "rate-card",
+    "unit-economics",
   ],
   engineer: [
     "dashboard",
+    "onehub",
     "leads",
+    "processes",
     "tasks",
     "approvals",
     "settings",
     "knowledge",
-    "design",
     "projects",
+    "coaching",
   ],
-  sales: ["dashboard", "leads", "tasks", "settings", "knowledge"],
-  driver: ["dashboard", "deliveries", "settings"],
-  production_supervisor: ["dashboard", "production", "deliveries", "settings", "projects"],
+  sales: [
+    "dashboard",
+    "onehub",
+    "leads",
+    "quotes",
+    "processes",
+    "ops",
+    "tasks",
+    "settings",
+    "knowledge",
+    "coaching",
+  ],
+  driver: ["dashboard", "onehub", "deliveries", "settings"],
+  production_supervisor: [
+    "dashboard",
+    "onehub",
+    "leads",
+    "quotes",
+    "processes",
+    "factory",
+    "production",
+    "planning",
+    "ops",
+    "deliveries",
+    "settings",
+    "projects",
+    "coaching",
+  ],
 };
 
 function getNavigationForRole(role: UserRole | undefined): NavItem[] {
@@ -488,7 +578,6 @@ function UsersIcon({ className }: { className?: string }) {
   );
 }
 
-
 function SettingsIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -512,7 +601,6 @@ function SettingsIcon({ className }: { className?: string }) {
   );
 }
 
-
 function MenuIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -530,7 +618,6 @@ function MenuIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
 
 function XIcon({ className }: { className?: string }) {
   return (
@@ -550,7 +637,6 @@ function XIcon({ className }: { className?: string }) {
   );
 }
 
-
 function BookIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -568,7 +654,6 @@ function BookIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
 
 function ChartIcon({ className }: { className?: string }) {
   return (
@@ -588,7 +673,6 @@ function ChartIcon({ className }: { className?: string }) {
   );
 }
 
-
 function KPIIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -606,7 +690,6 @@ function KPIIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
 
 function TasksIcon({ className }: { className?: string }) {
   return (
@@ -626,7 +709,6 @@ function TasksIcon({ className }: { className?: string }) {
   );
 }
 
-
 function LogoutIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -644,7 +726,6 @@ function LogoutIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
 
 function DesignIcon({ className }: { className?: string }) {
   return (
@@ -669,7 +750,6 @@ function DesignIcon({ className }: { className?: string }) {
   );
 }
 
-
 function ProductionIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -687,7 +767,6 @@ function ProductionIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
 
 function ApprovalsIcon({ className }: { className?: string }) {
   return (
@@ -707,7 +786,6 @@ function ApprovalsIcon({ className }: { className?: string }) {
   );
 }
 
-
 function DeliveriesIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -725,4 +803,3 @@ function DeliveriesIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-

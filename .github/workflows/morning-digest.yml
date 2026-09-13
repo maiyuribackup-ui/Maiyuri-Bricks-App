@@ -1,0 +1,51 @@
+name: Morning follow-up digest
+
+# Fires the lead follow-up digest (Telegram + native push) each morning.
+# Scheduled here because the Vercel Hobby plan caps the project at 2 crons,
+# both already used (health check + recordings processor).
+#
+# 03:00 UTC = 08:30 IST (field reps) / 07:00 Dubai.
+# Requires repo secret CRON_SECRET (same value as the Vercel env var) — the
+# digest GET endpoint validates `Authorization: Bearer <CRON_SECRET>`.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger digest endpoint
+        run: |
+          status=$(curl -s -o /tmp/digest.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mb.maiyuri.com/api/nudges/digest")
+          echo "HTTP $status"
+          cat /tmp/digest.json
+          if [ "$status" -ge 400 ]; then
+            echo "Digest trigger failed" >&2
+            exit 1
+          fi
+
+      - name: My Work per-person digest
+        run: |
+          status=$(curl -s -o /tmp/mw.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mb.maiyuri.com/api/my-work/digest")
+          echo "HTTP $status"
+          cat /tmp/mw.json
+          if [ "$status" -ge 400 ]; then
+            echo "My Work digest failed" >&2
+            exit 1
+          fi
+
+      - name: Alert on failure
+        if: failure()
+        continue-on-error: true
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="❌ ${{ github.workflow }} failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

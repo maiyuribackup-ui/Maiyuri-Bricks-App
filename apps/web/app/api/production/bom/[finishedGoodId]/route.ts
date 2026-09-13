@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { success, error, notFound } from "@/lib/api-utils";
+import { requireProductionRole } from "@/lib/production-auth";
 import { getBOMLines, fetchBOMFromOdoo } from "@/lib/production-service";
 import type { BOMLine } from "@maiyuri/shared";
 
@@ -29,6 +30,9 @@ export async function GET(request: NextRequest, { params }: Params) {
 // POST /api/production/bom/[finishedGoodId] - Refresh BOM from Odoo
 export async function POST(request: NextRequest, { params }: Params) {
   try {
+    const auth = await requireProductionRole(request);
+    if (auth.errorResponse) return auth.errorResponse;
+
     const { finishedGoodId } = await params;
 
     if (!finishedGoodId) {

@@ -130,7 +130,13 @@ export async function triggerCallRecordingNudge(
   try {
     const response = await fetch(nudgeUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        // Internal server-to-server call — authenticate as a trusted machine
+        // caller (middleware requires this now that /api/nudges/events is no
+        // longer publicly exempted).
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""}`,
+      },
       body: JSON.stringify({
         event_type: "call_recording_processed",
         lead_id: leadId,
@@ -211,7 +217,13 @@ export async function triggerObjectionNudge(
   try {
     const response = await fetch(nudgeUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        // Internal server-to-server call — authenticate as a trusted machine
+        // caller (middleware requires this now that /api/nudges/events is no
+        // longer publicly exempted).
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""}`,
+      },
       body: JSON.stringify({
         event_type: "objection_detected",
         lead_id: leadId,
@@ -242,6 +254,47 @@ export async function triggerObjectionNudge(
       leadId,
       error: error instanceof Error ? error.message : String(error),
     });
+    return false;
+  }
+}
+
+/**
+ * Golden Hour GH3: auto-draft the Smart Quote when a call reveals product
+ * interest — the rep reviews and taps Send instead of composing from scratch
+ * (attacks the funnel's biggest leak: 33 qualified but only 6 quoted).
+ * Best-effort; the generate route dedupes (regenerate=false keeps existing).
+ */
+export async function triggerAutoQuote(
+  leadId: string,
+  recordingId: string,
+): Promise<boolean> {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) return false;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+  try {
+    logProgress(recordingId, "Auto-drafting smart quote", { leadId });
+    const response = await fetch(`${BASE_URL}/api/smart-quotes/generate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "X-Recording-ID": recordingId,
+      },
+      body: JSON.stringify({ lead_id: leadId, regenerate: false }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      logError(`Auto-quote failed: HTTP ${response.status}`, { leadId });
+      return false;
+    }
+    logProgress(recordingId, "Smart quote drafted", { leadId });
+    return true;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    logError("Auto-quote trigger failed (ignored)", err);
     return false;
   }
 }

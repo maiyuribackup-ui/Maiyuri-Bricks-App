@@ -2,17 +2,18 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { createSupabaseRouteClient } from "@/lib/supabase-server";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import { success, error } from "@/lib/api-utils";
 
 // POST /api/push/register — store/refresh this device's FCM token for the
 // logged-in user. Called by the native app after login.
+//
+// Auth: uses getUserFromRequest so the Capacitor webview can authenticate with
+// the Supabase session Bearer token (cookies are not reliably present in the
+// native shell). Cookie sessions still work on web. See docs/PUSH_NOTIFICATIONS.md.
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createSupabaseRouteClient(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getUserFromRequest(request);
     if (!user) return error("Unauthorized", 401);
 
     const body = await request.json().catch(() => ({}));

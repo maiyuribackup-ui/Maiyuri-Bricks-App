@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { success, error, notFound, parseBody } from "@/lib/api-utils";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { requireProductionRole } from "@/lib/production-auth";
 import {
   createManufacturingOrderInOdoo,
   bulkSyncAttendanceToOdoo,
@@ -17,6 +18,9 @@ interface Params {
 // POST /api/production/orders/[id]/sync-to-odoo - Create MO in Odoo
 export async function POST(request: NextRequest, { params }: Params) {
   try {
+    const auth = await requireProductionRole(request);
+    if (auth.errorResponse) return auth.errorResponse;
+
     const { id } = await params;
 
     if (!id) {
