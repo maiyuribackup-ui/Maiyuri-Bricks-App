@@ -69,6 +69,9 @@ CREATE TABLE public.work_item_events (
 );
 
 \ir ../migrations/20260903120000_lead_stage_progression_tasks.sql
+\ir ../migrations/20260903223000_harden_lead_stage_task_generations.sql
+-- Replacement migrations must be retry-safe during controlled deployment.
+\ir ../migrations/20260903223000_harden_lead_stage_task_generations.sql
 
 INSERT INTO public.users (id, name) VALUES
   ('00000000-0000-0000-0000-000000000001', 'Sales One'),
@@ -97,32 +100,38 @@ DECLARE
 BEGIN
   SELECT * INTO l FROM public.leads
   WHERE id = '10000000-0000-0000-0000-000000000001';
-  IF l.next_action <> 'Prepare and share the quotation' THEN
+  IF l.next_action IS DISTINCT FROM 'Prepare and share the quotation' THEN
     RAISE EXCEPTION 'qualified action not set: %', l.next_action;
   END IF;
-  IF l.follow_up_date <> CURRENT_DATE + 1 THEN
+  IF l.follow_up_date IS DISTINCT FROM CURRENT_DATE + 1 THEN
     RAISE EXCEPTION 'qualified due date not refreshed: %', l.follow_up_date;
   END IF;
 
   SELECT * INTO w FROM public.work_items
   WHERE related_lead_id = l.id AND source_module = 'lead_stage_progression';
   IF NOT FOUND THEN RAISE EXCEPTION 'progression task missing'; END IF;
-  IF w.assigned_user_id <> l.assigned_staff THEN
+  IF w.assigned_user_id IS DISTINCT FROM l.assigned_staff THEN
     RAISE EXCEPTION 'task owner mismatch';
   END IF;
-  IF w.source_record_id <> 'qualified_lead' OR w.status <> 'pending' THEN
+  IF w.source_record_id IS DISTINCT FROM 'qualified_lead'
+     OR w.status IS DISTINCT FROM 'pending' THEN
     RAISE EXCEPTION 'wrong task stage/status: %/%', w.source_record_id, w.status;
   END IF;
-  IF (w.due_at AT TIME ZONE 'Asia/Kolkata')::date <> l.follow_up_date THEN
+  IF (w.due_at AT TIME ZONE 'Asia/Kolkata')::date IS DISTINCT FROM l.follow_up_date THEN
     RAISE EXCEPTION 'task and lead due dates differ';
   END IF;
 END $$;
 
--- 2. A subsequent progression refreshes the same task and respects explicit inputs.
+-- 2. A subsequent progression cancels the old occurrence, creates a fresh task,
+-- rejects a stale completion of the old UUID, and respects explicit inputs.
 CREATE TEMP TABLE first_task AS
 SELECT id FROM public.work_items
 WHERE related_lead_id = '10000000-0000-0000-0000-000000000001'
   AND source_module = 'lead_stage_progression';
+
+UPDATE public.work_items
+SET status = 'in_progress', started_at = clock_timestamp()
+WHERE id = (SELECT id FROM first_task);
 
 UPDATE public.leads
 SET pipeline_stage = 'quote_shared',
@@ -135,6 +144,7 @@ DECLARE
   l public.leads%ROWTYPE;
   w public.work_items%ROWTYPE;
   original_id UUID;
+  stale_updates INTEGER;
 BEGIN
   SELECT id INTO original_id FROM first_task;
   SELECT * INTO l FROM public.leads
@@ -143,12 +153,40 @@ BEGIN
   WHERE related_lead_id = l.id AND source_module = 'lead_stage_progression'
     AND status IN ('pending', 'in_progress', 'returned');
 
-  IF w.id <> original_id THEN RAISE EXCEPTION 'task was duplicated, not refreshed'; END IF;
-  IF l.next_action <> 'Call after engineer review' OR l.follow_up_date <> CURRENT_DATE + 5 THEN
+  IF NOT FOUND THEN RAISE EXCEPTION 'new progression task missing'; END IF;
+  IF w.id IS NOT DISTINCT FROM original_id THEN
+    RAISE EXCEPTION 'progression reused the old task UUID';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.work_items
+    WHERE id = original_id
+      AND status = 'cancelled'
+      AND cancelled_at IS NOT NULL
+  ) THEN RAISE EXCEPTION 'old progression occurrence was not cancelled'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.work_item_events
+    WHERE work_item_id = original_id
+      AND event_type = 'cancelled'
+      AND old_status = 'in_progress'
+      AND new_status = 'cancelled'
+  ) THEN RAISE EXCEPTION 'cancellation did not audit the prior status'; END IF;
+
+  UPDATE public.work_items
+     SET status = 'completed', completed_at = clock_timestamp()
+   WHERE id = original_id
+     AND status IN ('pending', 'in_progress', 'returned');
+  GET DIAGNOSTICS stale_updates = ROW_COUNT;
+  IF stale_updates <> 0 THEN
+    RAISE EXCEPTION 'stale completion mutated a superseded occurrence';
+  END IF;
+
+  IF l.next_action IS DISTINCT FROM 'Call after engineer review'
+     OR l.follow_up_date IS DISTINCT FROM CURRENT_DATE + 5 THEN
     RAISE EXCEPTION 'explicit action/date were overwritten';
   END IF;
-  IF w.title <> 'Call after engineer review' OR w.source_record_id <> 'quote_shared' THEN
-    RAISE EXCEPTION 'task not refreshed from explicit action';
+  IF w.title IS DISTINCT FROM 'Call after engineer review'
+     OR w.source_record_id IS DISTINCT FROM 'quote_shared' THEN
+    RAISE EXCEPTION 'task not created from explicit action';
   END IF;
 END $$;
 
@@ -165,8 +203,8 @@ DO $$
 BEGIN
   IF (SELECT count(*) FROM public.work_items
       WHERE related_lead_id = '10000000-0000-0000-0000-000000000001'
-        AND source_module = 'lead_stage_progression') <> 1 THEN
-    RAISE EXCEPTION 'non-stage edit created a duplicate';
+        AND source_module = 'lead_stage_progression') <> 2 THEN
+    RAISE EXCEPTION 'non-stage edit changed progression history';
   END IF;
   IF EXISTS (
     SELECT 1 FROM public.work_items w, before_non_stage b
@@ -174,7 +212,20 @@ BEGIN
   ) THEN RAISE EXCEPTION 'non-stage edit changed due date'; END IF;
 END $$;
 
--- 4. Reassignment follows the lead owner without making another task.
+-- 4. Reassignment creates a fresh occurrence for the new owner.
+CREATE TEMP TABLE before_reassignment AS
+SELECT id FROM public.work_items
+WHERE related_lead_id = '10000000-0000-0000-0000-000000000001'
+  AND source_module = 'lead_stage_progression'
+  AND status IN ('pending', 'in_progress', 'returned');
+
+UPDATE public.work_items
+SET status = 'returned',
+    submitted_at = clock_timestamp() - INTERVAL '1 hour',
+    returned_at = clock_timestamp(),
+    return_reason = 'Needs customer confirmation'
+WHERE id = (SELECT id FROM before_reassignment);
+
 UPDATE public.leads
 SET assigned_staff = '00000000-0000-0000-0000-000000000002'
 WHERE id = '10000000-0000-0000-0000-000000000001';
@@ -182,23 +233,71 @@ WHERE id = '10000000-0000-0000-0000-000000000001';
 DO $$
 DECLARE
   l public.leads%ROWTYPE;
+  w public.work_items%ROWTYPE;
+  prior_id UUID;
 BEGIN
+  SELECT id INTO prior_id FROM before_reassignment;
   SELECT * INTO l FROM public.leads
   WHERE id = '10000000-0000-0000-0000-000000000001';
-  IF (SELECT assigned_user_id FROM public.work_items
-      WHERE related_lead_id = l.id
-        AND source_module = 'lead_stage_progression'
-        AND status IN ('pending', 'in_progress', 'returned'))
-      <> '00000000-0000-0000-0000-000000000002'::uuid THEN
+  SELECT * INTO w FROM public.work_items
+  WHERE related_lead_id = l.id
+    AND source_module = 'lead_stage_progression'
+    AND status IN ('pending', 'in_progress', 'returned');
+
+  IF NOT FOUND THEN RAISE EXCEPTION 'reassignment task missing'; END IF;
+  IF w.assigned_user_id IS DISTINCT FROM
+      '00000000-0000-0000-0000-000000000002'::uuid THEN
     RAISE EXCEPTION 'task did not follow reassignment';
   END IF;
-  IF l.next_action <> 'Call after engineer review'
-     OR l.follow_up_date <> CURRENT_DATE + 5 THEN
+  IF w.id IS NOT DISTINCT FROM prior_id THEN
+    RAISE EXCEPTION 'reassignment reused the former assignee task UUID';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.work_items
+    WHERE id = prior_id
+      AND status = 'cancelled'
+      AND return_reason = 'Needs customer confirmation'
+  ) THEN
+    RAISE EXCEPTION 'former assignee task lost its returned lifecycle reason';
+  END IF;
+  IF w.started_at IS NOT NULL
+     OR w.submitted_at IS NOT NULL
+     OR w.completed_at IS NOT NULL
+     OR w.returned_at IS NOT NULL
+     OR w.cancelled_at IS NOT NULL
+     OR w.return_reason IS NOT NULL THEN
+    RAISE EXCEPTION 'new task inherited stale lifecycle state';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.work_item_events
+    WHERE work_item_id = prior_id
+      AND event_type = 'cancelled'
+      AND old_status = 'returned'
+      AND new_status = 'cancelled'
+      AND metadata ->> 'prior_return_reason' = 'Needs customer confirmation'
+  ) THEN
+    RAISE EXCEPTION 'returned lifecycle context was not preserved in audit';
+  END IF;
+  IF l.next_action IS DISTINCT FROM 'Call after engineer review'
+     OR l.follow_up_date IS DISTINCT FROM CURRENT_DATE + 5 THEN
     RAISE EXCEPTION 'reassignment overwrote valid action/date';
   END IF;
 END $$;
 
--- 5. Terminal stages clear stale follow-up fields and cancel the open task.
+-- 5. Terminal stages clear stale follow-up fields, cancel the open task, and
+-- retain any returned-task lifecycle reason.
+CREATE TEMP TABLE before_terminal AS
+SELECT id FROM public.work_items
+WHERE related_lead_id = '10000000-0000-0000-0000-000000000001'
+  AND source_module = 'lead_stage_progression'
+  AND status IN ('pending', 'in_progress', 'returned');
+
+UPDATE public.work_items
+SET status = 'returned',
+    returned_at = clock_timestamp(),
+    return_reason = 'Customer requested revised terms'
+WHERE id = (SELECT id FROM before_terminal);
+
 UPDATE public.leads
 SET pipeline_stage = 'order_won'
 WHERE id = '10000000-0000-0000-0000-000000000001';
@@ -213,10 +312,19 @@ BEGIN
 
   IF NOT EXISTS (
     SELECT 1 FROM public.work_items
-    WHERE related_lead_id = '10000000-0000-0000-0000-000000000001'
-      AND source_module = 'lead_stage_progression'
-      AND status = 'cancelled' AND cancelled_at IS NOT NULL
-  ) THEN RAISE EXCEPTION 'terminal stage did not cancel task'; END IF;
+    WHERE id = (SELECT id FROM before_terminal)
+      AND status = 'cancelled'
+      AND cancelled_at IS NOT NULL
+      AND return_reason = 'Customer requested revised terms'
+  ) THEN RAISE EXCEPTION 'terminal stage lost returned task history'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.work_item_events
+    WHERE work_item_id = (SELECT id FROM before_terminal)
+      AND event_type = 'cancelled'
+      AND old_status = 'returned'
+      AND new_status = 'cancelled'
+      AND metadata ->> 'prior_return_reason' = 'Customer requested revised terms'
+  ) THEN RAISE EXCEPTION 'terminal cancellation audit lost returned context'; END IF;
 END $$;
 
 -- 6. Reopening creates a new open task while preserving cancelled history.
@@ -234,8 +342,8 @@ BEGIN
   END IF;
   IF (SELECT count(*) FROM public.work_items
       WHERE related_lead_id = '10000000-0000-0000-0000-000000000001'
-        AND source_module = 'lead_stage_progression') <> 2 THEN
-    RAISE EXCEPTION 'cancelled task history was not preserved';
+        AND source_module = 'lead_stage_progression') <> 4 THEN
+    RAISE EXCEPTION 'superseded task history was not preserved';
   END IF;
 END $$;
 
