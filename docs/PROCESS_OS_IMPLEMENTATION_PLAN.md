@@ -296,3 +296,15 @@ definition; set role defaults (`/processes` → role defaults); add
 Open questions in §8 still stand; defaults chosen: advance gate =
 finance-attached payment reference (`auto_from_odoo: false`), QC = factory
 `qc_release` evidence, leads start a case manually from the lead screen.
+
+### V0.1.2 — visual map and journey-first case pages (2026-09-13)
+
+- Process Map rebuilt as a swimlane canvas (React Flow + dagre): a lane per
+  owning role (Sales indigo, Finance teal, Factory amber, Partner violet),
+  stage-type accents, dashed exception returns, live open / overdue / blocked
+  counts per stage from `GET /api/process/definitions/[key]/stats`, and a
+  drawer listing the cases on the selected stage. Phones keep the vertical list.
+- Case page (web + native) leads with a coloured progress track and a single
+  "next action" card derived from the live view (`deriveNextAction` in
+  `packages/shared/src/process-next-action.ts`): blocked → handover → next
+  required item → failing gate → decision → ready.

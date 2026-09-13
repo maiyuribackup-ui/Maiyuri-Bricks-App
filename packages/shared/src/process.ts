@@ -615,6 +615,37 @@ export interface ProcessInstanceView {
   can_act: boolean;
 }
 
+/** Live cases sitting on one stage of a definition (any version), for the map. */
+export interface ProcessStageLiveCase {
+  instance_id: string;
+  stage_instance_id: string;
+  customer_name: string | null;
+  order_ref: string | null;
+  assigned_user_id: string | null;
+  assignee_name: string | null;
+  status: ProcessStageInstanceStatus;
+  due_at: string | null;
+  started_at: string;
+  is_overdue: boolean;
+}
+
+export interface ProcessStageLiveStats {
+  stage_key: string;
+  open: number;
+  blocked: number;
+  overdue: number;
+  cases: ProcessStageLiveCase[];
+}
+
+export interface ProcessDefinitionStats {
+  process_key: string;
+  as_of: string;
+  total_open: number;
+  total_overdue: number;
+  total_blocked: number;
+  stages: Record<string, ProcessStageLiveStats>;
+}
+
 export interface ProcessWorkStageItem {
   stage_instance: ProcessStageInstanceRow;
   stage: Pick<

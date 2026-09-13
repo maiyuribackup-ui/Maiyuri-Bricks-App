@@ -1,7 +1,12 @@
 import type { ProcessEventType } from "@maiyuri/shared";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRef, useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { ProcessJourney } from "@/components/process/ProcessJourney";
+import {
+  ProcessNextAction,
+  ProcessProgressTrack,
+} from "@/components/process/ProcessNextAction";
 import { ProcessStagePanel } from "@/components/process/ProcessStagePanel";
 import {
   useProcessHistory,
@@ -11,8 +16,9 @@ import {
 import { Card, Icon, SkeletonList, Touchable, type IconName } from "@/ui";
 
 /**
- * Case screen (PRD §7.4): who/what the case is about, the vertical journey,
- * the current stage's execution panel, and the audit timeline.
+ * Case screen (PRD §7.4), journey-first: who/what the case is about, the
+ * coloured progress track, the one next action, then the current stage's
+ * execution panel, the full journey and the audit timeline.
  */
 
 const EVENT_STYLE: Partial<
@@ -184,6 +190,8 @@ export default function ProcessCase() {
   const instance = useProcessInstance(id);
   const history = useProcessHistory(id);
   const view = instance.data?.data;
+  const scrollRef = useRef<ScrollView>(null);
+  const [panelY, setPanelY] = useState(0);
 
   if (instance.isLoading) return <SkeletonList count={4} />;
   if (instance.isError || !view) {
@@ -214,6 +222,7 @@ export default function ProcessCase() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       className="flex-1 bg-canvas"
       contentContainerClassName="p-4 pb-16"
       refreshControl={
@@ -256,18 +265,34 @@ export default function ProcessCase() {
         </Touchable>
       ) : null}
 
-      {/* journey */}
+      {/* progress + next action */}
+      <Card className="mb-4">
+        <ProcessProgressTrack view={view} />
+      </Card>
+      <View className="mb-4">
+        <ProcessNextAction
+          view={view}
+          onGo={() =>
+            scrollRef.current?.scrollTo({ y: panelY, animated: true })
+          }
+        />
+      </View>
+
+      {/* current stage panel */}
+      <View
+        className="mb-4"
+        onLayout={(e) => setPanelY(Math.max(0, e.nativeEvent.layout.y - 12))}
+      >
+        <ProcessStagePanel view={view} />
+      </View>
+
+      {/* full journey */}
       <Card className="mb-4">
         <Text className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
           Journey
         </Text>
         <ProcessJourney journey={view.journey} />
       </Card>
-
-      {/* current stage panel */}
-      <View className="mb-4">
-        <ProcessStagePanel view={view} />
-      </View>
 
       {/* history */}
       <Card>
