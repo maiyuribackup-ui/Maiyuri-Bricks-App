@@ -558,6 +558,48 @@ export interface ProcessEventRow {
   created_at: string;
 }
 
+export const processEventDeliveryDestinationSchema = z.enum([
+  "notification",
+  "webhook",
+]);
+export type ProcessEventDeliveryDestination = z.infer<
+  typeof processEventDeliveryDestinationSchema
+>;
+
+export const processEventDeliveryStatusSchema = z.enum([
+  "pending",
+  "leased",
+  "delivered",
+  "failed",
+  "dead",
+  "skipped",
+]);
+export type ProcessEventDeliveryStatus = z.infer<
+  typeof processEventDeliveryStatusSchema
+>;
+
+/**
+ * Outbox row: one per event and destination (process_event_deliveries).
+ * The event itself stays immutable; this is where delivery state lives.
+ */
+export interface ProcessEventDeliveryRow {
+  id: string;
+  event_id: string;
+  process_instance_id: string;
+  destination: ProcessEventDeliveryDestination;
+  status: ProcessEventDeliveryStatus;
+  attempts: number;
+  max_attempts: number;
+  next_attempt_at: string;
+  lease_expires_at: string | null;
+  leased_by: string | null;
+  last_attempt_at: string | null;
+  delivered_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ============================================
 // View models returned by the API
 // ============================================
