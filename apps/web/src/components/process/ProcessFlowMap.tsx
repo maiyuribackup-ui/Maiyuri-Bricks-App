@@ -254,15 +254,17 @@ function LaneBackdrop({
         >
           <div
             className="flex h-full flex-col justify-center gap-0.5 pl-4"
-            style={{
-              width: LANE_LABEL_W,
-              borderLeft: `4px solid ${band.lane.hue}`,
-            }}
+            style={{ width: LANE_LABEL_W }}
           >
             <span
-              className="text-[13px] font-bold"
+              className="inline-flex items-center gap-1.5 text-[13px] font-bold"
               style={{ color: band.lane.deep }}
             >
+              <span
+                aria-hidden="true"
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ background: band.lane.hue }}
+              />
               {band.lane.label}
             </span>
             <span className="text-[11px] font-medium text-slate-500">
