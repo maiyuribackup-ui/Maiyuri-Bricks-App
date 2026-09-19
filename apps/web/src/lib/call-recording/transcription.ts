@@ -6,10 +6,44 @@
  */
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
+import { GEMINI_DEFAULT_MODEL, GEMINI_MODEL } from "@/lib/ai/models";
 import { traceAiGeneration } from "@/lib/observability/langfuse";
 import { log, logError } from "./logger";
 import type { TranscriptionResult } from "./types";
+
+const MAX_TRANSCRIPT_CHARS = 7_500;
+const MAX_REPEATED_LONG_LINE = 3;
+const MAX_TRANSCRIPTION_OUTPUT_TOKENS = 2_000;
+
+export function transcriptPassesQuality(transcript: string): boolean {
+  const text = transcript.trim();
+  if (!text || text.length > MAX_TRANSCRIPT_CHARS) return false;
+
+  const longLineCounts = new Map<string, number>();
+  for (const line of text.split("\n")) {
+    const normalized = line.trim();
+    if (normalized.length < 40) continue;
+    const count = (longLineCounts.get(normalized) ?? 0) + 1;
+    if (count > MAX_REPEATED_LONG_LINE) return false;
+    longLineCounts.set(normalized, count);
+  }
+
+  return true;
+}
+
+export async function generateValidatedTranscription(
+  generate: (attempt: number) => Promise<string>,
+  maxAttempts = 3,
+): Promise<{ transcript: string; language: string }> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const parsed = parseTranscriptionResponse(await generate(attempt));
+    if (transcriptPassesQuality(parsed.transcript)) return parsed;
+  }
+
+  throw new Error(
+    `Gemini transcription failed quality validation after ${maxAttempts} attempts: response was empty, oversized, or repetitive`,
+  );
+}
 
 function getGeminiClient() {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -27,8 +61,6 @@ export async function transcribeAudio(
   filename: string,
 ): Promise<TranscriptionResult> {
   const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
-
   const base64Audio = audioBuffer.toString("base64");
   const mimeType = getMimeType(filename);
 
@@ -41,31 +73,53 @@ Instructions:
 4. Include speaker labels if you can distinguish different speakers (e.g., "Sales Staff:", "Customer:")
 5. Note any unclear or inaudible portions as [inaudible]
 6. Do not translate - transcribe in the original language spoken
+7. Do not repeat lines or invent speech that is not audible
 
 At the end, on a new line, state the primary language detected (Tamil, English, or Tamil-English mixed).`;
 
   try {
-    const fullText = await traceAiGeneration({
-      name: "app.call_recording.transcribe_audio",
-      model: GEMINI_DEFAULT_MODEL,
-      input: { filename, mimeType, audioBytes: audioBuffer.length },
-      metadata: { module: "call_recording", step: "transcribe_audio" },
-      run: async () => {
-        const result = await model.generateContent([
-          {
-            inlineData: {
-              mimeType,
-              data: base64Audio,
-            },
+    const modelSlugs = [
+      GEMINI_DEFAULT_MODEL,
+      GEMINI_DEFAULT_MODEL,
+      GEMINI_MODEL.FLASH,
+    ];
+    const { transcript, language } = await generateValidatedTranscription(
+      async (attempt) => {
+        const modelSlug = modelSlugs[attempt] ?? GEMINI_MODEL.FLASH;
+        const model = genAI.getGenerativeModel({
+          model: modelSlug,
+          generationConfig: {
+            maxOutputTokens: MAX_TRANSCRIPTION_OUTPUT_TOKENS,
+            temperature: 0.1,
           },
-          { text: prompt },
-        ]);
-        const output = result.response.text();
-        return { output, value: output };
+        });
+        return traceAiGeneration({
+          name: "app.call_recording.transcribe_audio",
+          model: modelSlug,
+          input: {
+            filename,
+            mimeType,
+            audioBytes: audioBuffer.length,
+            attempt,
+          },
+          metadata: { module: "call_recording", step: "transcribe_audio" },
+          run: async () => {
+            const result = await model.generateContent([
+              {
+                inlineData: {
+                  mimeType,
+                  data: base64Audio,
+                },
+              },
+              { text: prompt },
+            ]);
+            const output = result.response.text();
+            return { output, value: output };
+          },
+        });
       },
-    });
-
-    const { transcript, language } = parseTranscriptionResponse(fullText);
+      modelSlugs.length,
+    );
 
     log("Transcription complete", {
       length: transcript.length,
@@ -89,15 +143,28 @@ function parseTranscriptionResponse(response: string): {
   language: string;
 } {
   const lines = response.trim().split("\n");
-  const lastLine = lines[lines.length - 1].toLowerCase();
+  const lastLine = lines[lines.length - 1] ?? "";
+  const normalizedLastLine = lastLine.trim().toLowerCase();
+  const isLanguageFooter =
+    normalizedLastLine.length <= 120 &&
+    (normalizedLastLine.includes("tamil") ||
+      normalizedLastLine.includes("english") ||
+      normalizedLastLine.includes("language") ||
+      normalizedLastLine.includes("mixed"));
 
   let language = "unknown";
 
-  if (lastLine.includes("tamil-english") || lastLine.includes("mixed")) {
+  // Only a concise language footer is metadata. Long content that happens to
+  // mention a language must remain in the transcript and pass quality checks.
+  if (
+    isLanguageFooter &&
+    (normalizedLastLine.includes("tamil-english") ||
+      normalizedLastLine.includes("mixed"))
+  ) {
     language = "ta-en";
-  } else if (lastLine.includes("tamil")) {
+  } else if (isLanguageFooter && normalizedLastLine.includes("tamil")) {
     language = "ta";
-  } else if (lastLine.includes("english")) {
+  } else if (isLanguageFooter && normalizedLastLine.includes("english")) {
     language = "en";
   }
 

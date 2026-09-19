@@ -775,8 +775,8 @@ rate in Masters" — pointing at a screen with no form.
 
 **Root Cause:**
 
-The empty-state copy was written to explain a *business* gap ("rates must be
-entered by the business") and was accepted as covering a *product* gap. An
+The empty-state copy was written to explain a _business_ gap ("rates must be
+entered by the business") and was accepted as covering a _product_ gap. An
 empty state that explains why a table is empty reads exactly like an empty
 state that is missing the control to fill it.
 
@@ -850,12 +850,12 @@ closed when the inputs are unknown.
 ```yaml
 # ❌ Wrong — the required check can be skipped, and skipped means passing
 verify:
-  name: Production Schema Ready      # the required context
+  name: Production Schema Ready # the required context
   if: needs.detect.outputs.has_migrations == 'true'
 
 # ✅ Correct — always runs, decides internally, fails closed
 gate:
-  name: Production Schema Ready      # the required context
+  name: Production Schema Ready # the required context
   needs: [detect, verify]
   if: always()
   steps:
@@ -1260,5 +1260,34 @@ describe("Supabase Client Usage", () => {
 
 ---
 
-_Last Updated: August 30, 2026_
+### [2026-09-19] BUG-016: AI - Repetitive Transcript Accepted as Valid
+
+**Severity:** High (Corrupt customer-call insight and downstream actions)
+**Files Affected:**
+
+- `apps/web/src/lib/call-recording/transcription.ts`
+
+**Context:** Gemini transcribes Telegram call recordings before Claude generates
+sales analysis, tasks, and Telegram notifications.
+
+**Mistake:** Any non-empty Gemini response was accepted. A 25-second recording
+produced an 89,347-character transcript with one long passage repeated 637 times,
+and the pipeline marked the recording completed.
+
+**Root Cause:** The transcription boundary had no output-size or repetition
+validation. The generation request also had no output-token cap, so a model loop
+could consume most of the serverless timeout before returning corrupt text.
+
+**Prevention Rule:** Validate AI output before downstream writes. Reject empty,
+oversized, or heavily repeated transcripts; cap generation output; retry only
+invalid model output; propagate provider errors immediately to the existing
+infrastructure-error handler.
+
+**Verification:** Regression tests cover plausible mixed Tamil-English text,
+oversized output, repeated lines, recovery on a later valid attempt, fail-closed
+behavior after three invalid attempts, and immediate provider-error propagation.
+
+---
+
+_Last Updated: September 19, 2026_
 _Maintainers: Development Team_
