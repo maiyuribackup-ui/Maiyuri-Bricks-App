@@ -7,6 +7,9 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { log, logError } from "./logger.js";
 
+/** Keep every post-transcription analysis path on one supported model. */
+export const ANALYSIS_MODEL = "gemini-2.5-flash";
+
 // Types
 interface CallInsights {
   complaints?: string[];
@@ -46,7 +49,7 @@ export async function analyzeTranscript(
   leadName?: string,
 ): Promise<AnalysisResult> {
   const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const model = genAI.getGenerativeModel({ model: ANALYSIS_MODEL });
 
   const prompt = `You are a sales intelligence analyst for Maiyuri Bricks, a company that manufactures eco-friendly compressed earth blocks (CSEB/interlocking bricks).
 
@@ -236,7 +239,7 @@ export async function extractLeadDetails(
   leadName?: string,
 ): Promise<ExtractedLeadDetails> {
   const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const model = genAI.getGenerativeModel({ model: ANALYSIS_MODEL });
 
   const prompt = `You are analyzing a sales call transcript for Maiyuri Bricks (CSEB/interlocking brick manufacturer in Tamil Nadu, India).
 
@@ -425,7 +428,7 @@ export async function quickAssessment(transcript: string): Promise<{
   urgency: "high" | "medium" | "low";
 }> {
   const genAI = getGeminiClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const model = genAI.getGenerativeModel({ model: ANALYSIS_MODEL });
 
   const prompt = `Quickly assess this sales call:
 
