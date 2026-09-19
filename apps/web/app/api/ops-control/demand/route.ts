@@ -7,20 +7,32 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   commitmentStatus,
   revisionStatus,
-  coverageStatus,
+  computeCoverage,
+  computeReadiness,
   remainingQty,
 } from "@/lib/ops-control/fulfilment";
 import { SCHEDULE_ROLES } from "@/lib/ops-control/schedules";
+import {
+  loadReservationsBySoLine,
+  operationalToday,
+} from "@/lib/ops-control/inventory-service";
 
 // GET /api/ops-control/demand — the open Sales Order backlog (PRD §9.1).
 // Active demand lines joined with their schedules; three status dimensions
-// per line. Coverage is 'not_evaluated' until Phase 3 supplies reservation
-// data — absence of information is not presented as bad news.
+// per line. Coverage and readiness are reported separately and deliberately:
+// a line can be fully covered by stock that is still curing, which is 100%
+// covered and 0% ready — collapsing them would be wrong by a week (PRD §4).
 export async function GET(request: NextRequest) {
   const auth = await requireProductionRole(request, SCHEDULE_ROLES);
   if (auth.errorResponse) return auth.errorResponse;
   try {
-    const { customer, product, status: statusFilter } = parseQuery(request);
+    const {
+      customer,
+      product,
+      status: statusFilter,
+      include_completed: includeCompletedParam,
+    } = parseQuery(request);
+    const includeCompleted = includeCompletedParam === "true";
 
     let query = supabaseAdmin
       .from("oc_sales_order_lines")
@@ -70,6 +82,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Reservations decide coverage and readiness. Production allocations are
+    // Phase 4; until they exist, allocated is genuinely zero rather than
+    // unknown, so coverage is real information now.
+    const today = operationalToday();
+    const reservationsByLine = await loadReservationsBySoLine(
+      (lines ?? []).map((l) => l.id as string),
+    );
+
     const sumFor = (version: VersionRow | undefined, soLineId: string) =>
       version?.oc_delivery_schedule_lines
         .filter((l) => l.so_line_id === soLineId)
@@ -97,6 +117,17 @@ export async function GET(request: NextRequest) {
 
       const qtyOrdered = Number(l.qty_ordered);
       const qtyDelivered = Number(l.qty_delivered);
+      const reservations = reservationsByLine.get(l.id as string) ?? [];
+      const reserved = reservations
+        .filter((r) => r.status === "active")
+        .reduce((sum, r) => sum + r.quantity, 0);
+      const coverage = computeCoverage({
+        qtyOrdered,
+        qtyDelivered,
+        reserved,
+        productionAllocated: 0,
+      });
+      const readiness = computeReadiness(reservations, coverage.remaining, today);
       return {
         ...l,
         remaining: remainingQty(qtyOrdered, qtyDelivered),
@@ -111,13 +142,27 @@ export async function GET(request: NextRequest) {
           openVersionStatus: openStatus,
         }),
         revision_status: revisionStatus(openStatus),
-        coverage_status: coverageStatus(null), // Phase 3 supplies real inputs
+        coverage_status: coverage.status,
+        reserved_qty: coverage.reserved,
+        uncovered_qty: coverage.uncovered,
+        ready_now: readiness.readyNow,
+        curing_qty: readiness.curing,
+        ready_from: readiness.readyFrom,
+        fully_ready: readiness.fullyReady,
       };
     });
 
+    // Demand planning is about what is still OWED. A line delivered in full
+    // ("Completed") is history: it cannot be scheduled, produced or dispatched,
+    // and 1,000-of-1,000 rows crowd out the ones needing action. They stay one
+    // query param away rather than being deleted from the view.
+    const openRows = rows.filter((r) => r.remaining > 0);
+    const completedHidden = rows.length - openRows.length;
+    const visible = includeCompleted ? rows : openRows;
+
     const filtered = statusFilter
-      ? rows.filter((r) => r.commitment_status === statusFilter)
-      : rows;
+      ? visible.filter((r) => r.commitment_status === statusFilter)
+      : visible;
 
     // Unmapped products with open demand — the red list for the mapping screen.
     const { data: unmappedLines } = await supabaseAdmin
@@ -137,13 +182,28 @@ export async function GET(request: NextRequest) {
       unmappedAgg.set(u.odoo_product_id as number, agg);
     }
 
-    const { data: lastRun } = await supabaseAdmin
-      .from("oc_sync_runs")
-      .select("status, started_at, completed_at, error")
-      .eq("kind", "demand")
-      .order("started_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Two different facts, previously conflated: the LATEST run (which may be
+    // in flight or failed) and the last run that actually SUCCEEDED. Reporting
+    // the latest run's timestamp as "last synced" told the user data was 7
+    // hours old when in truth that run never completed and the data was three
+    // days stale.
+    const [{ data: lastRun }, { data: lastSuccess }] = await Promise.all([
+      supabaseAdmin
+        .from("oc_sync_runs")
+        .select("status, started_at, completed_at, error")
+        .eq("kind", "demand")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("oc_sync_runs")
+        .select("status, started_at, completed_at, orders_fetched, lines_fetched")
+        .eq("kind", "demand")
+        .eq("status", "success")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
     return success({
       lines: filtered,
@@ -151,6 +211,9 @@ export async function GET(request: NextRequest) {
         .map(([odoo_product_id, v]) => ({ odoo_product_id, ...v }))
         .sort((a, b) => b.open_qty - a.open_qty),
       last_sync: lastRun ?? null,
+      last_success: lastSuccess ?? null,
+      completed_hidden: completedHidden,
+      include_completed: includeCompleted,
       role: auth.role,
     });
   } catch (err) {

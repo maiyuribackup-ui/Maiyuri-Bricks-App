@@ -311,3 +311,346 @@ export const confirmOcScheduleVersionSchema = z.object({
   confirmation_note: z.string().nullable().optional(),
 });
 export type ConfirmOcScheduleVersionInput = z.infer<typeof confirmOcScheduleVersionSchema>;
+
+// ============================================
+// Phase 3 — inventory ledger, reservations, coverage
+// Data model: supabase/migrations/20260829100000_ops_control_inventory.sql
+// ============================================
+
+/** What an inventory movement explains (PRD §3.3). */
+export const ocMovementTypeSchema = z.enum([
+  "opening",
+  "production_receipt",
+  "delivery_issue",
+  "delivery_return",
+  "adjustment",
+  "reconciliation",
+]);
+export type OcMovementType = z.infer<typeof ocMovementTypeSchema>;
+
+/**
+ * Manual movements only — receipts and issues are written by the production
+ * and dispatch flows (Phases 4-5) through their own transactional RPCs, never
+ * by hand. A quantity correction with no stated reason is indistinguishable
+ * from a mistake, so adjustments and reconciliations must carry one.
+ */
+export const createOcInventoryMovementSchema = z
+  .object({
+    movement_type: z.enum(["opening", "adjustment", "reconciliation"]),
+    finished_good_id: z.string().uuid(),
+    quantity: z
+      .number()
+      .refine((q) => q !== 0, "A movement of zero is not a movement"),
+    movement_date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a YYYY-MM-DD date")
+      .optional(),
+    reason: z.string().min(1).nullable().optional(),
+    notes: z.string().nullable().optional(),
+  })
+  .refine(
+    (v) =>
+      v.movement_type === "opening" ||
+      (v.reason !== null && v.reason !== undefined && v.reason.trim().length > 0),
+    { message: "A reason is required for an adjustment or reconciliation", path: ["reason"] },
+  );
+export type CreateOcInventoryMovementInput = z.infer<
+  typeof createOcInventoryMovementSchema
+>;
+
+export const createOcReservationSchema = z.object({
+  so_line_id: z.string().uuid(),
+  finished_good_id: z.string().uuid(),
+  quantity: z.number().positive("Quantity must be greater than zero"),
+  /** Null means reserved out of stock that is dispatchable today. */
+  available_from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a YYYY-MM-DD date")
+    .nullable()
+    .optional(),
+  reason: z.string().nullable().optional(),
+});
+export type CreateOcReservationInput = z.infer<typeof createOcReservationSchema>;
+
+/** PRD §8.3: release and create are one transaction, never two calls. */
+export const transferOcReservationSchema = z.object({
+  reservation_id: z.string().uuid(),
+  to_so_line_id: z.string().uuid(),
+  quantity: z.number().positive("Quantity must be greater than zero"),
+  reason: z.string().min(1, "A transfer needs a reason"),
+  lock_version: z.number().int().min(0),
+});
+export type TransferOcReservationInput = z.infer<typeof transferOcReservationSchema>;
+
+export const releaseOcReservationSchema = z.object({
+  lock_version: z.number().int().min(0),
+  reason: z.string().min(1, "A release needs a reason"),
+});
+export type ReleaseOcReservationInput = z.infer<typeof releaseOcReservationSchema>;
+
+// ============================================
+// Phase 4 — production planning, actuals, cement
+// Data model: supabase/migrations/20260830090000_ops_control_production.sql
+// ============================================
+
+const dateOnly = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a YYYY-MM-DD date");
+
+export const createOcProductionDaySchema = z.object({
+  prod_date: dateOnly,
+  planned_shift_count: z.union([z.literal(1), z.literal(2)]).default(2),
+  notes: z.string().nullable().optional(),
+});
+export type CreateOcProductionDayInput = z.infer<typeof createOcProductionDaySchema>;
+
+/** Manpower is an aggregate head count (PRD §22) — never a list of names. */
+export const updateOcProductionShiftSchema = z.object({
+  planned_manpower: z.number().int().min(0).nullable().optional(),
+  actual_manpower: z.number().int().min(0).nullable().optional(),
+  notes: z.string().nullable().optional(),
+  lock_version: z.number().int().min(0),
+});
+export type UpdateOcProductionShiftInput = z.infer<typeof updateOcProductionShiftSchema>;
+
+export const createOcPlanLineSchema = z.object({
+  shift_id: z.string().uuid(),
+  finished_good_id: z.string().uuid(),
+  planned_qty: z.number().positive("Planned quantity must be greater than zero"),
+});
+export type CreateOcPlanLineInput = z.infer<typeof createOcPlanLineSchema>;
+
+export const updateOcPlanLineSchema = z.object({
+  planned_qty: z.number().positive(),
+  lock_version: z.number().int().min(0),
+});
+export type UpdateOcPlanLineInput = z.infer<typeof updateOcPlanLineSchema>;
+
+/**
+ * PRD §24: production for stock is a first-class purpose, not a fake sales
+ * order. The refinement mirrors the two database CHECKs so the operator gets
+ * a readable message instead of a constraint-violation string.
+ */
+export const createOcAllocationSchema = z
+  .object({
+    plan_line_id: z.string().uuid(),
+    purpose: z.enum(["sales_order", "stock"]),
+    so_line_id: z.string().uuid().nullable().optional(),
+    stock_ref: z.string().nullable().optional(),
+    planned_qty: z.number().positive("Allocated quantity must be greater than zero"),
+  })
+  .refine((v) => v.purpose !== "sales_order" || !!v.so_line_id, {
+    message: "A sales-order allocation must name the sales order line",
+    path: ["so_line_id"],
+  })
+  .refine((v) => v.purpose !== "stock" || !v.so_line_id, {
+    message: "A stock allocation must not reference a sales order line",
+    path: ["so_line_id"],
+  });
+export type CreateOcAllocationInput = z.infer<typeof createOcAllocationSchema>;
+
+/**
+ * A draft actual. accepted + rejected <= gross is checked here AND by the
+ * database, because it describes bricks that do not exist — an integrity
+ * rule, not a planning warning (PRD §27).
+ */
+export const upsertOcProductionActualSchema = z
+  .object({
+    shift_id: z.string().uuid(),
+    finished_good_id: z.string().uuid(),
+    gross_qty: z.number().min(0),
+    accepted_qty: z.number().min(0),
+    rejected_qty: z.number().min(0),
+    deviation_reason_id: z.string().uuid().nullable().optional(),
+    deviation_comment: z.string().nullable().optional(),
+    lock_version: z.number().int().min(0).optional(),
+  })
+  .refine((v) => v.accepted_qty + v.rejected_qty <= v.gross_qty, {
+    message: "Accepted plus rejected cannot exceed gross output",
+    path: ["accepted_qty"],
+  });
+export type UpsertOcProductionActualInput = z.infer<
+  typeof upsertOcProductionActualSchema
+>;
+
+/** The full assignment set for one actual, replaced atomically. */
+export const setOcAllocationActualsSchema = z.object({
+  lock_version: z.number().int().min(0),
+  entries: z
+    .array(
+      z.object({
+        allocation_id: z.string().uuid(),
+        actual_qty: z.number().positive(),
+        note: z.string().nullable().optional(),
+      }),
+    )
+    .max(50),
+});
+export type SetOcAllocationActualsInput = z.infer<typeof setOcAllocationActualsSchema>;
+
+/** Cement per production line (PRD §33), validated against the configured step. */
+export const setOcConsumptionSchema = z.object({
+  material: z.string().min(1).default("cement"),
+  bags: z.number().min(0),
+});
+export type SetOcConsumptionInput = z.infer<typeof setOcConsumptionSchema>;
+
+export const postOcProductionActualSchema = z.object({
+  lock_version: z.number().int().min(0),
+});
+export type PostOcProductionActualInput = z.infer<typeof postOcProductionActualSchema>;
+
+/** PRD §8.2: a posted actual is corrected by a delta, never an edit. */
+export const createOcActualAdjustmentSchema = z
+  .object({
+    delta_gross: z.number().default(0),
+    delta_accepted: z.number().default(0),
+    delta_rejected: z.number().default(0),
+    reason: z.string().min(1, "An adjustment needs a reason"),
+  })
+  .refine(
+    (v) => v.delta_gross !== 0 || v.delta_accepted !== 0 || v.delta_rejected !== 0,
+    { message: "An adjustment of zero is not an adjustment", path: ["delta_accepted"] },
+  );
+export type CreateOcActualAdjustmentInput = z.infer<
+  typeof createOcActualAdjustmentSchema
+>;
+
+// ============================================
+// Phase 5 — trips, load plans, delivery actuals
+// Data model: supabase/migrations/20260830100000_ops_control_dispatch.sql
+// ============================================
+
+export const createOcTripSchema = z.object({
+  trip_date: dateOnly,
+  trip_no: z.number().int().positive().optional(),
+  vehicle_id: z.string().uuid().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  /** Required only when going beyond the normal trips per day (PRD §54). */
+  override_reason: z.string().nullable().optional(),
+});
+export type CreateOcTripInput = z.infer<typeof createOcTripSchema>;
+
+export const updateOcTripSchema = z.object({
+  vehicle_id: z.string().uuid().nullable().optional(),
+  status: z.enum(["planned", "dispatched", "completed", "cancelled"]).optional(),
+  notes: z.string().nullable().optional(),
+  lock_version: z.number().int().min(0),
+});
+export type UpdateOcTripInput = z.infer<typeof updateOcTripSchema>;
+
+export const createOcTripStopSchema = z.object({
+  trip_id: z.string().uuid(),
+  sequence: z.number().int().positive().optional(),
+  odoo_partner_id: z.number().int().nullable().optional(),
+  customer_name: z.string().nullable().optional(),
+  site_location_id: z.string().uuid().nullable().optional(),
+  schedule_line_id: z.string().uuid().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+export type CreateOcTripStopInput = z.infer<typeof createOcTripStopSchema>;
+
+export const createOcLoadLineSchema = z.object({
+  stop_id: z.string().uuid(),
+  finished_good_id: z.string().uuid(),
+  so_line_id: z.string().uuid().nullable().optional(),
+  planned_qty: z.number().positive("Planned quantity must be greater than zero"),
+});
+export type CreateOcLoadLineInput = z.infer<typeof createOcLoadLineSchema>;
+
+/**
+ * The driver's report. Every field is optional while the load line is a draft
+ * — the identity is only enforced at COMPLETE (PRD §7), because the driver
+ * reports in stages and a half-entered row must still be savable.
+ */
+export const updateOcLoadLineSchema = z.object({
+  actual_loaded_qty: z.number().min(0).nullable().optional(),
+  actual_unloaded_qty: z.number().min(0).nullable().optional(),
+  returned_qty: z.number().min(0).optional(),
+  damaged_qty: z.number().min(0).optional(),
+  lost_or_short_qty: z.number().min(0).optional(),
+  deviation_reason_id: z.string().uuid().nullable().optional(),
+  deviation_comment: z.string().nullable().optional(),
+  lock_version: z.number().int().min(0),
+});
+export type UpdateOcLoadLineInput = z.infer<typeof updateOcLoadLineSchema>;
+
+export const completeOcLoadLineSchema = z.object({
+  lock_version: z.number().int().min(0),
+});
+export type CompleteOcLoadLineInput = z.infer<typeof completeOcLoadLineSchema>;
+
+/** PRD §8.2: a completed delivery is corrected by a delta, never an edit. */
+export const createOcDeliveryAdjustmentSchema = z
+  .object({
+    delta_loaded: z.number().default(0),
+    delta_unloaded: z.number().default(0),
+    delta_returned: z.number().default(0),
+    delta_damaged: z.number().default(0),
+    delta_lost_or_short: z.number().default(0),
+    reason: z.string().min(1, "An adjustment needs a reason"),
+  })
+  .refine(
+    (v) =>
+      v.delta_loaded !== 0 || v.delta_unloaded !== 0 || v.delta_returned !== 0 ||
+      v.delta_damaged !== 0 || v.delta_lost_or_short !== 0,
+    { message: "An adjustment of zero is not an adjustment", path: ["delta_unloaded"] },
+  );
+export type CreateOcDeliveryAdjustmentInput = z.infer<
+  typeof createOcDeliveryAdjustmentSchema
+>;
+
+// ============================================
+// Phase 6 — labour ledger and weekly settlement
+// Data model: supabase/migrations/20260830110000_ops_control_labour.sql
+// ============================================
+
+export const ocSettlementStatusSchema = z.enum([
+  "draft",
+  "reviewed",
+  "approved",
+  "paid",
+  "locked",
+]);
+export type OcSettlementStatus = z.infer<typeof ocSettlementStatusSchema>;
+
+export const settleOcLabourWeekSchema = z.object({
+  week_start: dateOnly,
+  status: ocSettlementStatusSchema,
+  /** Omitted on the first settle of a week, when no row exists yet. */
+  lock_version: z.number().int().min(0).nullable().optional(),
+});
+export type SettleOcLabourWeekInput = z.infer<typeof settleOcLabourWeekSchema>;
+
+/**
+ * Generate labour for work that could not be priced when it happened.
+ * Idempotent, so re-running over a range only fills the gaps.
+ */
+export const backfillOcLabourSchema = z.object({
+  from: dateOnly,
+  to: dateOnly,
+});
+export type BackfillOcLabourInput = z.infer<typeof backfillOcLabourSchema>;
+
+// ============================================
+// Week-grid planning (PRD §12, §20-26)
+// ============================================
+
+/**
+ * One cell of the production week grid: how many of a product to make on a
+ * day. Zero is meaningful — it CLEARS the cell rather than being rejected,
+ * because deleting a plan is as ordinary an edit as writing one.
+ */
+export const ocPlanCellSchema = z.object({
+  finished_good_id: z.string().uuid(),
+  date: dateOnly,
+  quantity: z.number().min(0, "A planned quantity cannot be negative"),
+});
+export type OcPlanCellInput = z.infer<typeof ocPlanCellSchema>;
+
+export const saveOcPlanCellsSchema = z.object({
+  week_start: dateOnly,
+  /** Only the cells the planner actually changed, never the whole grid. */
+  cells: z.array(ocPlanCellSchema).min(1).max(200),
+});
+export type SaveOcPlanCellsInput = z.infer<typeof saveOcPlanCellsSchema>;

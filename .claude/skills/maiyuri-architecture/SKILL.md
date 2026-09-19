@@ -26,7 +26,7 @@ notification rhythm. Founder + primary user: Ram Kumaran.
 | Web app (prod) | `https://mb.maiyuri.com` (Vercel, Next.js 14 App Router, React 18) |
 | Android app | Expo SDK 54 / React 19, EAS build + EAS Update (OTA) |
 | Database / auth / storage | Supabase project **`pailepomvvwjkrhkwdqt`** (ap-south-1) |
-| ERP | Odoo at `crm.maiyuri.com`, DB **`lite2`**, XML-RPC (uid 2) |
+| ERP | Odoo 19 at `odoo.maiyuri.com`, DB **`t1`**, XML-RPC (uid 2) |
 | Repo | `github.com/maiyuribackup-ui/Maiyuri-Bricks-App` |
 | Notifications | Telegram bot `RKG1988bot` + FCM HTTP v1 (push) |
 | Email | Gmail SMTP via nodemailer (switched off dead Resend) |
@@ -314,6 +314,58 @@ of raw Pressable/emoji/spinners (that's what made the app feel web-wrapped):
   costs, **nudges** rule engine. Native settings: `(tabs)/settings.tsx`
   (planning params incl. min_batch, push prefs).
 
+
+### 3.16 Process OS  (`process_*` tables, `apps/web/src/lib/process/*`)
+The executable process layer (PRD `docs/PRD_PROCESS_OS.md`, plan
+`docs/PROCESS_OS_IMPLEMENTATION_PLAN.md`). Versioned, data-driven process
+definitions rendered as a Process Map, executed as live cases that surface
+in **My Work** (each open stage mirrors to exactly one `work_items` row with
+`source_module='process_os'`, `activity_type='process'`).
+- **State machine lives in PostgreSQL** (`process_start`, `process_advance`,
+  `process_block/unblock`, `process_cancel`, `process_override_gate`,
+  `process_handover_create/accept/reject`, `process_sla_sweep`,
+  `process_import_definition/publish/retire`) — the Supabase client has no
+  transactions, so every mutation is one plpgsql call that raises
+  `CODE: message` (mapped in `errors.ts`). Gates needing Odoo / ops-control
+  facts are evaluated in TS first (`gates/`, `facts/`) and passed in; the
+  function re-checks the DB-visible gates. **Unknown = blocked** (fail closed).
+- **Reference process:** `definitions/lead-to-delivery.ts` (v1.0, 17 stages;
+  sales stages read `leads.pipeline_stage`/`lead_status`/`odoo_*_id`, factory
+  stages read ops-control readiness). Seed via `POST /api/process/definitions/seed`.
+- **Roles:** PRD roles → app roles in `permissions.ts`
+  (`SALES_ENGINEER`→sales/engineer, `FACTORY_MANAGER`→production_supervisor,
+  `FINANCE`→accountant, `MANAGING_PARTNER`→founder/owner). Default holders in
+  `process_role_defaults` (admin-set). Overrides are partner-only, audited, and
+  refused on `overridable=false` gates (payment, QC).
+- **Process Map is a swimlane canvas:** `apps/web/src/components/process/ProcessFlowMap.tsx`
+  (React Flow + dagre via `src/lib/process/map-layout.ts`): one lane per
+  owning role, lane hues shared with native through `PROCESS_LANES` in
+  `packages/shared/src/process-next-action.ts`, dashed exception returns, and
+  live counts from `GET /api/process/definitions/[key]/stats`. Case pages are
+  journey-first: `deriveNextAction()` (shared) picks the one thing to do next.
+- **QC release is a record, not a note:** `process_qc_releases` (product,
+  quantity, batch, released/hold, checker) written by
+  `process_record_qc_release()` — which also writes the evidence and ticks the
+  QC checklist item. The `qc_released` gate reads the latest record (a hold
+  re-blocks). Lead-to-Delivery v1.1 uses it; route
+  `POST /api/process/instances/[id]/qc-release`.
+- **Lead trigger yields:** `sync_lead_stage_progression_work_item` is wrapped
+  by `_guarded()` which returns early when a live process instance owns the lead.
+- **Events → notifications:** every function inserts `process_events`;
+  `events.ts` dispatches undispatched ones (push via `push_ops`, Telegram, and
+  `PROCESS_EVENT_WEBHOOK_URL` for n8n) exactly once (`payload.dispatched_at`).
+- **SLA:** `process-sla.yml` hourly → `/api/cron/process-sla`.
+- **AI:** `ai-tools.ts` (9 PRD §16 tools; `explain_next_action` is
+  deterministic) served by `POST /api/process/ai/tools` (session or
+  `PROCESS_AI_TOKEN`), injected into `/api/knowledge/ask` when a question
+  names a live case, and wrapped for CloudCore in `apps/api/.../process-tools.ts`.
+- **Tests:** vitest for validator/gates/engine/routes/tools; the plpgsql engine
+  has SQL suites in `supabase/tests/process_os/` (smoke, negative, golden A–E)
+  run by `process-os-sql.yml` on a Postgres service and locally via `run-local.sh`.
+- Web: `/processes` (library, map, case + timeline), journey on lead detail,
+  stage panel inside My Work detail. Native: `onehub/processes/*`, same panel
+  in `onehub/my-work/[id]`, journey strip on lead detail.
+
 ---
 
 ## 4. The cron / notification rhythm  (`.github/workflows/*.yml`)
@@ -336,6 +388,7 @@ UTC+5:30).
 | `db-backup` | 21:00 | 02:30 | pg_dump (docker) | 30-day artifact |
 | `e2e` | 05:00 + post-push | 10:30 | Playwright smoke | read-only prod regression net |
 | `openproject-sync` | */30 | every 30 min | /api/cron/openproject-sync | OP work packages ↔ My Work bridge |
+| `process-sla` | :15 hourly | hourly | /api/cron/process-sla | Process OS SLA warnings / breaches |
 
 Other CI: `ci.yml` (Code Quality — required check: typecheck+lint+test via
 turbo), `native-ci.yml` (native typecheck), `release.yml`, `android-apk.yml`,
@@ -413,7 +466,9 @@ download → transcribe (Gemini) → AI analyse → link to lead by phone.**
 `coach_modules`/`_lessons`/`_quizzes`/`_knowledge_base`/`_lesson_progress` ·
 `projects`, `project_wbs_items`, `project_budgets`, `project_estimates`,
 `boq_items`, `cbs_master`, `template_wbs_items`, `template_boq_items` ·
-`tickets` · `knowledgebase` · `nudge_rules` · `users`, `device_tokens`.
+`tickets` · `knowledgebase` · `nudge_rules` · `users`, `device_tokens` ·
+`process_definitions/_versions/_stages/_transitions/_checklist_items/_gates/_automations/_role_defaults`,
+`process_instances/_stage_instances/_tasks/_evidence/_handovers/_events` (+ `v_process_*` views).
 Migrations in `supabase/migrations/` (applied to prod; no staging DB).
 
 ---

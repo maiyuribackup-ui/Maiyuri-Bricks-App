@@ -14,6 +14,9 @@ const ODOO_CONFIG = {
   password: process.env.ODOO_PASSWORD ?? "",
 };
 
+/** Per-call ceiling, covering headers AND body (see odooXmlRpc). */
+const ODOO_CALL_TIMEOUT_MS = 25_000;
+
 function assertOdooConfigured(): void {
   const missing = [
     !ODOO_CONFIG.url && "ODOO_URL",
@@ -83,27 +86,43 @@ async function odooXmlRpc(
 
   // Hard timeout: a hung Odoo must not pin the serverless function until the
   // platform kills it (reliability audit). 25s covers slow ERP reads.
+  //
+  // The timer must stay armed until the BODY is read, not just the headers.
+  // Clearing it right after fetch() resolves left `response.text()` unbounded,
+  // and a large sale.order.line payload that stalls mid-body then hung the
+  // demand sync until Vercel killed it at 300s (FUNCTION_INVOCATION_TIMEOUT,
+  // nightly failures 26-28 Aug). An aborted signal rejects the body read too,
+  // so one timer now covers the whole exchange.
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 25_000);
-  let response: Response;
+  const timer = setTimeout(() => controller.abort(), ODOO_CALL_TIMEOUT_MS);
   try {
-    response = await fetch(`${ODOO_CONFIG.url}/xmlrpc/2/${endpoint}`, {
+    const response = await fetch(`${ODOO_CONFIG.url}/xmlrpc/2/${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "text/xml" },
       body: xmlBody,
       signal: controller.signal,
     });
+
+    // An HTTP error carries no XML-RPC envelope; parsing it yields a confusing
+    // "unknown error" instead of naming the status.
+    if (!response.ok) {
+      throw new Error(
+        `Odoo returned HTTP ${response.status} (${endpoint}/${method})`,
+      );
+    }
+
+    const text = await response.text();
+    return parseXmlResponse(text);
   } catch (err) {
     if (controller.signal.aborted) {
-      throw new Error(`Odoo timed out after 25s (${endpoint}/${method})`);
+      throw new Error(
+        `Odoo timed out after ${ODOO_CALL_TIMEOUT_MS / 1000}s (${endpoint}/${method})`,
+      );
     }
     throw err;
   } finally {
     clearTimeout(timer);
   }
-
-  const text = await response.text();
-  return parseXmlResponse(text);
 }
 
 function formatXmlValue(value: unknown): string {
@@ -137,13 +156,35 @@ function escapeXml(str: string): string {
     .replace(/'/g, "&apos;");
 }
 
+/**
+ * Odoo returns its full Python traceback as the fault string. Surfacing that
+ * verbatim buried the one line that matters — "FATAL: database \"lite2\" does
+ * not exist" — under 2,000 characters of /opt/odoo19 stack frames. The whole
+ * fault still goes to the server log; the thrown message carries the useful
+ * summary so a UI banner or a Telegram alert reads as a diagnosis.
+ */
+export function summarizeOdooFault(faultString: string): string {
+  const lines = faultString
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  // The real cause is the LAST exception line in a traceback, not the first.
+  const cause = [...lines]
+    .reverse()
+    .find((l) => /(FATAL|Error|Exception|denied|does not exist)/i.test(l));
+  const message = cause ?? lines[lines.length - 1] ?? "Unknown error";
+  return message.length > 300 ? `${message.slice(0, 299)}…` : message;
+}
+
 function parseXmlResponse(xml: string): unknown {
   // Check for fault first
   if (xml.includes("<fault>")) {
     const faultString = xml.match(
       /<name>faultString<\/name>\s*<value>(?:<string>)?(.*?)(?:<\/string>)?<\/value>/s,
     );
-    throw new Error(`Odoo Error: ${faultString?.[1] || "Unknown error"}`);
+    const raw = faultString?.[1] ?? "";
+    if (raw) console.error("[Odoo] fault:", raw);
+    throw new Error(`Odoo Error: ${raw ? summarizeOdooFault(raw) : "Unknown error"}`);
   }
 
   // Extract the main response value
@@ -340,18 +381,71 @@ function unescapeXml(str: string): string {
 /**
  * Authenticate with Odoo and get user ID
  */
+// Every execute() used to authenticate first, doubling the round trips: a
+// demand sync of 5 pages spent 5 extra calls re-logging in as the same user.
+// The uid is stable, so cache it briefly — this halves the calls a sync makes,
+// which is the difference between finishing and being killed when Odoo is slow.
+let cachedUid: { uid: number; at: number } | null = null;
+const UID_CACHE_MS = 5 * 60_000;
+
+/**
+ * Ask the server which databases it actually serves. Used only to enrich a
+ * "database does not exist" failure: a misconfigured ODOO_DB otherwise costs a
+ * round of guessing, and the server already knows the answer. Returns null
+ * when listing is disabled (Odoo's list_db=False) or the call fails — a
+ * diagnostic must never mask the original error.
+ */
+async function listOdooDatabases(): Promise<string[] | null> {
+  try {
+    const result = await odooXmlRpc("db", "list", []);
+    return Array.isArray(result)
+      ? result.filter((d): d is string => typeof d === "string")
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Odoo reports an unknown database as a KeyError deep in a registry traceback. */
+function isUnknownDatabaseError(message: string): boolean {
+  return /does not exist|KeyError/i.test(message);
+}
+
 async function authenticate(): Promise<number> {
-  const uid = await odooXmlRpc("common", "authenticate", [
-    ODOO_CONFIG.db,
-    ODOO_CONFIG.username,
-    ODOO_CONFIG.password,
-    {},
-  ]);
+  if (cachedUid && Date.now() - cachedUid.at < UID_CACHE_MS) {
+    return cachedUid.uid;
+  }
+
+  let uid: unknown;
+  try {
+    uid = await odooXmlRpc("common", "authenticate", [
+      ODOO_CONFIG.db,
+      ODOO_CONFIG.username,
+      ODOO_CONFIG.password,
+      {},
+    ]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // Turn the dead end into a self-answering error.
+    if (isUnknownDatabaseError(message)) {
+      const available = await listOdooDatabases();
+      const hint =
+        available && available.length
+          ? `Available on this server: ${available.join(", ")}.`
+          : "The server did not list its databases (list_db may be disabled) — check the Odoo instance.";
+      throw new Error(
+        `Odoo database "${ODOO_CONFIG.db}" was rejected (set ODOO_DB to the right name). ${hint}`,
+      );
+    }
+    throw err;
+  }
 
   if (!uid || uid === false) {
+    cachedUid = null;
     throw new Error("Odoo authentication failed");
   }
 
+  cachedUid = { uid: uid as number, at: Date.now() };
   return uid as number;
 }
 
@@ -878,4 +972,93 @@ export async function odooExecute(
   kwargs: Record<string, unknown> = {},
 ): Promise<unknown> {
   return execute(model, method, args, kwargs);
+}
+
+// --------------------------------------------------------------- schema ----
+// Odoo renames fields across major versions. `sale.order.line.product_uom`
+// became `product_uom_id` in the Odoo 19 upgrade, and the demand sync started
+// failing with "Invalid field 'product_uom' on 'sale.order.line'" the moment
+// authentication was restored — a second outage hiding behind the first.
+//
+// Hard-coding the new spelling would just move the breakage to the next
+// upgrade, so ask the server which name it actually has.
+
+/** Field names per model, for the life of the process. */
+const modelFieldCache = new Map<string, Set<string>>();
+
+/**
+ * The RPC call these helpers need. Injectable so the selection and caching
+ * logic can be tested without a live Odoo — the alternative is mocking the
+ * module's own internals, which ESM live bindings make unreliable.
+ */
+export type OdooExecutor = (
+  model: string,
+  method: string,
+  args: unknown[],
+  kwargs?: Record<string, unknown>,
+) => Promise<unknown>;
+
+/**
+ * The field names a model exposes on THIS Odoo instance.
+ *
+ * Cached because a running deployment never sees the schema change underneath
+ * it, and `fields_get` is a real round trip. `attributes: []` asks for names
+ * only — the full metadata for a model like sale.order.line is hundreds of
+ * fields deep and we need none of it.
+ */
+export async function odooModelFields(
+  model: string,
+  exec: OdooExecutor = odooExecute,
+): Promise<Set<string>> {
+  const cached = modelFieldCache.get(model);
+  if (cached) return cached;
+
+  const raw = (await exec(model, "fields_get", [[]], {
+    attributes: [],
+  })) as Record<string, unknown> | null;
+  const names = new Set(Object.keys(raw ?? {}));
+  modelFieldCache.set(model, names);
+  return names;
+}
+
+/**
+ * The first candidate field name this Odoo actually has.
+ *
+ * Order candidates newest-first: `odooPickField("sale.order.line",
+ * ["product_uom_id", "product_uom"])` prefers the Odoo 19 spelling and still
+ * works against an older instance. Throws a named error rather than silently
+ * dropping the field, because a missing unit of measure should be a loud
+ * failure, not a column of nulls nobody notices.
+ */
+export async function odooPickField(
+  model: string,
+  candidates: string[],
+  exec: OdooExecutor = odooExecute,
+): Promise<string> {
+  const names = await odooModelFields(model, exec);
+  const found = candidates.find((c) => names.has(c));
+  if (!found) {
+    throw new Error(
+      `Odoo model "${model}" has none of the expected fields: ${candidates.join(", ")}. ` +
+        `The ERP schema has changed again — update the candidate list.`,
+    );
+  }
+  return found;
+}
+
+/** Test seam: forget cached schemas so a test can vary them. */
+export function resetOdooSchemaCache(): void {
+  modelFieldCache.clear();
+}
+
+/**
+ * The label half of a many2one value. Odoo returns those as `[id, "Units"]`,
+ * or `false` when unset — indexing `[1]` on the false is a classic crash.
+ */
+export function odooRelationLabel(
+  record: Record<string, unknown>,
+  field: string,
+): string | null {
+  const value = record[field];
+  return Array.isArray(value) ? String(value[1]) : null;
 }

@@ -122,3 +122,91 @@ export function checkOverschedule(
   const excess = Math.max(0, scheduledTotal - schedulable);
   return { ok: excess === 0, excess };
 }
+
+// ---------------------------------------------------------------------------
+// Phase 3: coverage and readiness — deliberately two functions, never one.
+//
+// COVERAGE answers "is this demand accounted for?" (reserved stock plus
+// production allocated to it). READINESS answers "can it ship today?".
+// A line can be 100% covered and 0% ready for a week while bricks cure, and
+// a dashboard that reported one number would be wrong in exactly the way
+// that loses a customer's trust:
+//
+//     SO requirement 900 · reserved 900 · curing until 29 Aug
+//     Coverage 100% · Ready today 0% · Ready from 29 Aug
+// ---------------------------------------------------------------------------
+
+export interface CoverageResult {
+  remaining: number;
+  reserved: number;
+  productionAllocated: number;
+  /** what still needs to be produced or reserved — the real backlog */
+  uncovered: number;
+  status: CoverageStatus;
+}
+
+/** PRD §10: coverage of one SO line, in units rather than a status alone. */
+export function computeCoverage(input: {
+  qtyOrdered: number;
+  qtyDelivered: number;
+  reserved: number;
+  productionAllocated: number;
+}): CoverageResult {
+  const remaining = remainingQty(input.qtyOrdered, input.qtyDelivered);
+  const uncovered = uncoveredQty(remaining, input.reserved, input.productionAllocated);
+  return {
+    remaining,
+    reserved: input.reserved,
+    productionAllocated: input.productionAllocated,
+    uncovered,
+    status: coverageStatus({
+      remaining,
+      reserved: input.reserved,
+      productionAllocated: input.productionAllocated,
+    }),
+  };
+}
+
+export interface ReadinessResult {
+  /** reserved AND dispatchable today */
+  readyNow: number;
+  /** reserved but still curing */
+  curing: number;
+  /** the date the curing portion becomes dispatchable, if any */
+  readyFrom: string | null;
+  /** true only when the whole remaining requirement can ship today */
+  fullyReady: boolean;
+}
+
+/**
+ * Readiness of one SO line: how much of what is reserved for it can actually
+ * leave the yard today. `asOf` is a date-only string so this stays pure and
+ * timezone-independent (an IST-local Date would make stock dispatchable a day
+ * early).
+ */
+export function computeReadiness(
+  reservations: { quantity: number; available_from: string | null; status: string }[],
+  remaining: number,
+  asOf: string,
+): ReadinessResult {
+  const active = reservations.filter((r) => r.status === "active");
+  const readyNow = active
+    .filter((r) => r.available_from === null || r.available_from <= asOf)
+    .reduce((sum, r) => sum + r.quantity, 0);
+  const curingLines = active.filter(
+    (r) => r.available_from !== null && r.available_from > asOf,
+  );
+  const curing = curingLines.reduce((sum, r) => sum + r.quantity, 0);
+  const readyFrom = curingLines
+    .map((r) => r.available_from as string)
+    .sort()[0] ?? null;
+
+  return {
+    readyNow,
+    curing,
+    readyFrom,
+    // Nothing outstanding is trivially ready; otherwise the whole remaining
+    // requirement must be dispatchable now.
+    fullyReady: remaining <= 0 || readyNow >= remaining,
+  };
+}

@@ -15,13 +15,21 @@
  */
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { odooExecute } from "@/lib/odoo-service";
+import { odooExecute, odooPickField, odooRelationLabel } from "@/lib/odoo-service";
 import { classifyLine } from "@/lib/ops-control/classification";
 import type { OcLineKind } from "@maiyuri/shared";
 
 const PAGE_SIZE = 500;
 /** A 'running' run older than this is considered crashed and no longer blocks. */
 const STALE_RUN_MINUTES = 10;
+/**
+ * Overall budget for the Odoo fetch phase. The route allows 300s; failing at
+ * 240 means the sync reports WHY it gave up (run marked 'error', 502 with a
+ * message, Telegram alert with a cause) instead of being killed mid-flight by
+ * FUNCTION_INVOCATION_TIMEOUT and leaving its run row orphaned as 'running' —
+ * which is exactly what happened on the nights of 26-28 Aug.
+ */
+export const FETCH_BUDGET_MS = 240_000;
 
 type OdooOrder = {
   id: number;
@@ -39,7 +47,10 @@ type OdooLine = {
   display_type: string | false;
   product_uom_qty: number;
   qty_delivered: number;
-  product_uom: [number, string] | false;
+  // The unit-of-measure field is read by whichever name this Odoo has
+  // (product_uom_id since Odoo 19, product_uom before), so it is not a fixed
+  // key on this type — see uomField below.
+  [field: string]: unknown;
 };
 
 type OdooProduct = { id: number; type: string | false };
@@ -56,16 +67,28 @@ export interface DemandSyncResult {
   unmapped_products: { odoo_product_id: number; product_name: string; open_qty: number }[];
 }
 
+/** Throws once the sync has spent its whole fetch budget. Exported for tests. */
+export function assertWithinBudget(deadline: number, what: string): void {
+  if (Date.now() > deadline) {
+    throw new Error(
+      `Odoo fetch budget of ${FETCH_BUDGET_MS / 1000}s exhausted while reading ${what}. ` +
+        "Odoo is responding too slowly to complete a full sync; nothing was written.",
+    );
+  }
+}
+
 /** Paginate a search_read to completion — never a silent cap. */
 async function fetchAll<T>(
   model: string,
   domain: unknown[],
   fields: string[],
-  onPage?: () => void,
+  onPage: (() => void) | undefined,
+  deadline: number,
 ): Promise<T[]> {
   const out: T[] = [];
   let offset = 0;
   for (;;) {
+    assertWithinBudget(deadline, model);
     const page = (await odooExecute(model, "search_read", [domain], {
       fields,
       offset,
@@ -119,6 +142,7 @@ export async function runDemandSync(options: {
 
   try {
     // ---- fetch (outside any DB transaction) ---------------------------
+    const deadline = Date.now() + FETCH_BUDGET_MS;
     let pages = 0;
     const bump = () => {
       pages += 1;
@@ -129,10 +153,19 @@ export async function runDemandSync(options: {
       [["state", "in", ["sale", "done"]]],
       ["id", "name", "partner_id", "state", "date_order"],
       bump,
+      deadline,
     );
 
     const orderById = new Map(orders.map((o) => [o.id, o]));
     const orderIds = orders.map((o) => o.id);
+
+    // Ask Odoo what it calls the unit of measure before requesting it: the
+    // Odoo 19 upgrade renamed product_uom to product_uom_id, and asking for
+    // the wrong one fails the whole search_read, not just that column.
+    const uomField = await odooPickField("sale.order.line", [
+      "product_uom_id",
+      "product_uom",
+    ]);
 
     const lines: OdooLine[] = [];
     // chunk the order-id domain so it never grows unbounded
@@ -150,9 +183,10 @@ export async function runDemandSync(options: {
             "display_type",
             "product_uom_qty",
             "qty_delivered",
-            "product_uom",
+            uomField,
           ],
           bump,
+          deadline,
         )),
       );
     }
@@ -168,6 +202,7 @@ export async function runDemandSync(options: {
           [["id", "in", productIds.slice(i, i + 200)]],
           ["id", "type"],
           bump,
+          deadline,
         )),
       );
     }
@@ -229,7 +264,7 @@ export async function runDemandSync(options: {
         is_demand: cls.isDemand,
         qty_ordered: qtyOrdered,
         qty_delivered: qtyDelivered,
-        uom: l.product_uom ? l.product_uom[1] : null,
+        uom: odooRelationLabel(l, uomField),
         order_state: order?.state ?? null,
         date_order: order?.date_order ? order.date_order : null,
       };

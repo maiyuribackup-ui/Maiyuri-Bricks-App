@@ -31,6 +31,7 @@ import {
 import { isEditable, type ValidationIssue } from "@/lib/my-work-utils";
 import { onehub } from "@/lib/onehub-theme";
 import { WORK_STATUS_LABELS } from "@maiyuri/shared";
+import { ProcessWorkItemPanel } from "@/components/process/ProcessWorkItemPanel";
 
 export default function WorkItemDetailPage() {
   const params = useParams();
@@ -230,6 +231,12 @@ export default function WorkItemDetailPage() {
         ))}
       </div>
     );
+  }
+
+  // Process OS stages are mirrored into My Work; they run on the process
+  // engine, not the simple/checklist lifecycle below.
+  if (item.source_module === "process_os") {
+    return <ProcessWorkItemPanel item={item} />;
   }
 
   return (

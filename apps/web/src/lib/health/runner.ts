@@ -40,8 +40,13 @@ import {
  * Phase 2: AI analysis of results
  * Phase 3: Store, alert, report
  */
+export type HealthRunOptions = {
+  notificationsEnabled?: boolean;
+};
+
 export async function runHealthCheck(
   runType: RunType = 'manual',
+  options: HealthRunOptions = {},
 ): Promise<HealthRunResult> {
   const runId = uuidv4();
   const startedAt = new Date().toISOString();
@@ -101,13 +106,16 @@ export async function runHealthCheck(
     saveAIAnalysis(runId, analysis, rawPrompt, rawResponse),
   ]);
 
-  // Send alerts and report
-  await sendRecoveryAlerts(result);
-  await updateAlertStates(result);
-  await sendHealthReport(result);
+  // Notification side effects may be explicitly suppressed for authenticated
+  // manual verification runs. Scheduled runs preserve the existing behavior.
+  if (options.notificationsEnabled !== false) {
+    await sendRecoveryAlerts(result);
+    await updateAlertStates(result);
+    await sendHealthReport(result);
 
-  if (overallStatus === 'unhealthy') {
-    await sendUrgentAlertIfNeeded(result);
+    if (overallStatus === 'unhealthy') {
+      await sendUrgentAlertIfNeeded(result);
+    }
   }
 
   // Cleanup old results (daily morning run only)

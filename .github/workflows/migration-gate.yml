@@ -19,29 +19,53 @@ name: Migration Gate
 #   2. Optional: environment `production-schema` with required reviewers, to
 #      put a human approval in front of the verification job itself.
 #   3. Settings → Branches → main: add "Production Schema Ready" to the
-#      required status checks. A PR with no migration files skips the job,
-#      which satisfies the requirement automatically.
+#      required status checks.
 #
 # This job VERIFIES application; it deliberately does not apply migrations
 # itself. Production history records migrations by NAME with the timestamp of
 # application (not the file's timestamp prefix), so an auto-`db push` would
 # see every repo file as unapplied and re-run history — verification by name
 # is the safe contract.
+#
+# ---------------------------------------------------------------------------
+# WHY THE REQUIRED CHECK IS A SEPARATE "gate" JOB THAT ALWAYS RUNS
+#
+# GitHub branch protection treats a SKIPPED required check as SATISFIED. Any
+# conditional on the job that reports the required context is therefore not a
+# way to save CI minutes — it is a way to turn the gate green.
+#
+# That was not theoretical: on PR #170 this workflow's required check went
+# from `failure` to `skipped` because the PR DESCRIPTION was edited. The
+# `edited` guard below skipped the job, the skipped run superseded the failed
+# one, and the PR became mergeable with production never verified. Editing a
+# description must not be able to satisfy a schema gate.
+#
+# So the required context "Production Schema Ready" is reported by a job with
+# no `if:` condition of its own beyond `always()`. It cannot be skipped. It
+# inspects the other jobs' results and decides, which also closes two quieter
+# holes in the previous shape: a `detect` job that ERRORS, and a `verify` job
+# that never starts, both of which used to leave the required check skipped
+# and therefore passing.
+#
+# If you are tempted to make the reporting job conditional again: don't. Put
+# the condition inside it, the way `has_migrations` is handled below.
+# ---------------------------------------------------------------------------
 
 on:
   pull_request:
     branches: [main]
     # `edited` is included because retargeting a PR's base fires ONLY that
-    # event (same reasoning as ci.yml; hit on #152).
+    # event (same reasoning as ci.yml; hit on #152). Unlike ci.yml, this
+    # workflow does NOT filter `edited` down to base changes: the whole job is
+    # one SELECT against production, so re-verifying on a title or description
+    # edit costs seconds, and the alternative cost was the hole described
+    # above.
     types: [opened, synchronize, reopened, edited]
 
 jobs:
   detect:
     name: Detect migration changes
     runs-on: ubuntu-latest
-    if: >-
-      github.event.action != 'edited' ||
-      github.event.changes.base != null
     outputs:
       has_migrations: ${{ steps.diff.outputs.has_migrations }}
       files: ${{ steps.diff.outputs.files }}
@@ -52,9 +76,11 @@ jobs:
 
       - name: Diff migrations against the base branch
         id: diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           files=$(git diff --name-only --diff-filter=ACMR \
-            "origin/${{ github.base_ref }}...HEAD" -- 'supabase/migrations/*.sql')
+            "origin/${BASE_REF}...HEAD" -- 'supabase/migrations/*.sql')
           if [ -n "$files" ]; then
             echo "has_migrations=true" >> "$GITHUB_OUTPUT"
             {
@@ -69,11 +95,8 @@ jobs:
             echo "No migration files in this PR — schema gate not applicable."
           fi
 
-  # NOTE: this job reports the check "Production Schema Ready". Branch
-  # protection must require exactly that context; if the `name:` changes, the
-  # required check in Settings → Branches → main must change with it.
   verify:
-    name: Production Schema Ready
+    name: Verify production schema
     runs-on: ubuntu-latest
     needs: detect
     if: needs.detect.outputs.has_migrations == 'true'
@@ -81,17 +104,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Filenames reach the shell through the environment, never through
+      # `${{ }}` interpolation: a branch may contain a file whose name is
+      # shell syntax, and `${{ }}` would splice it into the script verbatim.
       - name: Record artifact provenance (SHA-256 of each migration)
+        env:
+          MIGRATION_FILES: ${{ needs.detect.outputs.files }}
         run: |
           echo "Provenance of the migration artifacts under review:"
           while IFS= read -r f; do
             [ -z "$f" ] && continue
             sha256sum "$f"
-          done <<< "${{ needs.detect.outputs.files }}"
+          done <<< "$MIGRATION_FILES"
 
       - name: Verify each migration is applied in production
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          MIGRATION_FILES: ${{ needs.detect.outputs.files }}
         run: |
           if [ -z "$SUPABASE_DB_URL" ]; then
             echo "::error::Secret SUPABASE_DB_URL is not configured — the gate cannot verify production. See the header of this workflow for setup."
@@ -111,5 +140,44 @@ jobs:
               echo "::error file=$f::Migration '$name' is NOT in production history. Apply the reviewed artifact to production (recording its SHA-256), then re-run this check."
               missing=1
             fi
-          done <<< "${{ needs.detect.outputs.files }}"
+          done <<< "$MIGRATION_FILES"
           exit $missing
+
+  # THE REQUIRED CHECK. Branch protection must require exactly this name; if
+  # `name:` changes, Settings → Branches → main must change with it.
+  #
+  # `if: always()` is what makes this trustworthy — the job runs even when the
+  # jobs it depends on failed or were skipped, so the required context is
+  # always reported by something that actually evaluated the situation.
+  gate:
+    name: Production Schema Ready
+    runs-on: ubuntu-latest
+    needs: [detect, verify]
+    if: always()
+    steps:
+      - name: Decide
+        env:
+          DETECT_RESULT: ${{ needs.detect.result }}
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          HAS_MIGRATIONS: ${{ needs.detect.outputs.has_migrations }}
+        run: |
+          echo "detect=$DETECT_RESULT verify=$VERIFY_RESULT has_migrations=$HAS_MIGRATIONS"
+
+          # A detection step that did not succeed tells us nothing about the
+          # schema. Silence is not the same as "no migrations".
+          if [ "$DETECT_RESULT" != "success" ]; then
+            echo "::error::Could not determine whether this PR changes migrations (detect job: $DETECT_RESULT). Failing closed."
+            exit 1
+          fi
+
+          if [ "$HAS_MIGRATIONS" != "true" ]; then
+            echo "No migration files in this PR — nothing for the schema gate to verify."
+            exit 0
+          fi
+
+          if [ "$VERIFY_RESULT" != "success" ]; then
+            echo "::error::This PR adds migrations that are not verified as applied in production (verify job: $VERIFY_RESULT). Apply the reviewed artifact to production, then re-run this check."
+            exit 1
+          fi
+
+          echo "Every migration in this PR is recorded in production history."

@@ -16,14 +16,18 @@ import type { UserRole } from "@maiyuri/shared";
  *                     readiness gate refuses to share a quote without it, so
  *                     an engineer who cannot price any lead cannot do the job
  *
- * Deliberately excluded: accountant, driver, production_supervisor. They keep
- * the previous rule and reach only leads assigned to or created by them.
+ *   production_supervisor — the factory manager also runs Odoo and accounts
+ *                     and works quotes end-to-end (added 2026-09)
+ *
+ * Deliberately excluded: accountant, driver. They keep the previous rule and
+ * reach only leads assigned to or created by them.
  */
 export const FULL_SALES_ACCESS_ROLES: ReadonlySet<string> = new Set<UserRole>([
   "founder",
   "owner",
   "sales",
   "engineer",
+  "production_supervisor",
 ]);
 
 /** True when this role may act on every lead's quote, not just its own. */

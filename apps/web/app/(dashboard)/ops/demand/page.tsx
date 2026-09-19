@@ -5,9 +5,11 @@
  *
  * The open Odoo sales-order backlog, line by line, with the three status
  * dimensions kept deliberately separate: commitment (what the customer holds),
- * revision (what is being worked on), coverage (Phase 3 — shown as a neutral
- * dash, never a red "uncovered", because absence of information is not bad
- * news). Sync Now and the mapping link render only for production roles;
+ * revision (what is being worked on), and — since Phase 3 — coverage and
+ * readiness, which are shown as two columns rather than one because they are
+ * two different facts: an order can be fully covered by stock that is still
+ * curing, which is 100% covered and 0% ready.
+ * Sync Now and the mapping link render only for production roles;
  * sales sees the facts without doors it cannot open.
  */
 
@@ -52,6 +54,12 @@ interface DemandLine {
   commitment_status: string;
   revision_status: string;
   coverage_status: string;
+  reserved_qty: number;
+  uncovered_qty: number;
+  ready_now: number;
+  curing_qty: number;
+  ready_from: string | null;
+  fully_ready: boolean;
   schedule_id: string | null;
 }
 
@@ -64,6 +72,14 @@ interface DemandPayload {
     completed_at: string | null;
     error: string | null;
   } | null;
+  last_success: {
+    started_at: string;
+    completed_at: string | null;
+    orders_fetched: number | null;
+    lines_fetched: number | null;
+  } | null;
+  completed_hidden: number;
+  include_completed: boolean;
   role: string;
 }
 
@@ -98,12 +114,54 @@ const COMMITMENT_CHIP: Record<string, { label: string; cls: string }> = {
   completed: { label: "Completed", cls: "bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400" },
 };
 
+const COVERAGE_CHIP: Record<string, { label: string; cls: string }> = {
+  // 'not_evaluated' stays a neutral dash: missing information must never be
+  // rendered as bad news.
+  covered: { label: "Covered", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200" },
+  partially_covered: { label: "Partial", cls: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200" },
+  uncovered: { label: "Uncovered", cls: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200" },
+};
+
 const REVISION_CHIP: Record<string, string | null> = {
   none: null,
   draft_revision: "Revision in draft",
   sent_revision: "Revision sent",
   revision_requested: "Revision requested",
 };
+
+/**
+ * Three distinct states, never conflated: a run in flight, a failed run, and
+ * how old the data actually is. Only a SUCCESSFUL run advances "last synced".
+ */
+function SyncBadge({
+  lastSync,
+  lastSuccess,
+}: {
+  lastSync: DemandPayload["last_sync"];
+  lastSuccess: DemandPayload["last_success"];
+}) {
+  const dataAge = lastSuccess
+    ? `Data from ${timeAgo(lastSuccess.completed_at ?? lastSuccess.started_at)}`
+    : "No successful sync yet";
+
+  if (lastSync?.status === "running") {
+    return (
+      <span className="text-slate-500">
+        Syncing now (started {timeAgo(lastSync.started_at)}) · {dataAge}
+      </span>
+    );
+  }
+  if (lastSync?.status === "error") {
+    return (
+      <span className="text-red-600" title={lastSync.error ?? undefined}>
+        Sync failed {timeAgo(lastSync.completed_at ?? lastSync.started_at)}:{" "}
+        {lastSync.error ?? "unknown error"} · {dataAge}
+      </span>
+    );
+  }
+  if (!lastSync) return <span className="text-slate-500">Never synced</span>;
+  return <span className="text-slate-500">Last synced {timeAgo(lastSync.completed_at ?? lastSync.started_at)}</span>;
+}
 
 function timeAgo(iso: string): string {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -120,11 +178,18 @@ export default function OpsDemandPage() {
   const [customer, setCustomer] = useState("");
   const [openOrder, setOpenOrder] = useState<number | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [showCompleted, setShowCompleted] = useState(false);
 
-  const demandUrl = `/api/ops-control/demand${customer ? `?customer=${encodeURIComponent(customer)}` : ""}`;
+  const params = new URLSearchParams();
+  if (customer) params.set("customer", customer);
+  if (showCompleted) params.set("include_completed", "true");
+  const demandUrl = `/api/ops-control/demand${params.size ? `?${params}` : ""}`;
   const q = useQuery({
-    queryKey: ["oc", "demand", customer],
+    queryKey: ["oc", "demand", customer, showCompleted],
     queryFn: () => fetchJson<DemandPayload>(demandUrl),
+    // A sync in flight finishes in the background; keep the view honest.
+    refetchInterval: (query) =>
+      query.state.data?.last_sync?.status === "running" ? 10_000 : false,
   });
 
   const sync = useMutation({
@@ -133,7 +198,12 @@ export default function OpsDemandPage() {
       setSyncMessage(`Sync complete — ${run.orders_fetched ?? 0} orders fetched.`);
       queryClient.invalidateQueries({ queryKey: ["oc", "demand"] });
     },
-    onError: (err: Error) => setSyncMessage(err.message),
+    onError: (err: Error) => {
+      setSyncMessage(err.message);
+      // The failed run is recorded server-side; refresh so the badge shows the
+      // new failure rather than the previous one until the next poll.
+      queryClient.invalidateQueries({ queryKey: ["oc", "demand"] });
+    },
   });
 
   // One row per order in the dialog; the table stays per line.
@@ -146,7 +216,9 @@ export default function OpsDemandPage() {
   }, [q.data?.lines]);
 
   const lastSync = q.data?.last_sync ?? null;
+  const lastSuccess = q.data?.last_success ?? null;
   const unmapped = q.data?.unmapped ?? [];
+  const completedHidden = q.data?.completed_hidden ?? 0;
 
   return (
     <div className="space-y-4">
@@ -157,17 +229,24 @@ export default function OpsDemandPage() {
           placeholder="Filter by customer…"
           className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
         />
+        {/* Fully delivered lines are history, not demand — hidden by default. */}
+        <label className="flex items-center gap-2 text-sm text-slate-500">
+          <input
+            type="checkbox"
+            checked={showCompleted}
+            onChange={(e) => setShowCompleted(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300"
+          />
+          Show completed
+          {!showCompleted && completedHidden > 0 && (
+            <span className="text-slate-400">({completedHidden} hidden)</span>
+          )}
+        </label>
         <div className="ml-auto flex items-center gap-3 text-sm">
-          {lastSync && (
-            <span className={lastSync.status === "error" ? "text-red-600" : "text-slate-500"}>
-              {lastSync.status === "error"
-                ? `Last sync failed: ${lastSync.error ?? "unknown error"}`
-                : `Last synced ${timeAgo(lastSync.completed_at ?? lastSync.started_at)}`}
-            </span>
-          )}
-          {!lastSync && !q.isLoading && (
-            <span className="text-slate-500">Never synced</span>
-          )}
+          {/* "Last synced" must mean the last run that actually SUCCEEDED. The
+              in-flight or failed run is reported separately — an abandoned run
+              once made three-day-old data look seven hours old. */}
+          {!q.isLoading && <SyncBadge lastSync={lastSync} lastSuccess={lastSuccess} />}
           {isProduction && (
             <button
               type="button"
@@ -218,7 +297,7 @@ export default function OpsDemandPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wider text-slate-400 dark:border-slate-700">
-                  {["Order", "Customer", "Product", "Ordered", "Delivered", "Remaining", "Scheduled", "Confirmed", "Commitment", "Coverage"].map((h) => (
+                  {["Order", "Customer", "Product", "Ordered", "Delivered", "Remaining", "Scheduled", "Confirmed", "Commitment", "Coverage", "Ready"].map((h) => (
                     <th key={h} className="px-4 py-3 font-medium">{h}</th>
                   ))}
                 </tr>
@@ -226,8 +305,8 @@ export default function OpsDemandPage() {
               <tbody>
                 {(q.data?.lines ?? []).length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-14 text-center text-slate-400">
-                      No open demand.{" "}
+                    <td colSpan={11} className="px-4 py-14 text-center text-slate-400">
+                      {showCompleted ? "No demand lines." : "No open demand — every synced line is fully delivered."}{" "}
                       {isProduction
                         ? "Run a sync to pull the current Odoo sales orders."
                         : "The Odoo sales-order sync has not brought any in yet."}
@@ -237,6 +316,7 @@ export default function OpsDemandPage() {
                   q.data!.lines.map((l) => {
                     const chip = COMMITMENT_CHIP[l.commitment_status];
                     const revision = REVISION_CHIP[l.revision_status] ?? null;
+                    const coverage = COVERAGE_CHIP[l.coverage_status] ?? null;
                     return (
                       <tr
                         key={l.id}
@@ -261,9 +341,36 @@ export default function OpsDemandPage() {
                             </span>
                           )}
                         </td>
-                        {/* Coverage is not evaluated until Phase 3 supplies
-                            reservation data — a dash, never a red warning. */}
-                        <td className="px-4 py-3 text-slate-400">—</td>
+                        <td className="px-4 py-3">
+                          {coverage ? (
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${coverage.cls}`}>
+                              {coverage.label}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                          {l.uncovered_qty > 0 && (
+                            <span className="ml-1 text-xs tabular-nums text-slate-500">
+                              {Number(l.uncovered_qty).toLocaleString("en-IN")} short
+                            </span>
+                          )}
+                        </td>
+                        {/* Readiness, kept separate from coverage: reserved
+                            bricks that are still curing cannot ship today. */}
+                        <td className="px-4 py-3 text-xs">
+                          {l.reserved_qty === 0 ? (
+                            <span className="text-slate-400">—</span>
+                          ) : l.curing_qty > 0 ? (
+                            <span className="text-amber-700 dark:text-amber-300">
+                              {Number(l.ready_now).toLocaleString("en-IN")} now · ready from{" "}
+                              {l.ready_from ?? "—"}
+                            </span>
+                          ) : (
+                            <span className="text-emerald-700 dark:text-emerald-300">
+                              {Number(l.ready_now).toLocaleString("en-IN")} ready
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })

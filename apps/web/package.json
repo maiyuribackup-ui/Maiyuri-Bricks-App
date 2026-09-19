@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
+    "@dagrejs/dagre": "^1",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -31,6 +32,7 @@
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.47.12",
     "@tanstack/react-query": "^5.62.8",
+    "@xyflow/react": "^12",
     "date-fns": "^4.1.0",
     "googleapis": "^144.0.0",
     "langfuse": "^3.38.6",
