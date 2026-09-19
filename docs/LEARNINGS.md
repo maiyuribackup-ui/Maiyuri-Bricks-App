@@ -1260,32 +1260,54 @@ describe("Supabase Client Usage", () => {
 
 ---
 
-### [2026-09-19] BUG-016: AI - Repetitive Transcript Accepted as Valid
+### [2026-09-19] BUG-016: AI - Repetitive or Incomplete Transcript Accepted as Valid
 
 **Severity:** High (Corrupt customer-call insight and downstream actions)
 **Files Affected:**
 
 - `apps/web/src/lib/call-recording/transcription.ts`
+- `workers/call-recording-processor/src/analysis.ts`
+- `workers/call-recording-processor/src/transcription.ts`
+- `workers/call-recording-processor/src/transcription-quality.ts`
 
-**Context:** Gemini transcribes Telegram call recordings before Claude generates
-sales analysis, tasks, and Telegram notifications.
+**Context:** Gemini transcribes customer recordings before Claude generates sales
+analysis, tasks, lead updates, and Telegram notifications. Both the Vercel route
+and a separately deployed Railway worker can execute this pipeline.
 
-**Mistake:** Any non-empty Gemini response was accepted. A 25-second recording
-produced an 89,347-character transcript with one long passage repeated 637 times,
-and the pipeline marked the recording completed.
+**Mistake:** The first guard validated only the Vercel path, used a fixed 7,500
+character ceiling, ignored Gemini's completion reason, detected only identical
+long lines, parsed any final line containing a language name as metadata, and
+traced transcript excerpts to Langfuse. A `MAX_TOKENS` response could therefore
+be accepted as complete, short or single-line loops could bypass validation,
+real final speech could be removed, and retries multiplied customer-data
+exposure. The Railway worker remained completely unprotected.
 
-**Root Cause:** The transcription boundary had no output-size or repetition
-validation. The generation request also had no output-token cap, so a model loop
-could consume most of the serverless timeout before returning corrupt text.
+**Root Cause:** AI output was treated as text rather than an untrusted response
+with completion metadata, latency limits, privacy boundaries, and multiple
+production entry points. Review focused on the edited web file instead of every
+operational processor.
 
-**Prevention Rule:** Validate AI output before downstream writes. Reject empty,
-oversized, or heavily repeated transcripts; cap generation output; retry only
-invalid model output; propagate provider errors immediately to the existing
-infrastructure-error handler.
+**Prevention Rule:** For transcription changes, search for and update every
+provider call across the complete post-transcription pipeline, including analysis
+and extraction. Keep each stage on a shared, regression-tested canonical model.
+Accept only explicit complete (`STOP`)
+candidates; reject normalized repeated lines and repeated word blocks; retain a
+high absolute safety ceiling rather than a short-call-specific limit; use an
+anchored `Primary language:` footer; bound each request and the total retry
+budget; and send only length/finish-reason metadata to observability systems.
+Provider failures must propagate immediately and invalid model output may retry
+only within the bounded budget. Infrastructure failures must preserve the
+recording-defect retry count but use a persisted `updated_at` cooldown before
+becoming eligible again; deployment errors such as a missing provider key belong
+to the same infrastructure class.
 
-**Verification:** Regression tests cover plausible mixed Tamil-English text,
-oversized output, repeated lines, recovery on a later valid attempt, fail-closed
-behavior after three invalid attempts, and immediate provider-error propagation.
+**Verification:** Web and worker regression suites cover normal Tamil-English
+text, short-line and single-line loops, punctuation/speaker-label variants,
+`MAX_TOKENS` retry, strict footer parsing, genuine final speech containing a
+language name, timeout enforcement, retry exhaustion, provider errors, and
+privacy-safe trace output. The standalone worker must also pass its TypeScript
+build because Railway builds it independently. A source guard verifies that all
+three worker analysis paths use the shared supported model and no retired model.
 
 ---
 

@@ -7,7 +7,11 @@
 
 import { sendTelegramMessage } from "@/lib/telegram";
 import { log, logError } from "./logger";
-import type { CallInsights, ExtractedLeadDetails, NotificationData } from "./types";
+import type {
+  CallInsights,
+  ExtractedLeadDetails,
+  NotificationData,
+} from "./types";
 
 const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL ?? "https://maiyuri-bricks-app.vercel.app";
@@ -104,10 +108,14 @@ function buildLeadDetailsSection(
     lines.push(`\u{1F3F7}\uFE0F Type: ${details.lead_type}`);
   }
   if (details.classification && details.classification !== "direct_customer") {
-    lines.push(`\u{1F465} Classification: ${formatLabel(details.classification)}`);
+    lines.push(
+      `\u{1F465} Classification: ${formatLabel(details.classification)}`,
+    );
   }
   if (details.requirement_type) {
-    lines.push(`\u{1F3D7}\uFE0F Requirement: ${formatLabel(details.requirement_type)}`);
+    lines.push(
+      `\u{1F3D7}\uFE0F Requirement: ${formatLabel(details.requirement_type)}`,
+    );
   }
   if (details.site_region) {
     lines.push(`\u{1F4CD} Region: ${details.site_region}`);
@@ -275,7 +283,7 @@ export async function sendPermanentFailureAlert(
  */
 export function isInfraError(message: string): boolean {
   const m = (message || "").toLowerCase();
-  return /\b429\b|resource_exhausted|prepayment credits|depleted|quota|rate.?limit|api key expired|api_key_invalid|api key not valid|\b5\d\d\b|overload|unavailable|timeout|timed ?out|fetch failed|econnreset|enotfound|network/.test(
+  return /missing google_ai_api_key|\b429\b|resource_exhausted|prepayment credits|depleted|quota|rate.?limit|api key (?:expired|invalid|not valid)|api_key_invalid|\b5\d\d\b|overload|unavailable|timeout|timed ?out|fetch failed|econnreset|enotfound|network/.test(
     m,
   );
 }
