@@ -8,11 +8,11 @@ psql -q -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; DROP SCH
 psql -q -c "DROP ROLE IF EXISTS anon; DROP ROLE IF EXISTS authenticated; DROP ROLE IF EXISTS service_role;" >/dev/null 2>&1 || true
 $P -f supabase/tests/process_os/00_scaffold.sql
 $P -c "CREATE SCHEMA storage; CREATE TABLE storage.buckets (id TEXT PRIMARY KEY, name TEXT, public BOOLEAN, file_size_limit BIGINT, allowed_mime_types TEXT[]);"
-for f in 20260711000001_my_work 20260718120000_work_item_nudges 20260903120000_lead_stage_progression_tasks 20260912100000_process_os 20260912110000_process_role_default_holders 20260913100000_process_qc_releases; do
+for f in 20260711000001_my_work 20260718120000_work_item_nudges 20260903120000_lead_stage_progression_tasks 20260912100000_process_os 20260912110000_process_role_default_holders 20260913100000_process_qc_releases 20260914100000_process_event_deliveries; do
   $P -f "supabase/migrations/$f.sql" 2>&1 | grep -v NOTICE || true
 done
 fail=0
-for suite in 10_smoke 20_negative; do
+for suite in 10_smoke 40_deliveries 20_negative; do
   out=$(psql -v ON_ERROR_STOP=1 -f "supabase/tests/process_os/$suite.sql" 2>&1) || { echo "$out" | tail -20; echo "$suite: psql error"; fail=1; }
   n=$(echo "$out" | grep -c "expected:" || true)
   if echo "$out" | grep -q "UNEXPECTED SUCCESS"; then echo "$out" | grep -B3 "UNEXPECTED SUCCESS"; echo "$suite: UNEXPECTED SUCCESS"; fail=1; fi

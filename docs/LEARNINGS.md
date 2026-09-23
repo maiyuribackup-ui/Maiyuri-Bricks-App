@@ -916,6 +916,46 @@ Truth table for the required check, verified by reasoning over the job graph:
 
 ---
 
+### [2026-09-13] BUG-020: SECURITY - Middleware Treated Any Dotted Path as a Static File
+
+**Symptom:** `/processes/LEAD_TO_DELIVERY/versions/1.0/edit` (and any app URL
+with a dot, e.g. `/projects/SO.1042`) served the page shell to anonymous
+browsers instead of redirecting to login.
+
+**Root cause:** `apps/web/middleware.ts` classified static assets with
+`pathname.includes(".")`, so a dotted dynamic route parameter looked like a
+file and skipped every auth check.
+
+**Fix:** classify by a known asset extension on the *last* path segment only
+(allowlist: js, css, images, fonts, manifests, media). Query strings and
+fragments are not part of `pathname` and cannot influence the result.
+Regression: `apps/web/middleware.test.ts` exercises the real middleware.
+
+**Prevention:** never infer "static" from a dot. Add new asset types to the
+allowlist; never widen it to "anything with a dot".
+
+### [2026-09-13] BUG-021: RELIABILITY - Process Events Could Be Lost After Marking
+
+**Symptom:** a push/Telegram exception, a network error, or an n8n 500 / 429
+lost the notification for good; the event was stamped `dispatched_at` before
+delivery and `fetch()` was never checked for `response.ok`.
+
+**Root cause:** at-most-once design — mark first, deliver second, swallow
+errors, one flag for two destinations.
+
+**Fix:** per-destination outbox (`process_event_deliveries`, migration
+`20260914100000`): a trigger enqueues rows with the event in the same
+transaction; workers claim with an atomic lease (`process_claim_deliveries`,
+`FOR UPDATE SKIP LOCKED`), call the outside world with no transaction open,
+then settle (`process_settle_delivery`) as delivered / failed with bounded
+backoff / skipped / dead after 8 attempts. Non-2xx is a failure. The hourly
+`process-sla` cron drains retries. `payload.dispatched_at` is read once by
+the backfill and never written again.
+
+**Prevention:** external delivery is always "claim → call → settle", never
+"mark → call". Check HTTP status. Track each destination separately. Keep the
+audit stream immutable.
+
 ## Prevention Checklist
 
 ### Before Writing Code
