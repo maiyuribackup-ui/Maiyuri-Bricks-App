@@ -908,11 +908,28 @@ Truth table for the required check, verified by reasoning over the job graph:
 
 **Root Cause:** Pipeline state and task accountability were separate mutable records with no database invariant connecting them.
 
-**Prevention Rule:** Cross-channel workflow side effects belong in an idempotent database trigger: one open task per source record, refreshed on progression, reassigned with the record owner, and cancelled at terminal states.
+**Prevention Rule:** Cross-channel workflow side effects belong in an idempotent database trigger: exactly one open task per source record, immutable task generations on stage/owner progression, reassignment through a fresh occurrence, and cancellation at terminal states. Never repurpose an actionable task UUID after a worker may have fetched it.
 
-**Test Case:** `supabase/tests/lead_stage_progression.sql` runs the migration against PostgreSQL 16 and covers stale-date repair, explicit-date preservation, deduplication, reassignment, terminal cancellation, reopening, and unassigned ownership.
+**Test Case:** `supabase/tests/lead_stage_progression.sql` runs the migration chain against PostgreSQL and covers stale-date repair, explicit-date preservation, deduplication, fresh generations, stale-write rejection, lifecycle timestamp isolation, reassignment, terminal cancellation, reopening, and unassigned ownership.
 
 **Related Coding Principle:** [DEPLOY-001: Always Apply Migrations Before Code Deployment]
+
+---
+
+### [2026-09-03] BUG-020: CONCURRENCY - Stage Progression Reused an Actionable Task UUID
+
+**Severity:** High
+**Files Affected:** `supabase/migrations/20260903120000_lead_stage_progression_tasks.sql`, `apps/web/app/api/my-work/[id]/*/route.ts`
+
+**Context:** The progression trigger refreshed an open My Work row in place. My Work routes authorize the fetched task and later execute a service-role, status-guarded update.
+
+**Mistake:** A task UUID that a worker had already loaded was repurposed for a newer stage or different assignee. A stale completion request could therefore pass its status predicate after the refresh and complete the new task generation.
+
+**Root Cause:** The database invariant protected the count of open rows but not task identity across asynchronous human actions. Advisory locking coordinated lead-trigger executions only; it did not coordinate API requests already holding stale task state.
+
+**Prevention Rule:** Treat operational task occurrences as immutable generations. On source progression, lock and cancel the old occurrence with its actual prior status and returned-task reason, then insert a fresh UUID. Preserve historical lifecycle context on the row and in cancellation-event metadata. Enforce one currently open row with a partial unique index. Tests must run a real two-session stale status-guarded write against the superseded UUID and prove zero rows are changed.
+
+**Test Case:** `supabase/tests/lead_stage_progression.sql` covers migration reapplication, in-progress and returned supersession, prior-status/reason audit fidelity, stale completion rejection, fresh lifecycle timestamps, terminal cancellation, and owner reassignment to a new UUID. `scripts/test-lead-stage-progression.sh` adds a coordinated two-session race, and `supabase/tests/lead_stage_progression_smoke.sql` verifies the generation contract inside a rollback-only transaction.
 
 ---
 
