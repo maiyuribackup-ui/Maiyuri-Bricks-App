@@ -654,3 +654,31 @@ export const saveOcPlanCellsSchema = z.object({
   cells: z.array(ocPlanCellSchema).min(1).max(200),
 });
 export type SaveOcPlanCellsInput = z.infer<typeof saveOcPlanCellsSchema>;
+
+/**
+ * Placing previously UNSCHEDULED demand onto a delivery date from the
+ * planning grid.
+ *
+ * What this writes is always a DRAFT version — never a commitment. Nothing
+ * reaches the customer until someone sends and confirms it, which is what
+ * makes placing several at once safe.
+ */
+export const ocDemandPlacementSchema = z.object({
+  so_line_id: z.string().uuid(),
+  delivery_date: dateOnly,
+  quantity: z.number().positive("A placed quantity must be greater than zero"),
+});
+export type OcDemandPlacementInput = z.infer<typeof ocDemandPlacementSchema>;
+
+export const placeOcDemandSchema = z.object({
+  placements: z.array(ocDemandPlacementSchema).min(1).max(100),
+  /**
+   * Required only for orders whose schedule already has a CONFIRMED version,
+   * where adding a line means opening a revision (PRD §14). Orders needing
+   * one without it are refused by name rather than silently revised.
+   */
+  revision_reason: z.string().trim().min(1).max(500).optional(),
+  /** Authorised roles only; stored on the version, never silent. */
+  overschedule_override_reason: z.string().trim().min(1).max(500).optional(),
+});
+export type PlaceOcDemandInput = z.infer<typeof placeOcDemandSchema>;
