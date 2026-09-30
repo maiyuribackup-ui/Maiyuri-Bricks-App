@@ -38,11 +38,18 @@ async function acknowledgeRecordingUploadOutage(
   if (!outage) return null;
 
   try {
-    await sendTelegramMessage(outage.message, chatId.toString());
-  } catch (notificationError) {
+    const notificationResult = await sendTelegramMessage(
+      outage.message,
+      chatId.toString(),
+    );
+    if (!notificationResult.success) {
+      console.error(
+        "[Telegram Webhook] Failed to send temporary outage notice",
+      );
+    }
+  } catch {
     console.error(
-      "[Telegram Webhook] Failed to send temporary outage notice:",
-      notificationError,
+      "[Telegram Webhook] Failed to send temporary outage notice",
     );
   }
 

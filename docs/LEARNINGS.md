@@ -233,7 +233,7 @@ async function fetchWithValidation<T>(
 
 **Root Cause:** Transport retry semantics were coupled to all database failures instead of distinguishing transient errors from a known non-retryable infrastructure outage.
 
-**Prevention Rule:** Classify known durable provider restrictions before generic error handling. Tell the operator whether their payload was saved, acknowledge the transport with HTTP 200 to stop redelivery, and preserve retry behavior for unclassified failures.
+**Prevention Rule:** Match the exact durable provider identifier across bounded, known structured error fields (`message`, `code`, `details`, `hint`, and `cause`) before generic error handling; never infer it from broad prose such as “restricted” plus “egress quota.” Tell the operator whether their payload was saved, acknowledge the transport with HTTP 200 to stop redelivery, explicitly inspect notification return values as well as thrown errors, and preserve retry behavior for unclassified failures.
 
 **Solution:** Centralize quota-outage detection, send one temporary pause notice that explicitly says the recording was not saved, and return a successful Telegram acknowledgement. Keep the previous generic failure path unchanged for every other error.
 

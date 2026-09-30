@@ -9,31 +9,29 @@ export interface RecordingUploadOutage {
   message: string;
 }
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
+const QUOTA_IDENTIFIER = /(?:^|\W)exceed_egress_quota(?:$|\W)/i;
+const ERROR_FIELDS = ["message", "code", "details", "hint", "cause"] as const;
 
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof error.message === "string"
-  ) {
-    return error.message;
-  }
+function containsQuotaIdentifier(
+  value: unknown,
+  seen = new WeakSet<object>(),
+  depth = 0,
+): boolean {
+  if (typeof value === "string") return QUOTA_IDENTIFIER.test(value);
+  if (typeof value !== "object" || value === null || depth > 5) return false;
+  if (seen.has(value)) return false;
 
-  return "";
+  seen.add(value);
+  const errorRecord = value as Record<string, unknown>;
+  return ERROR_FIELDS.some((field) =>
+    containsQuotaIdentifier(errorRecord[field], seen, depth + 1),
+  );
 }
 
 export function getRecordingUploadOutage(
   error: unknown,
 ): RecordingUploadOutage | null {
-  const message = getErrorMessage(error).toLowerCase();
-  const isEgressRestriction =
-    message.includes("exceed_egress_quota") ||
-    (message.includes("restricted") && message.includes("egress quota"));
-
-  if (!isEgressRestriction) return null;
+  if (!containsQuotaIdentifier(error)) return null;
 
   return {
     acknowledgeTelegramUpdate: true,
