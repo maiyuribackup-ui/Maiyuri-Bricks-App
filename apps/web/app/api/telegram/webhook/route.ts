@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { createFirstResponseTask } from "@/lib/golden-hour";
+import { getRecordingUploadOutage } from "@/lib/recording-upload-outage";
 import {
   extractFromFilename,
   normalizePhoneNumber,
@@ -28,6 +29,27 @@ const DEFAULT_ALLOWED_CHAT_IDS = [-5116644495, -5303889805];
 const ALLOWED_CHAT_IDS = process.env.TELEGRAM_ALLOWED_CHAT_IDS
   ? process.env.TELEGRAM_ALLOWED_CHAT_IDS.split(",").map(Number)
   : DEFAULT_ALLOWED_CHAT_IDS;
+
+async function acknowledgeRecordingUploadOutage(
+  error: unknown,
+  chatId: number,
+): Promise<NextResponse | null> {
+  const outage = getRecordingUploadOutage(error);
+  if (!outage) return null;
+
+  try {
+    await sendTelegramMessage(outage.message, chatId.toString());
+  } catch (notificationError) {
+    console.error(
+      "[Telegram Webhook] Failed to send temporary outage notice:",
+      notificationError,
+    );
+  }
+
+  // Returning a retryable status causes Telegram to redeliver the same file
+  // and spam the group while Supabase is intentionally restricted.
+  return NextResponse.json({ ok: true, temporary_outage: true });
+}
 
 /**
  * POST /api/telegram/webhook
@@ -154,6 +176,12 @@ export async function POST(request: NextRequest) {
             "[Telegram Webhook] Failed to store voice recording:",
             insertError,
           );
+          const outageResponse = await acknowledgeRecordingUploadOutage(
+            insertError,
+            chatId,
+          );
+          if (outageResponse) return outageResponse;
+
           await sendTelegramMessage(
             `❌ *Upload Error*\n\nFailed to save recording. Please try again.`,
             chatId.toString(),
@@ -223,6 +251,11 @@ export async function POST(request: NextRequest) {
     if (dupCheckError && dupCheckError.code !== "PGRST116") {
       // PGRST116 is "not found" which is expected for new files
       console.error(`[Telegram Webhook] Duplicate check error:`, dupCheckError);
+      const outageResponse = await acknowledgeRecordingUploadOutage(
+        dupCheckError,
+        chatId,
+      );
+      if (outageResponse) return outageResponse;
     }
 
     if (existing) {
@@ -268,6 +301,12 @@ export async function POST(request: NextRequest) {
           "[Telegram Webhook] Failed to auto-create lead:",
           createError,
         );
+        const outageResponse = await acknowledgeRecordingUploadOutage(
+          createError,
+          chatId,
+        );
+        if (outageResponse) return outageResponse;
+
         // Continue without lead - will be created manually later
       } else {
         lead = newLead;
@@ -303,6 +342,12 @@ export async function POST(request: NextRequest) {
         "[Telegram Webhook] Step 4 FAILED - Insert error:",
         insertError,
       );
+      const outageResponse = await acknowledgeRecordingUploadOutage(
+        insertError,
+        chatId,
+      );
+      if (outageResponse) return outageResponse;
+
       await sendTelegramMessage(
         `❌ *Upload Error*\n\nFailed to save recording. Please try again later.`,
         chatId.toString(),
