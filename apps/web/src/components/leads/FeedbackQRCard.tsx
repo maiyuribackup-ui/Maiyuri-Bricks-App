@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeCanvas } from "qrcode.react";
 import { Card, Button, Badge } from "@maiyuri/ui";
+import { buildWhatsAppUrl } from "@maiyuri/shared";
 import type { Lead, LanguagePreference } from "@maiyuri/shared";
 
 interface FeedbackQRCardProps {
@@ -62,12 +63,10 @@ export function FeedbackQRCard({ lead }: FeedbackQRCardProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const shareWhatsApp = () => {
+  const shareWhatsAppBusiness = () => {
     if (!feedbackUrl) return;
-    const text = encodeURIComponent(
-      `Hi ${lead.name ?? "there"},\n\nThank you for visiting Maiyuri Bricks! 🧱\n\nWe'd love a moment of your feedback — it takes under a minute:\n${feedbackUrl}`,
-    );
-    window.open(`https://wa.me/${lead.contact}?text=${text}`, "_blank");
+    const message = `Hi ${lead.name ?? "there"},\n\nThank you for visiting Maiyuri Bricks! 🧱\n\nWe'd love a moment of your feedback — it takes under a minute:\n${feedbackUrl}`;
+    window.open(buildWhatsAppUrl(lead.contact, message), "_blank");
   };
 
   const downloadPng = () => {
@@ -185,11 +184,11 @@ export function FeedbackQRCard({ lead }: FeedbackQRCardProps) {
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={shareWhatsApp}
+                onClick={shareWhatsAppBusiness}
                 className="text-green-600 hover:text-green-700"
               >
                 <WhatsAppIcon className="h-3 w-3 mr-1" />
-                WhatsApp
+                WhatsApp Business
               </Button>
             )}
           </div>

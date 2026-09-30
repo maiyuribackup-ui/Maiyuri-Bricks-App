@@ -4,6 +4,7 @@
  */
 
 import { supabaseAdmin } from "./supabase-admin";
+import { odooPickField, odooRelationLabel } from "./odoo-service";
 import type {
   Delivery,
   DeliveryWithLines,
@@ -50,9 +51,9 @@ interface OdooMove {
   product_id: [number, string];
   product_uom_qty: number;
   quantity: number;
-  product_uom: [number, string];
-  name: string;
-  sequence: number;
+  // The unit-of-measure field is read by whichever name this Odoo has
+  // (product_uom_id since Odoo 19, product_uom before).
+  [field: string]: unknown;
 }
 
 interface OdooPartner {
@@ -481,6 +482,14 @@ export async function pullDeliveriesFromOdoo(
           continue;
         }
 
+        // Same Odoo-19 rename as the demand sync: ask which name this
+        // instance uses rather than hard-coding one and failing the whole
+        // search_read on the next upgrade.
+        const moveUomField = await odooPickField("stock.move", [
+          "product_uom_id",
+          "product_uom",
+        ]);
+
         // Fetch and sync move lines
         const moves = (await execute(
           "stock.move",
@@ -492,7 +501,7 @@ export async function pullDeliveriesFromOdoo(
               "product_id",
               "product_uom_qty",
               "quantity",
-              "product_uom",
+              moveUomField,
               "name",
               "sequence",
             ],
@@ -514,7 +523,7 @@ export async function pullDeliveriesFromOdoo(
           odoo_product_id: move.product_id[0],
           quantity_ordered: move.product_uom_qty,
           quantity_delivered: move.quantity || null,
-          uom_name: move.product_uom ? move.product_uom[1] : null,
+          uom_name: odooRelationLabel(move, moveUomField),
           sort_order: index,
         }));
 

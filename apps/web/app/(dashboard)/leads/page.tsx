@@ -289,6 +289,7 @@ export default function LeadsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupKey>("temperature");
   const [actionLead, setActionLead] = useState<Lead | null>(null);
+  const [aiSummaryLead, setAiSummaryLead] = useState<Lead | null>(null);
 
   const activeFilterCount =
     (statusFilter ? 1 : 0) +
@@ -394,6 +395,12 @@ export default function LeadsPage() {
     e.preventDefault();
     e.stopPropagation();
     setActionLead(lead);
+  };
+
+  const handleAiSummary = (e: React.MouseEvent, lead: Lead) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setAiSummaryLead(lead);
   };
 
   const toggleSort = (field: typeof sortBy) => {
@@ -883,6 +890,7 @@ export default function LeadsPage() {
                           onWhatsApp={(e) => handleWhatsApp(e, lead.contact)}
                           onCall={(e) => handleCall(e, lead.contact)}
                           onMore={(e) => handleMore(e, lead)}
+                          onAiSummary={(e) => handleAiSummary(e, lead)}
                         />
                       ))}
                     </div>
@@ -937,13 +945,19 @@ export default function LeadsPage() {
       {actionLead && (
         <LeadQuickActions
           lead={actionLead}
-          users={staffUsers}
           busy={quickPatch.isPending || generateQuote.isPending}
           onClose={() => setActionLead(null)}
           onPatch={(body) =>
             quickPatch.mutate({ id: actionLead.id, body })
           }
           onGenerateQuote={() => generateQuote.mutate(actionLead.id)}
+        />
+      )}
+
+      {aiSummaryLead && (
+        <LeadAISummarySheet
+          lead={aiSummaryLead}
+          onClose={() => setAiSummaryLead(null)}
         />
       )}
     </div>
@@ -996,6 +1010,7 @@ function LeadRow({
   onWhatsApp,
   onCall,
   onMore,
+  onAiSummary,
 }: {
   lead: Lead;
   onHover: (lead: Lead | null) => void;
@@ -1004,6 +1019,7 @@ function LeadRow({
   onWhatsApp: (e: React.MouseEvent) => void;
   onCall: (e: React.MouseEvent) => void;
   onMore: (e: React.MouseEvent) => void;
+  onAiSummary: (e: React.MouseEvent) => void;
 }) {
   const status = statusConfig[lead.lead_status];
   const isCreatedToday = isToday(lead.created_at);
@@ -1094,29 +1110,45 @@ function LeadRow({
               )}
             </div>
 
-            {nextAction && (
+            {/* Stored next_action (purple) or computed urgency hint */}
+            {lead.next_action ? (
+              <p className="mt-1.5 text-xs font-medium flex items-center gap-1 text-purple-600 dark:text-purple-400">
+                <span>→</span>
+                {lead.next_action}
+              </p>
+            ) : nextAction ? (
               <p
                 className={`mt-1.5 text-xs font-medium flex items-center gap-1 ${URGENCY_STYLES[nextAction.urgency]}`}
               >
                 <span>→</span>
                 {nextAction.text}
               </p>
-            )}
+            ) : null}
           </div>
         </div>
 
         <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-200/60 dark:border-slate-700/60 pt-2.5">
-          <div className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-2 min-w-0">
-            <span className="truncate">
+          <div className="text-xs flex items-center gap-2 min-w-0">
+            <span className="truncate text-slate-400 dark:text-slate-500">
               {isCreatedToday ? "🆕 Added today" : `Updated ${formatDate(lead.updated_at)}`}
             </span>
             {lead.follow_up_date && (
-              <span className="flex items-center gap-0.5 whitespace-nowrap">
-                📞 {formatDate(lead.follow_up_date)}
+              <span className="flex items-center gap-0.5 whitespace-nowrap font-semibold text-purple-600 dark:text-purple-400">
+                📅 {formatDate(lead.follow_up_date)}
               </span>
             )}
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {(lead.ai_summary || lead.ai_score) && (
+              <button
+                onClick={onAiSummary}
+                aria-label="AI Summary"
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-violet-50 dark:bg-violet-900/30 text-violet-600 active:bg-violet-100 text-base"
+                title="View AI Summary"
+              >
+                ✨
+              </button>
+            )}
             <button
               onClick={onCall}
               aria-label="Call"
@@ -1283,6 +1315,186 @@ function LeadRow({
       </div>
       </div>
     </Link>
+  );
+}
+
+// ============================================================================
+// AI SUMMARY SHEET
+// ============================================================================
+
+function LeadAISummarySheet({
+  lead,
+  onClose,
+}: {
+  lead: Lead;
+  onClose: () => void;
+}) {
+  const score = lead.ai_score ? Math.round(lead.ai_score * 100) : null;
+  const ringColor = lead.ai_score
+    ? lead.ai_score >= 0.7
+      ? "#22c55e"
+      : lead.ai_score >= 0.4
+        ? "#f59e0b"
+        : "#ef4444"
+    : "#94a3b8";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center"
+      role="dialog"
+      aria-modal="true"
+    >
+      <button
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+      />
+      <div className="relative w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[80vh] overflow-y-auto animate-in slide-in-from-bottom-4 sm:zoom-in-95">
+        {/* Handle */}
+        <div className="sm:hidden flex justify-center pt-2.5">
+          <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+          <div className="flex items-center gap-2">
+            <span className="text-base">✨</span>
+            <div>
+              <h3 className="font-semibold text-slate-900 dark:text-white text-sm">
+                AI Summary — {lead.name}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                {lead.contact}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="px-4 py-4 space-y-4">
+          {/* Score */}
+          {score !== null && (
+            <div className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{
+                  background: `conic-gradient(${ringColor} ${(lead.ai_score ?? 0) * 360}deg, #e5e7eb 0deg)`,
+                }}
+              >
+                <span className="bg-white dark:bg-slate-900 w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-slate-900 dark:text-white">
+                  {score}
+                </span>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  AI Lead Score
+                </p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                  {score >= 70 ? "High potential" : score >= 40 ? "Moderate" : "Low priority"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Summary */}
+          {lead.ai_summary ? (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
+                Summary
+              </p>
+              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                {lead.ai_summary}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">
+              No AI summary yet. Open the lead detail and run AI Analyze.
+            </p>
+          )}
+
+          {/* AI factors — shape: { factor, impact } */}
+          {lead.ai_factors && lead.ai_factors.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
+                Key Factors
+              </p>
+              <div className="space-y-1.5">
+                {lead.ai_factors.slice(0, 5).map((f, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-start gap-2 text-xs p-2 rounded-lg ${
+                      f.impact === "positive"
+                        ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400"
+                        : f.impact === "negative"
+                          ? "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"
+                          : "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                    }`}
+                  >
+                    <span className="flex-shrink-0">
+                      {f.impact === "positive" ? "✅" : f.impact === "negative" ? "⚠️" : "ℹ️"}
+                    </span>
+                    <span>{f.factor}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* AI Suggestions — shape: { type, content, priority } */}
+          {lead.ai_suggestions && lead.ai_suggestions.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
+                Suggestions
+              </p>
+              <div className="space-y-1.5">
+                {lead.ai_suggestions.slice(0, 4).map((s, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-start gap-2 text-xs p-2 rounded-lg ${
+                      s.priority === "high"
+                        ? "bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300"
+                        : "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                    }`}
+                  >
+                    <span className="flex-shrink-0">💡</span>
+                    <span>{s.content}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Dominant objection */}
+          {lead.dominant_objection && (
+            <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl">
+              <p className="text-xs font-semibold text-orange-700 dark:text-orange-400 mb-0.5">
+                Key Objection
+              </p>
+              <p className="text-sm text-orange-800 dark:text-orange-300">
+                {lead.dominant_objection}
+              </p>
+            </div>
+          )}
+
+          {/* Best lever */}
+          {lead.best_conversion_lever && (
+            <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-xl">
+              <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-0.5">
+                Best Conversion Lever
+              </p>
+              <p className="text-sm text-green-800 dark:text-green-300">
+                {lead.best_conversion_lever}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

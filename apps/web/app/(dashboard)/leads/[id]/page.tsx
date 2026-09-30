@@ -41,6 +41,7 @@ import {
   LeadCommercials,
 } from "@/components/leads";
 import { LeadActivityTimeline } from "@/components/timeline";
+import { LeadProcessJourney } from "@/components/process/LeadProcessJourney";
 import { PriceEstimatorPanel } from "@/components/estimates";
 import { HelpButton } from "@/components/help";
 import {
@@ -629,6 +630,9 @@ export default function LeadDetailPage() {
           )}
         </div>
       </Card>
+
+      {/* Process OS journey (PRD §7.4) */}
+      <LeadProcessJourney leadId={leadId} leadName={lead.name} />
 
       {/* Commercials — real deal value powers dashboard revenue/pipeline KPIs */}
       <LeadCommercials lead={lead} />

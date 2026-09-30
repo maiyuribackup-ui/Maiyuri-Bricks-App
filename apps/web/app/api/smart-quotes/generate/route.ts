@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { createSupabaseRouteClient } from "@/lib/supabase-server";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import {
   success,
   error,
@@ -13,9 +13,16 @@ import {
 import { generateSmartQuoteSchema, type SmartQuote } from "@maiyuri/shared";
 import {
   generateSmartQuoteContent,
+  buildBaselineQuoteContent,
   generateLinkSlug,
 } from "@/lib/smart-quote-ai";
 import { buildPricingConfig } from "@/lib/pricing/seed-pricing-config";
+import { canWorkOnLead } from "@/lib/sales-access";
+import {
+  isQuoteExpired,
+  quoteValidUntilDate,
+  shouldRenewQuoteValidity,
+} from "@/lib/smart-quote-validity";
 
 /**
  * POST /api/smart-quotes/generate
@@ -37,24 +44,33 @@ export async function POST(request: NextRequest) {
 
     const { lead_id, regenerate } = parsed.data;
 
-    // Get authenticated user
-    const supabase = createSupabaseRouteClient(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Machine caller (call-recording pipeline auto-draft, GH3): the
+    // service-role/CRON bearer is a trusted internal identity with no user
+    // session — skip the per-user access check below.
+    const authHeader = request.headers.get("authorization");
+    const isMachine =
+      (!!process.env.SUPABASE_SERVICE_ROLE_KEY &&
+        authHeader === `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`) ||
+      (!!process.env.CRON_SECRET &&
+        authHeader === `Bearer ${process.env.CRON_SECRET}`);
 
-    if (!user) {
+    // Get authenticated user — cookie (web) OR Bearer token (mobile)
+    const user = isMachine ? null : await getUserFromRequest(request);
+
+    if (!user && !isMachine) {
       return error("Authentication required", 401);
     }
 
     // Check user role (must be founder or have access to lead)
-    const { data: userData } = await supabaseAdmin
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
-      .single();
+    const { data: userData } = user
+      ? await supabaseAdmin
+          .from("users")
+          .select("role")
+          .eq("id", user.id)
+          .single()
+      : { data: null };
 
-    if (!userData) {
+    if (user && !userData) {
       return error("User not found", 404);
     }
 
@@ -62,7 +78,7 @@ export async function POST(request: NextRequest) {
     const { data: lead, error: leadError } = await supabaseAdmin
       .from("leads")
       .select(
-        "id, name, assigned_staff, created_by, product_interests, site_location",
+        "id, name, assigned_staff, created_by, product_interests, site_location, area, language_preference",
       )
       .eq("id", lead_id)
       .single();
@@ -71,12 +87,10 @@ export async function POST(request: NextRequest) {
       return notFound("Lead not found");
     }
 
-    // Check access (founders have full access, others need assignment)
-    const isFounder = userData.role === "founder";
+    // Sales roles reach every lead; everyone else keeps the ownership rule.
+    // The machine pipeline (call-recording auto-draft) has full access.
     const hasAccess =
-      isFounder ||
-      lead.assigned_staff === user.id ||
-      lead.created_by === user.id;
+      isMachine || canWorkOnLead(userData?.role, user?.id, lead);
 
     if (!hasAccess) {
       return forbidden("You don't have access to this lead");
@@ -85,12 +99,18 @@ export async function POST(request: NextRequest) {
     // Check if quote already exists
     const { data: existingQuote } = await supabaseAdmin
       .from("smart_quotes")
-      .select("id, link_slug")
+      .select(
+        "id, link_slug, quote_number, valid_until, pricing_config, wall_cost_config",
+      )
       .eq("lead_id", lead_id)
       .single();
 
-    if (existingQuote && !regenerate) {
-      // Return existing quote
+    const existingQuoteExpired = existingQuote
+      ? isQuoteExpired(existingQuote.valid_until)
+      : false;
+
+    if (existingQuote && !regenerate && !existingQuoteExpired) {
+      // Return existing unexpired quote
       const { data: fullQuote } = await supabaseAdmin
         .from("smart_quotes")
         .select("*")
@@ -100,13 +120,10 @@ export async function POST(request: NextRequest) {
       return success<SmartQuote>(fullQuote!);
     }
 
-    // Delete existing quote if regenerating
-    if (existingQuote && regenerate) {
-      await supabaseAdmin
-        .from("smart_quotes")
-        .delete()
-        .eq("id", existingQuote.id);
-    }
+    // Regenerating updates the quote in place — see the update below. It used
+    // to DELETE the row and insert a fresh one, which silently destroyed the
+    // engineer's rate, the issued quote number, the customer's link and its
+    // engagement history.
 
     // Get call recordings for this lead
     const { data: recordings } = await supabaseAdmin
@@ -127,18 +144,16 @@ export async function POST(request: NextRequest) {
             .join("\n\n---\n\n")
         : null;
 
-    if (!combinedTranscript) {
-      return error(
-        "No transcripts available. Upload call recordings first.",
-        400,
-      );
-    }
-
-    // Generate Smart Quote content using AI pipeline
-    const aiResult = await generateSmartQuoteContent(
-      combinedTranscript,
-      lead.name,
-    );
+    // A new enquiry has no recorded call, and quoting does not depend on one:
+    // the engineer knows the price and the customer wants it today. Without a
+    // transcript the quote is built from the standard copy, with the insight
+    // fields left "unknown" rather than invented. Regenerating after the first
+    // call replaces all of it with the real reading.
+    const aiResult = combinedTranscript
+      ? await generateSmartQuoteContent(combinedTranscript, lead.name)
+      : buildBaselineQuoteContent(
+          lead.language_preference === "ta" ? "ta" : "en",
+        );
 
     // Generate unique slug
     const linkSlug = generateLinkSlug(12);
@@ -161,7 +176,10 @@ export async function POST(request: NextRequest) {
     const pricingConfig = buildPricingConfig({
       products: products ?? [],
       interests: lead.product_interests,
-      siteLocation: lead.site_location,
+      // The locality chip beside the estimate wants "Kotturpuram", not a full
+      // postal address. `area` holds the short form; site_location the address.
+      siteLocation:
+        (lead as { area?: string | null }).area ?? lead.site_location,
       repPhone,
     });
 
@@ -169,36 +187,83 @@ export async function POST(request: NextRequest) {
     // rep can personalize it and the shared numbers stay frozen.
     const { data: factory } = await supabaseAdmin
       .from("factory_settings")
-      .select("wall_cost_config")
+      .select("wall_cost_config, quote_validity_days")
       .limit(1)
       .single();
     const wallCostSnapshot = factory?.wall_cost_config ?? null;
 
-    // Insert smart quote
-    const { data: smartQuote, error: insertError } = await supabaseAdmin
-      .from("smart_quotes")
-      .insert({
-        lead_id,
-        link_slug: linkSlug,
-        language_default: aiResult.strategy.language_default,
-        persona: aiResult.insights.persona,
-        stage: aiResult.insights.stage,
-        primary_angle: aiResult.insights.primary_angle,
-        secondary_angle: aiResult.insights.secondary_angle,
-        route_decision: aiResult.strategy.route_decision,
-        top_objections: aiResult.insights.top_objections,
-        risk_flags: aiResult.insights.risk_flags,
-        scores: aiResult.insights.scores,
-        page_config: aiResult.strategy.page_config,
-        copy_map: aiResult.copyMap,
-        pricing_config: pricingConfig,
-        wall_cost_config: wallCostSnapshot,
-      })
-      .select()
-      .single();
+    // A quotation is an offer, and an offer has to end. Without this the PDF
+    // prints no validity date and isExpired() reads NULL as "never expires",
+    // so today's rate stays presentable as current forever. The business sets
+    // the window in Settings; 15 days matches the column default.
+    const validityDays = factory?.quote_validity_days ?? 15;
+    const validUntil = quoteValidUntilDate(validityDays);
 
-    if (insertError) {
-      console.error("[SmartQuotes] Insert error:", insertError);
+    // What the AI just decided. These are the only fields a regenerate should
+    // touch: regenerating re-reads the lead, it does not re-price the job.
+    const aiFields = {
+      language_default: aiResult.strategy.language_default,
+      persona: aiResult.insights.persona,
+      stage: aiResult.insights.stage,
+      primary_angle: aiResult.insights.primary_angle,
+      secondary_angle: aiResult.insights.secondary_angle,
+      route_decision: aiResult.strategy.route_decision,
+      top_objections: aiResult.insights.top_objections,
+      risk_flags: aiResult.insights.risk_flags,
+      scores: aiResult.insights.scores,
+      page_config: aiResult.strategy.page_config,
+      copy_map: aiResult.copyMap,
+    };
+
+    let smartQuote: SmartQuote | null = null;
+    let writeError: { message: string } | null = null;
+
+    if (existingQuote && (regenerate || existingQuoteExpired)) {
+      // Update in place. The row keeps its id, link_slug and quote_number, so
+      // a link already with the customer keeps working, a document already in
+      // their hands keeps its reference, and view tracking survives.
+      //
+      // An expired quote is renewed the same way: same link and number, fresh
+      // validity window. The rate is the engineer's decision, not the AI's — it
+      // is carried forward untouched. Only a quote that never had one falls back
+      // to the freshly seeded config.
+      const { data, error: updateError } = await supabaseAdmin
+        .from("smart_quotes")
+        .update({
+          ...aiFields,
+          pricing_config: mergePricingConfig(
+            existingQuote.pricing_config,
+            pricingConfig as unknown as Record<string, unknown>,
+          ),
+          wall_cost_config: existingQuote.wall_cost_config ?? wallCostSnapshot,
+          valid_until: shouldRenewQuoteValidity(existingQuote.valid_until)
+            ? validUntil
+            : existingQuote.valid_until,
+        })
+        .eq("id", existingQuote.id)
+        .select()
+        .single();
+      smartQuote = data;
+      writeError = updateError;
+    } else {
+      const { data, error: insertError } = await supabaseAdmin
+        .from("smart_quotes")
+        .insert({
+          lead_id,
+          link_slug: linkSlug,
+          ...aiFields,
+          pricing_config: pricingConfig,
+          wall_cost_config: wallCostSnapshot,
+          valid_until: validUntil,
+        })
+        .select()
+        .single();
+      smartQuote = data;
+      writeError = insertError;
+    }
+
+    if (writeError || !smartQuote) {
+      console.error("[SmartQuotes] Write error:", writeError);
       return error("Failed to create Smart Quote", 500);
     }
 
@@ -207,4 +272,47 @@ export async function POST(request: NextRequest) {
     console.error("[SmartQuotes] Error generating quote:", err);
     return error("Internal server error", 500);
   }
+}
+
+/**
+ * Carry the engineer's pricing decisions across a regenerate, and let
+ * everything the lead owns refresh.
+ *
+ * pricing_config holds two different kinds of thing. Some of it is a human
+ * decision — the rate, the product, the quantity, the distance. The rest is
+ * derived from the lead: the locality label, which products may be offered,
+ * the rep's phone. Preserving the whole object froze the second kind, so a
+ * lead whose address had been corrected kept showing the old locality after a
+ * regenerate. Preserving none of it wiped the rate. This preserves exactly the
+ * first kind.
+ */
+function mergePricingConfig(
+  previous: unknown,
+  seeded: Record<string, unknown>,
+): Record<string, unknown> {
+  const prev = (previous ?? {}) as Record<string, unknown>;
+  const merged: Record<string, unknown> = { ...seeded };
+
+  const HUMAN_KEYS = [
+    "quoted_rate",
+    "default_product",
+    "default_area_sqft",
+    "default_distance_km",
+    "price_note",
+    "show_transport",
+  ] as const;
+
+  for (const key of HUMAN_KEYS) {
+    if (prev[key] !== undefined && prev[key] !== null) merged[key] = prev[key];
+  }
+
+  // The catalogue is reseeded from the lead's interests, so a product the
+  // engineer had already chosen could fall outside it. Keep it selectable.
+  const chosen = merged.default_product;
+  const allowed = merged.allowed_products;
+  if (typeof chosen === "string" && Array.isArray(allowed) && !allowed.includes(chosen)) {
+    merged.allowed_products = [chosen, ...allowed];
+  }
+
+  return merged;
 }

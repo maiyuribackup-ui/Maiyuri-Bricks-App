@@ -10,17 +10,22 @@
  * 6. Send insights to Telegram
  */
 
-import 'dotenv/config';
-import { createClient } from '@supabase/supabase-js';
-import { processRecording } from './processor.js';
-import { log, logError } from './logger.js';
+import "dotenv/config";
+import { createClient } from "@supabase/supabase-js";
+import { processRecording } from "./processor.js";
+import { log, logError } from "./logger.js";
+import {
+  buildRetryEligibilityFilter,
+  DEFAULT_FAILED_RETRY_COOLDOWN_MS,
+  getFailedRetryCutoff,
+} from "./retry-policy.js";
 
 // Environment validation
 const REQUIRED_ENV = [
-  'SUPABASE_URL',
-  'SUPABASE_SERVICE_ROLE_KEY',
-  'TELEGRAM_BOT_TOKEN',
-  'GOOGLE_AI_API_KEY',
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "TELEGRAM_BOT_TOKEN",
+  "GOOGLE_AI_API_KEY",
 ];
 
 for (const key of REQUIRED_ENV) {
@@ -30,14 +35,19 @@ for (const key of REQUIRED_ENV) {
 }
 
 // Configuration
-const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '30000', 10);
-const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT || '3', 10);
-const MAX_RETRIES = parseInt(process.env.MAX_RETRIES || '3', 10);
+const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || "30000", 10);
+const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT || "3", 10);
+const MAX_RETRIES = parseInt(process.env.MAX_RETRIES || "3", 10);
+const FAILED_RETRY_COOLDOWN_MS = parseInt(
+  process.env.FAILED_RETRY_COOLDOWN_MS ||
+    String(DEFAULT_FAILED_RETRY_COOLDOWN_MS),
+  10,
+);
 
 // Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
 // Track active processing
@@ -49,7 +59,7 @@ let isShuttingDown = false;
  */
 async function pollAndProcess(): Promise<void> {
   if (isShuttingDown) {
-    log('Shutting down, skipping poll');
+    log("Shutting down, skipping poll");
     return;
   }
 
@@ -62,22 +72,27 @@ async function pollAndProcess(): Promise<void> {
       return;
     }
 
-    // Fetch pending recordings
+    // Pending work starts immediately. Failed work waits on a persisted
+    // updated_at cooldown, so provider outages cannot hammer Gemini every poll.
+    const failedRetryCutoff = getFailedRetryCutoff(
+      Date.now(),
+      FAILED_RETRY_COOLDOWN_MS,
+    );
     const { data: recordings, error } = await supabase
-      .from('call_recordings')
-      .select('*')
-      .in('processing_status', ['pending', 'failed'])
-      .lt('retry_count', MAX_RETRIES)
-      .order('created_at', { ascending: true })
+      .from("call_recordings")
+      .select("*")
+      .or(buildRetryEligibilityFilter(failedRetryCutoff))
+      .lt("retry_count", MAX_RETRIES)
+      .order("created_at", { ascending: true })
       .limit(availableSlots);
 
     if (error) {
-      logError('Failed to fetch recordings', error);
+      logError("Failed to fetch recordings", error);
       return;
     }
 
     if (!recordings || recordings.length === 0) {
-      log('No pending recordings');
+      log("No pending recordings");
       return;
     }
 
@@ -95,7 +110,7 @@ async function pollAndProcess(): Promise<void> {
         });
     }
   } catch (error) {
-    logError('Poll error', error);
+    logError("Poll error", error);
   }
 }
 
@@ -103,23 +118,23 @@ async function pollAndProcess(): Promise<void> {
  * Health check endpoint
  */
 async function startHealthServer(): Promise<void> {
-  const http = await import('http');
-  const PORT = parseInt(process.env.PORT || '8080', 10);
+  const http = await import("http");
+  const PORT = parseInt(process.env.PORT || "8080", 10);
 
   const server = http.createServer((req, res) => {
-    if (req.url === '/health' || req.url === '/') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
+    if (req.url === "/health" || req.url === "/") {
+      res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
-          status: 'healthy',
+          status: "healthy",
           activeJobs: activeCount,
           maxConcurrent: MAX_CONCURRENT,
           uptime: process.uptime(),
-        })
+        }),
       );
     } else {
       res.writeHead(404);
-      res.end('Not Found');
+      res.end("Not Found");
     }
   });
 
@@ -148,26 +163,27 @@ function setupGracefulShutdown(): void {
     if (activeCount > 0) {
       log(`Timeout waiting for jobs, exiting with ${activeCount} active`);
     } else {
-      log('All jobs completed, exiting cleanly');
+      log("All jobs completed, exiting cleanly");
     }
 
     process.exit(0);
   };
 
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
 /**
  * Main entry point
  */
 async function main(): Promise<void> {
-  log('========================================');
-  log('Call Recording Processor Worker');
-  log('========================================');
+  log("========================================");
+  log("Call Recording Processor Worker");
+  log("========================================");
   log(`Poll interval: ${POLL_INTERVAL_MS}ms`);
   log(`Max concurrent: ${MAX_CONCURRENT}`);
   log(`Max retries: ${MAX_RETRIES}`);
+  log(`Failed retry cooldown: ${FAILED_RETRY_COOLDOWN_MS}ms`);
 
   // Setup
   setupGracefulShutdown();
@@ -179,11 +195,11 @@ async function main(): Promise<void> {
   // Start polling loop
   setInterval(pollAndProcess, POLL_INTERVAL_MS);
 
-  log('Worker started successfully');
+  log("Worker started successfully");
 }
 
 // Start the worker
 main().catch((error) => {
-  logError('Fatal error', error);
+  logError("Fatal error", error);
   process.exit(1);
 });

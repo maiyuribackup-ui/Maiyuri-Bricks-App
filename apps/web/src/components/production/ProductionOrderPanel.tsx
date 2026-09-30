@@ -12,6 +12,7 @@ import {
   useProductionOrder,
   useSyncToOdoo,
   calculateExpectedConsumption,
+  buildShiftInputs,
 } from "@/hooks/useProduction";
 import { useSubmitForApproval } from "@/hooks/useTickets";
 import { FinishedGoodSelector } from "./FinishedGoodSelector";
@@ -47,7 +48,7 @@ interface MaterialLine {
   materialId: string;
   materialName: string;
   expectedQty: number;
-  actualQty: number;
+  actualQty: number | null;
   uom: string;
 }
 
@@ -171,11 +172,13 @@ export function ProductionOrderPanel({
         bomLines,
       );
 
+      // actualQty starts null: real consumption is only known after
+      // production, so variance must not be zeroed out at creation time.
       const materials: MaterialLine[] = calculated.map((line) => ({
         materialId: line.raw_material_id,
         materialName: line.raw_material?.name ?? "Unknown Material",
         expectedQty: line.expected_quantity,
-        actualQty: line.expected_quantity, // Default to expected
+        actualQty: null,
         uom: line.uom_name ?? "units",
       }));
 
@@ -242,7 +245,7 @@ export function ProductionOrderPanel({
   }, []);
 
   const handleUpdateMaterialActual = useCallback(
-    (materialId: string, actualQty: number) => {
+    (materialId: string, actualQty: number | null) => {
       setMaterialLines((prev) =>
         prev.map((m) =>
           m.materialId === materialId ? { ...m, actualQty } : m,
@@ -270,13 +273,21 @@ export function ProductionOrderPanel({
       scheduled_date: scheduledDate,
       notes: notes || undefined,
       consumption_lines,
+      // Shift rows without employees are dropped by buildShiftInputs
+      shifts: buildShiftInputs(shifts),
     };
 
     try {
       if (orderId) {
+        // Update schema doesn't accept consumption/shift changes; send only
+        // the order-level fields it supports.
         const result = await updateMutation.mutateAsync({
           id: orderId,
-          data: payload,
+          data: {
+            planned_quantity: productionQty,
+            scheduled_date: scheduledDate,
+            notes: notes || undefined,
+          },
         });
         if (result.data && onOrderCreated) {
           onOrderCreated(result.data);
@@ -434,7 +445,7 @@ export function ProductionOrderPanel({
                       type="number"
                       value={productionQty || ""}
                       onChange={(e) =>
-                        setProductionQty(parseInt(e.target.value) || 0)
+                        setProductionQty(parseFloat(e.target.value) || 0)
                       }
                       min={1}
                       disabled={!selectedGood}

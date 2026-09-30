@@ -23,7 +23,19 @@ export function FadeInSection({
   delay = 0,
 }: FadeInSectionProps) {
   const [isVisible, setIsVisible] = useState(false);
+  // Readers who ask for reduced motion get the content already in place —
+  // not a 0.01ms version of the same slide. Nothing fades, nothing moves, and
+  // no section can be missed because its reveal never fired.
+  const [reduceMotion, setReduceMotion] = useState(false);
   const elementRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduceMotion(query.matches);
+    const onChange = (e: MediaQueryListEvent) => setReduceMotion(e.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -49,18 +61,21 @@ export function FadeInSection({
     };
   }, []);
 
+  const shown = isVisible || reduceMotion;
+
   return (
     <div
       ref={elementRef}
       className={cn(
-        "transition-all duration-250 ease-out",
-        isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
+        !reduceMotion && "transition-all duration-250 ease-out",
+        shown ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
         className,
       )}
-      style={{
-        transitionDelay: `${delay}ms`,
-        transitionDuration: "250ms",
-      }}
+      style={
+        reduceMotion
+          ? undefined
+          : { transitionDelay: `${delay}ms`, transitionDuration: "250ms" }
+      }
     >
       {children}
     </div>

@@ -267,6 +267,8 @@ export async function approveTicket(
     );
 
     // Handle production order approval
+    const odooWarnings: string[] = [];
+
     if (ticket.type === "production_order" && ticket.production_order_id) {
       // Update production order status to approved
       await updateProductionOrderStatus(
@@ -282,23 +284,43 @@ export async function approveTicket(
         .eq("id", ticket.production_order_id)
         .single();
 
-      if (!order.data?.odoo_production_id) {
+      let syncOk = Boolean(order.data?.odoo_production_id);
+
+      if (!syncOk) {
         // Sync to Odoo
         const syncResult = await createManufacturingOrderInOdoo(
           ticket.production_order_id,
         );
+        syncOk = syncResult.success;
         if (!syncResult.success) {
           console.error("Failed to sync to Odoo:", syncResult.error);
+          odooWarnings.push(
+            `Odoo sync failed: ${syncResult.error ?? syncResult.message}`,
+          );
         }
       }
 
-      // Mark as done in Odoo
-      const doneResult = await markManufacturingOrderDoneInOdoo(
-        ticket.production_order_id,
-      );
-      if (!doneResult.success) {
-        console.error("Failed to mark MO as done:", doneResult.error);
+      // Mark as done in Odoo (only sensible if the MO exists there)
+      if (syncOk) {
+        const doneResult = await markManufacturingOrderDoneInOdoo(
+          ticket.production_order_id,
+        );
+        if (!doneResult.success) {
+          console.error("Failed to mark MO as done:", doneResult.error);
+          odooWarnings.push(
+            `Odoo completion failed: ${doneResult.error ?? doneResult.message}`,
+          );
+        }
       }
+    }
+
+    // The approval itself succeeded; Odoo issues are surfaced so the approver
+    // knows the order needs a manual sync instead of silently diverging.
+    if (odooWarnings.length > 0) {
+      return {
+        success: true,
+        message: `Ticket approved, but Odoo needs attention: ${odooWarnings.join("; ")}. Use "Manual Sync to Odoo" on the order to retry.`,
+      };
     }
 
     return { success: true, message: "Ticket approved successfully" };

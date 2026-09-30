@@ -7,6 +7,12 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  filterByPushPref,
+  getUserIdsByRoles,
+  notifyLeadPush,
+} from "@/lib/push/fcm";
+import { createFirstResponseTask } from "@/lib/golden-hour";
 
 interface ExtractedLeadInfo {
   name: string | null;
@@ -75,6 +81,36 @@ export async function POST(request: NextRequest) {
           .from("call_recordings")
           .update({ lead_id: lead.id })
           .eq("id", recording_id);
+      }
+
+      // Golden Hour: 30-min first-response task for the fresh lead.
+      await createFirstResponseTask(lead);
+
+      // Push the founder/owner a lead summary — Telegram-uploaded calls used
+      // to create leads silently; leadership specifically asked to hear about
+      // these. Best-effort: a push failure must never fail the creation.
+      try {
+        const leadership = await getUserIdsByRoles(["founder", "owner"]);
+        const recipients = await filterByPushPref(leadership, "push_leads");
+        const summary = [
+          extractedInfo.lead_type,
+          extractedInfo.requirement_type?.replace(/_/g, " "),
+          extractedInfo.site_location ?? extractedInfo.site_region,
+          extractedInfo.next_action,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        await notifyLeadPush(recipients, {
+          title: `🎙️ New lead from call: ${lead.name ?? lead.contact}`,
+          body:
+            `${summary || lead.contact} (${extractedInfo.confidence}% confidence)`.slice(
+              0,
+              180,
+            ),
+          leadId: lead.id,
+        });
+      } catch (pushErr) {
+        console.error("[Extract Lead] push failed (ignored):", pushErr);
       }
 
       return NextResponse.json({

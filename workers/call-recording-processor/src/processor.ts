@@ -7,7 +7,10 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { convertAudioToMp3 } from "./audio-converter.js";
 import { uploadToGoogleDrive } from "./gdrive-storage.js";
-import { transcribeAudio } from "./transcription.js";
+import {
+  isTranscriptionInfrastructureError,
+  transcribeAudio,
+} from "./transcription.js";
 import {
   analyzeTranscript,
   extractLeadDetails,
@@ -421,10 +424,17 @@ export async function processRecording(
   } catch (error) {
     logError(`Processing failed for ${id}`, error);
 
+    const message = error instanceof Error ? error.message : String(error);
+    const infrastructureFailure = isTranscriptionInfrastructureError(error);
+
     // Update status to failed
     await updateStatus(supabase, id, "failed", {
-      error_message: error instanceof Error ? error.message : String(error),
-      retry_count: recording.retry_count + 1,
+      error_message: message,
+      // Provider/network outages are not recording defects. Preserve the
+      // durable retry budget so work resumes after infrastructure recovery.
+      retry_count: infrastructureFailure
+        ? recording.retry_count
+        : recording.retry_count + 1,
     });
 
     // Re-throw if not retryable

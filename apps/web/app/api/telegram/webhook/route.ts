@@ -8,6 +8,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { createFirstResponseTask } from "@/lib/golden-hour";
+import { getRecordingUploadOutage } from "@/lib/recording-upload-outage";
 import {
   extractFromFilename,
   normalizePhoneNumber,
@@ -18,8 +20,43 @@ import {
 // Environment configuration
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
-const ALLOWED_CHAT_IDS =
-  process.env.TELEGRAM_ALLOWED_CHAT_IDS?.split(",").map(Number) || [];
+// Chat whitelist — without one, any chat that can message the bot could
+// inject audio into the pipeline. Two groups (BOTH titled "Maiyuri Bricks"):
+//   -5116644495  original intake group (663 recordings; staff still use it)
+//   -5303889805  new group created by Ram, 2026-07-19
+// Override/extend via TELEGRAM_ALLOWED_CHAT_IDS (comma-separated).
+const DEFAULT_ALLOWED_CHAT_IDS = [-5116644495, -5303889805];
+const ALLOWED_CHAT_IDS = process.env.TELEGRAM_ALLOWED_CHAT_IDS
+  ? process.env.TELEGRAM_ALLOWED_CHAT_IDS.split(",").map(Number)
+  : DEFAULT_ALLOWED_CHAT_IDS;
+
+async function acknowledgeRecordingUploadOutage(
+  error: unknown,
+  chatId: number,
+): Promise<NextResponse | null> {
+  const outage = getRecordingUploadOutage(error);
+  if (!outage) return null;
+
+  try {
+    const notificationResult = await sendTelegramMessage(
+      outage.message,
+      chatId.toString(),
+    );
+    if (!notificationResult.success) {
+      console.error(
+        "[Telegram Webhook] Failed to send temporary outage notice",
+      );
+    }
+  } catch {
+    console.error(
+      "[Telegram Webhook] Failed to send temporary outage notice",
+    );
+  }
+
+  // Returning a retryable status causes Telegram to redeliver the same file
+  // and spam the group while Supabase is intentionally restricted.
+  return NextResponse.json({ ok: true, temporary_outage: true });
+}
 
 /**
  * POST /api/telegram/webhook
@@ -71,7 +108,11 @@ export async function POST(request: NextRequest) {
 
     // Verify chat ID is whitelisted (if configured)
     if (ALLOWED_CHAT_IDS.length > 0 && !ALLOWED_CHAT_IDS.includes(chatId)) {
-      console.warn(`[Telegram Webhook] Unauthorized chat: ${chatId}`);
+      // Include the chat's name so a legit-but-unlisted group is identifiable
+      // from the logs without needing a Telegram getChat round-trip.
+      console.warn(
+        `[Telegram Webhook] Unauthorized chat: ${chatId} (${message.chat.title ?? "private chat"})`,
+      );
       return NextResponse.json({ ok: true }); // Don't reveal we ignored it
     }
 
@@ -142,6 +183,12 @@ export async function POST(request: NextRequest) {
             "[Telegram Webhook] Failed to store voice recording:",
             insertError,
           );
+          const outageResponse = await acknowledgeRecordingUploadOutage(
+            insertError,
+            chatId,
+          );
+          if (outageResponse) return outageResponse;
+
           await sendTelegramMessage(
             `❌ *Upload Error*\n\nFailed to save recording. Please try again.`,
             chatId.toString(),
@@ -211,6 +258,11 @@ export async function POST(request: NextRequest) {
     if (dupCheckError && dupCheckError.code !== "PGRST116") {
       // PGRST116 is "not found" which is expected for new files
       console.error(`[Telegram Webhook] Duplicate check error:`, dupCheckError);
+      const outageResponse = await acknowledgeRecordingUploadOutage(
+        dupCheckError,
+        chatId,
+      );
+      if (outageResponse) return outageResponse;
     }
 
     if (existing) {
@@ -256,6 +308,12 @@ export async function POST(request: NextRequest) {
           "[Telegram Webhook] Failed to auto-create lead:",
           createError,
         );
+        const outageResponse = await acknowledgeRecordingUploadOutage(
+          createError,
+          chatId,
+        );
+        if (outageResponse) return outageResponse;
+
         // Continue without lead - will be created manually later
       } else {
         lead = newLead;
@@ -263,6 +321,8 @@ export async function POST(request: NextRequest) {
         console.warn(
           `[Telegram Webhook] Auto-created lead: ${newLead.id} for ${extractedName}`,
         );
+        // Golden Hour: 30-min first-response task for the fresh lead.
+        await createFirstResponseTask(newLead);
       }
     }
 
@@ -289,6 +349,12 @@ export async function POST(request: NextRequest) {
         "[Telegram Webhook] Step 4 FAILED - Insert error:",
         insertError,
       );
+      const outageResponse = await acknowledgeRecordingUploadOutage(
+        insertError,
+        chatId,
+      );
+      if (outageResponse) return outageResponse;
+
       await sendTelegramMessage(
         `❌ *Upload Error*\n\nFailed to save recording. Please try again later.`,
         chatId.toString(),

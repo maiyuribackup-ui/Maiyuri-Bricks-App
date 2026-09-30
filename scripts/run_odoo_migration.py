@@ -15,9 +15,11 @@ except ImportError:
     os.system("pip install supabase")
     from supabase import create_client, Client
 
-# Supabase credentials
-SUPABASE_URL = "https://pailepomvvwjkrhkwdqt.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhaWxlcG9tdnZ3amtyaGt3ZHF0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NzUzOTM3OSwiZXhwIjoyMDgzMTE1Mzc5fQ.gne7NmHyPE_mNE5Dps2CsJzxt5qzla19SQVB4FP9UfI"
+# Supabase credentials (from environment — never hard-code secrets)
+SUPABASE_URL = os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+if not SUPABASE_URL or not SUPABASE_KEY:
+    sys.exit("Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars before running this script.")
 
 # Migration SQL
 MIGRATION_SQL = """

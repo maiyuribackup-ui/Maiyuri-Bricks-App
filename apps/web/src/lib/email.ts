@@ -1,22 +1,64 @@
-import { Resend } from 'resend';
+import nodemailer, { type Transporter } from 'nodemailer';
 
-// Lazy initialization to avoid build-time errors
-let resendClient: Resend | null = null;
+/**
+ * Email transport: Gmail SMTP (switched from Resend, whose key died and whose
+ * test sender couldn't reach non-owner recipients without domain DNS).
+ * Requires two Vercel env vars:
+ *   GMAIL_SMTP_USER          — the Gmail address (maiyuribricks@gmail.com)
+ *   GMAIL_SMTP_APP_PASSWORD  — a Google "App password" (needs 2-Step
+ *                              Verification on the account)
+ * Gmail free tier ≈ 500 mails/day — far above this app's volume.
+ */
+let transporter: Transporter | null = null;
 
-function getResend(): Resend {
-  if (!resendClient) {
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) {
-      throw new Error('RESEND_API_KEY is not configured');
+function getTransporter(): Transporter {
+  if (!transporter) {
+    const user = process.env.GMAIL_SMTP_USER;
+    const pass = process.env.GMAIL_SMTP_APP_PASSWORD;
+    if (!user || !pass) {
+      throw new Error(
+        'Email is not configured: set GMAIL_SMTP_USER and GMAIL_SMTP_APP_PASSWORD',
+      );
     }
-    resendClient = new Resend(apiKey);
+    transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user, pass },
+    });
   }
-  return resendClient;
+  return transporter;
 }
 
-// Use RESEND_FROM_EMAIL env var if domain is verified, otherwise use Resend's test sender
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'Maiyuri Bricks <onboarding@resend.dev>';
+// Gmail rewrites the sender to the authenticated account; the display name sticks.
+const FROM_EMAIL = `Maiyuri Bricks <${process.env.GMAIL_SMTP_USER ?? 'maiyuribricks@gmail.com'}>`;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://maiyuri-bricks-app.vercel.app';
+
+/**
+ * Resend-shaped wrapper over SMTP so the four senders below keep their
+ * original structure ({ data, error } destructuring) untouched.
+ */
+async function sendViaSmtp(opts: {
+  from?: string;
+  to: string;
+  subject: string;
+  html: string;
+}): Promise<{ data: { id: string } | null; error: { message: string } | null }> {
+  try {
+    const info = await getTransporter().sendMail({
+      from: opts.from ?? FROM_EMAIL,
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+    });
+    return { data: { id: info.messageId }, error: null };
+  } catch (err) {
+    return {
+      data: null,
+      error: { message: err instanceof Error ? err.message : 'SMTP send failed' },
+    };
+  }
+}
 
 export interface SendEmailResult {
   success: boolean;
@@ -37,7 +79,7 @@ export async function sendInvitationEmail(
   const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
 
   try {
-    const { data, error } = await getResend().emails.send({
+    const { data, error } = await sendViaSmtp({
       from: FROM_EMAIL,
       to: email,
       subject: 'You are invited to join Maiyuri Bricks Lead Management',
@@ -109,7 +151,7 @@ export async function sendPasswordResetEmail(
   resetUrl: string
 ): Promise<SendEmailResult> {
   try {
-    const { data, error } = await getResend().emails.send({
+    const { data, error } = await sendViaSmtp({
       from: FROM_EMAIL,
       to: email,
       subject: 'Reset your Maiyuri Bricks password',
@@ -180,7 +222,7 @@ export async function sendWelcomeEmail(
   const dashboardUrl = `${APP_URL}/dashboard`;
 
   try {
-    const { data, error } = await getResend().emails.send({
+    const { data, error } = await sendViaSmtp({
       from: FROM_EMAIL,
       to: email,
       subject: 'Welcome to Maiyuri Bricks!',
@@ -249,7 +291,7 @@ export async function sendNotificationEmail(
   content: string
 ): Promise<SendEmailResult> {
   try {
-    const { data, error } = await getResend().emails.send({
+    const { data, error } = await sendViaSmtp({
       from: FROM_EMAIL,
       to: email,
       subject,

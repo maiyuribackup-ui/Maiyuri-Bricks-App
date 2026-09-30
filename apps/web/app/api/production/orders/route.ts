@@ -8,7 +8,7 @@ import {
   parseBody,
   parseQuery,
 } from "@/lib/api-utils";
-import { createSupabaseRouteClient } from "@/lib/supabase-server";
+import { requireProductionRole } from "@/lib/production-auth";
 import {
   getProductionOrders,
   createProductionOrder,
@@ -47,15 +47,9 @@ export async function GET(request: NextRequest) {
 // POST /api/production/orders - Create a new production order
 export async function POST(request: NextRequest) {
   try {
-    // Get the current user
-    const supabase = createSupabaseRouteClient(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return error("Unauthorized", 401);
-    }
+    const auth = await requireProductionRole(request);
+    if (auth.errorResponse) return auth.errorResponse;
+    const user = auth.user;
 
     const parsed = await parseBody(request, createProductionOrderSchema);
     if (parsed.error) return parsed.error;

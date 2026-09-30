@@ -1,0 +1,40 @@
+name: Nightly Odoo sync
+
+# Rehomed from apps/web/vercel.json where it NEVER ran (Vercel reads only the
+# root vercel.json, and the Hobby plan caps crons at 2 — both used by health
+# + recordings). 00:15 UTC = 05:45 IST, before the workday.
+
+on:
+  schedule:
+    - cron: "15 0 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger Odoo sync
+        run: |
+          status=$(curl -s -o /tmp/r.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mb.maiyuri.com/api/odoo/cron")
+          echo "HTTP $status"; cat /tmp/r.json
+          if [ "$status" -ge 400 ]; then exit 1; fi
+
+      - name: Refresh planner order cache (best-effort)
+        continue-on-error: true
+        run: |
+          status=$(curl -s -o /tmp/p.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mb.maiyuri.com/api/ops-planning/inputs")
+          echo "HTTP $status"; head -c 300 /tmp/p.json 2>/dev/null
+          # Best-effort: the in-app Sync Odoo button covers this interactively.
+
+      - name: Alert on failure
+        if: failure()
+        continue-on-error: true
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="❌ ${{ github.workflow }} failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

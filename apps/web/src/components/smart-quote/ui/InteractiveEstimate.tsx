@@ -28,6 +28,18 @@ interface InteractiveEstimateProps {
   pricing: Partial<SmartQuotePricingConfig> | null | undefined;
   quoteUrl: string;
   onCtaTrack: (payload: Record<string, unknown>) => void;
+  /** AI copy (cost.section_headline); blank keeps the brand default. */
+  headline?: string;
+  /** AI copy (cost.range_frame) — how to read the number, shown under it. */
+  rangeFrame?: string;
+  /** AI copy (cta.primary_cta) so the button matches the routed next step. */
+  ctaLabel?: string;
+  /**
+   * Show the inline WhatsApp button. Set false when the page closes with the
+   * routed CTA section, so the quote keeps ONE primary call to action rather
+   * than asking for WhatsApp here and a booking form moments later.
+   */
+  showWhatsAppCta?: boolean;
 }
 
 const t = (lang: SmartQuoteLanguage, en: string, ta: string) =>
@@ -43,6 +55,10 @@ export function InteractiveEstimate({
   pricing,
   quoteUrl,
   onCtaTrack,
+  headline,
+  rangeFrame,
+  ctaLabel,
+  showWhatsAppCta = true,
 }: InteractiveEstimateProps) {
   const defaultProductId =
     pricing?.default_product ?? products[0]?.id ?? null;
@@ -65,9 +81,45 @@ export function InteractiveEstimate({
     : t(language, "sq.ft", "சதுர அடி");
   const showTransport = pricing?.show_transport !== false;
 
+  // The lines the engineer actually quoted.
+  //
+  // This component was built when a quote was one product, and it still reads
+  // `default_product` / `default_area_sqft` — which are only ever the FIRST
+  // line. A two-product quote therefore showed the customer one product and a
+  // total for that product alone, while the PDF for the same quote showed
+  // both and a total roughly twice as large. Two documents, one quote, two
+  // prices; whichever the customer read second destroyed the first.
+  //
+  // Everything needed is already in pricing.items, so the lines are computed
+  // here rather than re-derived by the estimate endpoint, which prices one
+  // product per call.
+  const quotedLines = useMemo(() => {
+    const items = pricing?.items ?? [];
+    return items
+      .map((it) => {
+        const product = products.find((p) => p.id === it.product_id);
+        if (!product || !(it.rate > 0) || !(it.quantity > 0)) return null;
+        return {
+          id: it.product_id,
+          name: product.name,
+          unit: product.unit,
+          quantity: it.quantity,
+          rate: it.rate,
+          amount: it.rate * it.quantity,
+        };
+      })
+      .filter((l): l is NonNullable<typeof l> => l !== null);
+  }, [pricing?.items, products]);
+
+  // One line is still the calculator's job — it can price a single product
+  // live, and letting the customer move the quantity is the point of the page.
+  // More than one and the quote is fixed, so it is shown as quoted.
+  const isMultiLine = quotedLines.length > 1;
+  const quotedTotal = quotedLines.reduce((sum, l) => sum + l.amount, 0);
+
   // Debounced live estimate
   useEffect(() => {
-    if (!productId || !quantity || quantity <= 0) {
+    if (isMultiLine || !productId || !quantity || quantity <= 0) {
       setResult(null);
       return;
     }
@@ -92,7 +144,7 @@ export function InteractiveEstimate({
       }
     }, 350);
     return () => clearTimeout(handle);
-  }, [slug, productId, quantity, distanceKm, showTransport]);
+  }, [slug, productId, quantity, distanceKm, showTransport, isMultiLine]);
 
   const handleWhatsApp = useCallback(() => {
     const phone = pricing?.rep_phone;
@@ -119,17 +171,57 @@ export function InteractiveEstimate({
   return (
     <div className="mx-auto max-w-2xl px-5 py-12">
       <h2 className="text-center text-2xl font-bold text-slate-900 sm:text-3xl">
-        {t(language, "Your instant estimate", "உங்கள் உடனடி மதிப்பீடு")}
+        {headline?.trim() ||
+          t(language, "Your instant estimate", "உங்கள் உடனடி மதிப்பீடு")}
       </h2>
       <p className="mt-2 text-center text-sm text-slate-500">
-        {t(
-          language,
-          "Adjust the details to see your price — built from our live rates.",
-          "விவரங்களை மாற்றி உங்கள் விலையைப் பாருங்கள் — எங்கள் நேரடி விலையிலிருந்து.",
-        )}
+        {isMultiLine
+          ? t(
+              language,
+              "Prepared for you by our team — these are the products and rates quoted.",
+              "எங்கள் குழுவால் உங்களுக்காகத் தயாரிக்கப்பட்டது — இவை மேற்கோள் காட்டப்பட்ட தயாரிப்புகளும் விலைகளும்.",
+            )
+          : t(
+              language,
+              "Adjust the details to see your price — built from our live rates.",
+              "விவரங்களை மாற்றி உங்கள் விலையைப் பாருங்கள் — எங்கள் நேரடி விலையிலிருந்து.",
+            )}
       </p>
 
       <div className="mt-7 rounded-3xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50">
+        {isMultiLine ? (
+          <>
+            <ul className="divide-y divide-slate-100">
+              {quotedLines.map((l) => (
+                <li key={l.id} className="flex items-baseline justify-between gap-4 py-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-slate-800">{l.name}</div>
+                    <div className="mt-0.5 text-xs text-slate-500">
+                      {l.quantity.toLocaleString("en-IN")}{" "}
+                      {l.unit === "piece"
+                        ? t(language, "bricks", "செங்கற்கள்")
+                        : t(language, "sq.ft", "சதுர அடி")}{" "}
+                      &times; {inr(l.rate)}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-sm font-semibold text-slate-900">
+                    {inr(l.amount)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-5 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-5 text-white">
+              <div className="flex items-end justify-between gap-4">
+                <span className="text-sm text-slate-300">
+                  {t(language, "Your quote total", "உங்கள் மொத்தத் தொகை")}
+                </span>
+                <span className="whitespace-nowrap text-3xl font-bold">{inr(quotedTotal)}</span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
         {/* Product selector */}
         {products.length > 1 && (
           <div className="mb-5">
@@ -141,7 +233,7 @@ export function InteractiveEstimate({
                 <button
                   key={p.id}
                   onClick={() => setProductId(p.id)}
-                  className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+                  className={`inline-flex min-h-[44px] items-center rounded-full px-4 py-2 text-sm font-medium transition ${
                     productId === p.id
                       ? "bg-slate-900 text-white"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -191,7 +283,7 @@ export function InteractiveEstimate({
                 value={distanceKm || ""}
                 onChange={(e) => setDistanceKm(Number(e.target.value) || 0)}
                 placeholder="0"
-                className="w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="min-h-[44px] w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c0562f]"
               />
               <span className="text-sm text-slate-500">
                 km {t(language, "from our factory", "எங்கள் தொழிற்சாலையிலிருந்து")}
@@ -236,28 +328,49 @@ export function InteractiveEstimate({
             </div>
           )}
         </div>
+          </>
+        )}
 
         {pricing?.price_note && (
           <p className="mt-3 text-center text-xs text-slate-400">{pricing.price_note}</p>
         )}
+        {/* AI's framing for how this customer should read the number */}
+        {rangeFrame?.trim() && (
+          <p className="mt-3 text-center text-sm text-slate-600">
+            {rangeFrame}
+          </p>
+        )}
         <p className="mt-2 text-center text-[11px] text-slate-400">
-          {t(
-            language,
-            "Indicative estimate for materials & delivery. Final quote confirmed by our team.",
-            "பொருட்கள் & டெலிவரிக்கான தோராய மதிப்பீடு. இறுதி விலை எங்கள் குழுவால் உறுதி செய்யப்படும்.",
-          )}
+          {isMultiLine
+            ? t(
+                language,
+                "Quoted rates for materials. GST extra, as per actual.",
+                "பொருட்களுக்கான மேற்கோள் விலை. GST தனி, உண்மையின்படி.",
+              )
+            : t(
+                language,
+                "Indicative estimate for materials & delivery. Final quote confirmed by our team.",
+                "பொருட்கள் & டெலிவரிக்கான தோராய மதிப்பீடு. இறுதி விலை எங்கள் குழுவால் உறுதி செய்யப்படும்.",
+              )}
         </p>
 
-        {/* WhatsApp CTA */}
-        <button
-          onClick={handleWhatsApp}
-          className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-5 py-3.5 text-base font-semibold text-white shadow-md transition hover:bg-[#1ebe5b]"
-        >
-          <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden>
-            <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.978-1.595z"/>
-          </svg>
-          {t(language, "Confirm on WhatsApp", "WhatsApp-ல் உறுதிப்படுத்தவும்")}
-        </button>
+        {/* WhatsApp CTA — hidden when the routed CTA section closes the page */}
+        {showWhatsAppCta && (
+          <button
+            onClick={handleWhatsApp}
+            /* WhatsApp's dark brand green. The familiar #25D366 renders white
+               text at 1.98:1 — below WCAG AA at any size — which is fatal on
+               the page's primary action, read outdoors on a phone. #0F7A6C is
+               still unmistakably WhatsApp and clears AA at 5.22:1. */
+            className="mt-5 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-[#0F7A6C] px-5 py-3.5 text-base font-semibold text-white shadow-md transition hover:bg-[#0b5f54]"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden>
+              <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.978-1.595z"/>
+            </svg>
+            {ctaLabel?.trim() ||
+              t(language, "Confirm on WhatsApp", "WhatsApp-ல் உறுதிப்படுத்தவும்")}
+          </button>
+        )}
       </div>
     </div>
   );

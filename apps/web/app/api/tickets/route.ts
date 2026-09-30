@@ -8,9 +8,8 @@ import {
   parseBody,
   parseQuery,
   unauthorized,
-  forbidden,
 } from "@/lib/api-utils";
-import { createSupabaseRouteClient } from "@/lib/supabase-server";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   getTickets,
@@ -23,10 +22,8 @@ import type { Ticket } from "@maiyuri/shared";
 // GET /api/tickets - List tickets with filters
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createSupabaseRouteClient(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Cookie (web) OR Bearer token (mobile) — both accepted.
+    const user = await getUserFromRequest(request);
 
     if (!user) {
       return unauthorized();
@@ -71,10 +68,7 @@ export async function GET(request: NextRequest) {
 // POST /api/tickets - Create a new ticket
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createSupabaseRouteClient(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getUserFromRequest(request);
 
     if (!user) {
       return unauthorized();
