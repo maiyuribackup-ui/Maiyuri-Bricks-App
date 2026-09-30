@@ -222,6 +222,25 @@ async function fetchWithValidation<T>(
 
 ---
 
+### [2026-09-30] BUG-020: API - Telegram Retried Non-Retryable Quota Failures
+
+**Severity:** High (repeated staff notifications; recordings not ingested)
+**Files Affected:** `apps/web/app/api/telegram/webhook/route.ts`
+
+**Context:** The recording webhook writes Telegram audio metadata to Supabase before acknowledging the update.
+
+**Mistake:** A project-wide `exceed_egress_quota` restriction followed the generic database-error path and returned HTTP 500. Telegram correctly retried the same update, but the durable quota restriction could not recover through retries, so staff received repeated error messages.
+
+**Root Cause:** Transport retry semantics were coupled to all database failures instead of distinguishing transient errors from a known non-retryable infrastructure outage.
+
+**Prevention Rule:** Classify known durable provider restrictions before generic error handling. Tell the operator whether their payload was saved, acknowledge the transport with HTTP 200 to stop redelivery, and preserve retry behavior for unclassified failures.
+
+**Solution:** Centralize quota-outage detection, send one temporary pause notice that explicitly says the recording was not saved, and return a successful Telegram acknowledgement. Keep the previous generic failure path unchanged for every other error.
+
+**Test Case:** Verify nested Supabase `exceed_egress_quota` errors are classified, the response contract requires HTTP 200 acknowledgement, and ordinary database errors are not swallowed.
+
+---
+
 ## 4. React Rendering Issues
 
 ### [2026-01-17] BUG-005: REACT - Conditional Rendering Not Checking All Dependencies
