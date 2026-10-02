@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   generateValidatedTranscription,
   toSafeProviderError,
   transcriptPassesQuality,
+  transcriptionBackoffMs,
   transcriptionTraceOutput,
   type GeneratedTranscription,
 } from "./transcription";
@@ -235,5 +236,25 @@ describe("generateValidatedTranscription", () => {
     await expect(
       generateValidatedTranscription(generate, { maxAttempts: 0 }),
     ).rejects.toThrow("maxAttempts must be a positive integer");
+  });
+});
+
+// #51: the transient-503 in-process backoff schedule that generateContentWithRetry
+// uses between Gemini retries (exponential, jittered) inside each validated attempt.
+describe("transcriptionBackoffMs", () => {
+  it("is exponential (1s, 2s, 4s) with zero jitter", () => {
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+    expect(transcriptionBackoffMs(1)).toBe(1000);
+    expect(transcriptionBackoffMs(2)).toBe(2000);
+    expect(transcriptionBackoffMs(3)).toBe(4000);
+    random.mockRestore();
+  });
+
+  it("adds bounded jitter (never exceeds one base interval)", () => {
+    const random = vi.spyOn(Math, "random").mockReturnValue(0.999);
+    const delay = transcriptionBackoffMs(1);
+    expect(delay).toBeGreaterThanOrEqual(1000);
+    expect(delay).toBeLessThan(2000);
+    random.mockRestore();
   });
 });

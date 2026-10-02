@@ -5,10 +5,11 @@
  * Accepts raw audio (WAV, OGG, M4A) natively - no ffmpeg conversion needed.
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, type GenerativeModel } from "@google/generative-ai";
 import { GEMINI_DEFAULT_MODEL, GEMINI_MODEL } from "@/lib/ai/models";
 import { traceAiGeneration } from "@/lib/observability/langfuse";
 import { log, logError } from "./logger";
+import { isInfraError } from "./notifications";
 import type { TranscriptionResult } from "./types";
 
 const MAX_TRANSCRIPT_CHARS = 50_000;
@@ -166,6 +167,56 @@ function getGeminiClient() {
   return new GoogleGenerativeAI(apiKey);
 }
 
+/**
+ * Transcription attempts: 1 initial + 3 retries. Gemini "503 high demand"
+ * spikes are usually transient (seconds), so we ride them out in-process
+ * rather than failing a real recording and waiting on the 4-hour cron.
+ */
+const MAX_TRANSCRIPTION_ATTEMPTS = 4;
+const BASE_BACKOFF_MS = 1000;
+
+/** Exponential backoff with jitter: ~1s, ~2s, ~4s before retries 1..3. */
+export function transcriptionBackoffMs(retry: number): number {
+  const exponential = BASE_BACKOFF_MS * 2 ** (retry - 1);
+  const jitter = Math.floor(Math.random() * BASE_BACKOFF_MS);
+  return exponential + jitter;
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Call Gemini, retrying ONLY transient infra errors (503/5xx, overload, quota,
+ * network) — classified by the SAME `isInfraError` that protects the retry
+ * budget, so "transient" means one thing across the whole pipeline. Permanent
+ * errors (bad audio, unsupported format) fail fast with no wasted retries.
+ * On exhaustion the original error is rethrown, so the processor's catch still
+ * classifies it as infra and the cron resumes it later — backoff and the
+ * retry-budget guard are complementary, not redundant.
+ */
+async function generateContentWithRetry(
+  model: GenerativeModel,
+  parts: Parameters<GenerativeModel["generateContent"]>[0],
+  requestOptions?: Parameters<GenerativeModel["generateContent"]>[1],
+) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await model.generateContent(parts, requestOptions);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (attempt >= MAX_TRANSCRIPTION_ATTEMPTS || !isInfraError(message)) {
+        throw error;
+      }
+      const nextDelayMs = transcriptionBackoffMs(attempt);
+      log("Gemini transient error — retrying transcription", {
+        attempt,
+        nextDelayMs,
+        error: message.slice(0, 120),
+      });
+      await sleep(nextDelayMs);
+    }
+  }
+}
+
 export function toSafeProviderError(error: unknown): Error {
   const candidate = error as { status?: unknown; message?: unknown };
   const message =
@@ -240,6 +291,16 @@ Instructions:
 End with exactly one metadata line using this format:
 Primary language: Tamil, English, or Tamil-English mixed`;
 
+  const parts = [
+    {
+      inlineData: {
+        mimeType,
+        data: base64Audio,
+      },
+    },
+    { text: prompt },
+  ];
+
   try {
     const modelSlugs = [GEMINI_DEFAULT_MODEL, GEMINI_MODEL.FLASH];
     const { transcript, language } = await generateValidatedTranscription(
@@ -264,18 +325,11 @@ Primary language: Tamil, English, or Tamil-English mixed`;
           metadata: { module: "call_recording", step: "transcribe_audio" },
           run: async () => {
             try {
-              const result = await model.generateContent(
-                [
-                  {
-                    inlineData: {
-                      mimeType,
-                      data: base64Audio,
-                    },
-                  },
-                  { text: prompt },
-                ],
-                { timeout: timeoutMs },
-              );
+              // #51: ride out transient Gemini 503 spikes in-process with
+              // exponential backoff, bounded by main's per-attempt timeout.
+              const result = await generateContentWithRetry(model, parts, {
+                timeout: timeoutMs,
+              });
               const text = result.response.text();
               const finishReason =
                 result.response.candidates?.[0]?.finishReason;
