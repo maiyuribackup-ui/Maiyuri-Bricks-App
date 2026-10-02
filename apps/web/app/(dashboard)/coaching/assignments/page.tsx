@@ -56,7 +56,20 @@ function AssignmentCard({ a, onDone }: { a: AssignmentRow; onDone: () => void })
             </span>
             <span className="text-xs text-slate-400">Last submission</span>
           </div>
-          <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">
+          {a.mySubmission.ai_score != null && (
+            <div className="mt-2 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  AI score: {a.mySubmission.ai_score}/100
+                </span>
+                <span className="text-xs text-slate-400 italic">AI-graded · manager can adjust</span>
+              </div>
+              {a.mySubmission.ai_feedback && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">{a.mySubmission.ai_feedback}</p>
+              )}
+            </div>
+          )}
+          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">
             {a.mySubmission.submission_text}
           </p>
           {a.mySubmission.manager_comment && (
