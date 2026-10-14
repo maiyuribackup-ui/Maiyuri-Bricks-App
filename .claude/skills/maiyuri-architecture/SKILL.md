@@ -351,6 +351,12 @@ in **My Work** (each open stage mirrors to exactly one `work_items` row with
   `POST /api/process/instances/[id]/qc-release`.
 - **Lead trigger yields:** `sync_lead_stage_progression_work_item` is wrapped
   by `_guarded()` which returns early when a live process instance owns the lead.
+- **Delivery outbox:** a trigger on `process_events` enqueues one
+  `process_event_deliveries` row per destination (notification, webhook);
+  `events.ts` claims with `process_claim_deliveries()` (lease, SKIP LOCKED),
+  calls out with no transaction open, settles via `process_settle_delivery()`
+  (delivered / failed + backoff / skipped / dead). The hourly `process-sla`
+  cron drains retries; `process_dead_deliveries` lists dead letters.
 - **Events → notifications:** every function inserts `process_events`;
   `events.ts` dispatches undispatched ones (push via `push_ops`, Telegram, and
   `PROCESS_EVENT_WEBHOOK_URL` for n8n) exactly once (`payload.dispatched_at`).
