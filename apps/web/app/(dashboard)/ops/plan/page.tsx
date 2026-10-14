@@ -74,7 +74,20 @@ interface Unscheduled {
   customer_name: string | null;
   remaining: number;
   scheduled: number;
+  drafted: number;
   unscheduled: number;
+}
+interface PlaceResult {
+  placed: number;
+  orders: number;
+  skipped: number;
+  results: {
+    odoo_order_id: number;
+    order_name: string;
+    outcome: "created" | "appended" | "revised" | "skipped";
+    lines: number;
+    reason?: string;
+  }[];
 }
 interface WeekPayload {
   week: { start: string; end: string; days: string[] };
@@ -187,7 +200,11 @@ export default function PlanPage() {
             onSaved={() => queryClient.invalidateQueries({ queryKey: ["ops-plan"] })}
           />
           <CommitmentsGrid payload={q.data} />
-          <UnscheduledCard rows={q.data.unscheduled} />
+          <UnscheduledCard
+            rows={q.data.unscheduled}
+            weekDays={q.data.week.days}
+            onPlaced={() => queryClient.invalidateQueries({ queryKey: ["ops-plan"] })}
+          />
         </>
       ) : null}
     </div>
@@ -709,12 +726,81 @@ function CommitmentsGrid({ payload }: { payload: WeekPayload }) {
  *
  * These cannot show as at-risk, because as far as the schedule is concerned
  * they do not exist — which makes them more dangerous than a red row, not
- * less. The fix is a delivery schedule, so the card links to where that is
- * done rather than pretending it can be fixed here.
+ * less.
+ *
+ * Placing one here writes a DRAFT schedule version and nothing more. No
+ * customer is told anything; the draft still has to be sent and confirmed one
+ * customer at a time on the Demand screen. That is what makes it safe to
+ * place a dozen lines in one click — and it is stated on the card, because a
+ * planner should never have to guess whether a button just promised
+ * something to somebody.
  */
-function UnscheduledCard({ rows }: { rows: Unscheduled[] }) {
+function UnscheduledCard({
+  rows,
+  weekDays,
+  onPlaced,
+}: {
+  rows: Unscheduled[];
+  weekDays: string[];
+  onPlaced: () => void;
+}) {
+  const [dates, setDates] = useState<Record<string, string>>({});
+  const [quantities, setQuantities] = useState<Record<string, string>>({});
+  const [revisionReason, setRevisionReason] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [report, setReport] = useState<PlaceResult | null>(null);
+
+  const placeable = rows.filter((r) => r.unscheduled > 0);
+  const awaitingSend = rows.filter((r) => r.drafted > 0);
+  const chosen = placeable.filter((r) => (dates[r.so_line_id] ?? "") !== "");
+  const qtyFor = (r: Unscheduled) => {
+    const raw = quantities[r.so_line_id];
+    return raw === undefined || raw === "" ? r.unscheduled : Number(raw);
+  };
+
+  const place = useMutation({
+    mutationFn: () =>
+      fetchJson<PlaceResult>("/api/ops-control/planning/place-demand", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          placements: chosen.map((r) => ({
+            so_line_id: r.so_line_id,
+            delivery_date: dates[r.so_line_id],
+            quantity: qtyFor(r),
+          })),
+          ...(revisionReason.trim() ? { revision_reason: revisionReason.trim() } : {}),
+        }),
+      }),
+    onSuccess: (r) => {
+      setErr(null);
+      setReport(r);
+      // Clear only what actually landed, so a skipped row keeps its date and
+      // the planner can act on the reason without retyping.
+      const skippedOrders = new Set(
+        r.results.filter((x) => x.outcome === "skipped").map((x) => x.order_name),
+      );
+      setDates((d) => {
+        const next: Record<string, string> = {};
+        for (const row of rows) {
+          if (skippedOrders.has(row.order_name) && d[row.so_line_id]) {
+            next[row.so_line_id] = d[row.so_line_id];
+          }
+        }
+        return next;
+      });
+      onPlaced();
+    },
+    onError: (e: Error) => setErr(e.message),
+  });
+
   if (rows.length === 0) return null;
-  const total = rows.reduce((s, r) => s + r.unscheduled, 0);
+  const total = placeable.reduce((s, r) => s + r.unscheduled, 0);
+  const draftedTotal = awaitingSend.reduce((s, r) => s + r.drafted, 0);
+  const needsReason = report?.results.some((r) =>
+    (r.reason ?? "").includes("needs a reason"),
+  );
+
   return (
     <Card className="p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -723,43 +809,180 @@ function UnscheduledCard({ rows }: { rows: Unscheduled[] }) {
             Sold but never scheduled
           </h3>
           <p className="text-sm text-slate-500">
-            {qty(total)} units across {rows.length}{" "}
-            {rows.length === 1 ? "order line" : "order lines"} have no confirmed
-            delivery date. They cannot appear as at-risk above, because nothing
-            has been promised yet — which is the easier way to miss them.
+            {qty(total)} units across {placeable.length}{" "}
+            {placeable.length === 1 ? "order line" : "order lines"} have no
+            delivery date at all. They cannot appear as at-risk above, because
+            nothing has been promised yet — which is the easier way to miss
+            them.
+          </p>
+          {draftedTotal > 0 && (
+            <p className="mt-1 text-sm text-sky-800 dark:text-sky-200">
+              {qty(draftedTotal)} units across {awaitingSend.length}{" "}
+              {awaitingSend.length === 1 ? "line is" : "lines are"} already
+              drafted and waiting to be sent —{" "}
+              <Link href="/ops/demand" className="underline underline-offset-2">
+                send and confirm in Demand
+              </Link>
+              . Until then the customer has not been told.
+            </p>
+          )}
+          <p className="mt-1 text-sm text-slate-500">
+            Setting a date here creates a{" "}
+            <strong className="font-medium text-slate-700 dark:text-slate-200">
+              draft
+            </strong>{" "}
+            schedule. Nothing reaches the customer until it is sent and
+            confirmed in{" "}
+            <Link href="/ops/demand" className="underline underline-offset-2">
+              Demand
+            </Link>
+            .
           </p>
         </div>
-        <Link
-          href="/ops/demand"
-          className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-600 dark:text-slate-200"
+        <button
+          onClick={() => place.mutate()}
+          disabled={chosen.length === 0 || place.isPending}
+          className="min-h-11 rounded-xl bg-slate-900 px-4 text-base font-medium text-white disabled:opacity-40 dark:bg-white dark:text-slate-900"
         >
-          Schedule in Demand
-        </Link>
+          {place.isPending
+            ? "Placing…"
+            : chosen.length > 0
+              ? `Draft ${chosen.length} ${chosen.length === 1 ? "delivery" : "deliveries"}`
+              : "Set a date to place"}
+        </button>
       </div>
-      <ul className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
-        {rows.slice(0, 12).map((r) => (
-          <li
-            key={r.so_line_id}
-            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-sm"
-          >
-            <span className="font-medium text-slate-900 dark:text-white">
-              {r.customer_name ?? r.order_name}
-            </span>
-            <span className="text-slate-500">{r.product_name ?? "—"}</span>
-            <span className="ml-auto tabular-nums text-slate-700 dark:text-slate-200">
-              {qty(r.unscheduled)} unscheduled
-              {r.scheduled > 0 && (
-                <span className="text-slate-400"> of {qty(r.remaining)}</span>
-              )}
-            </span>
-          </li>
-        ))}
-      </ul>
-      {rows.length > 12 && (
+
+      {needsReason && (
+        <div className="mt-3 rounded-xl bg-amber-50 p-3 dark:bg-amber-900/20">
+          <label className="text-sm text-amber-900 dark:text-amber-100">
+            Some of these orders already have a confirmed schedule. Adding to
+            one opens a revision, which needs a reason:
+            <input
+              value={revisionReason}
+              onChange={(e) => setRevisionReason(e.target.value)}
+              placeholder="e.g. customer asked for a second load"
+              className="mt-2 h-11 w-full rounded-lg border border-amber-300 px-3 text-base dark:border-amber-700 dark:bg-slate-800"
+            />
+          </label>
+        </div>
+      )}
+
+      {err && <p className="mt-3 text-sm text-red-700">{err}</p>}
+      {report && !err && <PlaceReport report={report} />}
+
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full min-w-[40rem] text-sm">
+          <thead className="text-left text-slate-500">
+            <tr>
+              <th className="py-2 font-medium">Customer</th>
+              <th className="py-2 font-medium">Product</th>
+              <th className="py-2 text-right font-medium">Unscheduled</th>
+              <th className="py-2 font-medium">Deliver on</th>
+              <th className="py-2 text-right font-medium">Quantity</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {rows.slice(0, 25).map((r) => (
+              <tr key={r.so_line_id}>
+                <td className="py-2">
+                  <div className="font-medium text-slate-900 dark:text-white">
+                    {r.customer_name ?? "—"}
+                  </div>
+                  <div className="text-xs text-slate-400">{r.order_name}</div>
+                </td>
+                <td className="py-2 text-slate-700 dark:text-slate-200">
+                  {r.product_name ?? "—"}
+                </td>
+                <td className="py-2 text-right tabular-nums text-slate-700 dark:text-slate-200">
+                  {r.unscheduled > 0 ? qty(r.unscheduled) : "—"}
+                  {(r.scheduled > 0 || r.drafted > 0) && (
+                    <span className="text-slate-400"> of {qty(r.remaining)}</span>
+                  )}
+                </td>
+                {r.unscheduled > 0 ? (
+                  <>
+                    <td className="py-2">
+                      <input
+                        type="date"
+                        value={dates[r.so_line_id] ?? ""}
+                        min={weekDays[0]}
+                        onChange={(e) =>
+                          setDates((d) => ({ ...d, [r.so_line_id]: e.target.value }))
+                        }
+                        className="h-11 rounded-lg border border-slate-200 px-2 text-base dark:border-slate-700 dark:bg-slate-800"
+                      />
+                    </td>
+                    <td className="py-2 text-right">
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min="1"
+                        max={r.unscheduled}
+                        placeholder={String(r.unscheduled)}
+                        value={quantities[r.so_line_id] ?? ""}
+                        onChange={(e) =>
+                          setQuantities((q) => ({ ...q, [r.so_line_id]: e.target.value }))
+                        }
+                        className="h-11 w-28 rounded-lg border border-slate-200 px-2 text-right text-base tabular-nums dark:border-slate-700 dark:bg-slate-800"
+                      />
+                    </td>
+                  </>
+                ) : (
+                  // Already drafted in full. Offering a date box here would
+                  // invite placing the same line a second time.
+                  <td colSpan={2} className="py-2 text-right text-sm text-sky-700 dark:text-sky-300">
+                    {qty(r.drafted)} drafted, awaiting send
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {rows.length > 25 && (
         <p className="mt-2 text-xs text-slate-400">
-          and {rows.length - 12} more.
+          Showing the 25 largest of {rows.length}. Place these first and the
+          rest move up.
         </p>
       )}
     </Card>
+  );
+}
+
+/**
+ * What actually happened, per order.
+ *
+ * A skipped order is the interesting case and always carries its reason —
+ * "12 placed" with three silently dropped would be the worst possible
+ * outcome on a screen whose whole purpose is not losing commitments.
+ */
+function PlaceReport({ report }: { report: PlaceResult }) {
+  const skipped = report.results.filter((r) => r.outcome === "skipped");
+  return (
+    <div className="mt-3 space-y-2">
+      <p className="text-sm text-slate-700 dark:text-slate-200">
+        {report.placed > 0
+          ? `Drafted ${report.placed} ${report.placed === 1 ? "delivery" : "deliveries"} across ${report.orders - report.skipped} ${report.orders - report.skipped === 1 ? "order" : "orders"}.`
+          : "Nothing was placed."}
+        {report.placed > 0 && (
+          <>
+            {" "}
+            <Link href="/ops/demand" className="underline underline-offset-2">
+              Send and confirm them in Demand
+            </Link>{" "}
+            — until then no customer has been told anything.
+          </>
+        )}
+      </p>
+      {skipped.length > 0 && (
+        <ul className="space-y-1 rounded-xl bg-amber-50 p-3 text-sm dark:bg-amber-900/20">
+          {skipped.map((r) => (
+            <li key={r.odoo_order_id} className="text-amber-900 dark:text-amber-100">
+              <span className="font-medium">{r.order_name}</span> — {r.reason}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

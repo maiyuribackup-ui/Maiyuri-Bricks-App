@@ -71,7 +71,11 @@ export interface UnscheduledRow {
   order_name: string;
   customer_name: string | null;
   remaining: number;
+  /** promised to the customer by an ACTIVE CONFIRMED version */
   scheduled: number;
+  /** sitting in an OPEN DRAFT — a date exists, but nobody has been told */
+  drafted: number;
+  /** what still has no date at all */
   unscheduled: number;
 }
 
@@ -445,28 +449,57 @@ async function loadUnscheduled(): Promise<UnscheduledRow[]> {
   );
   if (open.length === 0) return [];
 
-  // Scheduled quantity = what the ACTIVE CONFIRMED versions promise. A draft
-  // is not a commitment, so it must not make demand look handled.
+  // Two different facts, kept apart on purpose.
+  //
+  // SCHEDULED is what an ACTIVE CONFIRMED version promises: a commitment.
+  // DRAFTED is what sits in an open draft: a date exists, but no customer has
+  // been told anything.
+  //
+  // Both must be subtracted from what still needs a date, or a line placed
+  // into a draft would keep appearing as unscheduled and get placed twice.
+  // But they must not be merged, because only one of them is a promise.
   const { data: sched } = await supabaseAdmin
     .from("oc_delivery_schedules")
-    .select("active_confirmed_version_id")
-    .not("active_confirmed_version_id", "is", null);
+    .select("id, active_confirmed_version_id");
+  const scheduleRows = (sched ?? []) as {
+    id: string;
+    active_confirmed_version_id: string | null;
+  }[];
+  const confirmedVersionIds = scheduleRows
+    .map((s) => s.active_confirmed_version_id)
+    .filter((v): v is string => Boolean(v));
 
-  const versionIds = ((sched ?? []) as { active_confirmed_version_id: string }[]).map(
-    (s) => s.active_confirmed_version_id,
-  );
-  const { data: schedLines } = versionIds.length
+  const { data: draftVersions } = scheduleRows.length
+    ? await supabaseAdmin
+        .from("oc_delivery_schedule_versions")
+        .select("id")
+        .in("schedule_id", scheduleRows.map((s) => s.id))
+        .eq("status", "draft")
+    : { data: [] };
+  const draftVersionIds = ((draftVersions ?? []) as { id: string }[]).map((v) => v.id);
+
+  const allVersionIds = [...confirmedVersionIds, ...draftVersionIds];
+  const { data: schedLines } = allVersionIds.length
     ? await supabaseAdmin
         .from("oc_delivery_schedule_lines")
-        .select("so_line_id, quantity")
-        .in("version_id", versionIds)
+        .select("so_line_id, quantity, version_id")
+        .in("version_id", allVersionIds)
     : { data: [] };
 
+  const confirmedSet = new Set(confirmedVersionIds);
   const scheduledBySoLine = new Map<string, number>();
-  for (const line of (schedLines ?? []) as { so_line_id: string; quantity: number }[]) {
-    scheduledBySoLine.set(
+  const draftedBySoLine = new Map<string, number>();
+  for (const line of (schedLines ?? []) as {
+    so_line_id: string;
+    quantity: number;
+    version_id: string;
+  }[]) {
+    const target = confirmedSet.has(line.version_id)
+      ? scheduledBySoLine
+      : draftedBySoLine;
+    target.set(
       line.so_line_id,
-      (scheduledBySoLine.get(line.so_line_id) ?? 0) + Number(line.quantity),
+      (target.get(line.so_line_id) ?? 0) + Number(line.quantity),
     );
   }
 
@@ -474,6 +507,7 @@ async function loadUnscheduled(): Promise<UnscheduledRow[]> {
     .map((l) => {
       const remaining = Number(l.qty_ordered) - Number(l.qty_delivered);
       const scheduled = scheduledBySoLine.get(l.id) ?? 0;
+      const drafted = draftedBySoLine.get(l.id) ?? 0;
       return {
         so_line_id: l.id,
         finished_good_id: l.finished_good_id as string,
@@ -482,9 +516,10 @@ async function loadUnscheduled(): Promise<UnscheduledRow[]> {
         customer_name: l.partner_name,
         remaining,
         scheduled,
-        unscheduled: Math.max(0, remaining - scheduled),
+        drafted,
+        unscheduled: Math.max(0, remaining - scheduled - drafted),
       };
     })
-    .filter((r) => r.unscheduled > 0)
-    .sort((a, b) => b.unscheduled - a.unscheduled);
+    .filter((r) => r.unscheduled > 0 || r.drafted > 0)
+    .sort((a, b) => b.unscheduled - a.unscheduled || b.drafted - a.drafted);
 }
