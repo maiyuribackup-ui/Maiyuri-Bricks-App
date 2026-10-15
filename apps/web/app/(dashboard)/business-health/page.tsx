@@ -79,7 +79,6 @@ export default function BusinessHealthPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["business-health"],
     queryFn: fetchBusinessHealth,
-    refetchInterval: 60000, // Auto-refresh every minute
   });
 
   if (error) {

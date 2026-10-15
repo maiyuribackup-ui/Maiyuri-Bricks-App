@@ -142,7 +142,7 @@ export function useProcessDefinition(
   });
 }
 
-/** Live load per stage for the Process Map; refreshes every minute. */
+/** Load per stage for the Process Map; refreshed after relevant mutations. */
 export function useProcessStats(key: string | null) {
   return useQuery({
     queryKey: ["process", "definitions", key, "stats"],
@@ -152,7 +152,6 @@ export function useProcessStats(key: string | null) {
         "Failed to load process load",
       ),
     enabled: !!key,
-    refetchInterval: 60_000,
   });
 }
 
@@ -192,7 +191,6 @@ export function useProcessWork(enabled = true) {
         "Failed to load your process work",
       ),
     enabled,
-    refetchInterval: 60_000,
   });
 }
 

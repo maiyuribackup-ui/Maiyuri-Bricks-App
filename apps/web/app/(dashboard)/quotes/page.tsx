@@ -61,7 +61,6 @@ function useQuotesInbox() {
       if (!res.ok) throw new Error(body.error || "Failed to load quotes");
       return body.data as QuoteRow[];
     },
-    refetchInterval: 60_000,
   });
 }
 

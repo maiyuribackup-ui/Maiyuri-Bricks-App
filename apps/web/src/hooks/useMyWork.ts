@@ -40,7 +40,6 @@ export function useMyWorkQueue() {
   return useQuery({
     queryKey: ["my-work"],
     queryFn: fetchQueue,
-    refetchInterval: 60_000, // keep the badge/summary fresh
   });
 }
 
@@ -190,7 +189,6 @@ export function useReviewQueue(enabled = true) {
       return res.json() as Promise<ApiResponse<WorkItem[]>>;
     },
     enabled,
-    refetchInterval: 60_000,
   });
 }
 
