@@ -236,7 +236,7 @@ export default function MyWorkPage() {
         </>
       )}
 
-      {isAdmin && <ReviewQueueSection />}
+      {isAdmin && <ReviewQueueSection currentUserId={user?.id ?? null} />}
 
       {isAdmin && (
         <CreateWorkItemDialog open={createOpen} onClose={() => setCreateOpen(false)} />
@@ -245,8 +245,12 @@ export default function MyWorkPage() {
   );
 }
 
-/** Supervisor-only: submitted items awaiting approval, with approve/return. */
-function ReviewQueueSection() {
+/**
+ * Supervisor-only: submitted items awaiting approval, with approve/return.
+ * A supervisor's own submission needs another supervisor (maker-checker), so
+ * Approve is replaced by a note on those items; the API enforces the same.
+ */
+function ReviewQueueSection({ currentUserId }: { currentUserId: string | null }) {
   const { data, isLoading } = useReviewQueue();
   const approve = useApproveWorkItem();
   const returnItem = useReturnWorkItem();
@@ -340,15 +344,21 @@ function ReviewQueueSection() {
                 </div>
               </div>
             ) : (
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => approve.mutate(item.id)}
-                  disabled={approve.isPending}
-                  className="rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                  style={{ background: "#3f7d4d" }}
-                >
-                  {approve.isPending ? "Approving…" : "✓ Approve"}
-                </button>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {item.assigned_user_id === currentUserId ? (
+                  <p className="text-xs" style={{ color: onehub.textMuted }}>
+                    Your own submission — another supervisor must approve it.
+                  </p>
+                ) : (
+                  <button
+                    onClick={() => approve.mutate(item.id)}
+                    disabled={approve.isPending}
+                    className="rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    style={{ background: "#3f7d4d" }}
+                  >
+                    {approve.isPending ? "Approving…" : "✓ Approve"}
+                  </button>
+                )}
                 <button
                   onClick={() => setReturningId(item.id)}
                   className="rounded-xl border px-4 py-2 text-sm font-medium"

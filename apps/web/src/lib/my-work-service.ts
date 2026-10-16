@@ -12,6 +12,7 @@ import type {
   WorkChecklistTemplateItem,
   WorkItem,
   WorkItemAttachment,
+  WorkItemEventType,
 } from "@maiyuri/shared";
 
 /** Roles that can create/assign/cancel work and review submissions */
@@ -168,7 +169,7 @@ export function photosByTemplateItem(
 /** Append an audit event (best-effort — never blocks the main action) */
 export async function logWorkEvent(entry: {
   work_item_id: string;
-  event_type: string;
+  event_type: WorkItemEventType;
   old_status?: string | null;
   new_status?: string | null;
   performed_by?: string | null;

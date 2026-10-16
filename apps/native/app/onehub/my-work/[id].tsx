@@ -91,6 +91,7 @@ export default function WorkItemDetail() {
   const userId = useAuth((s) => s.session?.user?.id);
   const profile = useMyProfile(userId);
   const isSupervisor = WORK_ADMIN_ROLES.includes(profile.data?.data.role ?? "");
+  const isOwnSubmission = !!userId && item?.assigned_user_id === userId;
   const router = useRouter();
 
   // Process OS stages are mirrored into My Work; the stage panel is the real
@@ -527,6 +528,11 @@ export default function WorkItemDetail() {
                 </Pressable>
               </View>
             </>
+          ) : isOwnSubmission ? (
+            // Maker-checker: another supervisor approves (API enforces it too)
+            <Text className="text-sm text-slate-500">
+              Your own submission — another supervisor must approve it.
+            </Text>
           ) : (
             <View className="flex-row gap-2">
               <Pressable
