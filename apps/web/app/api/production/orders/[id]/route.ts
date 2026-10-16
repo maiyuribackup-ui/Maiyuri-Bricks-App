@@ -3,6 +3,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { success, error, notFound, parseBody } from "@/lib/api-utils";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  requireProductionRole,
+  PRODUCTION_DELETE_ROLES,
+} from "@/lib/production-auth";
 import { getProductionOrder } from "@/lib/production-service";
 import { updateProductionOrderSchema } from "@maiyuri/shared";
 import type { ProductionOrder } from "@maiyuri/shared";
@@ -36,6 +40,9 @@ export async function GET(request: NextRequest, { params }: Params) {
 // PUT /api/production/orders/[id] - Update a production order
 export async function PUT(request: NextRequest, { params }: Params) {
   try {
+    const auth = await requireProductionRole(request);
+    if (auth.errorResponse) return auth.errorResponse;
+
     const { id } = await params;
 
     if (!id) {
@@ -69,6 +76,21 @@ export async function PUT(request: NextRequest, { params }: Params) {
       return error("Failed to update production order", 500);
     }
 
+    // Auto-variance: reported actuals flow into the active ops plan.
+    if (parsed.data.actual_quantity != null && order) {
+      const { matchProductionActual } = await import(
+        "@/lib/ops-planning/variance-matcher"
+      );
+      await matchProductionActual({
+        finished_good_id:
+          ((order as Record<string, unknown>).finished_good_id as string) ??
+          null,
+        scheduled_date:
+          ((order as Record<string, unknown>).scheduled_date as string) ?? null,
+        actual_quantity: parsed.data.actual_quantity,
+      });
+    }
+
     return success<ProductionOrder>(order);
   } catch (err) {
     console.error("Error updating production order:", err);
@@ -79,6 +101,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
 // DELETE /api/production/orders/[id] - Delete a production order (founders only)
 export async function DELETE(request: NextRequest, { params }: Params) {
   try {
+    const auth = await requireProductionRole(request, PRODUCTION_DELETE_ROLES);
+    if (auth.errorResponse) return auth.errorResponse;
+
     const { id } = await params;
 
     if (!id) {

@@ -7,7 +7,7 @@
  * - 7-section layout
  */
 
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 
 async function testSmartQuoteRedesign() {
   console.log("Launching browser...");

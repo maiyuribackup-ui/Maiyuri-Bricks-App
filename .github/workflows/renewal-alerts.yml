@@ -1,0 +1,30 @@
+name: Renewal & compliance alerts
+
+# 03:35 UTC = 09:05 IST — right after the receivables chase. Telegram ping
+# for overdue renewals and the 7/3/1/0-day marks. Silent when nothing's due.
+
+on:
+  schedule:
+    - cron: "35 3 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger renewal alerts cron
+        run: |
+          status=$(curl -s -o /tmp/r.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://mb.maiyuri.com/api/cron/renewal-alerts")
+          echo "HTTP $status"; cat /tmp/r.json
+          if [ "$status" -ge 400 ]; then exit 1; fi
+
+      - name: Alert on failure
+        if: failure()
+        continue-on-error: true
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="❌ ${{ github.workflow }} failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

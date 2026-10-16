@@ -1,20 +1,25 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { smartQuoteTokens, cn } from "./tokens";
 import { LanguageToggle } from "./ui/LanguageToggle";
-import { HeroSection } from "./ui/HeroSection";
-import { PersonalizationCard } from "./ui/PersonalizationCard";
 import { WhyChennaiWorksSection } from "./ui/WhyChennaiWorksSection";
-import { ProofSection } from "./ui/ProofSection";
 import { ObjectionAnswerSection } from "./ui/ObjectionAnswerSection";
 import { InteractiveEstimate } from "./ui/InteractiveEstimate";
+import { DownloadQuoteButton } from "./ui/DownloadQuoteButton";
+import { RoutedCtaSection } from "./ui/RoutedCtaSection";
 import { WallCostComparison } from "@/components/wall-cost/WallCostComparison";
 import { computeWallComparison } from "@/lib/pricing/wall-cost";
+import {
+  makeCopyReader,
+  showBlock,
+  showPage,
+} from "@/lib/smart-quote-page";
 import type {
+  SmartQuoteCtaSubmission,
   SmartQuoteLanguage,
+  SmartQuotePageKey,
   SmartQuoteWithImages,
-  SmartQuotePersonalizationSnippets,
 } from "@maiyuri/shared";
 
 interface OfferedProduct {
@@ -28,70 +33,42 @@ interface SmartQuoteViewProps {
   slug: string;
 }
 
-// Default personalization snippets if not provided
-const defaultSnippets: SmartQuotePersonalizationSnippets = {
-  en: {
-    p1: "We've analyzed your needs and believe earth blocks could be the perfect fit for your Chennai home.",
-    p2: "Let us show you why this works for families like yours.",
-  },
-  ta: {
-    p1: "உங்கள் தேவைகளை பகுப்பாய்வு செய்துள்ளோம், மண் செங்கற்கள் உங்கள் சென்னை வீட்டிற்கு சரியான தேர்வாக இருக்கும் என நம்புகிறோம்.",
-    p2: "உங்களைப் போன்ற குடும்பங்களுக்கு இது ஏன் வேலை செய்கிறது என்பதைக் காட்டுவோம்.",
-  },
-};
-
-// Hero copy - belief-breaking headline about Tamil architecture
-const heroCopy = {
-  en: {
-    headline:
-      "You've admired homes inspired by traditional Tamil architecture. Now you can build one in Chennai.",
-    subheadline:
-      "Not a heritage village. Not a resort. A real eco-friendly home designed for Chennai heat and city living.",
-  },
-  ta: {
-    headline:
-      "பாரம்பரிய தமிழ் கட்டிடக்கலையால் ஈர்க்கப்பட்ட வீடுகளை நீங்கள் பாராட்டியுள்ளீர்கள். இப்போது சென்னையில் ஒன்றை நீங்களே கட்டலாம்.",
-    subheadline:
-      "பாரம்பரிய கிராமம் அல்ல. ரிசார்ட் அல்ல. சென்னை வெப்பத்திற்கும் நகர வாழ்க்கைக்கும் வடிவமைக்கப்பட்ட உண்மையான சுற்றுச்சூழல் நட்பு வீடு.",
-  },
-};
-
 /**
- * Smart Quote View - Steve Jobs Style
+ * Smart Quote View — quote-first.
  *
- * Design Philosophy:
- * - One idea per screen
- * - Big visuals, few words
- * - Breathing room everywhere
- * - AI-routed personalization
+ * The customer opens this link to see a price, so the price leads and nothing
+ * competes with it. Supporting sections follow only when they earn their place
+ * (the AI's page_config decides), and each speaks to THIS conversation.
  *
- * Section Order:
- * 1. Hero - Belief-breaking headline
- * 2. Personalization - "Made for you" card
- * 3. Chennai Logic - Primary angle benefit
- * 4. Proof - Social proof badges
- * 5. Cost - Price range display
- * 6. Objections - Answer top concern
- * 7. CTA - AI-routed single action
+ * Section order:
+ * 1. The quote      — product, engineer's rate, quantity, total
+ * 2. Top objection  — the concern actually raised on the call
+ * 3. Cost comparison— why this price beats red brick / AAC
+ * 4. Chennai logic  — why it works here, kept brief
+ * 5. CTA            — the single AI-routed next step
+ *
+ * Removed deliberately: full-bleed hero image, the Tamil-architecture story,
+ * the "made for you" card and stock proof photos — none of them are the quote.
  */
 export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
   const [language, setLanguage] = useState<SmartQuoteLanguage>(
     quote.language_default,
   );
 
-  // Get copy for current language
-  const copy = quote.copy_map[language];
-  const getCopy = useCallback(
-    (key: string, fallback: string = ""): string => {
-      return copy[key] ?? fallback;
-    },
-    [copy],
+  // AI copy for the active language, with brand text as the fallback.
+  const getCopy = useMemo(
+    () => makeCopyReader(quote.copy_map, language),
+    [quote.copy_map, language],
   );
 
-  // Get personalization snippets (from lead's SmartQuotePayload or defaults)
-  const personalizationSnippets: SmartQuotePersonalizationSnippets =
-    quote.lead?.smart_quote_payload?.personalization_snippets ??
-    defaultSnippets;
+  // The AI's page plan decides which sections this customer sees. Quotes
+  // generated before page_config existed have none, and show everything.
+  const config = quote.page_config;
+  const show = useCallback(
+    (page: SmartQuotePageKey, block?: string) =>
+      block ? showBlock(config, page, block) : showPage(config, page),
+    [config],
+  );
 
   // Get top objections (max 2)
   const topObjections =
@@ -157,6 +134,40 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
     return () => observer.disconnect();
   }, [trackEvent]);
 
+  // The AI-routed CTA closes the page when the plan includes it. When it does,
+  // it is the ONE call to action, so the estimate's inline WhatsApp button
+  // stands down (see the "one CTA only" rule in the strategy prompt).
+  const showRoutedCta = show("cta", "single_cta");
+
+  const handleCtaSubmit = useCallback(
+    async (data: SmartQuoteCtaSubmission) => {
+      const res = await fetch(`/api/sq/${slug}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        // Surface failure to RoutedCtaSection so the customer sees its error
+        // state and can retry, rather than a silent success.
+        throw new Error("Submit failed");
+      }
+      trackEvent("cta_click", "routed_cta", {
+        route: quote.route_decision,
+      });
+    },
+    [slug, trackEvent, quote.route_decision],
+  );
+
+  // Same gate the staff share buttons use: no engineer rate, no document.
+  const rate = quote.pricing_config?.quoted_rate;
+  const hasEngineerRate = rate != null && rate > 0;
+
+  // Unit of the quoted product ("piece" or "sqft"), which decides whether the
+  // quoted quantity can be read as a wall area.
+  const quotedUnit = quote.products?.find(
+    (p) => p.id === quote.pricing_config?.default_product,
+  )?.unit;
+
   // Quote URL (for prefilled WhatsApp message)
   const quoteUrl =
     typeof window !== "undefined" ? window.location.href : `/sq/${slug}`;
@@ -168,75 +179,106 @@ export function SmartQuoteView({ quote, slug }: SmartQuoteViewProps) {
       {/* Language Toggle - Fixed top right */}
       <LanguageToggle value={language} onChange={handleLanguageChange} />
 
-      {/* === SECTION 1: HERO === */}
-      {/* Full-bleed image, belief-breaking headline, trust chips, CTA */}
-      <section data-section="hero">
-        <HeroSection
-          image={quote.images.entry}
-          headline={heroCopy[language].headline}
-          subheadline={heroCopy[language].subheadline}
-          language={language}
-        />
-      </section>
-
-      {/* === SECTION 2: MADE FOR YOU === */}
-      {/* Personalized insights from AI */}
-      <section data-section="made_for_you">
-        <PersonalizationCard
-          snippets={personalizationSnippets}
-          language={language}
-          persona={quote.persona ?? undefined}
-        />
-      </section>
-
-      {/* === SECTION 3: WHY CHENNAI WORKS === */}
-      {/* Chennai-specific logic with 3 icon cards */}
-      <section data-section="why_chennai_works">
-        <WhyChennaiWorksSection language={language} />
-      </section>
-
-      {/* === SECTION 4: PROOF TEASER === */}
-      {/* 2-3 real project images */}
-      <section data-section="proof_teaser">
-        <ProofSection language={language} />
-      </section>
-
-      {/* === SECTION 5: OBJECTION HANDLING === */}
-      {/* Max 2 objections, accordion style */}
-      {topObjections.length > 0 && (
-        <section data-section="objection_handling">
-          <ObjectionAnswerSection
-            objections={topObjections}
-            language={language}
-          />
-        </section>
-      )}
-
-      {/* === SECTION 6: INTERACTIVE ESTIMATE + WHATSAPP CTA (finale) === */}
-      <section data-section="instant_estimate">
+      {/* === THE QUOTE === */}
+      {/* This IS the page. The customer opens the link to see a price, so the
+          quote leads — product, engineer's rate, quantity and total. Everything
+          below is supporting material and only appears when it earns its place. */}
+      <section data-section="instant_estimate" className="pt-14 sm:pt-16">
         <InteractiveEstimate
           slug={slug}
           language={language}
           products={quote.products ?? []}
           pricing={quote.pricing_config}
           quoteUrl={quoteUrl}
+          headline={getCopy(
+            "cost.section_headline",
+            language === "ta" ? "உங்கள் விலைப்புள்ளி" : "Your quote",
+          )}
+          rangeFrame={getCopy("cost.range_frame")}
+          ctaLabel={getCopy("cta.primary_cta", getCopy("entry.primary_cta"))}
+          showWhatsAppCta={!showRoutedCta}
           onCtaTrack={(payload) => trackEvent("cta_click", "instant_estimate", payload)}
         />
       </section>
 
-      {/* === SECTION 7: TOTAL-COST-OF-CONSTRUCTION COMPARISON === */}
-      {(() => {
-        const comparison = computeWallComparison(
-          quote.wall_cost_config,
-          quote.pricing_config?.default_area_sqft ?? null,
-        );
-        if (!comparison) return null;
-        return (
-          <section data-section="cost_comparison" className="max-w-2xl mx-auto px-4">
-            <WallCostComparison comparison={comparison} language={language} />
-          </section>
-        );
-      })()}
+      {/* The quote as a document the customer can forward. Only offered when an
+          engineer has set a rate — without one the PDF route refuses, and a
+          button that always fails is worse than no button. */}
+      {hasEngineerRate && (
+        <DownloadQuoteButton
+          slug={slug}
+          language={language}
+          onDownload={() =>
+            trackEvent("cta_click", "pdf_download", {
+              source: "customer_page",
+            })
+          }
+        />
+      )}
+
+      {/* === SUPPORTING: THE TOP OBJECTION === */}
+      {/* Only the concern actually raised on the call, directly under the price. */}
+      {topObjections.length > 0 && show("objection", "top_objection_answer") && (
+        <section data-section="objection_handling">
+          <ObjectionAnswerSection
+            objections={topObjections}
+            language={language}
+            headline={getCopy("objection.section_headline")}
+            answer={getCopy("objection.answer")}
+            reassurance={getCopy("objection.reassurance")}
+          />
+        </section>
+      )}
+
+      {/* === SUPPORTING: WALL-COST COMPARISON === */}
+      {show("cost", "soft_compare") &&
+        (() => {
+          // The comparison is priced per sq.ft of WALL. `default_area_sqft` is
+          // the quoted quantity in the PRODUCT's unit, so for a per-piece
+          // product it is a brick count — 4,000 bricks is not 4,000 sq.ft of
+          // wall, and treating it as one printed a wall cost that was simply
+          // wrong. Only feed it through when the quantity really is an area.
+          const comparison = computeWallComparison(
+            quote.wall_cost_config,
+            quotedUnit === "sqft"
+              ? (quote.pricing_config?.default_area_sqft ?? null)
+              : null,
+          );
+          if (!comparison) return null;
+          return (
+            <section data-section="cost_comparison" className="max-w-2xl mx-auto px-4">
+              <WallCostComparison comparison={comparison} language={language} />
+            </section>
+          );
+        })()}
+
+      {/* === SUPPORTING: WHY THIS WORKS IN CHENNAI === */}
+      {show("climate", "chennai_logic") && (
+        <section data-section="why_chennai_works">
+          <WhyChennaiWorksSection
+            language={language}
+            headline={getCopy("climate.section_headline")}
+            insight={getCopy("climate.core_insight")}
+          />
+        </section>
+      )}
+
+      {/* === CTA: THE ROUTED NEXT STEP === */}
+      {/* One CTA, chosen by the AI from the conversation: book a factory
+          visit, schedule a technical call, get an estimate, or nurture. */}
+      {showRoutedCta && (
+        <section data-section="routed_cta">
+          <RoutedCtaSection
+            /* No route decided → nurture, the lowest-pressure next step */
+            routeDecision={quote.route_decision ?? "nurture"}
+            language={language}
+            onSubmit={handleCtaSubmit}
+            headline={getCopy("cta.section_headline")}
+            ctaLabel={getCopy("cta.primary_cta")}
+            description={getCopy("cta.route_explainer")}
+          />
+        </section>
+      )}
 
       {/* Footer */}
       <footer className={cn("py-10 text-center", colors.background.secondary)}>

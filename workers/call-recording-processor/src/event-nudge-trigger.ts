@@ -14,6 +14,19 @@ interface TriggerNudgeOptions {
   objections?: string[];
 }
 
+interface NudgeResponse {
+  nudge_sent: boolean;
+  message?: string;
+}
+
+function isNudgeResponse(value: unknown): value is NudgeResponse {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as Record<string, unknown>).nudge_sent === "boolean"
+  );
+}
+
 /**
  * Trigger call_recording_processed nudge via API
  */
@@ -76,7 +89,14 @@ export async function triggerCallRecordingNudge(
       return false;
     }
 
-    const result = await response.json();
+    const result: unknown = await response.json();
+    if (!isNudgeResponse(result)) {
+      logError("Invalid call_recording_processed nudge response", {
+        recordingId,
+        leadId,
+      });
+      return false;
+    }
 
     if (result.nudge_sent) {
       logProgress(
@@ -175,7 +195,14 @@ export async function triggerObjectionNudge(
       return false;
     }
 
-    const result = await response.json();
+    const result: unknown = await response.json();
+    if (!isNudgeResponse(result)) {
+      logError("Invalid objection_detected nudge response", {
+        recordingId,
+        leadId,
+      });
+      return false;
+    }
     return result.nudge_sent;
   } catch (error) {
     clearTimeout(timeoutId);

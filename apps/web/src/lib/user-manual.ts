@@ -14,7 +14,6 @@ export type ManualSection =
   | "lead-edit"
   | "knowledge"
   | "coaching"
-  | "design"
   | "tasks"
   | "kpi"
   | "approvals"
@@ -435,15 +434,16 @@ export const manualContent: Record<ManualSection, ManualContent> = {
 
   coaching: {
     id: "coaching",
-    title: "Sales Coaching",
+    title: "AI Sales Coach",
     description:
-      "AI-powered coaching insights from call recordings. Improve sales performance.",
+      "Your daily training hub: learn modules, take quizzes, do assignments, hit targets, and get AI feedback on lead handling.",
     path: "/coaching",
     quickStart: [
-      "View coaching insights by staff",
-      "See missed opportunities",
-      "Learn from successful calls",
-      "Track improvement over time",
+      "Open your Today's Coaching Plan",
+      "Work through a lesson, then take its quiz",
+      "Submit the day's assignment for review",
+      "Mark your daily targets done",
+      "Check AI Feedback for lead-handling tips",
     ],
     steps: [
       {
@@ -475,59 +475,6 @@ export const manualContent: Record<ManualSection, ManualContent> = {
     ],
   },
 
-  design: {
-    id: "design",
-    title: "Floor Plan Designer",
-    description:
-      "AI-powered floor plan generation. Answer questions, get custom designs.",
-    path: "/design",
-    quickStart: [
-      "Start new design session",
-      "Answer chatbot questions",
-      "Review generated blueprint",
-      "Download floor plan image",
-    ],
-    steps: [
-      {
-        action: "Click 'Start New Design' to begin",
-        result: "AI chatbot starts asking questions",
-      },
-      {
-        action: "Answer questions about plot size, rooms, etc.",
-        result: "Use quick answer buttons or type custom responses",
-        tip: "Be specific about your requirements",
-      },
-      {
-        action: "Upload plot sketch if you have one",
-        result: "AI analyzes the image for dimensions",
-      },
-      {
-        action: "Review Vastu compliance suggestions",
-        result: "Design follows traditional principles",
-      },
-      {
-        action: "Wait for blueprint generation (30-60 seconds)",
-        result: "AI creates detailed floor plan",
-      },
-      {
-        action: "View the generated floor plan image",
-        result: "See 2D layout with room dimensions",
-      },
-      {
-        action: "Click 'Download' to save the image",
-        result: "PNG file saved to your device",
-      },
-      {
-        action: "Request modifications if needed",
-        result: "AI adjusts the design based on feedback",
-      },
-    ],
-    tips: [
-      "Have plot dimensions ready before starting",
-      "Mention Vastu preferences early in the conversation",
-      "Download designs to share with customers",
-    ],
-  },
 
   tasks: {
     id: "tasks",
@@ -869,7 +816,6 @@ export const pageToSection: Record<string, ManualSection> = {
   "/leads/new": "lead-new",
   "/knowledge": "knowledge",
   "/coaching": "coaching",
-  "/design": "design",
   "/tasks": "tasks",
   "/kpi": "kpi",
   "/approvals": "approvals",

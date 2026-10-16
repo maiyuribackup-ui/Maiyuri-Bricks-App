@@ -7,6 +7,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { traceAiGeneration } from '@/lib/observability/langfuse';
 import type {
   HealthCheckResult,
   AgentGroupResult,
@@ -35,16 +36,25 @@ export async function analyzeHealthResults(
   try {
     const anthropic = new Anthropic({ apiKey });
 
-    const response = await anthropic.messages.create({
+    const rawResponse = await traceAiGeneration({
+      name: 'app.health.ai_analyzer',
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
-      messages: [{ role: 'user', content: prompt }],
-    });
+      input: { agentResults, previousResults },
+      metadata: { module: 'health', step: 'ai_analyzer' },
+      run: async () => {
+        const response = await anthropic.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 500,
+          messages: [{ role: 'user', content: prompt }],
+        });
 
-    const rawResponse =
-      response.content[0]?.type === 'text'
-        ? response.content[0].text
-        : '';
+        const output =
+          response.content[0]?.type === 'text'
+            ? response.content[0].text
+            : '';
+        return { output, value: output };
+      },
+    });
 
     const analysis = parseAnalysisResponse(rawResponse);
 

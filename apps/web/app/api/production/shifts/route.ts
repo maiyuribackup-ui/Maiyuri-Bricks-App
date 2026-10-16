@@ -9,6 +9,7 @@ import {
   parseQuery,
 } from "@/lib/api-utils";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { requireProductionRole } from "@/lib/production-auth";
 import { createShift, getShifts } from "@/lib/production-service";
 import { createShiftSchema } from "@maiyuri/shared";
 import type { ProductionShift } from "@maiyuri/shared";
@@ -34,6 +35,9 @@ export async function GET(request: NextRequest) {
 // POST /api/production/shifts - Create a new shift
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireProductionRole(request);
+    if (auth.errorResponse) return auth.errorResponse;
+
     const parsed = await parseBody(request, createShiftSchema);
     if (parsed.error) return parsed.error;
 

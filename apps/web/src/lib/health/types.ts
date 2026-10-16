@@ -97,9 +97,6 @@ export const THRESHOLDS = {
 /** Expected intervals for cron jobs */
 export const CRON_EXPECTED_INTERVALS: Record<string, number> = {
   'nudge-digest': 24,
-  'quote-nudges': 24,
-  'daily-summary': 24,
-  'weekly-ceo-briefing': 168, // 7 days
   'odoo-sync': 24,
   'delivery-sync': 24,
 };

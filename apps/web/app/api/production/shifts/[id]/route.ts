@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { success, error, notFound, parseBody } from "@/lib/api-utils";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { requireProductionRole } from "@/lib/production-auth";
 import { endShift } from "@/lib/production-service";
 import { updateShiftSchema } from "@maiyuri/shared";
 import type { ProductionShift } from "@maiyuri/shared";
@@ -48,6 +49,9 @@ export async function GET(request: NextRequest, { params }: Params) {
 // PUT /api/production/shifts/[id] - Update a shift (primarily for ending)
 export async function PUT(request: NextRequest, { params }: Params) {
   try {
+    const auth = await requireProductionRole(request);
+    if (auth.errorResponse) return auth.errorResponse;
+
     const { id } = await params;
 
     if (!id) {
@@ -103,6 +107,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
 // DELETE /api/production/shifts/[id] - Delete a shift
 export async function DELETE(request: NextRequest, { params }: Params) {
   try {
+    const auth = await requireProductionRole(request);
+    if (auth.errorResponse) return auth.errorResponse;
+
     const { id } = await params;
 
     if (!id) {

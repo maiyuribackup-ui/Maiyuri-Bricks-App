@@ -3,6 +3,11 @@ name: CI
 on:
   pull_request:
     branches: [main]
+    # `opened, synchronize, reopened` is the default set. `edited` is added
+    # because retargeting a PR's base onto main fires ONLY `edited` — without
+    # it the required Code Quality check silently never runs and the PR shows
+    # the gate as absent rather than failing. Hit on #152.
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
 
@@ -12,9 +17,22 @@ env:
   TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
 jobs:
+  # NOTE: This job reports its check run under the display name "Code Quality".
+  # main's branch protection requires exactly the status-check context
+  # "Code Quality" — the two MUST stay identical. If you change this `name:`,
+  # update the required status check in Settings → Branches → main to match,
+  # or the gate becomes unsatisfiable and every PR to main is blocked.
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
+    # `edited` also fires on title/body edits, which do not change what is
+    # built. Only proceed when the edit was a BASE change (the retarget case
+    # this trigger exists for); `github.event.changes.base` is present only
+    # then. Non-`edited` events are unaffected.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.action != 'edited' ||
+      github.event.changes.base != null
 
     steps:
       - name: Checkout code
@@ -25,6 +43,9 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
@@ -32,12 +53,82 @@ jobs:
         run: npm run typecheck
 
       - name: Lint
-        run: npm run lint || echo "Lint completed with warnings"
+        run: npm run lint
+
+      # The mobile app addresses the API by string, so nothing type-checks a
+      # call site against its route. Two bugs reached production that way: a
+      # route missing the verb the app sends (405) and a route authenticating
+      # from cookies only (401 for a Bearer token). Both were invisible on a
+      # phone. This closes that gap.
+      - name: Mobile API contract
+        run: node scripts/check-mobile-api.mjs
 
       - name: Run tests
-        run: npm run test || echo "Tests completed with failures"
+        run: npm run test
         env:
           CI: true
+
+      # Stage progression is enforced by PostgreSQL triggers so it can cover
+      # web, mobile, AI, and integration writes. Exercise the real migration
+      # against PostgreSQL rather than relying on a source-text assertion.
+      - name: Lead stage progression database regression
+        run: scripts/test-lead-stage-progression.sh
+
+      # `tsc --noEmit` does NOT cover everything `next build` checks. Next
+      # generates route types into .next/types during the build and validates
+      # them there, so an illegal route export — exporting a helper from a
+      # route file, say — passes typecheck and fails the build.
+      #
+      # That gap shipped: PR #128 merged green here while its Vercel build had
+      # already failed, and the quotation PDF sat undeployed until someone
+      # noticed. Build here so CI fails on the same things production does.
+      # Same command Vercel runs. It builds @maiyuri/api first, which compiles
+      # with bun, hence the setup step above. Root `npm run build` would also
+      # drag in the native and mobile apps, which production does not build.
+      - name: Build (same command as Vercel)
+        run: npx turbo run build --filter=@maiyuri/web
+        env:
+          CI: true
+
+  # CLAUDE.md makes bun.lock authoritative and tells contributors to run bun,
+  # but the job above installs with npm, which ignores bun.lock entirely. That
+  # gap is not theoretical: apps/web declared @sparticuz/chromium and
+  # puppeteer-core in #131 without the lockfile ever being regenerated, and
+  # `bun install --frozen-lockfile` was broken for two weeks while CI stayed
+  # green the whole time.
+  #
+  # This job closes that hole. It is intentionally minimal — it proves the
+  # lockfile matches the manifests, nothing more.
+  #
+  # This job is NOT a required status check. Make it required in
+  # Settings → Branches → main once it has proven stable.
+  bun-lockfile:
+    name: Bun Lockfile
+    runs-on: ubuntu-latest
+    # `edited` also fires on title/body edits, which do not change what is
+    # built. Only proceed when the edit was a BASE change (the retarget case
+    # this trigger exists for); `github.event.changes.base` is present only
+    # then. Non-`edited` events are unaffected.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.action != 'edited' ||
+      github.event.changes.base != null
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      # Fails if bun.lock disagrees with any package.json in the workspace.
+      - name: Verify bun.lock is current
+        run: bun install --frozen-lockfile
+
+      # The gate CLAUDE.md actually tells contributors to run. Green across all
+      # four workspaces as of #154, which fixed the last phantom dependency.
+      - name: Verify the contributor typecheck
+        run: bun run typecheck
 
   # Telegram notifications temporarily disabled
   # notify-success:

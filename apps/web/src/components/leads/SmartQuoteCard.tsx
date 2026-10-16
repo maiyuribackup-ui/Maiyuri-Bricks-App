@@ -6,6 +6,7 @@ import { Card, Button, Badge, Spinner } from "@maiyuri/ui";
 import { cn } from "@maiyuri/ui";
 import type { Lead, SmartQuote } from "@maiyuri/shared";
 import { SmartQuoteReview } from "./SmartQuoteReview";
+import { getQuoteReadiness } from "@/lib/pricing/quote-readiness";
 
 interface SmartQuoteCardProps {
   lead: Lead;
@@ -27,8 +28,11 @@ async function generateSmartQuote(
   return res.json();
 }
 
+/** Newest existing quote for this lead, or null if none has been generated. */
 async function fetchExistingQuote(leadId: string): Promise<SmartQuote | null> {
-  const res = await fetch(`/api/smart-quotes?lead_id=${leadId}`);
+  const res = await fetch(
+    `/api/smart-quotes?lead_id=${encodeURIComponent(leadId)}`,
+  );
   if (!res.ok) return null;
   const data = await res.json();
   return data.data?.[0] ?? null;
@@ -38,21 +42,14 @@ export function SmartQuoteCard({ lead, hasTranscripts }: SmartQuoteCardProps) {
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
 
-  // Fetch existing quote for this lead
+  // Look up any quote this lead already has, so staff see the existing link
+  // instead of being offered "Generate" again (and regenerating by mistake).
+  // This is a plain GET: the previous version POSTed to /generate as its query
+  // function, which is a write endpoint, and was disabled with enabled:false —
+  // so an existing quote never loaded at all.
   const { data: existingQuote, isLoading } = useQuery({
     queryKey: ["smart-quote", lead.id],
-    queryFn: async () => {
-      // Check if lead already has a smart quote by searching for it
-      const res = await fetch(`/api/smart-quotes/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lead_id: lead.id, regenerate: false }),
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.data as SmartQuote;
-    },
-    enabled: false, // Don't auto-fetch, we'll use the mutation
+    queryFn: () => fetchExistingQuote(lead.id),
     retry: false,
   });
 
@@ -91,15 +88,19 @@ export function SmartQuoteCard({ lead, hasTranscripts }: SmartQuoteCardProps) {
     ? `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/sq/${quote.link_slug}`
     : null;
 
+  // A quote with no engineer rate would show the customer rate-card pricing.
+  // Block sharing until product, quantity and rate are set.
+  const readiness = getQuoteReadiness(quote?.pricing_config);
+
   const copyLink = async () => {
-    if (!quoteUrl) return;
+    if (!quoteUrl || !readiness.ready) return;
     await navigator.clipboard.writeText(quoteUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const shareWhatsApp = () => {
-    if (!quoteUrl) return;
+    if (!quoteUrl || !readiness.ready) return;
     const text = encodeURIComponent(
       `Hi ${lead.name ?? "there"},\n\nHere's your personalized quote from Maiyuri Bricks:\n${quoteUrl}\n\nTake a look and let us know if you have any questions!`,
     );
@@ -120,7 +121,15 @@ export function SmartQuoteCard({ lead, hasTranscripts }: SmartQuoteCardProps) {
         )}
       </div>
 
-      {quote ? (
+      {isLoading ? (
+        // Checking for an existing quote. Without this the card briefly shows
+        // "Generate Smart Quote" for a lead that already has one — the exact
+        // confusion that leads to accidental regeneration.
+        <div className="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400">
+          <Spinner className="h-4 w-4" />
+          Checking for an existing quote…
+        </div>
+      ) : quote ? (
         // Quote exists - show link and actions
         <div className="space-y-4">
           {/* Quote Info */}
@@ -171,12 +180,26 @@ export function SmartQuoteCard({ lead, hasTranscripts }: SmartQuoteCardProps) {
             </code>
           </div>
 
+          {/* Not priced yet — say so plainly and block sharing */}
+          {!readiness.ready && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-700/60 dark:bg-amber-900/20">
+              <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                Not ready to send
+              </p>
+              <p className="mt-0.5 text-xs text-amber-800 dark:text-amber-300">
+                {readiness.reason}
+              </p>
+            </div>
+          )}
+
           {/* Action buttons */}
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
               variant="secondary"
               onClick={copyLink}
+              disabled={!readiness.ready}
+              title={readiness.reason ?? undefined}
               className="flex items-center gap-1"
             >
               {copied ? (
@@ -191,25 +214,43 @@ export function SmartQuoteCard({ lead, hasTranscripts }: SmartQuoteCardProps) {
                 </>
               )}
             </Button>
+            {/* Open stays enabled: staff previewing their own draft is safe,
+                it is sending it to the customer that is not. */}
             <Button
               size="sm"
               variant="secondary"
               onClick={() => window.open(quoteUrl!, "_blank")}
             >
               <ExternalLinkIcon className="h-3 w-3 mr-1" />
-              Open
+              Preview
             </Button>
             {lead.contact && (
               <Button
                 size="sm"
                 variant="secondary"
                 onClick={shareWhatsApp}
+                disabled={!readiness.ready}
+                title={readiness.reason ?? undefined}
                 className="text-green-600 hover:text-green-700"
               >
                 <WhatsAppIcon className="h-3 w-3 mr-1" />
                 WhatsApp
               </Button>
             )}
+            {/* The same PDF the customer gets — useful for emailing it, or for
+                checking what the document actually says before sharing. */}
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() =>
+                window.open(`/api/sq/${quote.link_slug}/pdf`, "_blank")
+              }
+              disabled={!readiness.ready}
+              title={readiness.reason ?? undefined}
+            >
+              <DownloadIcon className="h-3 w-3 mr-1" />
+              PDF
+            </Button>
           </div>
 
           {/* Engagement + review/tweak pricing before sharing */}
@@ -355,6 +396,24 @@ function ExternalLinkIcon({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+      />
+    </svg>
+  );
+}
+
+function DownloadIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
       />
     </svg>
   );

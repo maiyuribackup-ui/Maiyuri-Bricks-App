@@ -38,6 +38,29 @@ export function getSupabaseAdmin(): SupabaseClient {
         autoRefreshToken: false,
         persistSession: false,
       },
+      global: {
+        /**
+         * Never serve a cached row.
+         *
+         * Next patches global fetch and puts eligible GETs in the Data Cache.
+         * supabase-js issues plain GETs for selects, so a read lands there and,
+         * with no revalidate, stays there indefinitely. `dynamic =
+         * "force-dynamic"` opts the route out of full-route caching but does
+         * not reliably opt these fetches out.
+         *
+         * Observed in production: a lead's name was corrected at 17:41 and the
+         * quotation still printed the old name an hour later — while the phone
+         * and site address on the very same row were current, because the
+         * cached snapshot had been taken between the two edits. Staff
+         * regenerated and still saw the old name, since nothing they could
+         * touch invalidated this cache.
+         *
+         * This client holds the service-role key and is used only by dynamic
+         * API routes, where a stale read is always a bug, never an
+         * optimisation.
+         */
+        fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+      },
     });
   }
   return _supabaseAdmin;

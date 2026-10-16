@@ -6,6 +6,7 @@
  */
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GEMINI_DEFAULT_MODEL } from "@/lib/ai/models";
+import { traceAiGeneration } from "@/lib/observability/langfuse";
 
 export function isGeminiConfigured(): boolean {
   return Boolean(process.env.GOOGLE_AI_API_KEY);
@@ -17,8 +18,17 @@ export async function runGeminiJson<T>(prompt: string): Promise<T | null> {
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: GEMINI_DEFAULT_MODEL });
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const text = await traceAiGeneration({
+      name: "projects.gemini_json",
+      model: GEMINI_DEFAULT_MODEL,
+      input: prompt,
+      metadata: { module: "projects" },
+      run: async () => {
+        const result = await model.generateContent(prompt);
+        const output = result.response.text();
+        return { output, value: output };
+      },
+    });
     // Extract JSON (fenced ```json block or first {...} / [...] span)
     const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
     const raw = fenced

@@ -139,7 +139,7 @@ export function useDeliveries(filters: ClientDeliveryFilters = {}) {
     queryKey: deliveryKeys.list(filters),
     queryFn: () => fetchDeliveries(filters),
     staleTime: 30 * 1000, // 30 seconds
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 }
 

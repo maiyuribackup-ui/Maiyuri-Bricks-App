@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     const { data: user, error: dbError } = await supabaseAdmin
       .from("users")
-      .select("id, email, name, role, language_preference, created_at")
+      .select("id, email, name, role, language_preference, notification_preferences, created_at")
       .eq("id", authUser.id)
       .single();
 
@@ -47,10 +47,10 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, email, language_preference } = body;
+    const { name, email, language_preference, notification_preferences } = body;
 
     // Only allow updating certain fields
-    const updates: Record<string, string> = {};
+    const updates: Record<string, unknown> = {};
     if (name !== undefined) updates.name = name;
     if (email !== undefined) updates.email = email;
     if (
@@ -58,6 +58,21 @@ export async function PUT(request: NextRequest) {
       ["en", "ta"].includes(language_preference)
     ) {
       updates.language_preference = language_preference;
+    }
+    // Push opt-outs (same JSONB shape the mobile app writes; read by
+    // filterByPushPref). Boolean-only sanitize.
+    if (
+      notification_preferences !== undefined &&
+      typeof notification_preferences === "object" &&
+      notification_preferences !== null
+    ) {
+      const clean: Record<string, boolean> = {};
+      for (const [k, v] of Object.entries(
+        notification_preferences as Record<string, unknown>,
+      )) {
+        if (typeof v === "boolean" && k.length <= 40) clean[k] = v;
+      }
+      updates.notification_preferences = clean;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -68,7 +83,7 @@ export async function PUT(request: NextRequest) {
       .from("users")
       .update(updates)
       .eq("id", authUser.id)
-      .select("id, email, name, role, language_preference, created_at")
+      .select("id, email, name, role, language_preference, notification_preferences, created_at")
       .single();
 
     if (dbError) {

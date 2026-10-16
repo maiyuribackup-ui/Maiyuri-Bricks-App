@@ -24,36 +24,40 @@ export const smartQuoteTokens = {
       hero: "bg-stone-900", // Dark for contrast with image
       card: "bg-white backdrop-blur-sm", // Clean cards
     },
-    // Text - High contrast ink tones
+    // Text - warm ink tones. Muted text is tinted from the ground's hue
+    // rather than gray, and dark enough to clear WCAG AA on cream AND white.
     text: {
-      primary: "text-[#161616]", // Deep Ink
-      secondary: "text-[#5B5B5B]", // Muted Gray
-      muted: "text-[#8B8B8B]", // Light Gray
+      primary: "text-[#161616]", // Deep Ink — 16.97:1 on cream
+      secondary: "text-[#5B5B5B]", // Secondary — 6.37:1
+      muted: "text-[#7d6653]", // Warm Muted — 4.97:1 on cream, 5.39:1 on white
       inverse: "text-white", // For dark backgrounds
     },
-    // Accent - Warm terracotta
+    // Accent — Red Soil, canonical per DESIGN.md.
+    // Two values, because one cannot do both jobs at AA:
+    //   #c0562f passes as a BUTTON FILL under white text (4.55:1)
+    //   but only reaches 4.19:1 as TEXT on cream, so text uses the deep step.
     accent: {
-      primary: "text-[#C46A2B]", // Warm Accent
-      secondary: "text-[#8B4A22]", // Darker Accent
-      hover: "text-[#A65824]", // Hover state
+      primary: "text-[#a8481f]", // Red Soil Deep — 5.36:1 as text on cream
+      secondary: "text-[#8f3a18]", // Deeper still, for emphasis
+      hover: "text-[#8f3a18]",
     },
-    // CTA Button - Warm accent
+    // CTA Button - Red Soil fill, white label
     cta: {
-      bg: "bg-[#C46A2B] hover:bg-[#A65824]",
+      bg: "bg-[#c0562f] hover:bg-[#a8481f]",
       text: "text-white",
-      border: "border-[#C46A2B]",
+      border: "border-[#c0562f]",
     },
     // Subtle decorative
     decorative: {
-      line: "bg-[#E8DED2]", // Subtle line
-      dot: "bg-[#C46A2B]",
-      gradient: "from-[#C46A2B]/10 to-transparent",
+      line: "bg-[#efe3d2]", // Warm Border, canonical
+      dot: "bg-[#c0562f]",
+      gradient: "from-[#c0562f]/10 to-transparent",
     },
     // Trust/success colors
     trust: {
-      bg: "bg-[#1E7F4D]/10",
-      text: "text-[#1E7F4D]",
-      icon: "text-[#1E7F4D]",
+      bg: "bg-[#3f7d4d]/10",
+      text: "text-[#3f7d4d]", // Cured Green — 5.00:1 on white
+      icon: "text-[#3f7d4d]",
     },
   },
 

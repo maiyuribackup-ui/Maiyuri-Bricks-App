@@ -1,0 +1,35 @@
+name: Native app CI
+
+# apps/native is standalone (own node_modules, React 19 / Expo SDK 54), so
+# the root turbo pipeline does NOT cover it. This job is the only automated
+# check that the mobile app still compiles.
+
+on:
+  pull_request:
+    paths:
+      - "apps/native/**"
+      - "packages/shared/**"
+  push:
+    branches: [main]
+    paths:
+      - "apps/native/**"
+      - "packages/shared/**"
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/native
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/native/package-lock.json
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+      - name: Typecheck
+        run: npx tsc --noEmit

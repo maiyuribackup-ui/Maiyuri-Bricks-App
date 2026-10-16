@@ -328,7 +328,6 @@ export function useApprovalQueue() {
   return useQuery({
     queryKey: ["approval-queue"],
     queryFn: fetchApprovalQueueStats,
-    refetchInterval: 30000, // Refresh every 30 seconds
   });
 }
 

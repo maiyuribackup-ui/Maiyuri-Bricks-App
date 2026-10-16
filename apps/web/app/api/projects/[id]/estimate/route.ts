@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createSupabaseRouteClient } from "@/lib/supabase-server";
 import { success, error, notFound, forbidden, parseBody } from "@/lib/api-utils";
+import { getUserFromRequest } from "@/lib/supabase-server";
 import { updateProjectEstimateSchema } from "@maiyuri/shared";
 import { computeBoqLine, rollupEstimate } from "@/lib/projects/compute-budget";
 import { checkEstimate } from "@/lib/projects/ai/estimate-checker";
@@ -24,8 +25,12 @@ async function latestEstimate(projectId: string) {
 }
 
 // GET — latest estimate + its BOQ items
-export async function GET(_request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
     const { id } = await params;
     const estimate = await latestEstimate(id);
     const { data: boq } = await supabaseAdmin
@@ -46,6 +51,10 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 // PATCH — replace BOQ lines (recompute each + totals). Draft editing only.
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
     const { id } = await params;
     const parsed = await parseBody(request, updateProjectEstimateSchema);
     if (parsed.error) return parsed.error;
@@ -115,6 +124,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 // POST — approve estimate → freeze baseline onto the project (owner/founder).
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
+    // Auth: cookie (web) or Bearer (mobile). These routes were open - fixed.
+    if (!(await getUserFromRequest(request))) {
+      return error("Authentication required", 401);
+    }
     const { id } = await params;
     const supabase = createSupabaseRouteClient(request);
     const {

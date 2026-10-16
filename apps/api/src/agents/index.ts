@@ -41,6 +41,9 @@ export type {
 // Database Tools
 export * from './tools/supabase-tools';
 
+// Process OS Tools (thin wrappers over the web API)
+export * from './tools/process-tools';
+
 // Default export with all agents
 import { summarize, summarizeNote } from './summarization';
 import { score } from './scoring';

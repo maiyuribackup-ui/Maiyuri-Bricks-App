@@ -76,7 +76,11 @@ export interface ExtractedLeadDetails {
   product_interests: ProductInterest[];
   site_region: string | null;
   site_location: string | null;
+  /** The customer's actual name as spoken on the call (fixes junk filenames). */
+  customer_name: string | null;
   next_action: string | null;
+  /** YYYY-MM-DD (IST) the next action is due — resolved from the call. */
+  follow_up_date: string | null;
   estimated_quantity: number | null;
   notes: string | null;
 }

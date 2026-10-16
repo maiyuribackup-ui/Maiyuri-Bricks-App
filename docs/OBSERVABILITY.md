@@ -547,3 +547,96 @@ setInterval(
 
 _Last Updated: January 17, 2026_
 _Version: 1.0_
+
+---
+
+## 8. AI Observability with Langfuse
+
+Langfuse is used for LLM/AI call tracing. It is optional and fail-open: if the
+Langfuse keys are not configured, AI features continue to work without tracing.
+
+### Self-hosted local stack
+
+Ram's homelab stack lives outside the repo at:
+
+```bash
+/home/ram/langfuse-docker
+```
+
+Useful commands:
+
+```bash
+cd /home/ram/langfuse-docker
+docker compose ps
+docker compose logs -f langfuse-web langfuse-worker
+docker compose up -d
+docker compose down
+```
+
+Default local UI/API endpoint:
+
+```text
+http://127.0.0.1:3031
+```
+
+### App environment variables
+
+Configure these in local/Vercel environments to enable tracing:
+
+```bash
+LANGFUSE_HOST=http://127.0.0.1:3031   # or an internal HTTPS URL for production
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+```
+
+`LANGFUSE_BASE_URL` is also accepted as a backward-compatible alias.
+
+### Instrumentation pattern
+
+Use `traceAiGeneration` from `@/lib/observability/langfuse` around server-side
+LLM calls:
+
+```typescript
+const text = await traceAiGeneration({
+  name: "leads.pre_call_brief",
+  model: GEMINI_DEFAULT_MODEL,
+  input: prompt,
+  metadata: { module: "sales", lead_id: id },
+  run: async () => {
+    const result = await model.generateContent(prompt);
+    const output = result.response.text();
+    return { output, value: output };
+  },
+});
+```
+
+### Privacy rules
+
+- Do not trace raw secrets, API keys, auth headers, passwords, or cookies.
+- Prefer business IDs and module names in metadata.
+- Be deliberate before tracing full customer call transcripts; mask or sample
+  where possible for production.
+- Langfuse failures must never break the core business flow.
+
+### Langfuse v4 + current SDK note
+
+The web app currently uses the existing `langfuse` v3 SDK dependency. The
+self-hosted Langfuse v4 Docker stack must run with:
+
+```bash
+LANGFUSE_MIGRATION_V4_WRITE_MODE=dual
+```
+
+This is set in `/home/ram/langfuse-docker/.env` and passed through
+`docker-compose.yml` for both `langfuse-web` and `langfuse-worker`.
+
+### Production reachability
+
+`http://127.0.0.1:3031` works only from the homelab. Vercel production cannot
+reach that loopback address. For production tracing, set `LANGFUSE_HOST` in
+Vercel to either:
+
+- an internal/public HTTPS URL for this self-hosted Langfuse instance, or
+- Langfuse Cloud.
+
+Do not expose the local Langfuse stack publicly without access control.

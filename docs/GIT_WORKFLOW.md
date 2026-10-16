@@ -556,6 +556,25 @@ git tag -a v0.2.0 -m "Release v0.2.0" && git push origin v0.2.0
 gh run list --limit 5
 ```
 
+
+## Database Migration Merge Control
+
+**Rule:** a PR adding files under `supabase/migrations/` cannot merge until
+every one of those migrations is applied to production. The ordering is
+`CI green → human approval → apply exact artifact to production (record its
+SHA-256) → "Production Schema Ready" check green → merge → Vercel deploys`.
+
+Enforced by `.github/workflows/migration-gate.yml`, which verifies each PR
+migration by name against `supabase_migrations.schema_migrations` in
+production. PRs without migration files skip the check automatically.
+Introduced after Phases 1 and 2 both merged before their schema reached
+production, leaving deployed routes querying tables that did not exist.
+
+One-time setup lives in the header comment of the workflow file (secret
+`SUPABASE_DB_URL`, optional `production-schema` environment reviewers, and
+marking "Production Schema Ready" required on `main`).
+
+---
 ### Links
 
 - [GitHub Repository](https://github.com/maiyuribackup-ui/Maiyuri-Bricks-App)

@@ -3,7 +3,7 @@
  * Uses "robin avadi" lead for testing
  */
 
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 
 // Use environment variables for test credentials
 // NEVER commit actual credentials - see .env.example for setup

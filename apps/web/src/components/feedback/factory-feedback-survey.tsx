@@ -327,7 +327,6 @@ export function FactoryFeedbackSurvey({
     <div className={styles.wrap}>
       <div className={styles.inner}>
         <header className={styles.head}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img className={styles.logo} src={LOGO} alt="Maiyuri Bricks" />
           <p className={styles.brand}>MAIYURI BRICKS</p>
           <p className={styles.ta}>நம் மண். நம் வீடு. நம் அறிவு.</p>

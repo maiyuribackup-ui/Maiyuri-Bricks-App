@@ -12,13 +12,15 @@
     "test:e2e": "cd apps/web && bun run test:e2e"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "agent-browser": "^0.6.0",
     "globals": "^17.0.0",
     "lint-staged": "^15.0.0",
     "prettier": "^3.0.0",
     "turbo": "^2.0.0",
     "typescript": "^5.0.0",
-    "typescript-eslint": "^8.0.0"
+    "typescript-eslint": "^8.0.0",
+    "zod": "^3.24.1"
   },
   "packageManager": "npm@10.0.0",
   "workspaces": [

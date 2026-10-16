@@ -2,19 +2,5 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "echo 'registry=https://registry.npmjs.org' > ~/.npmrc && npm install --legacy-peer-deps --no-audit",
-  "buildCommand": "npm run build",
-  "crons": [
-    {
-      "path": "/api/odoo/cron",
-      "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/deliveries/cron",
-      "schedule": "0 6 * * *"
-    },
-    {
-      "path": "/api/recordings/process",
-      "schedule": "0 */4 * * *"
-    }
-  ]
+  "buildCommand": "npm run build"
 }

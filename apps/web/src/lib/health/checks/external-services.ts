@@ -14,9 +14,10 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { HealthCheckResult, THRESHOLDS } from '../types';
+import { getHealthModels, getWorkerPipelineStatus } from '../policy';
 
 /**
  * Helper function to race a promise against a timeout
@@ -43,8 +44,13 @@ export async function checkOdoo(): Promise<HealthCheckResult> {
   const serviceName = 'Odoo CRM';
 
   try {
-    // Get configuration from environment
-    const odooUrl = process.env.ODOO_URL || 'https://CRM.MAIYURI.COM';
+    // Get configuration from environment. No fallback host: probing a
+    // hardcoded default reports on infrastructure the app does not use, which
+    // is how a dead crm.maiyuri.com default kept this check meaningful-looking.
+    const odooUrl = process.env.ODOO_URL;
+    if (!odooUrl) {
+      throw new Error('ODOO_URL is not configured');
+    }
     const endpoint = `${odooUrl}/xmlrpc/2/common`;
 
     // Build XML-RPC request for version method (no auth required)
@@ -102,7 +108,9 @@ export async function checkOdoo(): Promise<HealthCheckResult> {
       responseTimeMs,
       errorMessage,
       metadata: {
-        endpoint: `${process.env.ODOO_URL || 'https://CRM.MAIYURI.COM'}/xmlrpc/2/common`,
+        endpoint: process.env.ODOO_URL
+          ? `${process.env.ODOO_URL}/xmlrpc/2/common`
+          : 'ODOO_URL not configured',
       },
     };
   }
@@ -134,8 +142,9 @@ export async function checkAnthropic(): Promise<HealthCheckResult> {
 
     const anthropic = new Anthropic({ apiKey });
 
+    const model = getHealthModels().anthropic;
     const checkPromise = anthropic.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model,
       max_tokens: 1,
       messages: [{ role: 'user', content: 'hi' }],
     });
@@ -200,8 +209,9 @@ export async function checkGemini(): Promise<HealthCheckResult> {
       };
     }
 
+    const modelName = getHealthModels().gemini;
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+    const model = genAI.getGenerativeModel({ model: modelName });
 
     const checkPromise = model.generateContent('hi');
 
@@ -217,7 +227,7 @@ export async function checkGemini(): Promise<HealthCheckResult> {
       status,
       responseTimeMs,
       metadata: {
-        model: 'gemini-2.0-flash-lite',
+        model: modelName,
         response: response.response.text().substring(0, 50), // First 50 chars
       },
     };
@@ -236,33 +246,38 @@ export async function checkGemini(): Promise<HealthCheckResult> {
 }
 
 /**
- * Check Resend email service availability
+ * Check email delivery (Gmail SMTP — switched from Resend).
  *
- * Validates the API key by listing API keys (lightweight operation).
+ * transporter.verify() performs the SMTP handshake + auth without sending.
  */
 export async function checkResend(): Promise<HealthCheckResult> {
   const startTime = Date.now();
-  const checkName = 'resend';
-  const serviceName = 'Resend Email';
+  const checkName = 'resend'; // keep the historic check name for continuity in logs
+  const serviceName = 'Email (Gmail SMTP)';
 
   try {
-    const apiKey = process.env.RESEND_API_KEY;
+    const user = process.env.GMAIL_SMTP_USER;
+    const pass = process.env.GMAIL_SMTP_APP_PASSWORD;
 
-    if (!apiKey) {
+    if (!user || !pass) {
       return {
         checkName,
         serviceName,
         status: 'unhealthy',
         responseTimeMs: 0,
-        errorMessage: 'Not configured - RESEND_API_KEY missing',
+        errorMessage:
+          'Not configured - GMAIL_SMTP_USER / GMAIL_SMTP_APP_PASSWORD missing',
       };
     }
 
-    const resend = new Resend(apiKey);
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user, pass },
+    });
 
-    const checkPromise = resend.apiKeys.list();
-
-    await withTimeout(checkPromise, THRESHOLDS.resend.timeoutMs);
+    await withTimeout(transporter.verify(), THRESHOLDS.resend.timeoutMs);
     const responseTimeMs = Date.now() - startTime;
 
     const status =
@@ -309,55 +324,56 @@ export async function checkWorkerPipeline(): Promise<HealthCheckResult> {
   try {
     const supabase = getSupabaseAdmin();
 
-    // Query for pending recordings
-    const { count: pendingCount, error: pendingError } = await supabase
+    // Actionable queue: pending and retryable failed recordings. Permanent
+    // historical failures remain visible but do not define live worker health.
+    const { count: actionableQueueCount, error: queueError } = await supabase
       .from('call_recordings')
       .select('*', { count: 'exact', head: true })
-      .eq('processing_status', 'pending');
+      .in('processing_status', ['pending', 'failed'])
+      .neq('phone_number', 'PENDING')
+      .lt('retry_count', 3);
 
-    if (pendingError) throw pendingError;
+    if (queueError) throw queueError;
 
-    // Query for failed recordings
-    const { count: failedCount, error: failedError } = await supabase
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count: recentFailureCount, error: recentFailureError } = await supabase
       .from('call_recordings')
       .select('*', { count: 'exact', head: true })
-      .eq('processing_status', 'failed');
+      .eq('processing_status', 'failed')
+      .neq('phone_number', 'PENDING')
+      .lt('retry_count', 3)
+      .gte('updated_at', oneDayAgo);
 
-    if (failedError) throw failedError;
+    if (recentFailureError) throw recentFailureError;
 
-    // Get oldest pending recording to check staleness
+    const { count: permanentFailureCount, error: permanentFailureError } = await supabase
+      .from('call_recordings')
+      .select('*', { count: 'exact', head: true })
+      .eq('processing_status', 'failed')
+      .gte('retry_count', 3);
+
+    if (permanentFailureError) throw permanentFailureError;
+
+    // Get oldest pending recording to show live queue staleness.
     const { data: oldestPending, error: oldestError } = await supabase
       .from('call_recordings')
       .select('created_at')
       .eq('processing_status', 'pending')
+      .neq('phone_number', 'PENDING')
       .order('created_at', { ascending: true })
       .limit(1)
       .single();
 
-    // Don't throw if no pending records found
     const oldestAge = oldestPending && !oldestError
       ? Date.now() - new Date(oldestPending.created_at).getTime()
       : null;
-
     const responseTimeMs = Date.now() - startTime;
-
-    // Determine health status based on thresholds
-    let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
-
-    const pending = pendingCount ?? 0;
-    const failed = failedCount ?? 0;
-
-    if (
-      pending > THRESHOLDS.worker.unhealthyPending ||
-      failed > THRESHOLDS.worker.unhealthyFailed
-    ) {
-      status = 'unhealthy';
-    } else if (
-      pending >= THRESHOLDS.worker.degradedPending ||
-      failed >= THRESHOLDS.worker.degradedFailed
-    ) {
-      status = 'degraded';
-    }
+    const counts = {
+      actionableQueueCount: actionableQueueCount ?? 0,
+      recentFailureCount: recentFailureCount ?? 0,
+      permanentFailureCount: permanentFailureCount ?? 0,
+    };
+    const status = getWorkerPipelineStatus(counts);
 
     return {
       checkName,
@@ -365,8 +381,12 @@ export async function checkWorkerPipeline(): Promise<HealthCheckResult> {
       status,
       responseTimeMs,
       metadata: {
-        pendingCount: pending,
-        failedCount: failed,
+        ...counts,
+        // Transitional aliases for dashboards built against the v1 metadata
+        // shape. Their values now represent the live/actionable equivalents.
+        pendingCount: counts.actionableQueueCount,
+        failedCount: counts.recentFailureCount,
+        metadataSchemaVersion: 2,
         oldestPendingAgeMs: oldestAge,
         oldestPendingAgeHours: oldestAge ? (oldestAge / (1000 * 60 * 60)).toFixed(1) : null,
       },
