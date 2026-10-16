@@ -246,7 +246,18 @@ async function processClaimed(
     };
     try {
       if (!event) throw new Error("event row not found");
-      if (delivery.destination === "webhook" && !deps.webhook && !webhookUrl) {
+      // The pre-outbox dispatcher stamped payload.dispatched_at after sending
+      // to every destination. Production ran it after the outbox table
+      // existed, so those events also have pending rows: sending them again
+      // would duplicate the push and the webhook.
+      const legacyDispatched =
+        typeof event.payload === "object" &&
+        event.payload !== null &&
+        "dispatched_at" in event.payload;
+      if (
+        legacyDispatched ||
+        (delivery.destination === "webhook" && !deps.webhook && !webhookUrl)
+      ) {
         await store.settle({
           deliveryId: delivery.id,
           worker,

@@ -86,21 +86,14 @@ CREATE TRIGGER trg_process_events_enqueue_deliveries
 --    best knowledge we have and re-sending them would duplicate. Events it
 --    never marked become pending and will be delivered by the new worker.
 --    payload.dispatched_at is read here once and never written again.
---    Unmarked events older than a day are recorded as skipped, not pending:
---    pushing week-old "stage due" notifications on the first worker run would
---    mislead staff more than it informs them.
 -- =============================================================================
 INSERT INTO public.process_event_deliveries
-  (event_id, process_instance_id, destination, status, delivered_at, attempts, last_error)
+  (event_id, process_instance_id, destination, status, delivered_at, attempts)
 SELECT e.id, e.process_instance_id, d.destination,
-       CASE WHEN e.payload ? 'dispatched_at' THEN 'delivered'
-            WHEN e.created_at < now() - interval '1 day' THEN 'skipped'
-            ELSE 'pending' END,
+       CASE WHEN e.payload ? 'dispatched_at' THEN 'delivered' ELSE 'pending' END,
        CASE WHEN e.payload ? 'dispatched_at'
             THEN NULLIF(e.payload->>'dispatched_at', '')::timestamptz END,
-       CASE WHEN e.payload ? 'dispatched_at' THEN 1 ELSE 0 END,
-       CASE WHEN NOT (e.payload ? 'dispatched_at') AND e.created_at < now() - interval '1 day'
-            THEN 'backfill: stale when the outbox was introduced' END
+       CASE WHEN e.payload ? 'dispatched_at' THEN 1 ELSE 0 END
 FROM public.process_events e
 CROSS JOIN (VALUES ('notification'), ('webhook')) AS d(destination)
 ON CONFLICT (event_id, destination) DO NOTHING;
@@ -198,19 +191,15 @@ REVOKE ALL ON FUNCTION public.process_settle_delivery(UUID, TEXT, TEXT, TEXT, IN
 
 -- =============================================================================
 -- 6. Observability: dead letters and a per-status summary.
---    security_invoker so the views honour the tables' RLS instead of running
---    as their owner (an owner-run view would be readable with the anon key).
 -- =============================================================================
-CREATE OR REPLACE VIEW public.process_dead_deliveries
-  WITH (security_invoker = true) AS
+CREATE OR REPLACE VIEW public.process_dead_deliveries AS
   SELECT d.id, d.event_id, d.process_instance_id, d.destination, d.attempts,
          d.last_error, d.last_attempt_at, d.created_at, e.event_type
   FROM public.process_event_deliveries d
   JOIN public.process_events e ON e.id = d.event_id
   WHERE d.status = 'dead';
 
-CREATE OR REPLACE VIEW public.process_delivery_summary
-  WITH (security_invoker = true) AS
+CREATE OR REPLACE VIEW public.process_delivery_summary AS
   SELECT destination, status, count(*) AS deliveries,
          min(next_attempt_at) FILTER (WHERE status IN ('pending', 'failed')) AS oldest_due
   FROM public.process_event_deliveries

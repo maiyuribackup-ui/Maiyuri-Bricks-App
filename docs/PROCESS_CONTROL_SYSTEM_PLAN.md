@@ -150,7 +150,10 @@ All writes go through SECURITY DEFINER RPCs called by API routes (the existing c
 ## 6. Phased execution plan
 
 **Step 0 — Stabilise what exists** (branch `fix/control-step0-foundations`)
-1. Land `fix/process-auth-and-event-delivery` (durable outbox and dotted-route auth). Also: backfill marks events older than a day as `skipped`, and the delivery views are `security_invoker`.
+1. Land `fix/process-auth-and-event-delivery` (durable outbox and dotted-route auth). Its migration was already applied to production and stays unchanged. A follow-up migration (`20261017090000_process_delivery_backlog_cleanup`) does three things:
+   - marks the queued backlog as delivered (already sent by the old dispatcher) or skipped (stale and never sent)
+   - makes the delivery views `security_invoker`
+   - pairs with a worker guard that never re-sends an event the old dispatcher already marked as sent
 2. Fix My Work audit: widen the `work_item_events` CHECK so approve rows stop being lost. Type `logWorkEvent` against a shared enum that mirrors the constraint.
 3. Separation of duties on approve (approver ≠ assignee), enforced by the route and by a DB CHECK. Web and native hide Approve on your own submission.
 4. From `feat/checklist-polish`: the native-side readable validation toast. Its chip and icon polish is already on main. Its server change was dropped because the web page parses the structured `validation_issues`.

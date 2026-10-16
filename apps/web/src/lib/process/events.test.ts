@@ -335,6 +335,23 @@ describe("leases and concurrency", () => {
   });
 });
 
+describe("events already sent by the pre-outbox dispatcher", () => {
+  it("are recorded as skipped on every destination and never re-sent", async () => {
+    store.add({
+      ...ev("a"),
+      payload: { dispatched_at: "2026-10-01T00:00:00Z" },
+    });
+    store.add(ev("b"));
+    const n = await dispatchPendingEvents("inst", deps());
+    expect(n).toBe(4);
+    expect(store.row("a", "notification").status).toBe("skipped");
+    expect(store.row("a", "webhook").status).toBe("skipped");
+    expect(store.row("b", "notification").status).toBe("delivered");
+    expect(okNotify).toHaveBeenCalledTimes(1);
+    expect(okWebhook).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("webhook destination", () => {
   it("is recorded as skipped when PROCESS_EVENT_WEBHOOK_URL is not configured", async () => {
     store.add(ev("a"));
