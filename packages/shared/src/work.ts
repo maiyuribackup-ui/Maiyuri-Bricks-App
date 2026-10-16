@@ -43,6 +43,30 @@ export type ChecklistResponseStatus = z.infer<
   typeof checklistResponseStatusSchema
 >;
 
+/**
+ * Mirrors the work_item_events.event_type CHECK constraint. Keep the two in
+ * sync: an event type missing from the database is rejected and, because the
+ * audit logger is best-effort, silently lost.
+ */
+export const workItemEventTypeSchema = z.enum([
+  "created",
+  "assigned",
+  "reassigned",
+  "opened",
+  "started",
+  "draft_saved",
+  "submitted",
+  "completed",
+  "returned",
+  "reopened",
+  "cancelled",
+  "photo_added",
+  "photo_removed",
+  "due_date_changed",
+  "approved",
+]);
+export type WorkItemEventType = z.infer<typeof workItemEventTypeSchema>;
+
 export const checklistInputTypeSchema = z.enum(["status", "text", "number"]);
 export type ChecklistInputType = z.infer<typeof checklistInputTypeSchema>;
 
@@ -133,7 +157,7 @@ export interface WorkItemAttachment {
 export interface WorkItemEvent {
   id: string;
   work_item_id: string;
-  event_type: string;
+  event_type: WorkItemEventType;
   old_status: string | null;
   new_status: string | null;
   performed_by: string | null;
@@ -173,6 +197,9 @@ export interface WorkItem {
   requires_photo: boolean;
   requires_note: boolean;
   requires_approval: boolean;
+  /** Supervisor who approved the submission; never the assignee */
+  approved_by?: string | null;
+  approved_at?: string | null;
   template_id: string | null;
   scheduled_date: string | null;
   created_at: string;

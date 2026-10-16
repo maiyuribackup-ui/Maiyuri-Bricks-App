@@ -36,6 +36,29 @@ import { Icon, type IconName, Touchable } from "@/ui";
 
 const WORK_ADMIN_ROLES = ["founder", "owner", "production_supervisor"];
 
+/**
+ * /submit reports checklist problems as JSON ({validation_issues: [...]}) so
+ * the web page can highlight items; turn that into a readable toast here
+ * instead of showing the raw blob.
+ */
+function friendlySubmitError(message: string | null): string {
+  if (!message) return "Submit failed";
+  try {
+    const parsed = JSON.parse(message) as {
+      validation_issues?: { message?: string }[];
+    };
+    const issues = parsed.validation_issues ?? [];
+    if (issues.length === 0) return message;
+    const n = issues.length;
+    return (
+      `Can't submit yet — please fix ${n} item${n > 1 ? "s" : ""}:\n` +
+      issues.map((i) => `• ${i.message ?? "Check this item"}`).join("\n")
+    );
+  } catch {
+    return message; // not JSON — already readable
+  }
+}
+
 type LocalResp = {
   status?: ChecklistResponseStatus | null;
   text_value?: string | null;
@@ -91,6 +114,7 @@ export default function WorkItemDetail() {
   const userId = useAuth((s) => s.session?.user?.id);
   const profile = useMyProfile(userId);
   const isSupervisor = WORK_ADMIN_ROLES.includes(profile.data?.data.role ?? "");
+  const isOwnSubmission = !!userId && item?.assigned_user_id === userId;
   const router = useRouter();
 
   // Process OS stages are mirrored into My Work; the stage panel is the real
@@ -186,7 +210,9 @@ export default function WorkItemDetail() {
         submit.mutate(undefined, {
           onSuccess: () => toast.success("Checklist submitted"),
           onError: (e) =>
-            toast.error(e instanceof Error ? e.message : "Submit failed"),
+            toast.error(
+              friendlySubmitError(e instanceof Error ? e.message : null),
+            ),
         }),
       onError: (e) =>
         toast.error(e instanceof Error ? e.message : "Save failed"),
@@ -527,6 +553,11 @@ export default function WorkItemDetail() {
                 </Pressable>
               </View>
             </>
+          ) : isOwnSubmission ? (
+            // Maker-checker: another supervisor approves (API enforces it too)
+            <Text className="text-sm text-slate-500">
+              Your own submission — another supervisor must approve it.
+            </Text>
           ) : (
             <View className="flex-row gap-2">
               <Pressable
