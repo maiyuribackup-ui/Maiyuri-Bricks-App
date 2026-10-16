@@ -187,9 +187,6 @@ export default function OpsDemandPage() {
   const q = useQuery({
     queryKey: ["oc", "demand", customer, showCompleted],
     queryFn: () => fetchJson<DemandPayload>(demandUrl),
-    // A sync in flight finishes in the background; keep the view honest.
-    refetchInterval: (query) =>
-      query.state.data?.last_sync?.status === "running" ? 10_000 : false,
   });
 
   const sync = useMutation({

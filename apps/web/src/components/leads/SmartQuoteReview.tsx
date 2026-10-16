@@ -145,7 +145,6 @@ export function SmartQuoteReview({ quote }: { quote: SmartQuote }) {
       const json = await res.json();
       return json.data as Engagement;
     },
-    refetchInterval: 60_000,
   });
 
   const saveMutation = useMutation({

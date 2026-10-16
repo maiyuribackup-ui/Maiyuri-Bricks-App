@@ -38,7 +38,6 @@ function useAllExpenses() {
   return useQuery({
     queryKey: ["expenses-all"],
     queryFn: () => getJson<AllExpensesResponse>("/api/expenses?view=all"),
-    refetchInterval: 60_000,
   });
 }
 function useVehicleRates() {
